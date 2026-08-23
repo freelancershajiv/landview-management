@@ -14,7 +14,7 @@ const securityHeaders = [
       "object-src 'none'",
       "frame-ancestors 'none'",
       "form-action 'self'",
-      "img-src 'self' data: blob: https://drive.google.com",
+      "img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com https://lh3.googleusercontent.com",
       "font-src 'self' data:",
       "connect-src 'self'",
       "style-src 'self' 'unsafe-inline'",
