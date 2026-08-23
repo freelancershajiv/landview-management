@@ -2,15 +2,9 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  clearStoredSession,
-  landViewApi,
-  TOKEN_KEY,
-} from "@/lib/api";
+import { clearStoredSession, landViewApi } from "@/lib/api";
 
 type PortalType = "admin" | "employee" | "client";
-
-const PORTAL_KEY = "land_view_portal_type";
 
 const portalOptions: Array<{
   id: PortalType;
@@ -84,10 +78,6 @@ export default function LoginPage() {
     try {
       const result = await landViewApi.login(id, password);
 
-      if (!result?.token) {
-        throw new Error("Login succeeded but no session token was returned.");
-      }
-
       const role = normalizeRole(
         result?.user?.role || result?.user?.Role
       );
@@ -98,8 +88,6 @@ export default function LoginPage() {
         );
       }
 
-      localStorage.setItem(TOKEN_KEY, result.token);
-      localStorage.setItem(PORTAL_KEY, portal);
       router.replace(portalPath(portal));
     } catch (err: any) {
       clearStoredSession();
@@ -120,7 +108,7 @@ export default function LoginPage() {
           <button
             type="button"
             className="reference-login-brand login-brand-button"
-            onClick={() => router.push("/")}
+            onClick={() => { window.location.href = "https://www.landview.com.bd"; }}
           >
             <img src="/land-view-logo.png" alt="LAND VIEW" />
             <div>

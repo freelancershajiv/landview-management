@@ -1,4 +1,10 @@
-export const TOKEN_KEY = "land_view_session_token";
+const API_URL = "/api/landview";
+const API_TIMEOUT_MS = 12000;
+const LEGACY_TOKEN_KEYS = [
+  "land_view_session_token",
+  "land_view_token",
+  "landview_token",
+];
 
 type RawResponse<T = unknown> = {
   success?: boolean;
@@ -8,45 +14,15 @@ type RawResponse<T = unknown> = {
   [key: string]: unknown;
 };
 
-const LEGACY_TOKEN_KEYS = ["land_view_token", "landview_token"];
-const API_URL = "/api/landview";
-const API_TIMEOUT_MS = 12000;
-
-function requireApiUrl() {
-  return API_URL;
-}
-
+// Authentication is now stored in an HttpOnly cookie by /api/landview.
+// This helper only removes tokens left by older frontend builds.
 export function clearStoredSession() {
   if (typeof window === "undefined") return;
-
-  localStorage.removeItem(TOKEN_KEY);
-  for (const key of LEGACY_TOKEN_KEYS) {
-    localStorage.removeItem(key);
-  }
-}
-
-export function getStoredToken() {
-  if (typeof window === "undefined") return "";
-
-  const current = localStorage.getItem(TOKEN_KEY);
-  if (current) return current;
-
-  // One-time compatibility with older LAND VIEW frontend builds.
-  for (const key of LEGACY_TOKEN_KEYS) {
-    const legacy = localStorage.getItem(key);
-    if (legacy) {
-      localStorage.setItem(TOKEN_KEY, legacy);
-      localStorage.removeItem(key);
-      return legacy;
-    }
-  }
-
-  return "";
+  for (const key of LEGACY_TOKEN_KEYS) localStorage.removeItem(key);
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
-
   let json: RawResponse<T>;
 
   try {
@@ -61,47 +37,29 @@ async function parseResponse<T>(response: Response): Promise<T> {
   }
 
   if (!response.ok) {
-    throw new Error(
-      String(json.error || json.message || `HTTP ${response.status}`)
-    );
+    throw new Error(String(json.error || json.message || `HTTP ${response.status}`));
   }
 
   if (!json.success) {
-    const message = String(json.error || json.message || "Request failed.");
-    const normalized = message.toLowerCase();
-
-    if (
-      normalized.includes("unauthorized") ||
-      normalized.includes("session expired")
-    ) {
-      clearStoredSession();
-    }
-
-    throw new Error(message);
+    throw new Error(String(json.error || json.message || "Request failed."));
   }
 
-  // Code.gs normally returns successful payloads under `data`.
-  // Direct payload responses are also tolerated for compatibility.
   return (json.data ?? (json as unknown)) as T;
 }
 
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit = {}
-) {
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
   const controller = new AbortController();
   const timer = globalThis.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
   try {
     return await fetch(input, {
       ...init,
+      credentials: "same-origin",
       signal: controller.signal,
     });
   } catch (error: unknown) {
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error(
-        "LAND VIEW server did not respond in time. Check the Apps Script /exec URL and deployment permissions."
-      );
+      throw new Error("LAND VIEW server did not respond in time.");
     }
     throw error;
   } finally {
@@ -109,22 +67,13 @@ async function fetchWithTimeout(
   }
 }
 
-async function get<T>(
-  action: string,
-  params: Record<string, unknown> = {},
-  withToken = true
-) {
+async function get<T>(action: string, params: Record<string, unknown> = {}) {
   if (typeof window === "undefined") {
     throw new Error("LAND VIEW API requests must be made from the browser.");
   }
 
-  const url = new URL(requireApiUrl(), window.location.origin);
+  const url = new URL(API_URL, window.location.origin);
   url.searchParams.set("action", action);
-
-  if (withToken) {
-    const token = getStoredToken();
-    if (token) url.searchParams.set("token", token);
-  }
 
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== "") {
@@ -136,38 +85,21 @@ async function get<T>(
     method: "GET",
     cache: "no-store",
   });
-
   return parseResponse<T>(response);
 }
 
-async function post<T>(
-  action: string,
-  body: Record<string, unknown> = {},
-  withToken = true
-) {
-  const token = withToken ? getStoredToken() : "";
-
-  const response = await fetchWithTimeout(requireApiUrl(), {
+async function post<T>(action: string, body: Record<string, unknown> = {}) {
+  const response = await fetchWithTimeout(API_URL, {
     method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify({
-      action,
-      ...(token ? { token } : {}),
-      ...body,
-    }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, ...body }),
+    cache: "no-store",
   });
-
   return parseResponse<T>(response);
 }
 
-
-export type ProjectRecord = Record<string, unknown> & {
-  Project_ID?: string;
-};
-
-export type EmployeeRecord = Record<string, unknown> & {
-  Employee_ID?: string;
-};
+export type ProjectRecord = Record<string, unknown> & { Project_ID?: string };
+export type EmployeeRecord = Record<string, unknown> & { Employee_ID?: string };
 
 export type InvoiceCreateResult = {
   invoiceId: string;
@@ -199,10 +131,7 @@ export type SessionUser = {
   Project_IDs?: string;
 };
 
-export type SessionData = {
-  authenticated: boolean;
-  user: SessionUser;
-};
+export type SessionData = { authenticated: boolean; user: SessionUser };
 
 export type DashboardData = {
   user: SessionUser;
@@ -237,113 +166,51 @@ export type ProjectBillingData = {
 };
 
 export const landViewApi = {
-  health: () => get<unknown>("health", {}, false),
-
+  health: () => get<unknown>("health"),
   login: (userId: string, password: string) =>
-    post<{ token: string; user: SessionUser }>(
-      "login",
-      { userId, password },
-      false
-    ),
-
+    post<{ user: SessionUser }>("login", { userId, password }),
   logout: () => post<{ loggedOut: boolean }>("logout"),
-
-  getSession: (token?: string) =>
-    token
-      ? get<SessionData>("getSession", { token }, false)
-      : get<SessionData>("getSession"),
-
+  getSession: () => get<SessionData>("getSession"),
   getDashboard: () => get<DashboardData>("getDashboard"),
 
   getUsers: () => get<Record<string, unknown>[]>("getUsers"),
-  createUser: (user: Record<string, unknown>) =>
-    post<unknown>("createUser", { user }),
+  createUser: (user: Record<string, unknown>) => post<unknown>("createUser", { user }),
   resetUserPassword: (userId: string) =>
-    post<{ userId: string; username: string; temporaryPassword: string }>(
-      "resetUserPassword",
-      { userId }
-    ),
+    post<{ userId: string; username: string; temporaryPassword: string }>("resetUserPassword", { userId }),
   changeOwnPassword: (currentPassword: string, newPassword: string) =>
-    post<{ changed: boolean }>("changeOwnPassword", {
-      currentPassword,
-      newPassword,
-    }),
+    post<{ changed: boolean }>("changeOwnPassword", { currentPassword, newPassword }),
 
   getProjects: () => get<Record<string, unknown>[]>("getProjects"),
-  getProject: (projectId: string) =>
-    get<Record<string, unknown>>("getProject", { projectId }),
-  createProject: (project: Record<string, unknown>) =>
-    post<ProjectRecord>("createProject", project),
-  updateProject: (projectId: string, project: Record<string, unknown>) =>
-    post<unknown>("updateProject", { projectId, ...project }),
-  deleteProject: (projectId: string) =>
-    post<unknown>("deleteProject", { projectId }),
+  getProject: (projectId: string) => get<Record<string, unknown>>("getProject", { projectId }),
+  createProject: (project: Record<string, unknown>) => post<ProjectRecord>("createProject", project),
+  updateProject: (projectId: string, project: Record<string, unknown>) => post<unknown>("updateProject", { projectId, ...project }),
+  deleteProject: (projectId: string) => post<unknown>("deleteProject", { projectId }),
 
-  getProjectEmployees: (projectId: string) =>
-    get<Record<string, unknown>[]>("getProjectEmployees", { projectId }),
-  updateProjectEmployees: (projectId: string, employeeIds: string[]) =>
-    post<unknown>("updateProjectEmployees", { projectId, employeeIds }),
-  getProjectDriveFolder: (projectId: string) =>
-    get<{ projectId: string; folderId: string; url: string }>(
-      "getProjectDriveFolder",
-      { projectId }
-    ),
+  getProjectEmployees: (projectId: string) => get<Record<string, unknown>[]>("getProjectEmployees", { projectId }),
+  updateProjectEmployees: (projectId: string, employeeIds: string[]) => post<unknown>("updateProjectEmployees", { projectId, employeeIds }),
+  getProjectDriveFolder: (projectId: string) => get<{ projectId: string; folderId: string; url: string }>("getProjectDriveFolder", { projectId }),
 
   getEmployees: () => get<Record<string, unknown>[]>("getEmployees"),
-  createEmployee: (employee: Record<string, unknown>) =>
-    post<EmployeeRecord>("createEmployee", employee),
-  updateEmployee: (employeeId: string, employee: Record<string, unknown>) =>
-    post<unknown>("updateEmployee", { employeeId, ...employee }),
-  deleteEmployee: (employeeId: string) =>
-    post<unknown>("deleteEmployee", { employeeId }),
+  createEmployee: (employee: Record<string, unknown>) => post<EmployeeRecord>("createEmployee", employee),
+  updateEmployee: (employeeId: string, employee: Record<string, unknown>) => post<unknown>("updateEmployee", { employeeId, ...employee }),
+  deleteEmployee: (employeeId: string) => post<unknown>("deleteEmployee", { employeeId }),
 
-  getDocuments: (projectId?: string) =>
-    get<Record<string, unknown>[]>(
-      "getDocuments",
-      projectId ? { projectId } : {}
-    ),
-  createDocument: (document: Record<string, unknown>) =>
-    post<unknown>("createDocument", document),
-
-  getSiteVisits: (projectId?: string) =>
-    get<Record<string, unknown>[]>(
-      "getSiteVisits",
-      projectId ? { projectId } : {}
-    ),
-  createSiteVisit: (visit: Record<string, unknown>) =>
-    post<unknown>("createSiteVisit", visit),
+  getDocuments: (projectId?: string) => get<Record<string, unknown>[]>("getDocuments", projectId ? { projectId } : {}),
+  createDocument: (document: Record<string, unknown>) => post<unknown>("createDocument", document),
+  getSiteVisits: (projectId?: string) => get<Record<string, unknown>[]>("getSiteVisits", projectId ? { projectId } : {}),
+  createSiteVisit: (visit: Record<string, unknown>) => post<unknown>("createSiteVisit", visit),
 
   getBillingDashboard: () => get<BillingDashboardData>("getBillingDashboard"),
-  getProjectBilling: (projectId: string) =>
-    get<ProjectBillingData>("getProjectBilling", { projectId }),
-  getBillingRecords: (projectId: string, category?: string) =>
-    get<Record<string, unknown>[]>("getBillingRecords", {
-      projectId,
-      category,
-    }),
+  getProjectBilling: (projectId: string) => get<ProjectBillingData>("getProjectBilling", { projectId }),
+  getBillingRecords: (projectId: string, category?: string) => get<Record<string, unknown>[]>("getBillingRecords", { projectId, category }),
   saveBill: (bill: Record<string, unknown>) => post<unknown>("saveBill", bill),
-  createBill: (bill: Record<string, unknown>) =>
-    post<unknown>("createBill", bill),
+  createBill: (bill: Record<string, unknown>) => post<unknown>("createBill", bill),
 
-  getPayments: (projectId?: string) =>
-    get<Record<string, unknown>[]>(
-      "getPayments",
-      projectId ? { projectId } : {}
-    ),
-  savePayment: (payment: Record<string, unknown>) =>
-    post<unknown>("savePayment", payment),
-  createPayment: (payment: Record<string, unknown>) =>
-    post<unknown>("createPayment", payment),
-
-  getInvoices: (projectId?: string) =>
-    get<Record<string, unknown>[]>(
-      "getInvoices",
-      projectId ? { projectId } : {}
-    ),
-  createInvoice: (projectId: string) =>
-    post<InvoiceCreateResult>("createInvoice", { projectId }),
-
+  getPayments: (projectId?: string) => get<Record<string, unknown>[]>("getPayments", projectId ? { projectId } : {}),
+  savePayment: (payment: Record<string, unknown>) => post<unknown>("savePayment", payment),
+  createPayment: (payment: Record<string, unknown>) => post<unknown>("createPayment", payment),
+  getInvoices: (projectId?: string) => get<Record<string, unknown>[]>("getInvoices", projectId ? { projectId } : {}),
+  createInvoice: (projectId: string) => post<InvoiceCreateResult>("createInvoice", { projectId }),
   getPermissions: () => get<Record<string, unknown>[]>("getPermissions"),
-  createPermission: (permission: Record<string, unknown>) =>
-    post<unknown>("createPermission", permission),
+  createPermission: (permission: Record<string, unknown>) => post<unknown>("createPermission", permission),
 };

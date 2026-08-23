@@ -43,3 +43,7 @@ npm run dev
 ## Deployment
 
 Push the project to GitHub, import the repository into Vercel, configure `LAND_VIEW_API_URL`, deploy, then add `landview.com.bd` under Vercel Domains.
+
+## Security deployment
+
+Before deploying this secured build, follow `SECURITY_SETUP.md`. It includes the required Apps Script migration and the `LAND_VIEW_PROXY_SECRET` Vercel configuration.

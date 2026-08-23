@@ -3,12 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import {
-  clearStoredSession,
-  getStoredToken,
-  landViewApi,
-  SessionUser,
-} from "@/lib/api";
+import { clearStoredSession, landViewApi, SessionUser } from "@/lib/api";
 
 const nav = [
   { href: "/admin", label: "Dashboard" },
@@ -43,16 +38,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     }, SESSION_WATCHDOG_MS);
 
     async function verify() {
-      const token = getStoredToken();
-
-      if (!token) {
-        window.clearTimeout(watchdog);
-        if (!cancelled) router.replace("/login");
-        return;
-      }
-
       try {
-        const session = await landViewApi.getSession(token);
+        const session = await landViewApi.getSession();
 
         if (!session?.authenticated) {
           throw new Error("Session expired");

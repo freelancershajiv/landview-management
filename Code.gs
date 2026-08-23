@@ -27,9 +27,35 @@
 ========================================================= */
 
 const CONFIG = {
-  SPREADSHEET_ID: "",
+  SPREADSHEET_ID: "1PDUQsDrEvbNBb1ZHrIJffhLKGo61mcgS",
 
-  SESSION_HOURS: 24,
+  // LAND VIEW master Google Drive folder.
+  // Every project folder is created/reused inside this folder.
+  ROOT_FOLDER_ID: "1UkXpEI4Evw9b2x5E5vjIqmuYFBe2tcjX",
+
+  // Security: short absolute lifetime plus idle timeout.
+  SESSION_HOURS: 8,
+  SESSION_IDLE_MINUTES: 45,
+  SESSION_TOUCH_MINUTES: 5,
+
+  // Apps Script-friendly password stretching. The unique salt is stored per user;
+  // a secret pepper is generated in Script Properties and never stored in Sheets.
+  PASSWORD_HASH_ROUNDS: 3000,
+  LOGIN_MAX_FAILURES: 5,
+  LOGIN_WINDOW_MINUTES: 15,
+  LOGIN_LOCK_MINUTES: 15,
+
+  INVOICE: {
+    LOGO_FILE_NAME: "LAND VIEW Logo.png",
+    TITLE: "LAND VIEW",
+    SUBTITLE: "BUILDING DESIGN & ARCHITECTURE",
+    BILL_LABEL: "ENGINEERING BILL",
+    ADDRESS_LINE_1: "F.Rahman AC Market (2nd Floor)",
+    ADDRESS_LINE_2: "S.S.K Road, Feni Sadar, Feni-3900, Bangladesh",
+    EMAIL: "landviewcivil@gmail.com",
+    PHONE_1: "(Engr. Rony): +88 0140 8080 400",
+    PHONE_2: "(Arch. Shajiv): +88 01902 500 400"
+  },
 
   SHEETS: {
     USERS: "Users",
@@ -40,7 +66,8 @@ const CONFIG = {
     INVOICES: "Invoices",
     PAYMENTS: "Payments",
     BILLS: "Bills",
-    PERMISSIONS: "Permissions"
+    PERMISSIONS: "Permissions",
+    AUDIT_LOG: "Audit Log"
   }
 };
 
@@ -169,6 +196,9 @@ function handleAction(
   method
 ) {
 
+  authorizeProxyRequest_(params);
+  authorizeActionRequest(action, params);
+
   switch (action) {
 
     case "health":
@@ -183,6 +213,9 @@ function handleAction(
     case "getSession":
       return getSession(params);
 
+    case "initializeRoleSecurity":
+      return initializeRoleSecurity();
+
     case "getDashboard":
       return getDashboard(params);
 
@@ -191,6 +224,12 @@ function handleAction(
 
     case "createUser":
       return createUser(params);
+
+    case "resetUserPassword":
+      return resetUserPassword(params);
+
+    case "changeOwnPassword":
+      return changeOwnPassword(params);
 
     case "getProjects":
       return getProjects(params);
@@ -215,6 +254,9 @@ function handleAction(
 
     case "getProjectDriveFolder":
       return getProjectDriveFolder(params);
+
+    case "syncProjectDriveFolders":
+      return syncProjectDriveFolders(params);
 
     case "getEmployees":
       return getEmployees(params);
@@ -333,1051 +375,904 @@ function health() {
 
 
 /* =========================================================
-   AUTHENTICATION
+   AUTHENTICATION + ROLE SECURITY
 ========================================================= */
 
-/* =========================================================
-   AUTHENTICATION
-========================================================= */
+const ROLE_ACCESS = {
+  employee: [
+    "getProjects",
+    "getProject",
+    "getDocuments",
+    "createDocument",
+    "getSiteVisits",
+    "createSiteVisit",
+    "changeOwnPassword"
+  ],
+  client: [
+    "getProjects",
+    "getProject",
+    "getDocuments",
+    "getProjectBilling",
+    "getBillingRecords",
+    "getPayments",
+    "getInvoices",
+    "changeOwnPassword"
+  ]
+};
+
+function normalizeRoleName(value) {
+  return normalize(value).replace(/\s+/g, "");
+}
+
+function isAdminRole(role) {
+  const r = normalizeRoleName(role);
+  return r === "admin" || r === "manager";
+}
+
+function getOrCreateProxySecret_() {
+  const props = PropertiesService.getScriptProperties();
+  let secret = props.getProperty("PROXY_SHARED_SECRET");
+  if (!secret) {
+    secret = Utilities.getUuid() + "-" + Utilities.getUuid() + "-" + Utilities.getUuid();
+    props.setProperty("PROXY_SHARED_SECRET", secret);
+  }
+  return secret;
+}
+
+function authorizeProxyRequest_(params) {
+  const expected = String(PropertiesService.getScriptProperties().getProperty("PROXY_SHARED_SECRET") || "");
+  if (!expected) throw new Error("Backend security is not initialized.");
+  const supplied = String((params && params.proxySecret) || "");
+  if (!constantTimeEqual_(expected, supplied)) throw new Error("Unauthorized gateway.");
+}
+
+function authorizeActionRequest(action, params) {
+  const publicActions = ["health", "login"];
+  if (publicActions.includes(action)) return null;
+
+  const session = requireSession(params);
+  const role = normalizeRoleName(session.role);
+
+  if (isAdminRole(role)) return session;
+
+  const allowed = ROLE_ACCESS[role] || [];
+  if (!allowed.includes(action)) {
+    throw new Error("Access denied for role: " + (session.role || "Unknown"));
+  }
+
+  return session;
+}
+
+function splitIds(value) {
+  if (Array.isArray(value)) {
+    return value.map(x => String(x).trim()).filter(Boolean);
+  }
+  return String(value || "")
+    .split(",")
+    .map(x => x.trim())
+    .filter(Boolean);
+}
+
+function uniqueIds(values) {
+  const seen = {};
+  return values.filter(value => {
+    const key = String(value || "").trim();
+    if (!key || seen[key]) return false;
+    seen[key] = true;
+    return true;
+  });
+}
+
+function findUserRecordForSession(session) {
+  const users = readSheet(CONFIG.SHEETS.USERS);
+  const targetId = String(session.userId || "").trim();
+  const targetUsername = normalize(session.username || "");
+
+  return users.find(user => {
+    const userId = String(firstValue(user, ["User_ID", "User ID", "UserId"]) || "").trim();
+    const username = normalize(firstValue(user, ["Username", "username", "User_Name", "User Name"]));
+    return (targetId && userId === targetId) || (targetUsername && username === targetUsername);
+  }) || null;
+}
+
+function getEmployeeRecordForSession(session) {
+  const employees = readSheet(CONFIG.SHEETS.EMPLOYEES);
+  const employeeId = String(session.employeeId || "").trim();
+  const userId = String(session.userId || "").trim();
+
+  return employees.find(employee => {
+    const rowEmployeeId = String(firstValue(employee, ["Employee_ID", "Employee ID", "EmployeeId"]) || "").trim();
+    const rowUserId = String(firstValue(employee, ["User_ID", "User ID", "UserId"]) || "").trim();
+    return (employeeId && rowEmployeeId === employeeId) || (userId && rowUserId === userId);
+  }) || null;
+}
+
+function getAllowedProjectIds(session) {
+  if (isAdminRole(session.role)) return null;
+
+  let ids = splitIds(session.projectIds || "");
+  const user = findUserRecordForSession(session);
+
+  if (user) {
+    ids = ids.concat(splitIds(firstValue(user, ["Project_IDs", "Project IDs", "Projects", "Project_ID", "Project ID"])));
+  }
+
+  const role = normalizeRoleName(session.role);
+
+  if (role === "employee") {
+    const employee = getEmployeeRecordForSession(session);
+    if (employee) {
+      ids = ids.concat(splitIds(firstValue(employee, ["Project_IDs", "Project IDs", "Projects", "Project_ID", "Project ID"])));
+    }
+  }
+
+  if (role === "client") {
+    const projects = readSheet(CONFIG.SHEETS.PROJECTS);
+    const userId = String(session.userId || "").trim();
+    const username = normalize(session.username || "");
+
+    projects.forEach(project => {
+      const linkedUserId = String(firstValue(project, ["Client_User_ID", "Client User ID", "User_ID", "User ID"]) || "").trim();
+      const linkedUsername = normalize(firstValue(project, ["Client_Username", "Client Username"]));
+      if ((userId && linkedUserId === userId) || (username && linkedUsername === username)) {
+        ids.push(String(firstValue(project, ["Project_ID", "Project ID", "ProjectId"]) || "").trim());
+      }
+    });
+  }
+
+  return uniqueIds(ids);
+}
+
+function assertProjectAccess(session, projectId) {
+  const id = String(projectId || "").trim();
+  if (!id) throw new Error("Project ID is required.");
+  if (isAdminRole(session.role)) return true;
+
+  const allowed = getAllowedProjectIds(session) || [];
+  if (!allowed.includes(id)) {
+    throw new Error("Access denied to project " + id + ".");
+  }
+  return true;
+}
+
+function scopeProjectRecordsForSession(session, records) {
+  if (isAdminRole(session.role)) return records;
+  const allowed = getAllowedProjectIds(session) || [];
+  return records.filter(record => {
+    const projectId = String(firstValue(record, ["Project_ID", "Project ID", "ProjectId"]) || "").trim();
+    return allowed.includes(projectId);
+  });
+}
+
+
+function sanitizeProjectForRole(project, role) {
+  const r = normalizeRoleName(role);
+  if (r === "admin" || r === "manager") return project;
+
+  return {
+    Project_ID: firstValue(project, ["Project_ID", "Project ID", "ProjectId"]),
+    Project_Name: firstValue(project, ["Project_Name", "Project Name", "Name"]),
+    Client_Name: r === "client" ? firstValue(project, ["Client_Name", "Client Name"]) : "",
+    Project_Type: firstValue(project, ["Project_Type", "Project Type"]),
+    Location: firstValue(project, ["Location", "Project_Location", "Project Location"]),
+    Status: firstValue(project, ["Status", "status"]),
+    Start_Date: firstValue(project, ["Start_Date", "Start Date"])
+  };
+}
+
+function sanitizeDocumentForClient(record) {
+  return {
+    Document_ID: firstValue(record, ["Document_ID", "Document ID"]),
+    Project_ID: firstValue(record, ["Project_ID", "Project ID"]),
+    Document_Name: firstValue(record, ["Document_Name", "Document Name", "Name"]),
+    Document_Type: firstValue(record, ["Document_Type", "Document Type", "Type"]),
+    Document_Date: firstValue(record, ["Document_Date", "Document Date"]),
+    File_URL: firstValue(record, ["File_URL", "File URL", "URL", "Document_URL"])
+  };
+}
+
+function sanitizeInvoiceForClient(record) {
+  return {
+    Invoice_ID: firstValue(record, ["Invoice_ID", "Invoice ID"]),
+    Project_ID: firstValue(record, ["Project_ID", "Project ID"]),
+    Invoice_Date: firstValue(record, ["Invoice_Date", "Invoice Date"]),
+    Status: firstValue(record, ["Status", "status"]),
+    Total_Bill: firstValue(record, ["Total_Bill", "Total Bill", "Amount"]),
+    Total_Paid: firstValue(record, ["Total_Paid", "Total Paid"]),
+    Due_Amount: firstValue(record, ["Due_Amount", "Due Amount", "Due"]),
+    PDF_URL: firstValue(record, ["PDF_URL", "PDF URL", "Invoice_URL"]),
+    Download_URL: firstValue(record, ["Download_URL", "Download URL"])
+  };
+}
+function isClientVisible(record) {
+  const value = firstValue(record, ["Client_Visible", "Client Visible", "Visible_To_Client", "Visible to Client"]);
+  const v = normalize(value);
+  return v === "true" || v === "yes" || v === "1" || v === "client" || v === "shared";
+}
+
+function sanitizeBillingRecordForClient(record, kind) {
+  if (kind === "payment") {
+    return {
+      Payment_ID: firstValue(record, ["Payment_ID", "Payment ID"]),
+      Project_ID: firstValue(record, ["Project_ID", "Project ID"]),
+      Payment_Date: firstValue(record, ["Payment_Date", "Payment Date"]),
+      Amount: firstValue(record, ["Amount", "Payment_Amount"]),
+      Payment_Method: firstValue(record, ["Payment_Method", "Payment Method"]),
+      Reference_No: firstValue(record, ["Reference_No", "Reference No"])
+    };
+  }
+
+  return {
+    Bill_ID: firstValue(record, ["Bill_ID", "Bill ID"]),
+    Project_ID: firstValue(record, ["Project_ID", "Project ID"]),
+    Bill_Date: firstValue(record, ["Bill_Date", "Bill Date"]),
+    Description: firstValue(record, ["Description", "Service", "Item"]),
+    Amount: firstValue(record, ["Amount", "Bill_Amount", "Total", "Grand_Total"]),
+    Status: firstValue(record, ["Status", "status"])
+  };
+}
 
 function loginUser(params) {
-
-  const identifier =
-    String(
-      params.userId ||
-      params.User_ID ||
-      params.username ||
-      params.Username ||
-      ""
-    ).trim();
-
-  const password =
-    String(
-      params.password ||
-      params.Password ||
-      ""
-    );
-
+  const identifier = String(params.userId || params.User_ID || params.username || params.Username || "").trim();
+  const password = String(params.password || params.Password || "");
 
   if (!identifier || !password) {
-
-    return {
-      success: false,
-      message:
-        "Invalid User ID or password."
-    };
-
+    return { success: false, message: "Invalid User ID or password." };
   }
 
+  try {
+    assertLoginAllowed_(identifier);
+  } catch (e) {
+    auditSecurityEvent_(null, "LOGIN_BLOCKED", sha256Hex_(normalize(identifier)), "DENIED", "Rate limit");
+    return { success: false, message: e.message || "Too many failed sign-in attempts. Try again later." };
+  }
 
-  const users =
-    readSheet(
-      CONFIG.SHEETS.USERS
-    );
-
-
+  const users = readSheet(CONFIG.SHEETS.USERS);
   if (!users || !users.length) {
-
-    return {
-      success: false,
-      message:
-        "No users found in the Users sheet."
-    };
-
+    return { success: false, message: "Invalid User ID or password." };
   }
 
-
-  const normalizedIdentifier =
-    normalize(identifier);
-
-
+  const normalizedIdentifier = normalize(identifier);
+  const phoneIdentifier = normalizePhoneIdentifier(identifier);
   let foundUser = null;
 
+  for (let i = 0; i < users.length; i++) {
+    const user = users[i];
+    const rowUserId = normalize(firstValue(user, ["User_ID", "User ID", "UserId", "userId"]));
+    const rowUsername = normalize(firstValue(user, ["Username", "username", "User_Name", "User Name"]));
+    const rowPhoneUsername = normalizePhoneIdentifier(firstValue(user, ["Username", "username", "Phone", "Phone_Number"]));
+    const identifierMatches = normalizedIdentifier === rowUserId || normalizedIdentifier === rowUsername || (phoneIdentifier && phoneIdentifier === rowPhoneUsername);
 
-  for (
-    let i = 0;
-    i < users.length;
-    i++
-  ) {
-
-    const user =
-      users[i];
-
-
-    const rowUserId =
-      normalize(
-        firstValue(
-          user,
-          [
-            "User_ID",
-            "User ID",
-            "UserId",
-            "userId"
-          ]
-        )
-      );
-
-
-    const rowUsername =
-      normalize(
-        firstValue(
-          user,
-          [
-            "Username",
-            "username",
-            "User_Name",
-            "User Name"
-          ]
-        )
-      );
-
-
-    const rowPassword =
-      String(
-        firstValue(
-          user,
-          [
-            "Password",
-            "password"
-          ]
-        ) ?? ""
-      );
-
-
-    const active =
-      isActiveUser(
-        user
-      );
-
-
-    const identifierMatches =
-      normalizedIdentifier === rowUserId ||
-      normalizedIdentifier === rowUsername;
-
-
-    if (
-      identifierMatches &&
-      password === rowPassword &&
-      active
-    ) {
-
-      foundUser =
-        user;
-
+    if (identifierMatches && isActiveUser(user) && verifyUserPassword_(user, password)) {
+      foundUser = user;
       break;
-
     }
-
   }
-
 
   if (!foundUser) {
-
-    return {
-      success: false,
-      message:
-        "Invalid User ID or password."
-    };
-
+    registerFailedLogin_(identifier);
+    auditSecurityEvent_(null, "LOGIN_FAILED", sha256Hex_(normalize(identifier)), "DENIED", "Invalid credentials");
+    return { success: false, message: "Invalid User ID or password." };
   }
 
+  clearLoginGuard_(identifier);
 
-  const token =
-    createSession(
-      foundUser
-    );
+  // Transparently migrate a legacy plaintext password after a successful login.
+  if (!String(firstValue(foundUser, ["Password_Hash"]) || "")) {
+    migrateUserPasswordRow_(foundUser, password);
+  }
 
+  const role = normalizeRoleName(firstValue(foundUser, ["Role", "role"]));
+  if (!["admin", "manager", "employee", "client"].includes(role)) {
+    return { success: false, message: "This account does not have a supported LAND VIEW role." };
+  }
 
-  const safeUser =
-    sanitizeUser(
-      foundUser
-    );
-
-
-  return {
-
-    success: true,
-
-    data: {
-
-      token:
-        token,
-
-      user:
-        safeUser
-
-    }
-
-  };
-
+  const token = createSession(foundUser);
+  const safeUser = sanitizeUser(foundUser);
+  auditSecurityEvent_({ userId: safeUser.userId, role: safeUser.role }, "LOGIN", "", "SUCCESS", "");
+  return { success: true, data: { token: token, user: safeUser } };
 }
-
-
-/* =========================================================
-   SESSION
-========================================================= */
 
 function createSession(user) {
-
-  const token =
-    Utilities.getUuid() +
-    "-" +
-    Utilities.getUuid();
-
-
-  const userId =
-    firstValue(
-      user,
-      [
-        "User_ID",
-        "User ID",
-        "UserId"
-      ]
-    );
-
-
-  const username =
-    firstValue(
-      user,
-      [
-        "Username",
-        "username",
-        "User_Name",
-        "User Name"
-      ]
-    );
-
-
-  const name =
-    firstValue(
-      user,
-      [
-        "Name",
-        "name"
-      ]
-    );
-
-
-  const role =
-    firstValue(
-      user,
-      [
-        "Role",
-        "role"
-      ]
-    );
-
-
-  const now =
-    Date.now();
-
-
+  const token = Utilities.getUuid() + "-" + Utilities.getUuid() + "-" + Utilities.getUuid();
+  const now = Date.now();
   const session = {
-
-    userId:
-      String(
-        userId || ""
-      ),
-
-    username:
-      String(
-        username || ""
-      ),
-
-    name:
-      String(
-        name || ""
-      ),
-
-    role:
-      String(
-        role || ""
-      ),
-
-    createdAt:
-      now,
-
-    expiresAt:
-      now +
-      CONFIG.SESSION_HOURS *
-      60 *
-      60 *
-      1000
-
+    userId: String(firstValue(user, ["User_ID", "User ID", "UserId"]) || ""),
+    username: String(firstValue(user, ["Username", "username", "User_Name", "User Name"]) || ""),
+    name: String(firstValue(user, ["Name", "name"]) || ""),
+    role: String(firstValue(user, ["Role", "role"]) || ""),
+    employeeId: String(firstValue(user, ["Employee_ID", "Employee ID", "EmployeeId"]) || ""),
+    projectIds: String(firstValue(user, ["Project_IDs", "Project IDs", "Projects", "Project_ID", "Project ID"]) || ""),
+    createdAt: now,
+    lastSeenAt: now,
+    expiresAt: now + Number(CONFIG.SESSION_HOURS || 8) * 60 * 60 * 1000
   };
 
-
-  PropertiesService
-    .getScriptProperties()
-    .setProperty(
-      "SESSION_" + token,
-      JSON.stringify(session)
-    );
-
-
+  PropertiesService.getScriptProperties().setProperty(sessionPropertyKey_(token), JSON.stringify(session));
   return token;
-
 }
-
-
-/* =========================================================
-   READ SESSION
-========================================================= */
 
 function readSession(token) {
+  const cleanToken = String(token || "").trim();
+  if (!cleanToken) return null;
 
-  const cleanToken =
-    String(
-      token || ""
-    ).trim();
-
-
-  if (!cleanToken) {
-    return null;
-  }
-
-
-  const key =
-    "SESSION_" +
-    cleanToken;
-
-
-  const raw =
-    PropertiesService
-      .getScriptProperties()
-      .getProperty(key);
-
-
-  if (!raw) {
-    return null;
-  }
-
+  const props = PropertiesService.getScriptProperties();
+  const key = sessionPropertyKey_(cleanToken);
+  const raw = props.getProperty(key);
+  if (!raw) return null;
 
   let session;
-
-
   try {
-
-    session =
-      JSON.parse(raw);
-
-  } catch {
-
-    PropertiesService
-      .getScriptProperties()
-      .deleteProperty(key);
-
+    session = JSON.parse(raw);
+  } catch (e) {
+    props.deleteProperty(key);
     return null;
-
   }
 
-
-  if (
-    !session ||
-    !session.expiresAt
-  ) {
-
-    PropertiesService
-      .getScriptProperties()
-      .deleteProperty(key);
-
+  const now = Date.now();
+  const idleMs = Number(CONFIG.SESSION_IDLE_MINUTES || 45) * 60 * 1000;
+  if (!session || !session.expiresAt || now > Number(session.expiresAt) || (session.lastSeenAt && now - Number(session.lastSeenAt) > idleMs)) {
+    props.deleteProperty(key);
     return null;
-
   }
 
-
-  if (
-    Date.now() >
-    Number(
-      session.expiresAt
-    )
-  ) {
-
-    PropertiesService
-      .getScriptProperties()
-      .deleteProperty(key);
-
-    return null;
-
+  const touchMs = Number(CONFIG.SESSION_TOUCH_MINUTES || 5) * 60 * 1000;
+  if (!session.lastSeenAt || now - Number(session.lastSeenAt) >= touchMs) {
+    session.lastSeenAt = now;
+    props.setProperty(key, JSON.stringify(session));
   }
-
 
   return session;
-
 }
-
-
-/* =========================================================
-   GET SESSION
-========================================================= */
 
 function getSession(params) {
-
-  const token =
-    String(
-      params.token || ""
-    ).trim();
-
-
-  if (!token) {
-
-    return {
-      success: false,
-      message:
-        "Session expired."
-    };
-
-  }
-
-
-  const session =
-    readSession(
-      token
-    );
-
-
-  if (!session) {
-
-    return {
-      success: false,
-      message:
-        "Session expired."
-    };
-
-  }
-
+  const session = readSession(String(params.token || "").trim());
+  if (!session) return { success: false, message: "Session expired." };
 
   return {
-
     success: true,
-
     data: {
-
       authenticated: true,
-
       user: {
-
-        userId:
-          session.userId,
-
-        username:
-          session.username,
-
-        name:
-          session.name,
-
-        role:
-          session.role,
-
-        User_ID:
-          session.userId,
-
-        Username:
-          session.username,
-
-        Name:
-          session.name,
-
-        Role:
-          session.role
-
+        userId: session.userId,
+        username: session.username,
+        name: session.name,
+        role: session.role,
+        employeeId: session.employeeId || "",
+        projectIds: session.projectIds || "",
+        User_ID: session.userId,
+        Username: session.username,
+        Name: session.name,
+        Role: session.role,
+        Employee_ID: session.employeeId || "",
+        Project_IDs: session.projectIds || ""
       }
-
     }
-
   };
-
 }
-
-
-/* =========================================================
-   REQUIRE SESSION
-========================================================= */
 
 function requireSession(params) {
-
-  const token =
-    String(
-      params.token || ""
-    ).trim();
-
-
-  if (!token) {
-
-    throw new Error(
-      "Unauthorized"
-    );
-
-  }
-
-
-  const session =
-    readSession(
-      token
-    );
-
-
-  if (!session) {
-
-    throw new Error(
-      "Unauthorized"
-    );
-
-  }
-
-
+  const token = String(params.token || "").trim();
+  if (!token) throw new Error("Unauthorized");
+  const session = readSession(token);
+  if (!session) throw new Error("Unauthorized");
   return session;
-
 }
-
-
-/* =========================================================
-   LOGOUT
-========================================================= */
 
 function logoutUser(params) {
-
-  const token =
-    String(
-      params.token || ""
-    ).trim();
-
-
-  if (token) {
-
-    PropertiesService
-      .getScriptProperties()
-      .deleteProperty(
-        "SESSION_" + token
-      );
-
-  }
-
-
-  return {
-
-    success: true,
-
-    data: {
-      loggedOut: true
-    }
-
-  };
-
+  const token = String(params.token || "").trim();
+  const session = token ? readSession(token) : null;
+  if (token) PropertiesService.getScriptProperties().deleteProperty(sessionPropertyKey_(token));
+  if (session) auditSecurityEvent_(session, "LOGOUT", "", "SUCCESS", "");
+  return { success: true, data: { loggedOut: true } };
 }
-
-
-/* =========================================================
-   SANITIZE USER
-========================================================= */
 
 function sanitizeUser(user) {
-
-  const userId =
-    firstValue(
-      user,
-      [
-        "User_ID",
-        "User ID",
-        "UserId"
-      ]
-    );
-
-
-  const username =
-    firstValue(
-      user,
-      [
-        "Username",
-        "username",
-        "User_Name",
-        "User Name"
-      ]
-    );
-
-
-  const name =
-    firstValue(
-      user,
-      [
-        "Name",
-        "name"
-      ]
-    );
-
-
-  const role =
-    firstValue(
-      user,
-      [
-        "Role",
-        "role"
-      ]
-    );
-
+  const userId = firstValue(user, ["User_ID", "User ID", "UserId"]);
+  const username = firstValue(user, ["Username", "username", "User_Name", "User Name"]);
+  const name = firstValue(user, ["Name", "name"]);
+  const role = firstValue(user, ["Role", "role"]);
+  const employeeId = firstValue(user, ["Employee_ID", "Employee ID", "EmployeeId"]);
+  const projectIds = firstValue(user, ["Project_IDs", "Project IDs", "Projects", "Project_ID", "Project ID"]);
 
   return {
-
-    userId:
-      userId,
-
-    username:
-      username,
-
-    name:
-      name,
-
-    role:
-      role,
-
-    User_ID:
-      userId,
-
-    Username:
-      username,
-
-    Name:
-      name,
-
-    Role:
-      role
-
+    userId, username, name, role, employeeId, projectIds,
+    User_ID: userId, Username: username, Name: name, Role: role,
+    Employee_ID: employeeId, Project_IDs: projectIds
   };
-
 }
 
-
-/* =========================================================
-   SESSION
-========================================================= */
-
-function createSession(user) {
-
-  const token =
-    Utilities.getUuid() +
-    "-" +
-    Utilities.getUuid();
-
-
-  const session = {
-
-    userId:
-      firstValue(
-        user,
-        [
-          "User_ID",
-          "User ID",
-          "UserId"
-        ]
-      ),
-
-    username:
-      firstValue(
-        user,
-        [
-          "Username",
-          "username"
-        ]
-      ),
-
-    name:
-      firstValue(
-        user,
-        [
-          "Name",
-          "name"
-        ]
-      ),
-
-    role:
-      firstValue(
-        user,
-        [
-          "Role",
-          "role"
-        ]
-      ),
-
-    createdAt:
-      Date.now(),
-
-    expiresAt:
-      Date.now() +
-      CONFIG.SESSION_HOURS *
-      60 *
-      60 *
-      1000
-
-  };
-
-
-  PropertiesService
-    .getScriptProperties()
-    .setProperty(
-      "SESSION_" + token,
-      JSON.stringify(session)
-    );
-
-
-  return token;
-
-}
-
-
-function getSession(params) {
-
-  const token =
-    String(
-      params.token || ""
-    ).trim();
-
-
-  if (!token) {
-
-    return {
-      success: false,
-      message: "Session expired."
-    };
-
-  }
-
-
-  const session =
-    readSession(
-      token
-    );
-
-
-  if (!session) {
-
-    return {
-      success: false,
-      message: "Session expired."
-    };
-
-  }
-
-
-  return {
-    success: true,
-
-    data: {
-      authenticated: true,
-
-      user: {
-        userId:
-          session.userId,
-
-        username:
-          session.username,
-
-        name:
-          session.name,
-
-        role:
-          session.role,
-
-        User_ID:
-          session.userId,
-
-        Username:
-          session.username,
-
-        Name:
-          session.name,
-
-        Role:
-          session.role
-      }
+function ensureHeaders_(sheet, requiredHeaders) {
+  let headers = getHeaders(sheet);
+  requiredHeaders.forEach(header => {
+    if (findHeaderIndex(headers, [header]) < 0) {
+      sheet.getRange(1, headers.length + 1).setValue(header);
+      headers.push(header);
     }
-  };
+  });
+  return headers;
+}
 
+function ensureUserSecurityHeaders() {
+  return ensureHeaders_(getSheet(CONFIG.SHEETS.USERS), [
+    "Employee_ID",
+    "Project_IDs",
+    "Must_Change_Password",
+    "Created_Date",
+    "Password_Hash",
+    "Password_Salt",
+    "Password_Updated_At"
+  ]);
+}
+
+function ensureProjectClientSecurityHeaders() {
+  return ensureHeaders_(getSheet(CONFIG.SHEETS.PROJECTS), [
+    "Client_User_ID",
+    "Client_Username"
+  ]);
+}
+
+function normalizePhoneIdentifier(value) {
+  let digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  if (digits.indexOf("880") === 0 && digits.length >= 13) {
+    digits = "0" + digits.substring(3);
+  } else if (digits.indexOf("88") === 0 && digits.length >= 13) {
+    digits = digits.substring(2);
+  }
+  return digits;
+}
+
+function generateTemporaryPassword_() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, Utilities.getUuid() + Date.now());
+  let out = "Lv@";
+  for (let i = 0; i < 7; i++) {
+    const n = Math.abs(bytes[i]) % alphabet.length;
+    out += alphabet.charAt(n);
+  }
+  return out + "!";
 }
 
 
-function readSession(token) {
+function bytesToHex_(bytes) {
+  return bytes.map(function(b) {
+    const n = b < 0 ? b + 256 : b;
+    return ("0" + n.toString(16)).slice(-2);
+  }).join("");
+}
 
-  const key =
-    "SESSION_" + token;
+function sha256Hex_(value) {
+  return bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(value || ""), Utilities.Charset.UTF_8));
+}
 
-
-  const raw =
-    PropertiesService
-      .getScriptProperties()
-      .getProperty(key);
-
-
-  if (!raw) {
-    return null;
+function getAuthPepper_() {
+  const props = PropertiesService.getScriptProperties();
+  let pepper = props.getProperty("AUTH_PEPPER");
+  if (!pepper) {
+    pepper = Utilities.getUuid() + "-" + Utilities.getUuid() + "-" + Utilities.getUuid();
+    props.setProperty("AUTH_PEPPER", pepper);
   }
+  return pepper;
+}
 
+function newPasswordSalt_() {
+  return Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, "");
+}
 
-  let session;
+function derivePasswordHash_(password, salt) {
+  const pepper = getAuthPepper_();
+  let value = String(salt || "") + "|" + String(password || "") + "|" + pepper;
+  const rounds = Math.max(1, Number(CONFIG.PASSWORD_HASH_ROUNDS || 3000));
+  for (let i = 0; i < rounds; i++) {
+    value = sha256Hex_(value + "|" + salt + "|" + pepper);
+  }
+  return value;
+}
 
+function constantTimeEqual_(a, b) {
+  a = String(a || "");
+  b = String(b || "");
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
 
+function passwordFields_(password) {
+  const salt = newPasswordSalt_();
+  return {
+    Password: "",
+    Password_Hash: derivePasswordHash_(password, salt),
+    Password_Salt: salt,
+    Password_Updated_At: new Date().toISOString()
+  };
+}
+
+function verifyUserPassword_(user, password) {
+  const hash = String(firstValue(user, ["Password_Hash", "Password Hash"]) || "");
+  const salt = String(firstValue(user, ["Password_Salt", "Password Salt"]) || "");
+  if (hash && salt) {
+    return constantTimeEqual_(hash, derivePasswordHash_(password, salt));
+  }
+  // Temporary backward compatibility for accounts not migrated yet.
+  return constantTimeEqual_(String(firstValue(user, ["Password", "password"]) || ""), String(password || ""));
+}
+
+function migrateUserPasswordRow_(user, plainPassword) {
+  const userId = String(firstValue(user, ["User_ID", "User ID", "UserId"]) || "").trim();
+  if (!userId) return;
+  const found = findUserRow_(function(u) {
+    return String(firstValue(u, ["User_ID", "User ID", "UserId"]) || "").trim() === userId;
+  });
+  if (found) setRowValuesByHeader_(found, passwordFields_(plainPassword));
+}
+
+function sessionPropertyKey_(token) {
+  return "SESSION_" + sha256Hex_(String(token || "") + "|" + getAuthPepper_());
+}
+
+function revokeUserSessions_(userId) {
+  const target = String(userId || "").trim();
+  if (!target) return;
+  const props = PropertiesService.getScriptProperties();
+  const all = props.getProperties();
+  Object.keys(all).forEach(function(key) {
+    if (key.indexOf("SESSION_") !== 0) return;
+    try {
+      const session = JSON.parse(all[key]);
+      if (String(session.userId || "").trim() === target) props.deleteProperty(key);
+    } catch (e) {}
+  });
+}
+
+function loginGuardKey_(identifier) {
+  return "LOGIN_GUARD_" + sha256Hex_(normalize(identifier) + "|" + getAuthPepper_());
+}
+
+function readLoginGuard_(identifier) {
+  const raw = PropertiesService.getScriptProperties().getProperty(loginGuardKey_(identifier));
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+
+function assertLoginAllowed_(identifier) {
+  const guard = readLoginGuard_(identifier);
+  if (guard && Number(guard.lockedUntil || 0) > Date.now()) {
+    throw new Error("Too many failed sign-in attempts. Try again later.");
+  }
+}
+
+function registerFailedLogin_(identifier) {
+  const props = PropertiesService.getScriptProperties();
+  const key = loginGuardKey_(identifier);
+  const now = Date.now();
+  const windowMs = Number(CONFIG.LOGIN_WINDOW_MINUTES || 15) * 60 * 1000;
+  const lockMs = Number(CONFIG.LOGIN_LOCK_MINUTES || 15) * 60 * 1000;
+  let guard = readLoginGuard_(identifier) || { failures: 0, windowStartedAt: now, lockedUntil: 0 };
+  if (!guard.windowStartedAt || now - Number(guard.windowStartedAt) > windowMs) {
+    guard = { failures: 0, windowStartedAt: now, lockedUntil: 0 };
+  }
+  guard.failures = Number(guard.failures || 0) + 1;
+  if (guard.failures >= Number(CONFIG.LOGIN_MAX_FAILURES || 5)) guard.lockedUntil = now + lockMs;
+  props.setProperty(key, JSON.stringify(guard));
+}
+
+function clearLoginGuard_(identifier) {
+  PropertiesService.getScriptProperties().deleteProperty(loginGuardKey_(identifier));
+}
+
+function ensureAuditLog_() {
+  const sheet = getSheet(CONFIG.SHEETS.AUDIT_LOG);
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["Timestamp", "User_ID", "Role", "Action", "Target", "Result", "Details"]);
+  }
+  return sheet;
+}
+
+function auditSecurityEvent_(session, action, target, result, details) {
   try {
-
-    session =
-      JSON.parse(raw);
-
-  } catch {
-
-    PropertiesService
-      .getScriptProperties()
-      .deleteProperty(key);
-
-    return null;
-
-  }
-
-
-  if (
-    !session.expiresAt ||
-    Date.now() >
-    Number(session.expiresAt)
-  ) {
-
-    PropertiesService
-      .getScriptProperties()
-      .deleteProperty(key);
-
-    return null;
-
-  }
-
-
-  return session;
-
+    ensureAuditLog_().appendRow([
+      new Date(),
+      session && session.userId ? session.userId : "",
+      session && session.role ? session.role : "",
+      String(action || ""),
+      String(target || ""),
+      String(result || ""),
+      String(details || "").slice(0, 500)
+    ]);
+  } catch (e) {}
 }
 
+// Run once from the Apps Script editor after deploying this upgrade.
+// It creates the security fields, secret pepper, audit log, and migrates plaintext passwords.
+function initializeSecurityUpgrade() {
+  ensureUserSecurityHeaders();
+  ensureAuditLog_();
+  getAuthPepper_();
+  const proxySecret = getOrCreateProxySecret_();
+  const sheet = getSheet(CONFIG.SHEETS.USERS);
+  const values = sheet.getDataRange().getValues();
+  if (values.length < 2) return { migrated: 0, proxySecret: proxySecret, message: "LAND VIEW security upgrade initialized. Copy proxySecret into Vercel as LAND_VIEW_PROXY_SECRET." };
+  const headers = values[0].map(function(x) { return String(x).trim(); });
+  const passwordCol = findHeaderIndex(headers, ["Password", "password"]);
+  const hashCol = findHeaderIndex(headers, ["Password_Hash"]);
+  const saltCol = findHeaderIndex(headers, ["Password_Salt"]);
+  const updatedCol = findHeaderIndex(headers, ["Password_Updated_At"]);
+  let migrated = 0;
+  for (let i = 1; i < values.length; i++) {
+    const plain = passwordCol >= 0 ? String(values[i][passwordCol] || "") : "";
+    const existingHash = hashCol >= 0 ? String(values[i][hashCol] || "") : "";
+    if (!plain || existingHash) continue;
+    const fields = passwordFields_(plain);
+    if (passwordCol >= 0) sheet.getRange(i + 1, passwordCol + 1).setValue("");
+    if (hashCol >= 0) sheet.getRange(i + 1, hashCol + 1).setValue(fields.Password_Hash);
+    if (saltCol >= 0) sheet.getRange(i + 1, saltCol + 1).setValue(fields.Password_Salt);
+    if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(fields.Password_Updated_At);
+    migrated++;
+  }
+  return {
+    migrated: migrated,
+    proxySecret: proxySecret,
+    message: "LAND VIEW security upgrade initialized. Copy proxySecret into Vercel as LAND_VIEW_PROXY_SECRET."
+  };
+}
 
-function logoutUser(params) {
+function findUserRow_(predicate) {
+  const sheet = getSheet(CONFIG.SHEETS.USERS);
+  const values = sheet.getDataRange().getValues();
+  if (!values.length) return null;
+  const headers = values[0].map(x => String(x).trim());
+  for (let i = 1; i < values.length; i++) {
+    const row = {};
+    headers.forEach((h, j) => row[h] = values[i][j]);
+    if (predicate(row)) return { sheet, headers, rowIndex: i + 1, record: row };
+  }
+  return null;
+}
 
-  const token =
-    String(
-      params.token || ""
-    ).trim();
+function setRowValuesByHeader_(found, updates) {
+  Object.keys(updates).forEach(key => {
+    const col = findHeaderIndex(found.headers, [key]);
+    if (col >= 0) found.sheet.getRange(found.rowIndex, col + 1).setValue(updates[key]);
+  });
+}
 
+function appendUserRecord_(record) {
+  const sheet = getSheet(CONFIG.SHEETS.USERS);
+  const headers = ensureUserSecurityHeaders();
+  if (!record.User_ID) record.User_ID = generateId("USR-", sheet, "User_ID");
+  sheet.appendRow(headers.map(h => record[h] ?? ""));
+  return record;
+}
 
-  if (token) {
+function ensureEmployeeLoginAccount_(employee) {
+  const employeeId = String(firstValue(employee, ["Employee_ID", "Employee ID", "EmployeeId"]) || "").trim();
+  if (!employeeId) throw new Error("Employee_ID is required to create an employee login.");
 
-    PropertiesService
-      .getScriptProperties()
-      .deleteProperty(
-        "SESSION_" + token
-      );
+  const existing = findUserRow_(u =>
+    normalizeRoleName(firstValue(u, ["Role", "role"])) === "employee" &&
+    (String(firstValue(u, ["Employee_ID", "Employee ID"]) || "").trim() === employeeId ||
+     normalize(firstValue(u, ["User_ID", "User ID"])) === normalize(employeeId) ||
+     normalize(firstValue(u, ["Username", "username"])) === normalize(employeeId))
+  );
 
+  if (existing) {
+    setRowValuesByHeader_(existing, {
+      Name: firstValue(employee, ["Employee_Name", "Employee Name", "Name"]) || employeeId,
+      Employee_ID: employeeId,
+      Active: "TRUE"
+    });
+    return { created: false, userId: firstValue(existing.record, ["User_ID"]), username: firstValue(existing.record, ["Username"]) || employeeId, temporaryPassword: "" };
   }
 
+  const temporaryPassword = generateTemporaryPassword_();
+  const record = appendUserRecord_(Object.assign({
+    User_ID: employeeId,
+    Name: firstValue(employee, ["Employee_Name", "Employee Name", "Name"]) || employeeId,
+    Username: employeeId,
+    Role: "Employee",
+    Active: "TRUE",
+    Employee_ID: employeeId,
+    Project_IDs: firstValue(employee, ["Project_IDs", "Project IDs", "Projects", "Project_ID"]) || "",
+    Must_Change_Password: "TRUE",
+    Created_Date: new Date()
+  }, passwordFields_(temporaryPassword)));
+  return { created: true, userId: record.User_ID, username: record.Username, temporaryPassword };
+}
+
+function ensureClientLoginAccountForProject_(project) {
+  const projectId = String(firstValue(project, ["Project_ID", "Project ID", "ProjectId"]) || "").trim();
+  const phoneRaw = String(firstValue(project, ["Phone_Number", "Phone Number", "Phone", "Client_Phone"]) || "").trim();
+  const username = normalizePhoneIdentifier(phoneRaw);
+  if (!projectId || !username) return { created: false, skipped: true, reason: "Client phone number not provided." };
+
+  const existing = findUserRow_(u => {
+    if (normalizeRoleName(firstValue(u, ["Role", "role"])) !== "client") return false;
+    return normalizePhoneIdentifier(firstValue(u, ["Username", "username", "Phone", "Phone_Number"])) === username;
+  });
+
+  if (existing) {
+    const ids = uniqueIds(splitIds(firstValue(existing.record, ["Project_IDs", "Project IDs", "Projects"])).concat([projectId]));
+    setRowValuesByHeader_(existing, {
+      Name: firstValue(project, ["Client_Name", "Client Name"]) || firstValue(existing.record, ["Name"]) || "LAND VIEW Client",
+      Username: username,
+      Project_IDs: ids.join(", "),
+      Active: "TRUE"
+    });
+    const userId = String(firstValue(existing.record, ["User_ID"]) || "");
+    project.Client_User_ID = userId;
+    project.Client_Username = username;
+    return { created: false, userId, username, temporaryPassword: "", projectIds: ids.join(", ") };
+  }
+
+  const usersSheet = getSheet(CONFIG.SHEETS.USERS);
+  ensureUserSecurityHeaders();
+  const temporaryPassword = generateTemporaryPassword_();
+  const userId = generateId("CLT-", usersSheet, "User_ID");
+  appendUserRecord_(Object.assign({
+    User_ID: userId,
+    Name: firstValue(project, ["Client_Name", "Client Name"]) || "LAND VIEW Client",
+    Username: username,
+    Role: "Client",
+    Active: "TRUE",
+    Employee_ID: "",
+    Project_IDs: projectId,
+    Must_Change_Password: "TRUE",
+    Created_Date: new Date()
+  }, passwordFields_(temporaryPassword)));
+  project.Client_User_ID = userId;
+  project.Client_Username = username;
+  return { created: true, userId, username, temporaryPassword, projectIds: projectId };
+}
+
+function initializeRoleSecurity() {
+  ensureUserSecurityHeaders();
+  ensureProjectClientSecurityHeaders();
+  ensureAuditLog_();
+  getAuthPepper_();
+
+  const documentSheet = getSheet(CONFIG.SHEETS.DOCUMENTS);
+  let documentHeaders = getHeaders(documentSheet);
+  if (findHeaderIndex(documentHeaders, ["Client_Visible", "Client Visible"]) < 0) {
+    documentSheet.getRange(1, documentHeaders.length + 1).setValue("Client_Visible");
+  }
 
   return {
     success: true,
-
     data: {
-      loggedOut: true
+      initialized: true,
+      message: "Role security and automatic employee/client account fields are ready."
     }
   };
-
 }
 
-
-/* =========================================================
-   REQUIRE SESSION
-========================================================= */
-
-function requireSession(params) {
-
-  const token =
-    String(
-      params.token || ""
-    ).trim();
-
-
-  if (!token) {
-
-    throw new Error(
-      "Unauthorized"
-    );
-
-  }
-
-
-  const session =
-    readSession(
-      token
-    );
-
-
-  if (!session) {
-
-    throw new Error(
-      "Unauthorized"
-    );
-
-  }
-
-
-  return session;
-
+function sanitizeUserForAdminList_(user) {
+  return {
+    User_ID: firstValue(user, ["User_ID", "User ID"]),
+    Name: firstValue(user, ["Name", "name"]),
+    Username: firstValue(user, ["Username", "username"]),
+    Role: firstValue(user, ["Role", "role"]),
+    Active: firstValue(user, ["Active", "Status"]),
+    Employee_ID: firstValue(user, ["Employee_ID", "Employee ID"]),
+    Project_IDs: firstValue(user, ["Project_IDs", "Project IDs", "Projects"]),
+    Must_Change_Password: firstValue(user, ["Must_Change_Password"]),
+    Created_Date: firstValue(user, ["Created_Date", "Created Date"])
+  };
 }
 
+function resetUserPassword(params) {
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  const target = String(params.userId || params.User_ID || "").trim();
+  if (!target) throw new Error("User ID is required.");
+  const found = findUserRow_(function(u) { return String(firstValue(u, ["User_ID", "User ID"]) || "").trim() === target; });
+  if (!found) throw new Error("User not found.");
+  const temporaryPassword = generateTemporaryPassword_();
+  setRowValuesByHeader_(found, Object.assign({}, passwordFields_(temporaryPassword), { Must_Change_Password: "TRUE", Active: "TRUE" }));
+  revokeUserSessions_(target);
+  auditSecurityEvent_(session, "RESET_PASSWORD", target, "SUCCESS", "");
+  return { success: true, data: { userId: target, username: firstValue(found.record, ["Username"]), temporaryPassword } };
+}
+
+function changeOwnPassword(params) {
+  const session = requireSession(params);
+  const currentPassword = String(params.currentPassword || "");
+  const newPassword = String(params.newPassword || "");
+  if (newPassword.length < 10) throw new Error("New password must be at least 10 characters.");
+  if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+    throw new Error("Use upper and lower case letters, a number, and a symbol.");
+  }
+  const found = findUserRow_(function(u) { return String(firstValue(u, ["User_ID", "User ID"]) || "").trim() === String(session.userId || "").trim(); });
+  if (!found) throw new Error("User not found.");
+  if (!verifyUserPassword_(found.record, currentPassword)) throw new Error("Current password is incorrect.");
+  setRowValuesByHeader_(found, Object.assign({}, passwordFields_(newPassword), { Must_Change_Password: "FALSE" }));
+  revokeUserSessions_(session.userId);
+  auditSecurityEvent_(session, "CHANGE_PASSWORD", session.userId, "SUCCESS", "All sessions revoked");
+  return { success: true, data: { changed: true, reauthenticationRequired: true } };
+}
 
 /* =========================================================
    USERS
 ========================================================= */
 
 function getUsers(params) {
-
-  requireSession(params);
-
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
   return {
     success: true,
-    data:
-      readSheet(
-        CONFIG.SHEETS.USERS
-      )
+    data: readSheet(CONFIG.SHEETS.USERS).map(sanitizeUserForAdminList_)
   };
-
 }
 
 
 function createUser(params) {
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
-  requireSession(params);
+  const user = Object.assign({}, params.user || params);
+  delete user.action;
+  delete user.token;
+  delete user.proxySecret;
 
-  const user =
-    params.user || params;
+  const plainPassword = String(user.Password || user.password || "");
+  delete user.password;
+  if (plainPassword) Object.assign(user, passwordFields_(plainPassword));
 
+  const sheet = getSheet(CONFIG.SHEETS.USERS);
+  const headers = ensureUserSecurityHeaders();
+  if (!user.User_ID && !user.userId) user.User_ID = generateId("USR-", sheet, "User_ID");
 
-  const sheet =
-    getSheet(
-      CONFIG.SHEETS.USERS
-    );
-
-
-  const headers =
-    getHeaders(sheet);
-
-
-  const row =
-    headers.map(
-      header => {
-
-        if (
-          header === "User_ID"
-        ) {
-
-          return user.User_ID ||
-            user.userId ||
-            generateId(
-              "USR-",
-              sheet,
-              "User_ID"
-            );
-
-        }
-
-        return user[header] ??
-          "";
-
-      }
-    );
-
-
+  const row = headers.map(function(header) {
+    if (header === "User_ID") return user.User_ID || user.userId || "";
+    return user[header] !== undefined ? user[header] : "";
+  });
   sheet.appendRow(row);
 
-
-  return {
-    success: true,
-    data: {
-      created: true,
-      user: user
-    }
-  };
-
+  auditSecurityEvent_(session, "CREATE_USER", user.User_ID || user.userId || "", "SUCCESS", String(user.Role || user.role || ""));
+  return { success: true, data: { created: true, user: sanitizeUserForAdminList_(user) } };
 }
 
-
 /* =========================================================
+   PROJECTS/* =========================================================
    PROJECTS
 ========================================================= */
 
 function getProjects(params) {
-
-  requireSession(params);
-
-  return {
-    success: true,
-
-    data:
-      readSheet(
-        CONFIG.SHEETS.PROJECTS
-      )
-  };
-
+  const session = requireSession(params);
+  let projects = scopeProjectRecordsForSession(session, readSheet(CONFIG.SHEETS.PROJECTS));
+  if (!isAdminRole(session.role)) {
+    projects = projects.map(project => sanitizeProjectForRole(project, session.role));
+  }
+  return { success: true, data: projects };
 }
 
 
 function getProject(params) {
+  const session = requireSession(params);
+  const projectId = String(params.projectId || "").trim();
+  assertProjectAccess(session, projectId);
 
-  requireSession(params);
+  const project = readSheet(CONFIG.SHEETS.PROJECTS).find(p =>
+    String(firstValue(p, ["Project_ID", "Project ID", "ProjectId"]) || "").trim() === projectId
+  );
 
-  const projectId =
-    String(
-      params.projectId || ""
-    ).trim();
-
-
-  const projects =
-    readSheet(
-      CONFIG.SHEETS.PROJECTS
-    );
-
-
-  const project =
-    projects.find(
-      p =>
-        String(
-          firstValue(
-            p,
-            [
-              "Project_ID",
-              "Project ID",
-              "ProjectId"
-            ]
-          )
-        ).trim() ===
-        projectId
-    );
-
-
-  if (!project) {
-
-    throw new Error(
-      "Project not found."
-    );
-
-  }
-
-
-  return {
-    success: true,
-    data: project
-  };
-
+  if (!project) throw new Error("Project not found.");
+  return { success: true, data: sanitizeProjectForRole(project, session.role) };
 }
 
 
 function createProject(params) {
 
-  const session =
-    requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   const project =
     Object.assign({}, params);
 
   delete project.action;
   delete project.token;
+  delete project.proxySecret;
 
 
   const sheet =
@@ -1386,8 +1281,10 @@ function createProject(params) {
     );
 
 
-  const headers =
-    getHeaders(sheet);
+  ensureProjectDriveHeaders(sheet);
+  ensureProjectClientSecurityHeaders();
+
+  const headers = getHeaders(sheet);
 
 
   if (!project.Project_ID) {
@@ -1402,6 +1299,24 @@ function createProject(params) {
   }
 
 
+  /*
+   * Create the complete Google Drive structure BEFORE the
+   * project row is written, so a newly created project is
+   * immediately ready for documents and invoices.
+   */
+  const drive =
+    ensureProjectDriveStructureForRecord(
+      project
+    );
+
+
+  applyDriveStructureToProject(
+    project,
+    drive
+  );
+
+  const clientAccount = ensureClientLoginAccountForProject_(project);
+
   const row =
     headers.map(
       h =>
@@ -1415,7 +1330,7 @@ function createProject(params) {
 
   return {
     success: true,
-    data: project
+    data: Object.assign({}, project, { project: project, clientAccount: clientAccount })
   };
 
 }
@@ -1423,7 +1338,8 @@ function createProject(params) {
 
 function updateProject(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   const projectId =
     String(
@@ -1543,7 +1459,8 @@ function updateProject(params) {
 
 function deleteProject(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   const projectId =
     String(
@@ -1619,12 +1536,14 @@ function deleteProject(params) {
 
 function getProjectEmployees(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
 
   const projectId =
     String(
       params.projectId || ""
     ).trim();
+
+  assertProjectAccess(session, projectId);
 
 
   const employees =
@@ -1666,7 +1585,8 @@ function getProjectEmployees(params) {
 
 function updateProjectEmployees(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   const projectId =
     String(
@@ -1840,13 +1760,136 @@ function updateProjectEmployees(params) {
 ========================================================= */
 
 function getProjectDriveFolder(params) {
+  const session = requireSession(params);
+  const projectId = String(params.projectId || params.Project_ID || "").trim();
+  assertProjectAccess(session, projectId);
 
-  requireSession(params);
+  const drive = ensureProjectDriveStructure(projectId);
+  return {
+    success: true,
+    data: {
+      projectId: projectId,
+      folderId: drive.projectFolder.getId(),
+      url: drive.projectFolder.getUrl(),
+      documentsFolderId: drive.documentsFolder.getId(),
+      documentsUrl: drive.documentsFolder.getUrl(),
+      invoicesFolderId: drive.invoicesFolder.getId(),
+      invoicesUrl: drive.invoicesFolder.getUrl(),
+      rootFolderId: drive.rootFolder.getId(),
+      rootUrl: drive.rootFolder.getUrl()
+    }
+  };
+}
 
-  const projectId =
+
+/* =========================================================
+   DRIVE — AUTOMATIC PROJECT FOLDER STRUCTURE
+========================================================= */
+
+function getLandViewRootFolder() {
+
+  const rootFolderId =
     String(
-      params.projectId || ""
+      CONFIG.ROOT_FOLDER_ID ||
+      ""
     ).trim();
+
+
+  if (!rootFolderId) {
+
+    throw new Error(
+      "CONFIG.ROOT_FOLDER_ID is not configured."
+    );
+
+  }
+
+
+  try {
+
+    return DriveApp
+      .getFolderById(
+        rootFolderId
+      );
+
+  } catch (error) {
+
+    throw new Error(
+      "LAND VIEW root Drive folder could not be opened. Check CONFIG.ROOT_FOLDER_ID and Apps Script Drive permissions."
+    );
+
+  }
+
+}
+
+
+function ensureProjectDriveHeaders(sheet) {
+
+  const requiredHeaders = [
+    "Drive_Folder_ID",
+    "Drive_Folder_URL",
+    "Documents_Folder_ID",
+    "Documents_Folder_URL",
+    "Invoices_Folder_ID",
+    "Invoices_Folder_URL"
+  ];
+
+
+  let headers =
+    getHeaders(
+      sheet
+    );
+
+
+  requiredHeaders.forEach(
+    header => {
+
+      if (
+        findHeaderIndex(
+          headers,
+          [header]
+        ) < 0
+      ) {
+
+        sheet
+          .getRange(
+            1,
+            headers.length + 1
+          )
+          .setValue(
+            header
+          );
+
+        headers.push(
+          header
+        );
+
+      }
+
+    }
+  );
+
+
+  return headers;
+
+}
+
+
+function getProjectRecordById(projectId) {
+
+  const target =
+    String(
+      projectId ||
+      ""
+    ).trim();
+
+
+  if (!target) {
+
+    throw new Error(
+      "Project ID is required."
+    );
+
+  }
 
 
   const projects =
@@ -1857,16 +1900,18 @@ function getProjectDriveFolder(params) {
 
   const project =
     projects.find(
-      p =>
+      item =>
         String(
           firstValue(
-            p,
+            item,
             [
               "Project_ID",
-              "Project ID"
+              "Project ID",
+              "ProjectId"
             ]
-          )
-        ).trim() === projectId
+          ) ||
+          ""
+        ).trim() === target
     );
 
 
@@ -1879,35 +1924,631 @@ function getProjectDriveFolder(params) {
   }
 
 
-  const folderId =
+  return project;
+
+}
+
+
+function getProjectIdValue(project) {
+
+  return String(
     firstValue(
       project,
       [
-        "Drive_Folder_ID",
-        "Drive Folder ID",
-        "Folder_ID"
+        "Project_ID",
+        "Project ID",
+        "ProjectId"
       ]
+    ) ||
+    ""
+  ).trim();
+
+}
+
+
+function getProjectNameValue(project) {
+
+  const projectId =
+    getProjectIdValue(
+      project
     );
 
 
-  const folderUrl =
+  return String(
     firstValue(
       project,
       [
-        "Drive_Folder_URL",
-        "Drive Folder URL",
-        "Folder_URL"
+        "Project_Name",
+        "Project Name",
+        "Name"
       ]
+    ) ||
+    projectId ||
+    "Project"
+  ).trim();
+
+}
+
+
+function buildProjectFolderName(project) {
+
+  const projectId =
+    getProjectIdValue(
+      project
+    );
+
+
+  const projectName =
+    getProjectNameValue(
+      project
+    );
+
+
+  const name =
+    projectId &&
+    projectName &&
+    normalize(projectName) !==
+      normalize(projectId)
+      ? projectId +
+        " - " +
+        projectName
+      : projectId ||
+        projectName ||
+        "LAND VIEW Project";
+
+
+  return sanitizeFileName(
+    name
+  );
+
+}
+
+
+function tryGetFolderById(folderId) {
+
+  const cleanId =
+    String(
+      folderId ||
+      ""
+    ).trim();
+
+
+  if (!cleanId) {
+    return null;
+  }
+
+
+  try {
+
+    return DriveApp
+      .getFolderById(
+        cleanId
+      );
+
+  } catch (error) {
+
+    return null;
+
+  }
+
+}
+
+
+function findExistingProjectFolder(
+  rootFolder,
+  project
+) {
+
+  let folderId =
+    String(
+      firstValue(
+        project,
+        [
+          "Drive_Folder_ID",
+          "Drive Folder ID",
+          "Folder_ID"
+        ]
+      ) ||
+      ""
+    ).trim();
+
+
+  const folderUrl =
+    String(
+      firstValue(
+        project,
+        [
+          "Drive_Folder_URL",
+          "Drive Folder URL",
+          "Folder_URL"
+        ]
+      ) ||
+      ""
+    ).trim();
+
+
+  if (
+    !folderId &&
+    folderUrl
+  ) {
+
+    folderId =
+      extractDriveFolderId(
+        folderUrl
+      );
+
+  }
+
+
+  const folderById =
+    tryGetFolderById(
+      folderId
+    );
+
+
+  if (folderById) {
+    return folderById;
+  }
+
+
+  const desiredName =
+    buildProjectFolderName(
+      project
+    );
+
+
+  const exactFolders =
+    rootFolder
+      .getFoldersByName(
+        desiredName
+      );
+
+
+  if (exactFolders.hasNext()) {
+    return exactFolders.next();
+  }
+
+
+  /*
+   * If the project name changed, reuse any existing folder
+   * beginning with the same Project_ID instead of creating
+   * a duplicate folder.
+   */
+  const projectId =
+    getProjectIdValue(
+      project
+    );
+
+
+  if (projectId) {
+
+    const folders =
+      rootFolder
+        .getFolders();
+
+
+    while (
+      folders.hasNext()
+    ) {
+
+      const folder =
+        folders.next();
+
+      const name =
+        String(
+          folder.getName() ||
+          ""
+        );
+
+
+      if (
+        name === projectId ||
+        name.indexOf(
+          projectId +
+          " - "
+        ) === 0
+      ) {
+
+        return folder;
+
+      }
+
+    }
+
+  }
+
+
+  return null;
+
+}
+
+
+function ensureProjectDriveStructureForRecord(
+  project
+) {
+
+  const projectId =
+    getProjectIdValue(
+      project
+    );
+
+
+  if (!projectId) {
+
+    throw new Error(
+      "Project_ID is required before creating its Drive folders."
+    );
+
+  }
+
+
+  const rootFolder =
+    getLandViewRootFolder();
+
+
+  let projectFolder =
+    findExistingProjectFolder(
+      rootFolder,
+      project
+    );
+
+
+  if (!projectFolder) {
+
+    projectFolder =
+      rootFolder
+        .createFolder(
+          buildProjectFolderName(
+            project
+          )
+        );
+
+  }
+
+
+  const documentsFolder =
+    getOrCreateChildFolder(
+      projectFolder,
+      "Documents"
+    );
+
+
+  const invoicesFolder =
+    getOrCreateChildFolder(
+      projectFolder,
+      "Invoices"
     );
 
 
   return {
-    success: true,
+    rootFolder: rootFolder,
+    projectFolder: projectFolder,
+    documentsFolder: documentsFolder,
+    invoicesFolder: invoicesFolder
+  };
+
+}
+
+
+function applyDriveStructureToProject(
+  project,
+  drive
+) {
+
+  project.Drive_Folder_ID =
+    drive.projectFolder.getId();
+
+  project.Drive_Folder_URL =
+    drive.projectFolder.getUrl();
+
+  project.Documents_Folder_ID =
+    drive.documentsFolder.getId();
+
+  project.Documents_Folder_URL =
+    drive.documentsFolder.getUrl();
+
+  project.Invoices_Folder_ID =
+    drive.invoicesFolder.getId();
+
+  project.Invoices_Folder_URL =
+    drive.invoicesFolder.getUrl();
+
+
+  return project;
+
+}
+
+
+function writeProjectDriveStructure(
+  projectId,
+  drive
+) {
+
+  const sheet =
+    getSheet(
+      CONFIG.SHEETS.PROJECTS
+    );
+
+
+  const headers =
+    ensureProjectDriveHeaders(
+      sheet
+    );
+
+
+  const idColumn =
+    findHeaderIndex(
+      headers,
+      [
+        "Project_ID",
+        "Project ID",
+        "ProjectId"
+      ]
+    );
+
+
+  if (idColumn < 0) {
+
+    throw new Error(
+      "Project_ID column not found."
+    );
+
+  }
+
+
+  const values =
+    sheet
+      .getDataRange()
+      .getValues();
+
+
+  const target =
+    String(
+      projectId ||
+      ""
+    ).trim();
+
+
+  const updates = {
+    Drive_Folder_ID:
+      drive.projectFolder.getId(),
+    Drive_Folder_URL:
+      drive.projectFolder.getUrl(),
+    Documents_Folder_ID:
+      drive.documentsFolder.getId(),
+    Documents_Folder_URL:
+      drive.documentsFolder.getUrl(),
+    Invoices_Folder_ID:
+      drive.invoicesFolder.getId(),
+    Invoices_Folder_URL:
+      drive.invoicesFolder.getUrl()
+  };
+
+
+  for (
+    let rowIndex = 1;
+    rowIndex < values.length;
+    rowIndex++
+  ) {
+
+    if (
+      String(
+        values[rowIndex][idColumn]
+      ).trim() !== target
+    ) {
+      continue;
+    }
+
+
+    Object.keys(updates)
+      .forEach(
+        header => {
+
+          const column =
+            findHeaderIndex(
+              headers,
+              [header]
+            );
+
+
+          if (column >= 0) {
+
+            sheet
+              .getRange(
+                rowIndex + 1,
+                column + 1
+              )
+              .setValue(
+                updates[header]
+              );
+
+          }
+
+        }
+      );
+
+
+    return updates;
+
+  }
+
+
+  throw new Error(
+    "Project not found while saving Drive folder information."
+  );
+
+}
+
+
+function ensureProjectDriveStructure(
+  projectOrId
+) {
+
+  const project =
+    typeof projectOrId ===
+      "string"
+      ? getProjectRecordById(
+          projectOrId
+        )
+      : projectOrId;
+
+
+  if (!project) {
+
+    throw new Error(
+      "Project not found."
+    );
+
+  }
+
+
+  const drive =
+    ensureProjectDriveStructureForRecord(
+      project
+    );
+
+
+  const projectId =
+    getProjectIdValue(
+      project
+    );
+
+
+  writeProjectDriveStructure(
+    projectId,
+    drive
+  );
+
+
+  applyDriveStructureToProject(
+    project,
+    drive
+  );
+
+
+  return drive;
+
+}
+
+
+/* =========================================================
+   DRIVE — BULK INITIALIZATION / MIGRATION
+========================================================= */
+
+function syncProjectDriveFolders(params) {
+
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+
+  return syncAllProjectDriveFolders_();
+
+}
+
+
+/*
+ * Run this ONCE directly from the Apps Script editor after
+ * deploying this upgraded Code.gs if you want every existing
+ * project folder created immediately.
+ *
+ * It does not require a web-app session because it is intended
+ * for manual execution by the Apps Script owner.
+ */
+function initializeProjectDriveFolders() {
+
+  return syncAllProjectDriveFolders_();
+
+}
+
+
+function syncAllProjectDriveFolders_() {
+
+  const projects =
+    readSheet(
+      CONFIG.SHEETS.PROJECTS
+    );
+
+
+  const results = [];
+  let createdOrLinked = 0;
+  let failed = 0;
+
+
+  projects.forEach(
+    project => {
+
+      const projectId =
+        getProjectIdValue(
+          project
+        );
+
+
+      if (!projectId) {
+        return;
+      }
+
+
+      try {
+
+        const drive =
+          ensureProjectDriveStructure(
+            project
+          );
+
+
+        createdOrLinked++;
+
+        results.push({
+          projectId: projectId,
+          success: true,
+          projectFolderId:
+            drive.projectFolder.getId(),
+          projectFolderUrl:
+            drive.projectFolder.getUrl(),
+          documentsFolderId:
+            drive.documentsFolder.getId(),
+          documentsFolderUrl:
+            drive.documentsFolder.getUrl(),
+          invoicesFolderId:
+            drive.invoicesFolder.getId(),
+          invoicesFolderUrl:
+            drive.invoicesFolder.getUrl()
+        });
+
+      } catch (error) {
+
+        failed++;
+
+        results.push({
+          projectId: projectId,
+          success: false,
+          error:
+            error &&
+            error.message
+              ? error.message
+              : String(error)
+        });
+
+      }
+
+    }
+  );
+
+
+  return {
+    success:
+      failed === 0,
 
     data: {
-      projectId: projectId,
-      folderId: folderId || "",
-      url: folderUrl || ""
+      rootFolderId:
+        CONFIG.ROOT_FOLDER_ID,
+      projectCount:
+        projects.length,
+      synced:
+        createdOrLinked,
+      failed:
+        failed,
+      results:
+        results
     }
   };
 
@@ -1920,7 +2561,8 @@ function getProjectDriveFolder(params) {
 
 function getEmployees(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   return {
     success: true,
@@ -1936,13 +2578,15 @@ function getEmployees(params) {
 
 function createEmployee(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   const employee =
     Object.assign({}, params);
 
   delete employee.action;
   delete employee.token;
+  delete employee.proxySecret;
 
 
   const sheet =
@@ -1974,10 +2618,11 @@ function createEmployee(params) {
     )
   );
 
+  const account = ensureEmployeeLoginAccount_(employee);
 
   return {
     success: true,
-    data: employee
+    data: Object.assign({}, employee, { employee: employee, account: account })
   };
 
 }
@@ -1985,7 +2630,8 @@ function createEmployee(params) {
 
 function updateEmployee(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   return updateGeneric(
     CONFIG.SHEETS.EMPLOYEES,
@@ -2003,7 +2649,8 @@ function updateEmployee(params) {
 
 function deleteEmployee(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   return deleteGeneric(
     CONFIG.SHEETS.EMPLOYEES,
@@ -2023,49 +2670,37 @@ function deleteEmployee(params) {
 ========================================================= */
 
 function getDocuments(params) {
-
-  requireSession(params);
-
-  let data =
-    readSheet(
-      CONFIG.SHEETS.DOCUMENTS
-    );
-
+  const session = requireSession(params);
+  let data = readSheet(CONFIG.SHEETS.DOCUMENTS);
 
   if (params.projectId) {
-
-    data =
-      filterByProject(
-        data,
-        params.projectId
-      );
-
+    assertProjectAccess(session, params.projectId);
+    data = filterByProject(data, params.projectId);
+  } else {
+    data = scopeProjectRecordsForSession(session, data);
   }
 
+  if (normalizeRoleName(session.role) === "client") {
+    data = data.filter(isClientVisible).map(sanitizeDocumentForClient);
+  }
 
-  return {
-    success: true,
-    data: data
-  };
-
+  return { success: true, data: data };
 }
 
 
 function createDocument(params) {
+  const session = requireSession(params);
+  const document = cleanParams(params);
+  const projectId = String(document.Project_ID || document.projectId || "").trim();
+  assertProjectAccess(session, projectId);
 
-  requireSession(params);
+  if (projectId) {
+    const drive = ensureProjectDriveStructure(projectId);
+    document.Document_Folder_ID = drive.documentsFolder.getId();
+    document.Document_Folder_URL = drive.documentsFolder.getUrl();
+  }
 
-  const document =
-    cleanParams(params);
-
-
-  return appendRecord(
-    CONFIG.SHEETS.DOCUMENTS,
-    document,
-    "DOC-",
-    "Document_ID"
-  );
-
+  return appendRecord(CONFIG.SHEETS.DOCUMENTS, document, "DOC-", "Document_ID");
 }
 
 
@@ -2074,49 +2709,26 @@ function createDocument(params) {
 ========================================================= */
 
 function getSiteVisits(params) {
-
-  requireSession(params);
-
-  let data =
-    readSheet(
-      CONFIG.SHEETS.SITE_VISITS
-    );
-
+  const session = requireSession(params);
+  let data = readSheet(CONFIG.SHEETS.SITE_VISITS);
 
   if (params.projectId) {
-
-    data =
-      filterByProject(
-        data,
-        params.projectId
-      );
-
+    assertProjectAccess(session, params.projectId);
+    data = filterByProject(data, params.projectId);
+  } else {
+    data = scopeProjectRecordsForSession(session, data);
   }
 
-
-  return {
-    success: true,
-    data: data
-  };
-
+  return { success: true, data: data };
 }
 
 
 function createSiteVisit(params) {
-
-  requireSession(params);
-
-  const visit =
-    cleanParams(params);
-
-
-  return appendRecord(
-    CONFIG.SHEETS.SITE_VISITS,
-    visit,
-    "SV-",
-    "Visit_ID"
-  );
-
+  const session = requireSession(params);
+  const visit = cleanParams(params);
+  const projectId = String(visit.Project_ID || visit.projectId || "").trim();
+  assertProjectAccess(session, projectId);
+  return appendRecord(CONFIG.SHEETS.SITE_VISITS, visit, "SV-", "Visit_ID");
 }
 
 
@@ -2126,7 +2738,8 @@ function createSiteVisit(params) {
 
 function getBillingDashboard(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
 
   const projects =
@@ -2217,102 +2830,42 @@ function getBillingDashboard(params) {
 
 
 function getProjectBilling(params) {
+  const session = requireSession(params);
+  const projectId = String(params.projectId || "").trim();
+  assertProjectAccess(session, projectId);
 
-  requireSession(params);
+  let bills = filterByProject(readSheet(CONFIG.SHEETS.BILLS), projectId);
+  let payments = filterByProject(readSheet(CONFIG.SHEETS.PAYMENTS), projectId);
+  const totalBill = sumAmount(bills);
+  const totalPaid = sumAmount(payments);
 
-  const projectId =
-    params.projectId;
-
-
-  const bills =
-    filterByProject(
-      readSheet(
-        CONFIG.SHEETS.BILLS
-      ),
-      projectId
-    );
-
-
-  const payments =
-    filterByProject(
-      readSheet(
-        CONFIG.SHEETS.PAYMENTS
-      ),
-      projectId
-    );
-
-
-  const totalBill =
-    sumAmount(
-      bills
-    );
-
-
-  const totalPaid =
-    sumAmount(
-      payments
-    );
-
+  if (normalizeRoleName(session.role) === "client") {
+    bills = bills.map(record => sanitizeBillingRecordForClient(record, "bill"));
+    payments = payments.map(record => sanitizeBillingRecordForClient(record, "payment"));
+  }
 
   return {
     success: true,
-
-    data: {
-      projectId: projectId,
-      bills: bills,
-      payments: payments,
-      totalBill: totalBill,
-      totalPaid: totalPaid,
-      due:
-        totalBill - totalPaid
-    }
+    data: { projectId, bills, payments, totalBill, totalPaid, due: totalBill - totalPaid }
   };
-
 }
 
 
 function getBillingRecords(params) {
+  const session = requireSession(params);
+  const projectId = String(params.projectId || "").trim();
+  assertProjectAccess(session, projectId);
 
-  requireSession(params);
+  const category = String(params.category || "").toLowerCase();
+  const isPayment = category.includes("payment");
+  const sheetName = isPayment ? CONFIG.SHEETS.PAYMENTS : CONFIG.SHEETS.BILLS;
+  let records = filterByProject(readSheet(sheetName), projectId);
 
-  const projectId =
-    params.projectId;
-
-
-  const category =
-    String(
-      params.category || ""
-    ).toLowerCase();
-
-
-  let sheetName =
-    CONFIG.SHEETS.BILLS;
-
-
-  if (
-    category.includes(
-      "payment"
-    )
-  ) {
-
-    sheetName =
-      CONFIG.SHEETS.PAYMENTS;
-
+  if (normalizeRoleName(session.role) === "client") {
+    records = records.map(record => sanitizeBillingRecordForClient(record, isPayment ? "payment" : "bill"));
   }
 
-
-  const records =
-    filterByProject(
-      readSheet(sheetName),
-      projectId
-    );
-
-
-  return {
-    success: true,
-    data: records
-  };
-
+  return { success: true, data: records };
 }
 
 
@@ -2322,7 +2875,8 @@ function getBillingRecords(params) {
 
 function saveBill(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   return appendRecord(
     CONFIG.SHEETS.BILLS,
@@ -2336,7 +2890,8 @@ function saveBill(params) {
 
 function createBill(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   return appendRecord(
     CONFIG.SHEETS.BILLS,
@@ -2353,37 +2908,28 @@ function createBill(params) {
 ========================================================= */
 
 function getPayments(params) {
-
-  requireSession(params);
-
-  let payments =
-    readSheet(
-      CONFIG.SHEETS.PAYMENTS
-    );
-
+  const session = requireSession(params);
+  let payments = readSheet(CONFIG.SHEETS.PAYMENTS);
 
   if (params.projectId) {
-
-    payments =
-      filterByProject(
-        payments,
-        params.projectId
-      );
-
+    assertProjectAccess(session, params.projectId);
+    payments = filterByProject(payments, params.projectId);
+  } else {
+    payments = scopeProjectRecordsForSession(session, payments);
   }
 
+  if (normalizeRoleName(session.role) === "client") {
+    payments = payments.map(record => sanitizeBillingRecordForClient(record, "payment"));
+  }
 
-  return {
-    success: true,
-    data: payments
-  };
-
+  return { success: true, data: payments };
 }
 
 
 function savePayment(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   return appendRecord(
     CONFIG.SHEETS.PAYMENTS,
@@ -2397,7 +2943,8 @@ function savePayment(params) {
 
 function createPayment(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   return appendRecord(
     CONFIG.SHEETS.PAYMENTS,
@@ -2414,37 +2961,28 @@ function createPayment(params) {
 ========================================================= */
 
 function getInvoices(params) {
-
-  requireSession(params);
-
-  let invoices =
-    readSheet(
-      CONFIG.SHEETS.INVOICES
-    );
-
+  const session = requireSession(params);
+  let invoices = readSheet(CONFIG.SHEETS.INVOICES);
 
   if (params.projectId) {
-
-    invoices =
-      filterByProject(
-        invoices,
-        params.projectId
-      );
-
+    assertProjectAccess(session, params.projectId);
+    invoices = filterByProject(invoices, params.projectId);
+  } else {
+    invoices = scopeProjectRecordsForSession(session, invoices);
   }
 
+  if (normalizeRoleName(session.role) === "client") {
+    invoices = invoices.map(sanitizeInvoiceForClient);
+  }
 
-  return {
-    success: true,
-    data: invoices
-  };
-
+  return { success: true, data: invoices };
 }
 
 
 function createInvoice(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   const projectId =
     String(
@@ -2577,17 +3115,14 @@ function createInvoice(params) {
     );
 
 
-  const projectFolder =
-    getInvoiceProjectFolder(
+  const drive =
+    ensureProjectDriveStructure(
       project
     );
 
 
   const invoicesFolder =
-    getOrCreateChildFolder(
-      projectFolder,
-      "Invoices"
-    );
+    drive.invoicesFolder;
 
 
   const pdfFile =
@@ -2765,68 +3300,14 @@ function ensureInvoiceHeaders(sheet) {
 
 function getInvoiceProjectFolder(project) {
 
-  let folderId =
-    String(
-      firstValue(
-        project,
-        [
-          "Drive_Folder_ID",
-          "Drive Folder ID",
-          "Folder_ID"
-        ]
-      ) || ""
-    ).trim();
-
-
-  const folderUrl =
-    String(
-      firstValue(
-        project,
-        [
-          "Drive_Folder_URL",
-          "Drive Folder URL",
-          "Folder_URL"
-        ]
-      ) || ""
-    ).trim();
-
-
-  if (
-    !folderId &&
-    folderUrl
-  ) {
-
-    folderId =
-      extractDriveFolderId(
-        folderUrl
-      );
-
-  }
-
-
-  if (!folderId) {
-
-    throw new Error(
-      "Project Drive folder is not configured. Add Drive_Folder_ID or Drive_Folder_URL to the Projects sheet before generating an invoice."
-    );
-
-  }
-
-
-  try {
-
-    return DriveApp
-      .getFolderById(
-        folderId
-      );
-
-  } catch (error) {
-
-    throw new Error(
-      "The project Drive folder could not be opened. Check the Drive folder ID and Apps Script permissions."
-    );
-
-  }
+  /*
+   * Backward-compatible helper retained for older callers.
+   * Folder creation is now centralized in the automatic
+   * project Drive structure.
+   */
+  return ensureProjectDriveStructure(
+    project
+  ).projectFolder;
 
 }
 
@@ -2905,53 +3386,48 @@ function createInvoicePdfFile(options) {
       options.projectId
     );
 
-
   const fileName =
     options.invoiceId +
     " - " +
     safeProjectName +
     ".pdf";
 
-
-  const tempDocument =
-    DocumentApp.create(
+  const tempSpreadsheet =
+    SpreadsheetApp.create(
+      "TEMP - " +
       options.invoiceId +
       " - LAND VIEW Invoice"
     );
 
-
   const tempFile =
     DriveApp.getFileById(
-      tempDocument.getId()
+      tempSpreadsheet.getId()
     );
-
 
   try {
 
-    buildInvoiceDocument(
-      tempDocument,
+    const sheet =
+      tempSpreadsheet
+        .getSheets()[0];
+
+    sheet.setName(
+      "Invoice"
+    );
+
+    buildReferenceInvoiceSheet(
+      sheet,
       options
     );
 
-
-    tempDocument
-      .saveAndClose();
-
-
-    Utilities.sleep(
-      500
-    );
-
+    SpreadsheetApp.flush();
+    Utilities.sleep(900);
 
     const pdfBlob =
-      tempFile
-        .getAs(
-          MimeType.PDF
-        )
-        .setName(
-          fileName
-        );
-
+      exportInvoiceSheetAsPdf(
+        tempSpreadsheet,
+        sheet,
+        fileName
+      );
 
     return options.folder
       .createFile(
@@ -2961,11 +3437,7 @@ function createInvoicePdfFile(options) {
   } finally {
 
     try {
-
-      tempFile.setTrashed(
-        true
-      );
-
+      tempFile.setTrashed(true);
     } catch (ignore) {
       // Ignore cleanup failure.
     }
@@ -2975,706 +3447,708 @@ function createInvoicePdfFile(options) {
 }
 
 
-function buildInvoiceDocument(
-  document,
+function buildReferenceInvoiceSheet(
+  sheet,
   options
 ) {
 
-  const body =
-    document.getBody();
+  const NAVY = "#0F2945";
+  const NAVY_2 = "#06243A";
+  const ORANGE = "#FF9E16";
+  const YELLOW = "#FFC400";
+  const CREAM = "#FBE2AF";
+  const WHITE = "#FFFFFF";
+  const BLACK = "#000000";
+  const RED = "#C00000";
 
+  sheet.clear();
+  sheet.setHiddenGridlines(true);
 
-  const title =
-    body.appendParagraph(
-      "LAND VIEW"
-    );
-
-  title
-    .editAsText()
-    .setBold(
-      true
-    )
-    .setFontSize(
-      24
-    )
-    .setForegroundColor(
-      "#111315"
-    );
-
-
-  const tagline =
-    body.appendParagraph(
-      "ARCHITECTS & ENGINEERS"
-    );
-
-  tagline
-    .editAsText()
-    .setBold(
-      true
-    )
-    .setFontSize(
-      9
-    )
-    .setForegroundColor(
-      "#6B7280"
-    );
-
-
-  body.appendParagraph(
-    ""
+  // Six-column canvas approximating the supplied invoice proportions.
+  [52, 185, 88, 82, 82, 95].forEach(
+    function(width, index) {
+      sheet.setColumnWidth(
+        index + 1,
+        width
+      );
+    }
   );
 
+  for (
+    let row = 1;
+    row <= 42;
+    row++
+  ) {
+    sheet.setRowHeight(row, 21);
+  }
 
-  const heading =
-    body.appendParagraph(
-      "INVOICE"
+  sheet.setRowHeights(1, 6, 24);
+  sheet.setRowHeight(1, 33);
+  sheet.setRowHeight(2, 29);
+  sheet.setRowHeight(3, 26);
+  sheet.setRowHeight(4, 22);
+  sheet.setRowHeight(5, 22);
+  sheet.setRowHeight(6, 23);
+
+  const project = options.project || {};
+
+  const ownerName =
+    String(
+      firstValue(
+        project,
+        [
+          "Client_Name",
+          "Client Name",
+          "Owner_Name",
+          "Owner Name",
+          "Client"
+        ]
+      ) || options.clientName || "—"
     );
 
-  heading
-    .editAsText()
-    .setBold(
-      true
-    )
-    .setFontSize(
-      30
-    )
-    .setForegroundColor(
-      "#111315"
+  const ownerAddress =
+    String(
+      firstValue(
+        project,
+        [
+          "Client_Address",
+          "Client Address",
+          "Owner_Address",
+          "Owner Address",
+          "Address",
+          "Location"
+        ]
+      ) || "—"
     );
 
+  const ownerContact =
+    String(
+      firstValue(
+        project,
+        [
+          "Phone_Number",
+          "Phone Number",
+          "Phone",
+          "Contact",
+          "Mobile"
+        ]
+      ) || "—"
+    );
 
-  body.appendHorizontalRule();
+  const floorStory =
+    String(
+      firstValue(
+        project,
+        [
+          "Floor_Story",
+          "Floor/Story",
+          "Floors",
+          "Floor",
+          "Story",
+          "No_of_Floors",
+          "No. of Floors"
+        ]
+      ) || "—"
+    );
 
+  const buildType =
+    String(
+      firstValue(
+        project,
+        [
+          "Build_Type",
+          "Build Type",
+          "Building_Type",
+          "Building Type",
+          "Project_Type",
+          "Project Type"
+        ]
+      ) || "—"
+    );
 
-  const project =
-    options.project;
+  const landArea =
+    String(
+      firstValue(
+        project,
+        [
+          "Land_Area",
+          "Land Area",
+          "Plot_Area",
+          "Plot Area"
+        ]
+      ) || "—"
+    );
 
+  // -------------------------------------------------------
+  // HEADER
+  // -------------------------------------------------------
 
-  const infoRows = [
-    [
-      "Invoice No.",
-      options.invoiceId,
-      "Invoice Date",
-      formatInvoiceDate(
-        options.invoiceDate
-      )
-    ],
-    [
-      "Project",
-      options.projectName || "—",
-      "Project ID",
-      options.projectId
-    ],
-    [
-      "Client",
-      options.clientName || "—",
-      "Phone",
-      String(
-        firstValue(
-          project,
-          [
-            "Phone_Number",
-            "Phone Number",
-            "Phone"
-          ]
-        ) || "—"
-      )
-    ],
-    [
-      "Location",
-      String(
-        firstValue(
-          project,
-          [
-            "Location",
-            "Project_Location",
-            "Project Location"
-          ]
-        ) || "—"
-      ),
-      "Project Type",
-      String(
-        firstValue(
-          project,
-          [
-            "Project_Type",
-            "Project Type",
-            "Type"
-          ]
-        ) || "—"
-      )
-    ]
+  sheet.getRange("A1:F6")
+    .setBackground(NAVY)
+    .setFontColor(WHITE)
+    .setFontFamily("Arial");
+
+  // Orange diagonal-like visual accent using blocks.
+  sheet.getRange("C1:C5").setBackground(ORANGE);
+  sheet.getRange("D1:D3").setBackground("#634F55");
+  sheet.getRange("C6:F6").setBackground(WHITE);
+  sheet.getRange("C6:F6").setBorder(
+    false, false, true, false, false, false,
+    ORANGE,
+    SpreadsheetApp.BorderStyle.SOLID_MEDIUM
+  );
+
+  sheet.getRange("D1:F1")
+    .merge()
+    .setValue("INVOICE")
+    .setFontSize(25)
+    .setFontWeight("bold")
+    .setFontColor(ORANGE)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle");
+
+  sheet.getRange("D2:F2")
+    .merge()
+    .setValue(CONFIG.INVOICE.TITLE)
+    .setFontSize(21)
+    .setFontWeight("bold")
+    .setFontColor(WHITE)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle");
+
+  sheet.getRange("D3:F3")
+    .merge()
+    .setValue(CONFIG.INVOICE.SUBTITLE)
+    .setFontSize(9)
+    .setFontWeight("bold")
+    .setFontColor(WHITE)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle");
+
+  sheet.getRange("D4:F5")
+    .merge()
+    .setValue(CONFIG.INVOICE.BILL_LABEL)
+    .setFontSize(13)
+    .setFontWeight("bold")
+    .setFontColor(BLACK)
+    .setBackground(YELLOW)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle");
+
+  insertInvoiceLogo(sheet);
+
+  // -------------------------------------------------------
+  // FILE ID / DATE
+  // -------------------------------------------------------
+
+  sheet.getRange("A7:F7")
+    .setFontFamily("Times New Roman")
+    .setFontSize(10)
+    .setFontWeight("bold")
+    .setVerticalAlignment("middle");
+
+  sheet.getRange("A7")
+    .setValue("File ID:")
+    .setBackground(NAVY_2)
+    .setFontColor(WHITE);
+
+  sheet.getRange("B7:C7")
+    .merge()
+    .setValue(options.projectId)
+    .setHorizontalAlignment("center")
+    .setBackground(WHITE);
+
+  sheet.getRange("D7")
+    .setValue("Issue Date")
+    .setBackground(NAVY_2)
+    .setFontColor(WHITE)
+    .setHorizontalAlignment("center");
+
+  sheet.getRange("E7:F7")
+    .merge()
+    .setValue(formatInvoiceDateShort(options.invoiceDate))
+    .setHorizontalAlignment("center")
+    .setBackground(WHITE);
+
+  sheet.getRange("A7:F7").setBorder(
+    true, true, true, true, true, true,
+    BLACK,
+    SpreadsheetApp.BorderStyle.SOLID_MEDIUM
+  );
+
+  // -------------------------------------------------------
+  // OWNER / BUILDING DETAILS
+  // -------------------------------------------------------
+
+  sheet.getRange("A9:C9")
+    .merge()
+    .setValue("Owner Details")
+    .setBackground(NAVY_2)
+    .setFontColor(WHITE)
+    .setFontWeight("bold")
+    .setFontSize(11)
+    .setHorizontalAlignment("center");
+
+  sheet.getRange("D9:F9")
+    .merge()
+    .setValue("Building Details")
+    .setBackground(NAVY_2)
+    .setFontColor(WHITE)
+    .setFontWeight("bold")
+    .setFontSize(11)
+    .setHorizontalAlignment("center");
+
+  const detailRows = [
+    ["Name:", ownerName, "Floor/Story:", floorStory],
+    ["Address:", ownerAddress, "Build Type:", buildType],
+    ["Contact:", ownerContact, "Land Area:", landArea]
   ];
 
-
-  const infoTable =
-    body.appendTable(
-      infoRows
-    );
-
-
-  styleInvoiceInfoTable(
-    infoTable
-  );
-
-
-  body.appendParagraph(
-    ""
-  );
-
-
-  appendInvoiceSectionHeading(
-    body,
-    "BILL DETAILS"
-  );
-
-
-  const billRows = [
-    [
-      "Bill ID",
-      "Date",
-      "Description",
-      "Amount"
-    ]
-  ];
-
-
-  if (
-    options.bills.length
+  for (
+    let i = 0;
+    i < detailRows.length;
+    i++
   ) {
 
-    options.bills.forEach(
-      bill => {
+    const r = 10 + i;
 
-        billRows.push([
-          String(
-            firstValue(
-              bill,
-              [
-                "Bill_ID",
-                "Bill ID"
-              ]
-            ) || "—"
-          ),
-          formatInvoiceDate(
-            firstValue(
-              bill,
-              [
-                "Bill_Date",
-                "Date"
-              ]
-            )
-          ),
-          String(
-            firstValue(
-              bill,
-              [
-                "Description",
-                "Particulars",
-                "Item",
-                "Notes"
-              ]
-            ) || "—"
-          ),
-          formatInvoiceMoney(
-            firstValue(
-              bill,
-              [
-                "Amount",
-                "Bill_Amount",
-                "Total",
-                "Grand_Total"
-              ]
-            )
-          )
-        ]);
+    sheet.getRange(r, 1)
+      .setValue(detailRows[i][0])
+      .setFontWeight("bold");
 
-      }
-    );
+    sheet.getRange(r, 2, 1, 2)
+      .merge()
+      .setValue(detailRows[i][1]);
 
-  } else {
+    sheet.getRange(r, 4)
+      .setValue(detailRows[i][2])
+      .setFontWeight("bold");
 
-    billRows.push([
-      "—",
-      "—",
-      "No bill records found for this project.",
-      formatInvoiceMoney(0)
-    ]);
+    sheet.getRange(r, 5, 1, 2)
+      .merge()
+      .setValue(detailRows[i][3]);
+
+    sheet.getRange(r, 1, 1, 6)
+      .setFontFamily("Times New Roman")
+      .setFontSize(10)
+      .setVerticalAlignment("middle")
+      .setBorder(
+        true, true, true, true, true, true,
+        BLACK,
+        SpreadsheetApp.BorderStyle.SOLID
+      );
 
   }
 
+  // -------------------------------------------------------
+  // ENGINEERING SERVICE TABLE
+  // -------------------------------------------------------
 
-  const billTable =
-    body.appendTable(
-      billRows
+  const tableHeaderRow = 14;
+
+  sheet.getRange(tableHeaderRow, 1, 1, 6)
+    .setBackground(NAVY_2)
+    .setFontColor(WHITE)
+    .setFontWeight("bold")
+    .setFontFamily("Times New Roman")
+    .setFontSize(10)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setValues([[
+      "SL No.",
+      "Engineering Services",
+      "Price",
+      "Qty",
+      "Amount",
+      "Notes"
+    ]])
+    .setBorder(
+      true, true, true, true, true, true,
+      BLACK,
+      SpreadsheetApp.BorderStyle.SOLID
     );
 
+  const maxServiceRows = 12;
+  const bills = options.bills || [];
+  const serviceRows = [];
 
-  styleInvoiceDataTable(
-    billTable,
-    3
+  bills.slice(0, maxServiceRows).forEach(
+    function(bill, index) {
+
+      serviceRows.push([
+        index + 1,
+        String(
+          firstValue(
+            bill,
+            [
+              "Description",
+              "Engineering_Service",
+              "Engineering Service",
+              "Service",
+              "Particulars",
+              "Item"
+            ]
+          ) || "Engineering Service"
+        ),
+        "-",
+        "-",
+        toNumber(
+          firstValue(
+            bill,
+            [
+              "Amount",
+              "Bill_Amount",
+              "Total",
+              "Grand_Total"
+            ]
+          )
+        ),
+        String(
+          firstValue(
+            bill,
+            ["Notes", "Remarks"]
+          ) || ""
+        )
+      ]);
+
+    }
   );
 
-
-  body.appendParagraph(
-    ""
-  );
-
-
-  const summaryTable =
-    body.appendTable([
-      [
-        "Total Billed",
-        formatInvoiceMoney(
-          options.totalBill
-        )
-      ],
-      [
-        "Total Paid",
-        formatInvoiceMoney(
-          options.totalPaid
-        )
-      ],
-      [
-        "BALANCE DUE",
-        formatInvoiceMoney(
-          options.due
-        )
-      ]
-    ]);
-
-
-  styleInvoiceSummaryTable(
-    summaryTable
-  );
-
-
-  if (
-    options.payments.length
+  while (
+    serviceRows.length < maxServiceRows
   ) {
-
-    body.appendParagraph(
+    serviceRows.push([
+      serviceRows.length + 1,
+      "-",
+      "-",
+      "-",
+      "",
       ""
+    ]);
+  }
+
+  const serviceStart = tableHeaderRow + 1;
+  const serviceEnd = serviceStart + maxServiceRows - 1;
+
+  sheet.getRange(
+    serviceStart,
+    1,
+    maxServiceRows,
+    6
+  )
+    .setValues(serviceRows)
+    .setFontFamily("Times New Roman")
+    .setFontSize(10)
+    .setVerticalAlignment("middle")
+    .setBorder(
+      true, true, true, true, true, true,
+      BLACK,
+      SpreadsheetApp.BorderStyle.SOLID
     );
 
+  for (
+    let r = serviceStart;
+    r <= serviceEnd;
+    r++
+  ) {
 
-    appendInvoiceSectionHeading(
-      body,
-      "PAYMENT HISTORY"
-    );
+    if (
+      (r - serviceStart) % 2 === 1
+    ) {
+      sheet.getRange(r, 1, 1, 6)
+        .setBackground(CREAM);
+    }
 
+    sheet.getRange(r, 1)
+      .setHorizontalAlignment("center")
+      .setFontWeight("bold");
 
-    const paymentRows = [
-      [
-        "Payment ID",
-        "Date",
-        "Method / Reference",
-        "Amount"
-      ]
-    ];
+    sheet.getRange(r, 2)
+      .setFontWeight("bold");
 
+    sheet.getRange(r, 3, 1, 2)
+      .setHorizontalAlignment("center");
 
-    options.payments.forEach(
-      payment => {
-
-        const method =
-          String(
-            firstValue(
-              payment,
-              [
-                "Payment_Method",
-                "Method"
-              ]
-            ) || ""
-          );
-
-
-        const reference =
-          String(
-            firstValue(
-              payment,
-              [
-                "Reference_No",
-                "Reference",
-                "Reference Number"
-              ]
-            ) || ""
-          );
-
-
-        paymentRows.push([
-          String(
-            firstValue(
-              payment,
-              [
-                "Payment_ID",
-                "Payment ID"
-              ]
-            ) || "—"
-          ),
-          formatInvoiceDate(
-            firstValue(
-              payment,
-              [
-                "Payment_Date",
-                "Date"
-              ]
-            )
-          ),
-          [
-            method,
-            reference
-          ]
-            .filter(Boolean)
-            .join(" / ") || "—",
-          formatInvoiceMoney(
-            firstValue(
-              payment,
-              [
-                "Amount",
-                "Payment_Amount"
-              ]
-            )
-          )
-        ]);
-
-      }
-    );
-
-
-    const paymentTable =
-      body.appendTable(
-        paymentRows
-      );
-
-
-    styleInvoiceDataTable(
-      paymentTable,
-      3
-    );
+    sheet.getRange(r, 5)
+      .setHorizontalAlignment("right")
+      .setNumberFormat("#,##0");
 
   }
 
+  // -------------------------------------------------------
+  // SUMMARY
+  // -------------------------------------------------------
 
-  body.appendParagraph(
-    ""
-  );
+  const summaryStart = serviceEnd + 2;
 
-  body.appendHorizontalRule();
-
-
-  const footer =
-    body.appendParagraph(
-      "This invoice was generated by the LAND VIEW Management System."
+  sheet.getRange(summaryStart, 1, 4, 3)
+    .setBorder(
+      true, true, true, true, true, true,
+      BLACK,
+      SpreadsheetApp.BorderStyle.SOLID_MEDIUM
     );
 
-  footer
-    .editAsText()
-    .setFontSize(
-      8
+  sheet.getRange(summaryStart, 1, 2, 1)
+    .merge()
+    .setValue("Total Due\nin Words:")
+    .setFontWeight("bold")
+    .setFontFamily("Times New Roman")
+    .setFontSize(10)
+    .setWrap(true)
+    .setVerticalAlignment("middle");
+
+  sheet.getRange(summaryStart, 2, 2, 2)
+    .merge()
+    .setValue(numberToTakaWords(options.due))
+    .setFontWeight("bold")
+    .setFontFamily("Times New Roman")
+    .setFontSize(10)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setWrap(true);
+
+  sheet.getRange(summaryStart + 2, 1, 2, 3)
+    .merge()
+    .setValue(
+      "Electronically Generated Invoice\nNo Signature Required!"
     )
-    .setForegroundColor(
-      "#7A7D80"
+    .setFontColor(RED)
+    .setFontWeight("bold")
+    .setFontFamily("Times New Roman")
+    .setFontSize(9)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setWrap(true);
+
+  const summaryLabels = [
+    ["BILL AMOUNT", options.totalBill],
+    ["DISCOUNT", 0],
+    ["DEPOSITED", options.totalPaid],
+    ["BALANCE DUE", options.due]
+  ];
+
+  sheet.getRange(summaryStart, 4, 4, 3)
+    .setValues(summaryLabels.map(function(item) {
+      return [item[0], "", item[1]];
+    }))
+    .setFontFamily("Times New Roman")
+    .setFontSize(10)
+    .setBorder(
+      true, true, true, true, true, true,
+      BLACK,
+      SpreadsheetApp.BorderStyle.SOLID_MEDIUM
     );
-
-}
-
-
-function appendInvoiceSectionHeading(
-  body,
-  text
-) {
-
-  const paragraph =
-    body.appendParagraph(
-      text
-    );
-
-
-  paragraph
-    .editAsText()
-    .setBold(
-      true
-    )
-    .setFontSize(
-      10
-    )
-    .setForegroundColor(
-      "#111315"
-    );
-
-
-  return paragraph;
-
-}
-
-
-function styleInvoiceInfoTable(table) {
 
   for (
-    let rowIndex = 0;
-    rowIndex < table.getNumRows();
-    rowIndex++
+    let i = 0;
+    i < summaryLabels.length;
+    i++
   ) {
 
-    const row =
-      table.getRow(
-        rowIndex
+    const r = summaryStart + i;
+
+    sheet.getRange(r, 4, 1, 2)
+      .merge()
+      .setValue(summaryLabels[i][0])
+      .setBackground(i < 3 ? YELLOW : CREAM)
+      .setFontWeight("bold");
+
+    sheet.getRange(r, 6)
+      .setValue(summaryLabels[i][1])
+      .setNumberFormat("#,##0")
+      .setHorizontalAlignment("right")
+      .setFontWeight("bold");
+
+  }
+
+  // -------------------------------------------------------
+  // FOOTER
+  // -------------------------------------------------------
+
+  const footerRow = summaryStart + 6;
+
+  sheet.getRange(footerRow, 1, 2, 3)
+    .merge()
+    .setValue(
+      "Thanks for your business!\n" +
+      CONFIG.INVOICE.ADDRESS_LINE_1 +
+      "\n" +
+      CONFIG.INVOICE.ADDRESS_LINE_2
+    )
+    .setBackground(ORANGE)
+    .setFontColor(WHITE)
+    .setFontWeight("bold")
+    .setFontSize(8)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setWrap(true);
+
+  sheet.getRange(footerRow, 4, 2, 3)
+    .merge()
+    .setValue(
+      "Email: " +
+      CONFIG.INVOICE.EMAIL +
+      "\nContact " +
+      CONFIG.INVOICE.PHONE_1 +
+      "\n" +
+      CONFIG.INVOICE.PHONE_2
+    )
+    .setBackground(NAVY)
+    .setFontColor(WHITE)
+    .setFontWeight("bold")
+    .setFontSize(8)
+    .setHorizontalAlignment("right")
+    .setVerticalAlignment("middle")
+    .setWrap(true);
+
+  // Outer print area styling.
+  sheet.getRange(
+    1,
+    1,
+    footerRow + 1,
+    6
+  )
+    .setVerticalAlignment("middle");
+
+}
+
+
+function insertInvoiceLogo(sheet) {
+
+  try {
+
+    const rootFolder =
+      DriveApp.getFolderById(
+        CONFIG.ROOT_FOLDER_ID
       );
 
+    const files =
+      rootFolder.getFilesByName(
+        CONFIG.INVOICE.LOGO_FILE_NAME
+      );
 
-    for (
-      let columnIndex = 0;
-      columnIndex < row.getNumCells();
-      columnIndex++
-    ) {
+    if (!files.hasNext()) {
 
-      const cell =
-        row.getCell(
-          columnIndex
-        );
+      // Fallback text mark if logo file has not been uploaded yet.
+      sheet.getRange("A1:B5")
+        .merge()
+        .setValue("LAND VIEW")
+        .setFontColor("#FF9E16")
+        .setFontWeight("bold")
+        .setFontSize(17)
+        .setHorizontalAlignment("center")
+        .setVerticalAlignment("middle");
 
-
-      cell
-        .editAsText()
-        .setFontSize(
-          9
-        );
-
-
-      if (
-        columnIndex === 0 ||
-        columnIndex === 2
-      ) {
-
-        cell
-          .setBackgroundColor(
-            "#F1F2EF"
-          );
-
-        cell
-          .editAsText()
-          .setBold(
-            true
-          )
-          .setForegroundColor(
-            "#4B4F52"
-          );
-
-      }
+      return;
 
     }
 
+    const logoFile = files.next();
+    const image =
+      sheet.insertImage(
+        logoFile.getBlob(),
+        1,
+        1
+      );
+
+    image
+      .setWidth(130)
+      .setHeight(118);
+
+  } catch (error) {
+
+    sheet.getRange("A1:B5")
+      .merge()
+      .setValue("LAND VIEW")
+      .setFontColor("#FF9E16")
+      .setFontWeight("bold")
+      .setFontSize(17)
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle");
+
   }
 
 }
 
 
-function styleInvoiceDataTable(
-  table,
-  amountColumnIndex
+function exportInvoiceSheetAsPdf(
+  spreadsheet,
+  sheet,
+  fileName
 ) {
+
+  const url =
+    "https://docs.google.com/spreadsheets/d/" +
+    spreadsheet.getId() +
+    "/export" +
+    "?format=pdf" +
+    "&size=A4" +
+    "&portrait=true" +
+    "&fitw=true" +
+    "&sheetnames=false" +
+    "&printtitle=false" +
+    "&pagenumbers=false" +
+    "&gridlines=false" +
+    "&fzr=false" +
+    "&top_margin=0.15" +
+    "&bottom_margin=0.15" +
+    "&left_margin=0.15" +
+    "&right_margin=0.15" +
+    "&gid=" +
+    sheet.getSheetId();
+
+  const response =
+    UrlFetchApp.fetch(
+      url,
+      {
+        headers: {
+          Authorization:
+            "Bearer " +
+            ScriptApp.getOAuthToken()
+        },
+        muteHttpExceptions: true
+      }
+    );
 
   if (
-    table.getNumRows() < 1
+    response.getResponseCode() !== 200
   ) {
-    return;
+    throw new Error(
+      "Invoice PDF export failed. HTTP " +
+      response.getResponseCode() +
+      ": " +
+      response.getContentText().substring(0, 250)
+    );
   }
 
-
-  const headerRow =
-    table.getRow(0);
-
-
-  for (
-    let columnIndex = 0;
-    columnIndex < headerRow.getNumCells();
-    columnIndex++
-  ) {
-
-    const cell =
-      headerRow.getCell(
-        columnIndex
-      );
-
-
-    cell
-      .setBackgroundColor(
-        "#111315"
-      );
-
-    cell
-      .editAsText()
-      .setBold(
-        true
-      )
-      .setFontSize(
-        8
-      )
-      .setForegroundColor(
-        "#FFFFFF"
-      );
-
-  }
-
-
-  for (
-    let rowIndex = 1;
-    rowIndex < table.getNumRows();
-    rowIndex++
-  ) {
-
-    const row =
-      table.getRow(
-        rowIndex
-      );
-
-
-    for (
-      let columnIndex = 0;
-      columnIndex < row.getNumCells();
-      columnIndex++
-    ) {
-
-      const cell =
-        row.getCell(
-          columnIndex
-        );
-
-
-      cell
-        .editAsText()
-        .setFontSize(
-          8
-        );
-
-
-      if (
-        columnIndex === amountColumnIndex
-      ) {
-
-        cell
-          .editAsText()
-          .setBold(
-            true
-          );
-
-      }
-
-    }
-
-  }
-
-}
-
-
-function styleInvoiceSummaryTable(table) {
-
-  for (
-    let rowIndex = 0;
-    rowIndex < table.getNumRows();
-    rowIndex++
-  ) {
-
-    const row =
-      table.getRow(
-        rowIndex
-      );
-
-
-    for (
-      let columnIndex = 0;
-      columnIndex < row.getNumCells();
-      columnIndex++
-    ) {
-
-      const cell =
-        row.getCell(
-          columnIndex
-        );
-
-
-      cell
-        .editAsText()
-        .setFontSize(
-          rowIndex === 2
-            ? 11
-            : 9
-        );
-
-
-      if (
-        columnIndex === 0 ||
-        rowIndex === 2
-      ) {
-
-        cell
-          .editAsText()
-          .setBold(
-            true
-          );
-
-      }
-
-
-      if (
-        rowIndex === 2
-      ) {
-
-        cell
-          .setBackgroundColor(
-            "#EAF2C7"
-          );
-
-      }
-
-    }
-
-  }
+  return response
+    .getBlob()
+    .setName(fileName);
 
 }
 
 
 function formatInvoiceDate(value) {
 
-  if (
-    value === "" ||
-    value === null ||
-    value === undefined
-  ) {
-
+  if (!value) {
     return "—";
-
   }
 
-
   let date = value;
-
 
   if (
     Object.prototype.toString.call(
       value
     ) !== "[object Date]"
   ) {
-
-    date =
-      new Date(
-        value
-      );
-
+    date = new Date(value);
   }
-
 
   if (
-    isNaN(
-      date.getTime()
-    )
+    isNaN(date.getTime())
   ) {
-
     return String(value);
-
   }
-
 
   return Utilities.formatDate(
     date,
@@ -3686,31 +4160,123 @@ function formatInvoiceDate(value) {
 }
 
 
+function formatInvoiceDateShort(value) {
+
+  if (!value) {
+    return "—";
+  }
+
+  let date = value;
+
+  if (
+    Object.prototype.toString.call(value) !==
+    "[object Date]"
+  ) {
+    date = new Date(value);
+  }
+
+  if (isNaN(date.getTime())) {
+    return String(value);
+  }
+
+  return Utilities.formatDate(
+    date,
+    Session.getScriptTimeZone() || "Asia/Dhaka",
+    "dd-MMM-yy"
+  );
+
+}
+
+
 function formatInvoiceMoney(value) {
 
-  const amount =
-    toNumber(
-      value
-    );
-
+  const amount = toNumber(value);
 
   const fixed =
-    amount
-      .toFixed(2)
-      .split(".");
+    amount.toFixed(2).split(".");
+
+  fixed[0] = fixed[0].replace(
+    /\B(?=(\d{3})+(?!\d))/g,
+    ","
+  );
+
+  return "৳ " + fixed.join(".");
+
+}
 
 
-  fixed[0] =
-    fixed[0].replace(
-      /\B(?=(\d{3})+(?!\d))/g,
-      ","
+function numberToTakaWords(value) {
+
+  let amount =
+    Math.round(
+      Math.abs(
+        toNumber(value)
+      )
     );
 
+  if (amount === 0) {
+    return "Zero Taka Only";
+  }
 
-  return (
-    "৳ " +
-    fixed.join(".")
-  );
+  const ones = [
+    "", "One", "Two", "Three", "Four",
+    "Five", "Six", "Seven", "Eight", "Nine",
+    "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen",
+    "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"
+  ];
+
+  const tens = [
+    "", "", "Twenty", "Thirty", "Forty",
+    "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"
+  ];
+
+  function belowHundred(n) {
+    if (n < 20) return ones[n];
+    return (
+      tens[Math.floor(n / 10)] +
+      (n % 10 ? " " + ones[n % 10] : "")
+    );
+  }
+
+  function belowThousand(n) {
+    let text = "";
+    if (n >= 100) {
+      text += ones[Math.floor(n / 100)] + " Hundred";
+      n %= 100;
+      if (n) text += " ";
+    }
+    if (n) text += belowHundred(n);
+    return text;
+  }
+
+  const parts = [];
+
+  const crore = Math.floor(amount / 10000000);
+  amount %= 10000000;
+
+  const lakh = Math.floor(amount / 100000);
+  amount %= 100000;
+
+  const thousand = Math.floor(amount / 1000);
+  amount %= 1000;
+
+  if (crore) {
+    parts.push(belowThousand(crore) + " Crore");
+  }
+
+  if (lakh) {
+    parts.push(belowThousand(lakh) + " Lakh");
+  }
+
+  if (thousand) {
+    parts.push(belowThousand(thousand) + " Thousand");
+  }
+
+  if (amount) {
+    parts.push(belowThousand(amount));
+  }
+
+  return parts.join(" ") + " Taka Only";
 
 }
 
@@ -3729,13 +4295,77 @@ function sanitizeFileName(value) {
       " "
     )
     .trim()
-    .substring(
-      0,
-      80
-    );
+    .substring(0, 80);
 
 }
 
+
+function testInvoiceStyle() {
+
+  const projects =
+    readSheet(
+      CONFIG.SHEETS.PROJECTS
+    );
+
+  if (!projects.length) {
+    throw new Error(
+      "No projects found. Create a project first."
+    );
+  }
+
+  const projectId =
+    String(
+      firstValue(
+        projects[0],
+        [
+          "Project_ID",
+          "Project ID",
+          "ProjectId"
+        ]
+      ) || ""
+    ).trim();
+
+  if (!projectId) {
+    throw new Error(
+      "The first project has no Project_ID."
+    );
+  }
+
+  const result =
+    createInvoice({
+      projectId: projectId,
+      token: createTemporaryAdminTestSession()
+    });
+
+  Logger.log(
+    JSON.stringify(
+      result,
+      null,
+      2
+    )
+  );
+
+  return result;
+
+}
+
+
+function createTemporaryAdminTestSession() {
+
+  const users =
+    readSheet(
+      CONFIG.SHEETS.USERS
+    );
+
+  if (!users.length) {
+    throw new Error(
+      "No users found. A user is required for the invoice test."
+    );
+  }
+
+  return createSession(users[0]);
+
+}
 
 
 /* =========================================================
@@ -3744,7 +4374,8 @@ function sanitizeFileName(value) {
 
 function getPermissions(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   return {
     success: true,
@@ -3760,7 +4391,8 @@ function getPermissions(params) {
 
 function createPermission(params) {
 
-  requireSession(params);
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
 
   return appendRecord(
     CONFIG.SHEETS.PERMISSIONS,
@@ -4177,89 +4809,6 @@ function isActiveRecord(record) {
 }
 
 
-function sanitizeUser(user) {
-
-  return {
-
-    userId:
-      firstValue(
-        user,
-        [
-          "User_ID",
-          "User ID",
-          "UserId"
-        ]
-      ),
-
-    username:
-      firstValue(
-        user,
-        [
-          "Username",
-          "username"
-        ]
-      ),
-
-    name:
-      firstValue(
-        user,
-        [
-          "Name",
-          "name"
-        ]
-      ),
-
-    role:
-      firstValue(
-        user,
-        [
-          "Role",
-          "role"
-        ]
-      ),
-
-    User_ID:
-      firstValue(
-        user,
-        [
-          "User_ID",
-          "User ID",
-          "UserId"
-        ]
-      ),
-
-    Username:
-      firstValue(
-        user,
-        [
-          "Username",
-          "username"
-        ]
-      ),
-
-    Name:
-      firstValue(
-        user,
-        [
-          "Name",
-          "name"
-        ]
-      ),
-
-    Role:
-      firstValue(
-        user,
-        [
-          "Role",
-          "role"
-        ]
-      )
-
-  };
-
-}
-
-
 function findHeaderIndex(
   headers,
   names
@@ -4397,7 +4946,8 @@ function cleanParams(params) {
 
         if (
           key !== "action" &&
-          key !== "token"
+          key !== "token" &&
+          key !== "proxySecret"
         ) {
 
           result[key] =

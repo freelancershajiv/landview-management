@@ -3,12 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
-import {
-  clearStoredSession,
-  getStoredToken,
-  landViewApi,
-  SessionUser,
-} from "@/lib/api";
+import { clearStoredSession, landViewApi, SessionUser } from "@/lib/api";
 
 type PortalType = "employee" | "client";
 
@@ -44,14 +39,8 @@ export default function RolePortalShell({
     let cancelled = false;
 
     async function verify() {
-      const token = getStoredToken();
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
-
       try {
-        const session = await landViewApi.getSession(token);
+        const session = await landViewApi.getSession();
         if (!session?.authenticated) throw new Error("Session expired");
 
         const role = normalizeRole(session.user?.role || session.user?.Role);
@@ -87,17 +76,19 @@ export default function RolePortalShell({
 
   async function changePassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    if (newPassword.length < 8) {
-      setPasswordMessage("New password must be at least 8 characters.");
+    if (newPassword.length < 10) {
+      setPasswordMessage("New password must be at least 10 characters.");
       return;
     }
     setPasswordSaving(true);
     setPasswordMessage("");
     try {
       await landViewApi.changeOwnPassword(currentPassword, newPassword);
-      setPasswordMessage("Password changed successfully.");
+      setPasswordMessage("Password changed. Please sign in again.");
       setCurrentPassword("");
       setNewPassword("");
+      await landViewApi.logout().catch(() => undefined);
+      router.replace("/login");
     } catch (err: any) {
       setPasswordMessage(err?.message || "Could not change password.");
     } finally {
@@ -148,7 +139,7 @@ export default function RolePortalShell({
               <small>Signed in as</small>
               <strong>{name}</strong>
             </div>
-            <Link href="/" className="role-portal-home">Public Website</Link>
+            <Link href="https://www.landview.com.bd" className="role-portal-home">Public Website</Link>
             <button type="button" onClick={() => { setPasswordOpen(true); setPasswordMessage(""); }}>Change Password</button>
             <button type="button" onClick={logout}>Sign Out</button>
           </div>
@@ -166,7 +157,7 @@ export default function RolePortalShell({
             {passwordMessage && <div className="notice"><strong>Password</strong><span>{passwordMessage}</span></div>}
             <div className="form-grid">
               <label className="form-field"><span>CURRENT PASSWORD</span><input type="password" value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} required /></label>
-              <label className="form-field"><span>NEW PASSWORD</span><input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={8} required /></label>
+              <label className="form-field"><span>NEW PASSWORD</span><input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} minLength={10} required /></label>
             </div>
             <div className="form-actions">
               <button type="button" className="btn btn-light" onClick={() => setPasswordOpen(false)}>Cancel</button>

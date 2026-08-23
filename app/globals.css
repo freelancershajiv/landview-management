@@ -5287,3 +5287,17 @@ tbody tr:hover td {
   .role-client-finance-row > div { border-right: 0; border-bottom: 1px solid #ddd; }
   .role-client-invoices > div { grid-template-columns: 1fr; }
 }
+
+
+.public-contact-details .public-map-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.public-contact-details .public-map-link:hover {
+  text-decoration: underline;
+}
