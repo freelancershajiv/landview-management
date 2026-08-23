@@ -1,9 +1,4 @@
-import type { Metadata } from "next";
 import RolePortalShell from "@/components/role-portal-shell";
-
-export const metadata: Metadata = {
-  robots: { index: false, follow: false, nocache: true },
-};
 
 export default function ClientLayout({ children }: { children: React.ReactNode }) {
   return <RolePortalShell portal="client">{children}</RolePortalShell>;

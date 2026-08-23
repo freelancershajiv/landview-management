@@ -20,7 +20,7 @@ export default function PublicHeader() {
       <div className="public-utility">
         <div className="public-container public-utility-inner">
           <div className="public-utility-left">
-            <a href="https://share.google/cTmtQarK6Oo6KY8Md" target="_blank" rel="noopener noreferrer"><b>●</b> Feni, Bangladesh</a>
+            <span><b>●</b> Feni, Bangladesh</span>
             <a href="mailto:landviewcivil@gmail.com"><b>◆</b> landviewcivil@gmail.com</a>
             <a href="tel:+8801902500400"><b>☎</b> +88 01902 500 400</a>
           </div>

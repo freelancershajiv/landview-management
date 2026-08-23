@@ -2,9 +2,14 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { clearStoredSession, landViewApi } from "@/lib/api";
+import {
+  clearStoredSession,
+  landViewApi,
+} from "@/lib/api";
 
 type PortalType = "admin" | "employee" | "client";
+
+const PORTAL_KEY = "land_view_portal_type";
 
 const portalOptions: Array<{
   id: PortalType;
@@ -88,6 +93,7 @@ export default function LoginPage() {
         );
       }
 
+      localStorage.setItem(PORTAL_KEY, portal);
       router.replace(portalPath(portal));
     } catch (err: any) {
       clearStoredSession();
@@ -108,7 +114,7 @@ export default function LoginPage() {
           <button
             type="button"
             className="reference-login-brand login-brand-button"
-            onClick={() => { window.location.href = "https://www.landview.com.bd"; }}
+            onClick={() => router.push("/")}
           >
             <img src="/land-view-logo.png" alt="LAND VIEW" />
             <div>

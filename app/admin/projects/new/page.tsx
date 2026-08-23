@@ -24,6 +24,7 @@ export default function NewProjectPage() {
   const [form, setForm] = useState(initial);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [created, setCreated] = useState<{ id: string; username: string; password: string } | null>(null);
 
   function set(key: string, value: string) {
     setForm(v => ({ ...v, [key]: value }));
@@ -36,7 +37,12 @@ export default function NewProjectPage() {
     try {
       const result = await landViewApi.createProject(form);
       const id = result.Project_ID || form.Project_ID;
-      router.push(id ? `/admin/projects/${encodeURIComponent(id)}` : "/admin/projects");
+      const account = result.clientAccount;
+      if (account?.created && account.temporaryPassword) {
+        setCreated({ id, username: account.username || account.userId || "", password: account.temporaryPassword });
+      } else {
+        router.push(id ? `/admin/projects/${encodeURIComponent(id)}` : "/admin/projects");
+      }
     } catch (e: any) {
       setError(e?.message || "Unable to create project.");
     } finally {
@@ -83,6 +89,21 @@ export default function NewProjectPage() {
 
       <div className="form-actions"><Link className="btn btn-light" href="/admin/projects">Cancel</Link><button disabled={saving} className="btn btn-dark">{saving ? "Saving..." : "Create project"}</button></div>
     </form>
+
+    {created && <div className="modal-backdrop">
+      <div className="modal card">
+        <div className="section-title"><div><span>CLIENT LOGIN CREATED</span><h2>Client temporary password</h2></div></div>
+        <div className="notice"><strong>Save these credentials now</strong><span>The temporary password is shown only once. Give it securely to the client.</span></div>
+        <div className="form-grid">
+          <Field label="LOGIN ID"><input readOnly value={created.username} /></Field>
+          <Field label="TEMPORARY PASSWORD"><input readOnly value={created.password} /></Field>
+        </div>
+        <div className="form-actions">
+          <button type="button" className="btn btn-light" onClick={() => navigator.clipboard.writeText(`Login ID: ${created.username}\nTemporary Password: ${created.password}`)}>Copy credentials</button>
+          <button type="button" className="btn btn-dark" onClick={() => router.push(created.id ? `/admin/projects/${encodeURIComponent(created.id)}` : "/admin/projects")}>I saved it — continue</button>
+        </div>
+      </div>
+    </div>}
 
   </>;
 }

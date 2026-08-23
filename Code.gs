@@ -33,17 +33,10 @@ const CONFIG = {
   // Every project folder is created/reused inside this folder.
   ROOT_FOLDER_ID: "1UkXpEI4Evw9b2x5E5vjIqmuYFBe2tcjX",
 
-  // Security: short absolute lifetime plus idle timeout.
-  SESSION_HOURS: 8,
-  SESSION_IDLE_MINUTES: 45,
-  SESSION_TOUCH_MINUTES: 5,
-
-  // Apps Script-friendly password stretching. The unique salt is stored per user;
-  // a secret pepper is generated in Script Properties and never stored in Sheets.
-  PASSWORD_HASH_ROUNDS: 3000,
-  LOGIN_MAX_FAILURES: 5,
-  LOGIN_WINDOW_MINUTES: 15,
-  LOGIN_LOCK_MINUTES: 15,
+  SESSION_HOURS: 12,
+  SESSION_IDLE_MINUTES: 60,
+  SECURITY_REQUIRE_PROXY_SECRET: true,
+  LOGIN_RATE_LIMIT: { MAX_FAILURES: 10, WINDOW_SECONDS: 900 },
 
   INVOICE: {
     LOGO_FILE_NAME: "LAND VIEW Logo.png",
@@ -66,8 +59,7 @@ const CONFIG = {
     INVOICES: "Invoices",
     PAYMENTS: "Payments",
     BILLS: "Bills",
-    PERMISSIONS: "Permissions",
-    AUDIT_LOG: "Audit Log"
+    PERMISSIONS: "Permissions"
   }
 };
 
@@ -93,6 +85,143 @@ function getSpreadsheet() {
   return ss;
 }
 
+
+/* =========================================================
+   SECURITY PRIMITIVES
+========================================================= */
+
+const SECURITY_KEYS = {
+  PROXY_SECRET: "LAND_VIEW_PROXY_SECRET",
+  PASSWORD_PEPPER: "LAND_VIEW_PASSWORD_PEPPER"
+};
+
+function getSecurityProperties_() {
+  return PropertiesService.getScriptProperties();
+}
+
+function randomSecret_() {
+  return Utilities.base64EncodeWebSafe(
+    Utilities.computeDigest(
+      Utilities.DigestAlgorithm.SHA_256,
+      Utilities.getUuid() + Utilities.getUuid() + Date.now() + Math.random()
+    )
+  ).replace(/=+$/g, "");
+}
+
+/**
+ * Run ONCE from the Apps Script editor. Copy proxySecret from the execution
+ * result into Vercel as LAND_VIEW_PROXY_SECRET. Do not put it in GitHub.
+ */
+function initializeSecuritySecrets() {
+  const props = getSecurityProperties_();
+  let proxySecret = props.getProperty(SECURITY_KEYS.PROXY_SECRET);
+  let pepper = props.getProperty(SECURITY_KEYS.PASSWORD_PEPPER);
+
+  if (!proxySecret) {
+    proxySecret = randomSecret_() + randomSecret_();
+    props.setProperty(SECURITY_KEYS.PROXY_SECRET, proxySecret);
+  }
+  if (!pepper) {
+    pepper = randomSecret_() + randomSecret_();
+    props.setProperty(SECURITY_KEYS.PASSWORD_PEPPER, pepper);
+  }
+
+  ensureUserSecurityHeaders();
+  return {
+    initialized: true,
+    proxySecret: proxySecret,
+    message: "Copy proxySecret to Vercel LAND_VIEW_PROXY_SECRET. Password pepper remains private in Apps Script."
+  };
+}
+
+function constantTimeEqual_(a, b) {
+  const left = String(a || "");
+  const right = String(b || "");
+  if (left.length !== right.length) return false;
+  let diff = 0;
+  for (let i = 0; i < left.length; i++) diff |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  return diff === 0;
+}
+
+function assertProxyRequest_(params) {
+  if (!CONFIG.SECURITY_REQUIRE_PROXY_SECRET) return true;
+  const expected = getSecurityProperties_().getProperty(SECURITY_KEYS.PROXY_SECRET);
+  if (!expected) throw new Error("LAND VIEW security is not initialized. Run initializeSecuritySecrets() once.");
+  const supplied = String((params && params.proxySecret) || "");
+  if (!constantTimeEqual_(expected, supplied)) throw new Error("Unauthorized gateway request.");
+  return true;
+}
+
+function passwordPepper_() {
+  const pepper = getSecurityProperties_().getProperty(SECURITY_KEYS.PASSWORD_PEPPER);
+  if (!pepper) throw new Error("LAND VIEW password security is not initialized.");
+  return pepper;
+}
+
+function generatePasswordSalt_() {
+  return Utilities.getUuid() + "-" + Utilities.getUuid();
+}
+
+function hashPassword_(password, salt) {
+  const bytes = Utilities.computeHmacSha256Signature(
+    String(salt || "") + "\n" + String(password || ""),
+    passwordPepper_(),
+    Utilities.Charset.UTF_8
+  );
+  return Utilities.base64EncodeWebSafe(bytes).replace(/=+$/g, "");
+}
+
+function buildPasswordFields_(password, mustChange) {
+  const salt = generatePasswordSalt_();
+  return {
+    Password: "",
+    Password_Hash: hashPassword_(password, salt),
+    Password_Salt: salt,
+    Password_Version: "HMAC-SHA256-v1",
+    Must_Change_Password: mustChange ? "TRUE" : "FALSE"
+  };
+}
+
+function verifyPasswordRecord_(record, password) {
+  const hash = String(firstValue(record, ["Password_Hash"]) || "");
+  const salt = String(firstValue(record, ["Password_Salt"]) || "");
+  if (hash && salt) return constantTimeEqual_(hash, hashPassword_(password, salt));
+
+  // Legacy migration path: plaintext is accepted once, then upgraded immediately.
+  const legacy = String(firstValue(record, ["Password", "password"]) || "");
+  return legacy !== "" && constantTimeEqual_(legacy, String(password || ""));
+}
+
+function upgradeLegacyPasswordIfNeeded_(found, password) {
+  const hash = String(firstValue(found.record, ["Password_Hash"]) || "");
+  if (!hash) setRowValuesByHeader_(found, buildPasswordFields_(password, normalize(firstValue(found.record, ["Must_Change_Password"])) === "true"));
+}
+
+function loginRateKey_(identifier, clientKey) {
+  const raw = normalize(identifier) + "|" + String(clientKey || "unknown");
+  const digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, raw);
+  return "LOGIN_" + Utilities.base64EncodeWebSafe(digest).replace(/=+$/g, "").slice(0, 64);
+}
+
+function checkLoginRateLimit_(identifier, clientKey) {
+  const cache = CacheService.getScriptCache();
+  const key = loginRateKey_(identifier, clientKey);
+  const count = Number(cache.get(key) || 0);
+  if (count >= CONFIG.LOGIN_RATE_LIMIT.MAX_FAILURES) {
+    throw new Error("Too many sign-in attempts. Please wait about 15 minutes and try again.");
+  }
+}
+
+function recordLoginFailure_(identifier, clientKey) {
+  const cache = CacheService.getScriptCache();
+  const key = loginRateKey_(identifier, clientKey);
+  const count = Number(cache.get(key) || 0) + 1;
+  cache.put(key, String(count), CONFIG.LOGIN_RATE_LIMIT.WINDOW_SECONDS);
+}
+
+function clearLoginFailures_(identifier, clientKey) {
+  CacheService.getScriptCache().remove(loginRateKey_(identifier, clientKey));
+}
 
 /* =========================================================
    WEB APP
@@ -196,7 +325,6 @@ function handleAction(
   method
 ) {
 
-  authorizeProxyRequest_(params);
   authorizeActionRequest(action, params);
 
   switch (action) {
@@ -409,25 +537,9 @@ function isAdminRole(role) {
   return r === "admin" || r === "manager";
 }
 
-function getOrCreateProxySecret_() {
-  const props = PropertiesService.getScriptProperties();
-  let secret = props.getProperty("PROXY_SHARED_SECRET");
-  if (!secret) {
-    secret = Utilities.getUuid() + "-" + Utilities.getUuid() + "-" + Utilities.getUuid();
-    props.setProperty("PROXY_SHARED_SECRET", secret);
-  }
-  return secret;
-}
-
-function authorizeProxyRequest_(params) {
-  const expected = String(PropertiesService.getScriptProperties().getProperty("PROXY_SHARED_SECRET") || "");
-  if (!expected) throw new Error("Backend security is not initialized.");
-  const supplied = String((params && params.proxySecret) || "");
-  if (!constantTimeEqual_(expected, supplied)) throw new Error("Unauthorized gateway.");
-}
-
 function authorizeActionRequest(action, params) {
-  const publicActions = ["health", "login"];
+  assertProxyRequest_(params);
+  const publicActions = ["health", "login", "logout", "getSession"];
   if (publicActions.includes(action)) return null;
 
   const session = requireSession(params);
@@ -615,66 +727,44 @@ function sanitizeBillingRecordForClient(record, kind) {
 function loginUser(params) {
   const identifier = String(params.userId || params.User_ID || params.username || params.Username || "").trim();
   const password = String(params.password || params.Password || "");
+  const clientKey = String(params._clientKey || "unknown");
 
-  if (!identifier || !password) {
-    return { success: false, message: "Invalid User ID or password." };
-  }
-
-  try {
-    assertLoginAllowed_(identifier);
-  } catch (e) {
-    auditSecurityEvent_(null, "LOGIN_BLOCKED", sha256Hex_(normalize(identifier)), "DENIED", "Rate limit");
-    return { success: false, message: e.message || "Too many failed sign-in attempts. Try again later." };
-  }
-
-  const users = readSheet(CONFIG.SHEETS.USERS);
-  if (!users || !users.length) {
-    return { success: false, message: "Invalid User ID or password." };
-  }
+  if (!identifier || !password) return { success: false, message: "Invalid User ID or password." };
+  checkLoginRateLimit_(identifier, clientKey);
 
   const normalizedIdentifier = normalize(identifier);
   const phoneIdentifier = normalizePhoneIdentifier(identifier);
-  let foundUser = null;
-
-  for (let i = 0; i < users.length; i++) {
-    const user = users[i];
+  const found = findUserRow_(user => {
     const rowUserId = normalize(firstValue(user, ["User_ID", "User ID", "UserId", "userId"]));
     const rowUsername = normalize(firstValue(user, ["Username", "username", "User_Name", "User Name"]));
     const rowPhoneUsername = normalizePhoneIdentifier(firstValue(user, ["Username", "username", "Phone", "Phone_Number"]));
-    const identifierMatches = normalizedIdentifier === rowUserId || normalizedIdentifier === rowUsername || (phoneIdentifier && phoneIdentifier === rowPhoneUsername);
+    return normalizedIdentifier === rowUserId || normalizedIdentifier === rowUsername || (phoneIdentifier && phoneIdentifier === rowPhoneUsername);
+  });
 
-    if (identifierMatches && isActiveUser(user) && verifyUserPassword_(user, password)) {
-      foundUser = user;
-      break;
+  if (!found || !isActiveUser(found.record) || !verifyPasswordRecord_(found.record, password)) {
+    recordLoginFailure_(identifier, clientKey);
+    if (found) {
+      const failures = Number(firstValue(found.record, ["Failed_Login_Count"]) || 0) + 1;
+      setRowValuesByHeader_(found, { Failed_Login_Count: failures });
     }
-  }
-
-  if (!foundUser) {
-    registerFailedLogin_(identifier);
-    auditSecurityEvent_(null, "LOGIN_FAILED", sha256Hex_(normalize(identifier)), "DENIED", "Invalid credentials");
     return { success: false, message: "Invalid User ID or password." };
   }
 
-  clearLoginGuard_(identifier);
-
-  // Transparently migrate a legacy plaintext password after a successful login.
-  if (!String(firstValue(foundUser, ["Password_Hash"]) || "")) {
-    migrateUserPasswordRow_(foundUser, password);
-  }
-
-  const role = normalizeRoleName(firstValue(foundUser, ["Role", "role"]));
+  const role = normalizeRoleName(firstValue(found.record, ["Role", "role"]));
   if (!["admin", "manager", "employee", "client"].includes(role)) {
     return { success: false, message: "This account does not have a supported LAND VIEW role." };
   }
 
-  const token = createSession(foundUser);
-  const safeUser = sanitizeUser(foundUser);
-  auditSecurityEvent_({ userId: safeUser.userId, role: safeUser.role }, "LOGIN", "", "SUCCESS", "");
-  return { success: true, data: { token: token, user: safeUser } };
+  upgradeLegacyPasswordIfNeeded_(found, password);
+  clearLoginFailures_(identifier, clientKey);
+  setRowValuesByHeader_(found, { Failed_Login_Count: 0, Last_Login: new Date() });
+
+  const token = createSession(found.record);
+  return { success: true, data: { token: token, user: sanitizeUser(found.record) } };
 }
 
 function createSession(user) {
-  const token = Utilities.getUuid() + "-" + Utilities.getUuid() + "-" + Utilities.getUuid();
+  const token = randomSecret_() + randomSecret_();
   const now = Date.now();
   const session = {
     userId: String(firstValue(user, ["User_ID", "User ID", "UserId"]) || ""),
@@ -685,43 +775,35 @@ function createSession(user) {
     projectIds: String(firstValue(user, ["Project_IDs", "Project IDs", "Projects", "Project_ID", "Project ID"]) || ""),
     createdAt: now,
     lastSeenAt: now,
-    expiresAt: now + Number(CONFIG.SESSION_HOURS || 8) * 60 * 60 * 1000
+    expiresAt: now + CONFIG.SESSION_HOURS * 60 * 60 * 1000
   };
-
-  PropertiesService.getScriptProperties().setProperty(sessionPropertyKey_(token), JSON.stringify(session));
+  PropertiesService.getScriptProperties().setProperty("SESSION_" + token, JSON.stringify(session));
   return token;
 }
 
 function readSession(token) {
   const cleanToken = String(token || "").trim();
   if (!cleanToken) return null;
-
+  const key = "SESSION_" + cleanToken;
   const props = PropertiesService.getScriptProperties();
-  const key = sessionPropertyKey_(cleanToken);
   const raw = props.getProperty(key);
   if (!raw) return null;
 
   let session;
-  try {
-    session = JSON.parse(raw);
-  } catch (e) {
-    props.deleteProperty(key);
-    return null;
-  }
+  try { session = JSON.parse(raw); }
+  catch { props.deleteProperty(key); return null; }
 
   const now = Date.now();
-  const idleMs = Number(CONFIG.SESSION_IDLE_MINUTES || 45) * 60 * 1000;
+  const idleMs = CONFIG.SESSION_IDLE_MINUTES * 60 * 1000;
   if (!session || !session.expiresAt || now > Number(session.expiresAt) || (session.lastSeenAt && now - Number(session.lastSeenAt) > idleMs)) {
     props.deleteProperty(key);
     return null;
   }
 
-  const touchMs = Number(CONFIG.SESSION_TOUCH_MINUTES || 5) * 60 * 1000;
-  if (!session.lastSeenAt || now - Number(session.lastSeenAt) >= touchMs) {
+  if (!session.lastSeenAt || now - Number(session.lastSeenAt) > 5 * 60 * 1000) {
     session.lastSeenAt = now;
     props.setProperty(key, JSON.stringify(session));
   }
-
   return session;
 }
 
@@ -759,11 +841,15 @@ function requireSession(params) {
   return session;
 }
 
+function requireAdminSession(params) {
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  return session;
+}
+
 function logoutUser(params) {
   const token = String(params.token || "").trim();
-  const session = token ? readSession(token) : null;
-  if (token) PropertiesService.getScriptProperties().deleteProperty(sessionPropertyKey_(token));
-  if (session) auditSecurityEvent_(session, "LOGOUT", "", "SUCCESS", "");
+  if (token) PropertiesService.getScriptProperties().deleteProperty("SESSION_" + token);
   return { success: true, data: { loggedOut: true } };
 }
 
@@ -801,7 +887,9 @@ function ensureUserSecurityHeaders() {
     "Created_Date",
     "Password_Hash",
     "Password_Salt",
-    "Password_Updated_At"
+    "Password_Version",
+    "Failed_Login_Count",
+    "Last_Login"
   ]);
 }
 
@@ -834,190 +922,6 @@ function generateTemporaryPassword_() {
   return out + "!";
 }
 
-
-function bytesToHex_(bytes) {
-  return bytes.map(function(b) {
-    const n = b < 0 ? b + 256 : b;
-    return ("0" + n.toString(16)).slice(-2);
-  }).join("");
-}
-
-function sha256Hex_(value) {
-  return bytesToHex_(Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(value || ""), Utilities.Charset.UTF_8));
-}
-
-function getAuthPepper_() {
-  const props = PropertiesService.getScriptProperties();
-  let pepper = props.getProperty("AUTH_PEPPER");
-  if (!pepper) {
-    pepper = Utilities.getUuid() + "-" + Utilities.getUuid() + "-" + Utilities.getUuid();
-    props.setProperty("AUTH_PEPPER", pepper);
-  }
-  return pepper;
-}
-
-function newPasswordSalt_() {
-  return Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, "");
-}
-
-function derivePasswordHash_(password, salt) {
-  const pepper = getAuthPepper_();
-  let value = String(salt || "") + "|" + String(password || "") + "|" + pepper;
-  const rounds = Math.max(1, Number(CONFIG.PASSWORD_HASH_ROUNDS || 3000));
-  for (let i = 0; i < rounds; i++) {
-    value = sha256Hex_(value + "|" + salt + "|" + pepper);
-  }
-  return value;
-}
-
-function constantTimeEqual_(a, b) {
-  a = String(a || "");
-  b = String(b || "");
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
-function passwordFields_(password) {
-  const salt = newPasswordSalt_();
-  return {
-    Password: "",
-    Password_Hash: derivePasswordHash_(password, salt),
-    Password_Salt: salt,
-    Password_Updated_At: new Date().toISOString()
-  };
-}
-
-function verifyUserPassword_(user, password) {
-  const hash = String(firstValue(user, ["Password_Hash", "Password Hash"]) || "");
-  const salt = String(firstValue(user, ["Password_Salt", "Password Salt"]) || "");
-  if (hash && salt) {
-    return constantTimeEqual_(hash, derivePasswordHash_(password, salt));
-  }
-  // Temporary backward compatibility for accounts not migrated yet.
-  return constantTimeEqual_(String(firstValue(user, ["Password", "password"]) || ""), String(password || ""));
-}
-
-function migrateUserPasswordRow_(user, plainPassword) {
-  const userId = String(firstValue(user, ["User_ID", "User ID", "UserId"]) || "").trim();
-  if (!userId) return;
-  const found = findUserRow_(function(u) {
-    return String(firstValue(u, ["User_ID", "User ID", "UserId"]) || "").trim() === userId;
-  });
-  if (found) setRowValuesByHeader_(found, passwordFields_(plainPassword));
-}
-
-function sessionPropertyKey_(token) {
-  return "SESSION_" + sha256Hex_(String(token || "") + "|" + getAuthPepper_());
-}
-
-function revokeUserSessions_(userId) {
-  const target = String(userId || "").trim();
-  if (!target) return;
-  const props = PropertiesService.getScriptProperties();
-  const all = props.getProperties();
-  Object.keys(all).forEach(function(key) {
-    if (key.indexOf("SESSION_") !== 0) return;
-    try {
-      const session = JSON.parse(all[key]);
-      if (String(session.userId || "").trim() === target) props.deleteProperty(key);
-    } catch (e) {}
-  });
-}
-
-function loginGuardKey_(identifier) {
-  return "LOGIN_GUARD_" + sha256Hex_(normalize(identifier) + "|" + getAuthPepper_());
-}
-
-function readLoginGuard_(identifier) {
-  const raw = PropertiesService.getScriptProperties().getProperty(loginGuardKey_(identifier));
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch (e) { return null; }
-}
-
-function assertLoginAllowed_(identifier) {
-  const guard = readLoginGuard_(identifier);
-  if (guard && Number(guard.lockedUntil || 0) > Date.now()) {
-    throw new Error("Too many failed sign-in attempts. Try again later.");
-  }
-}
-
-function registerFailedLogin_(identifier) {
-  const props = PropertiesService.getScriptProperties();
-  const key = loginGuardKey_(identifier);
-  const now = Date.now();
-  const windowMs = Number(CONFIG.LOGIN_WINDOW_MINUTES || 15) * 60 * 1000;
-  const lockMs = Number(CONFIG.LOGIN_LOCK_MINUTES || 15) * 60 * 1000;
-  let guard = readLoginGuard_(identifier) || { failures: 0, windowStartedAt: now, lockedUntil: 0 };
-  if (!guard.windowStartedAt || now - Number(guard.windowStartedAt) > windowMs) {
-    guard = { failures: 0, windowStartedAt: now, lockedUntil: 0 };
-  }
-  guard.failures = Number(guard.failures || 0) + 1;
-  if (guard.failures >= Number(CONFIG.LOGIN_MAX_FAILURES || 5)) guard.lockedUntil = now + lockMs;
-  props.setProperty(key, JSON.stringify(guard));
-}
-
-function clearLoginGuard_(identifier) {
-  PropertiesService.getScriptProperties().deleteProperty(loginGuardKey_(identifier));
-}
-
-function ensureAuditLog_() {
-  const sheet = getSheet(CONFIG.SHEETS.AUDIT_LOG);
-  if (sheet.getLastRow() === 0) {
-    sheet.appendRow(["Timestamp", "User_ID", "Role", "Action", "Target", "Result", "Details"]);
-  }
-  return sheet;
-}
-
-function auditSecurityEvent_(session, action, target, result, details) {
-  try {
-    ensureAuditLog_().appendRow([
-      new Date(),
-      session && session.userId ? session.userId : "",
-      session && session.role ? session.role : "",
-      String(action || ""),
-      String(target || ""),
-      String(result || ""),
-      String(details || "").slice(0, 500)
-    ]);
-  } catch (e) {}
-}
-
-// Run once from the Apps Script editor after deploying this upgrade.
-// It creates the security fields, secret pepper, audit log, and migrates plaintext passwords.
-function initializeSecurityUpgrade() {
-  ensureUserSecurityHeaders();
-  ensureAuditLog_();
-  getAuthPepper_();
-  const proxySecret = getOrCreateProxySecret_();
-  const sheet = getSheet(CONFIG.SHEETS.USERS);
-  const values = sheet.getDataRange().getValues();
-  if (values.length < 2) return { migrated: 0, proxySecret: proxySecret, message: "LAND VIEW security upgrade initialized. Copy proxySecret into Vercel as LAND_VIEW_PROXY_SECRET." };
-  const headers = values[0].map(function(x) { return String(x).trim(); });
-  const passwordCol = findHeaderIndex(headers, ["Password", "password"]);
-  const hashCol = findHeaderIndex(headers, ["Password_Hash"]);
-  const saltCol = findHeaderIndex(headers, ["Password_Salt"]);
-  const updatedCol = findHeaderIndex(headers, ["Password_Updated_At"]);
-  let migrated = 0;
-  for (let i = 1; i < values.length; i++) {
-    const plain = passwordCol >= 0 ? String(values[i][passwordCol] || "") : "";
-    const existingHash = hashCol >= 0 ? String(values[i][hashCol] || "") : "";
-    if (!plain || existingHash) continue;
-    const fields = passwordFields_(plain);
-    if (passwordCol >= 0) sheet.getRange(i + 1, passwordCol + 1).setValue("");
-    if (hashCol >= 0) sheet.getRange(i + 1, hashCol + 1).setValue(fields.Password_Hash);
-    if (saltCol >= 0) sheet.getRange(i + 1, saltCol + 1).setValue(fields.Password_Salt);
-    if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(fields.Password_Updated_At);
-    migrated++;
-  }
-  return {
-    migrated: migrated,
-    proxySecret: proxySecret,
-    message: "LAND VIEW security upgrade initialized. Copy proxySecret into Vercel as LAND_VIEW_PROXY_SECRET."
-  };
-}
-
 function findUserRow_(predicate) {
   const sheet = getSheet(CONFIG.SHEETS.USERS);
   const values = sheet.getDataRange().getValues();
@@ -1042,6 +946,9 @@ function appendUserRecord_(record) {
   const sheet = getSheet(CONFIG.SHEETS.USERS);
   const headers = ensureUserSecurityHeaders();
   if (!record.User_ID) record.User_ID = generateId("USR-", sheet, "User_ID");
+  if (record.Password && !record.Password_Hash) {
+    Object.assign(record, buildPasswordFields_(String(record.Password), normalize(record.Must_Change_Password) === "true"));
+  }
   sheet.appendRow(headers.map(h => record[h] ?? ""));
   return record;
 }
@@ -1067,17 +974,18 @@ function ensureEmployeeLoginAccount_(employee) {
   }
 
   const temporaryPassword = generateTemporaryPassword_();
-  const record = appendUserRecord_(Object.assign({
+  const record = appendUserRecord_({
     User_ID: employeeId,
     Name: firstValue(employee, ["Employee_Name", "Employee Name", "Name"]) || employeeId,
     Username: employeeId,
+    Password: temporaryPassword,
     Role: "Employee",
     Active: "TRUE",
     Employee_ID: employeeId,
     Project_IDs: firstValue(employee, ["Project_IDs", "Project IDs", "Projects", "Project_ID"]) || "",
     Must_Change_Password: "TRUE",
     Created_Date: new Date()
-  }, passwordFields_(temporaryPassword)));
+  });
   return { created: true, userId: record.User_ID, username: record.Username, temporaryPassword };
 }
 
@@ -1110,17 +1018,18 @@ function ensureClientLoginAccountForProject_(project) {
   ensureUserSecurityHeaders();
   const temporaryPassword = generateTemporaryPassword_();
   const userId = generateId("CLT-", usersSheet, "User_ID");
-  appendUserRecord_(Object.assign({
+  appendUserRecord_({
     User_ID: userId,
     Name: firstValue(project, ["Client_Name", "Client Name"]) || "LAND VIEW Client",
     Username: username,
+    Password: temporaryPassword,
     Role: "Client",
     Active: "TRUE",
     Employee_ID: "",
     Project_IDs: projectId,
     Must_Change_Password: "TRUE",
     Created_Date: new Date()
-  }, passwordFields_(temporaryPassword)));
+  });
   project.Client_User_ID = userId;
   project.Client_Username = username;
   return { created: true, userId, username, temporaryPassword, projectIds: projectId };
@@ -1129,8 +1038,6 @@ function ensureClientLoginAccountForProject_(project) {
 function initializeRoleSecurity() {
   ensureUserSecurityHeaders();
   ensureProjectClientSecurityHeaders();
-  ensureAuditLog_();
-  getAuthPepper_();
 
   const documentSheet = getSheet(CONFIG.SHEETS.DOCUMENTS);
   let documentHeaders = getHeaders(documentSheet);
@@ -1157,7 +1064,9 @@ function sanitizeUserForAdminList_(user) {
     Employee_ID: firstValue(user, ["Employee_ID", "Employee ID"]),
     Project_IDs: firstValue(user, ["Project_IDs", "Project IDs", "Projects"]),
     Must_Change_Password: firstValue(user, ["Must_Change_Password"]),
-    Created_Date: firstValue(user, ["Created_Date", "Created Date"])
+    Created_Date: firstValue(user, ["Created_Date", "Created Date"]),
+    Last_Login: firstValue(user, ["Last_Login"]),
+    Password_Secured: Boolean(firstValue(user, ["Password_Hash"]))
   };
 }
 
@@ -1166,12 +1075,10 @@ function resetUserPassword(params) {
   if (!isAdminRole(session.role)) throw new Error("Access denied.");
   const target = String(params.userId || params.User_ID || "").trim();
   if (!target) throw new Error("User ID is required.");
-  const found = findUserRow_(function(u) { return String(firstValue(u, ["User_ID", "User ID"]) || "").trim() === target; });
+  const found = findUserRow_(u => String(firstValue(u, ["User_ID", "User ID"]) || "").trim() === target);
   if (!found) throw new Error("User not found.");
   const temporaryPassword = generateTemporaryPassword_();
-  setRowValuesByHeader_(found, Object.assign({}, passwordFields_(temporaryPassword), { Must_Change_Password: "TRUE", Active: "TRUE" }));
-  revokeUserSessions_(target);
-  auditSecurityEvent_(session, "RESET_PASSWORD", target, "SUCCESS", "");
+  setRowValuesByHeader_(found, Object.assign(buildPasswordFields_(temporaryPassword, true), { Active: "TRUE", Failed_Login_Count: 0 }));
   return { success: true, data: { userId: target, username: firstValue(found.record, ["Username"]), temporaryPassword } };
 }
 
@@ -1180,16 +1087,18 @@ function changeOwnPassword(params) {
   const currentPassword = String(params.currentPassword || "");
   const newPassword = String(params.newPassword || "");
   if (newPassword.length < 10) throw new Error("New password must be at least 10 characters.");
-  if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
-    throw new Error("Use upper and lower case letters, a number, and a symbol.");
+  if (!/[A-Z]/.test(newPassword) || !/[a-z]/.test(newPassword) || !/\d/.test(newPassword) || !/[^A-Za-z0-9]/.test(newPassword)) {
+    throw new Error("New password must include uppercase, lowercase, number, and symbol.");
   }
-  const found = findUserRow_(function(u) { return String(firstValue(u, ["User_ID", "User ID"]) || "").trim() === String(session.userId || "").trim(); });
+  const found = findUserRow_(u => String(firstValue(u, ["User_ID", "User ID"]) || "").trim() === String(session.userId || "").trim());
   if (!found) throw new Error("User not found.");
-  if (!verifyUserPassword_(found.record, currentPassword)) throw new Error("Current password is incorrect.");
-  setRowValuesByHeader_(found, Object.assign({}, passwordFields_(newPassword), { Must_Change_Password: "FALSE" }));
-  revokeUserSessions_(session.userId);
-  auditSecurityEvent_(session, "CHANGE_PASSWORD", session.userId, "SUCCESS", "All sessions revoked");
-  return { success: true, data: { changed: true, reauthenticationRequired: true } };
+  if (!verifyPasswordRecord_(found.record, currentPassword)) throw new Error("Current password is incorrect.");
+  setRowValuesByHeader_(found, buildPasswordFields_(newPassword, false));
+
+  const oldToken = String(params.token || "").trim();
+  if (oldToken) PropertiesService.getScriptProperties().deleteProperty("SESSION_" + oldToken);
+  const token = createSession(Object.assign({}, found.record, { Password: "" }));
+  return { success: true, data: { changed: true, token: token } };
 }
 
 /* =========================================================
@@ -1209,32 +1118,23 @@ function getUsers(params) {
 function createUser(params) {
   const session = requireSession(params);
   if (!isAdminRole(session.role)) throw new Error("Access denied.");
-
   const user = Object.assign({}, params.user || params);
-  delete user.action;
-  delete user.token;
-  delete user.proxySecret;
+  delete user.action; delete user.token; delete user.proxySecret; delete user._clientKey;
 
-  const plainPassword = String(user.Password || user.password || "");
-  delete user.password;
-  if (plainPassword) Object.assign(user, passwordFields_(plainPassword));
-
-  const sheet = getSheet(CONFIG.SHEETS.USERS);
-  const headers = ensureUserSecurityHeaders();
-  if (!user.User_ID && !user.userId) user.User_ID = generateId("USR-", sheet, "User_ID");
-
-  const row = headers.map(function(header) {
-    if (header === "User_ID") return user.User_ID || user.userId || "";
-    return user[header] !== undefined ? user[header] : "";
-  });
-  sheet.appendRow(row);
-
-  auditSecurityEvent_(session, "CREATE_USER", user.User_ID || user.userId || "", "SUCCESS", String(user.Role || user.role || ""));
-  return { success: true, data: { created: true, user: sanitizeUserForAdminList_(user) } };
+  const role = normalizeRoleName(user.Role || user.role);
+  if (!["admin", "manager", "employee", "client"].includes(role)) throw new Error("Invalid user role.");
+  if (!user.Password && !user.password) throw new Error("A temporary password is required.");
+  user.Password = String(user.Password || user.password);
+  user.Role = role.charAt(0).toUpperCase() + role.slice(1);
+  user.Active = user.Active === undefined ? "TRUE" : user.Active;
+  user.Must_Change_Password = "TRUE";
+  user.Created_Date = new Date();
+  const record = appendUserRecord_(user);
+  return { success: true, data: { created: true, user: sanitizeUserForAdminList_(record) } };
 }
 
+
 /* =========================================================
-   PROJECTS/* =========================================================
    PROJECTS
 ========================================================= */
 
@@ -1272,7 +1172,6 @@ function createProject(params) {
 
   delete project.action;
   delete project.token;
-  delete project.proxySecret;
 
 
   const sheet =
@@ -1338,8 +1237,7 @@ function createProject(params) {
 
 function updateProject(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   const projectId =
     String(
@@ -1459,8 +1357,7 @@ function updateProject(params) {
 
 function deleteProject(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   const projectId =
     String(
@@ -1536,14 +1433,12 @@ function deleteProject(params) {
 
 function getProjectEmployees(params) {
 
-  const session = requireSession(params);
+  requireAdminSession(params);
 
   const projectId =
     String(
       params.projectId || ""
     ).trim();
-
-  assertProjectAccess(session, projectId);
 
 
   const employees =
@@ -1585,8 +1480,7 @@ function getProjectEmployees(params) {
 
 function updateProjectEmployees(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   const projectId =
     String(
@@ -2437,8 +2331,7 @@ function ensureProjectDriveStructure(
 
 function syncProjectDriveFolders(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireSession(params);
 
   return syncAllProjectDriveFolders_();
 
@@ -2561,8 +2454,7 @@ function syncAllProjectDriveFolders_() {
 
 function getEmployees(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   return {
     success: true,
@@ -2586,7 +2478,6 @@ function createEmployee(params) {
 
   delete employee.action;
   delete employee.token;
-  delete employee.proxySecret;
 
 
   const sheet =
@@ -2630,8 +2521,7 @@ function createEmployee(params) {
 
 function updateEmployee(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   return updateGeneric(
     CONFIG.SHEETS.EMPLOYEES,
@@ -2649,8 +2539,7 @@ function updateEmployee(params) {
 
 function deleteEmployee(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   return deleteGeneric(
     CONFIG.SHEETS.EMPLOYEES,
@@ -2738,8 +2627,7 @@ function createSiteVisit(params) {
 
 function getBillingDashboard(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
 
   const projects =
@@ -2875,8 +2763,7 @@ function getBillingRecords(params) {
 
 function saveBill(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   return appendRecord(
     CONFIG.SHEETS.BILLS,
@@ -2890,8 +2777,7 @@ function saveBill(params) {
 
 function createBill(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   return appendRecord(
     CONFIG.SHEETS.BILLS,
@@ -2928,8 +2814,7 @@ function getPayments(params) {
 
 function savePayment(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   return appendRecord(
     CONFIG.SHEETS.PAYMENTS,
@@ -2943,8 +2828,7 @@ function savePayment(params) {
 
 function createPayment(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   return appendRecord(
     CONFIG.SHEETS.PAYMENTS,
@@ -2981,8 +2865,7 @@ function getInvoices(params) {
 
 function createInvoice(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   const projectId =
     String(
@@ -4374,8 +4257,7 @@ function createTemporaryAdminTestSession() {
 
 function getPermissions(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   return {
     success: true,
@@ -4391,8 +4273,7 @@ function getPermissions(params) {
 
 function createPermission(params) {
 
-  const session = requireSession(params);
-  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  requireAdminSession(params);
 
   return appendRecord(
     CONFIG.SHEETS.PERMISSIONS,
@@ -4946,8 +4827,7 @@ function cleanParams(params) {
 
         if (
           key !== "action" &&
-          key !== "token" &&
-          key !== "proxySecret"
+          key !== "token"
         ) {
 
           result[key] =

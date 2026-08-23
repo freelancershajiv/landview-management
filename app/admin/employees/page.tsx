@@ -23,6 +23,7 @@ export default function EmployeesPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(blank);
   const [editing, setEditing] = useState("");
+  const [credentials, setCredentials] = useState<{ username: string; password: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -55,7 +56,14 @@ export default function EmployeesPage() {
       if (editing) {
         await landViewApi.updateEmployee(editing, form);
       } else {
-        await landViewApi.createEmployee(form);
+        const result = await landViewApi.createEmployee(form);
+        const account = result.account;
+        if (account?.created && account.temporaryPassword) {
+          setCredentials({
+            username: account.username || result.Employee_ID || "",
+            password: account.temporaryPassword,
+          });
+        }
       }
       setOpen(false);
       setEditing("");
@@ -115,6 +123,21 @@ export default function EmployeesPage() {
         )}</div>
         <div className="form-actions"><button type="button" className="btn btn-light" onClick={() => setOpen(false)}>Cancel</button><button className="btn btn-dark">Save employee</button></div>
       </form>
+    </div>}
+
+    {credentials && <div className="modal-backdrop">
+      <div className="modal card" onMouseDown={e => e.stopPropagation()}>
+        <div className="section-title"><div><span>LOGIN CREATED</span><h2>Employee temporary password</h2></div></div>
+        <div className="notice"><strong>Save these credentials now</strong><span>The temporary password is shown only once. The employee must change it after signing in.</span></div>
+        <div className="form-grid">
+          <Field label="LOGIN ID"><input readOnly value={credentials.username} /></Field>
+          <Field label="TEMPORARY PASSWORD"><input readOnly value={credentials.password} /></Field>
+        </div>
+        <div className="form-actions">
+          <button type="button" className="btn btn-light" onClick={() => navigator.clipboard.writeText(`Login ID: ${credentials.username}\nTemporary Password: ${credentials.password}`)}>Copy credentials</button>
+          <button type="button" className="btn btn-dark" onClick={() => setCredentials(null)}>I saved it</button>
+        </div>
+      </div>
     </div>}
 
   </>;

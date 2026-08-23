@@ -269,7 +269,6 @@ export default function PublicHomePage() {
               <span>OFFICE</span>
               <strong>F. Rahman AC Market (2nd Floor)</strong>
               <p>S.S.K Road, Feni Sadar, Feni-3900, Bangladesh</p>
-              <a className="public-map-link" href="https://share.google/cTmtQarK6Oo6KY8Md" target="_blank" rel="noopener noreferrer">Open in Google Maps <span>→</span></a>
             </div>
             <div>
               <span>EMAIL</span>
