@@ -5532,3 +5532,42 @@ tbody tr:hover td {
   }
 }
 
+
+
+/* =========================================================
+   PUBLIC TEAM — CENTER CARD CONTENT
+========================================================= */
+
+.public-team-copy {
+  text-align: center;
+  align-items: center;
+}
+
+.public-team-copy h3 {
+  width: 100%;
+  margin-left: 0;
+  margin-right: 0;
+  text-align: center;
+}
+
+.public-team-copy strong,
+.public-team-copy small,
+.public-team-copy > p,
+.public-team-bio,
+.public-team-bio-line,
+.public-team-copy a {
+  width: 100%;
+  text-align: center;
+}
+
+.public-team-index {
+  position: static;
+  width: 100%;
+  order: -1;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.public-team-bio {
+  justify-items: center;
+}
