@@ -25,9 +25,9 @@ export default function PublicHeader() {
             <a href="tel:+8801902500400"><b>☎</b> +88 01902 500 400</a>
           </div>
 
-          <Link href="/login" className="public-employee-link">
-            Login <span>→</span>
-          </Link>
+          <a href="https://app.landview.com.bd" className="public-employee-link">
+            Client / Staff Portal <span>→</span>
+          </a>
         </div>
       </div>
 
