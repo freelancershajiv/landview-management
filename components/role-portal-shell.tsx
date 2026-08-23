@@ -43,12 +43,6 @@ export default function RolePortalShell({
     let cancelled = false;
 
     async function verify() {
-      const token = getStoredToken();
-      if (!token) {
-        router.replace("/login");
-        return;
-      }
-
       try {
         const session = await landViewApi.getSession();
         if (!session?.authenticated) throw new Error("Session expired");
