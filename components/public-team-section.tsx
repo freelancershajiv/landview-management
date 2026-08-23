@@ -11,6 +11,31 @@ type PublicTeamMember = {
   linkedInUrl?: string;
 };
 
+
+function getPublicImageUrl(url?: string) {
+  const value = String(url || "").trim();
+  if (!value) return "";
+
+  const fileMatch = value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);
+  if (fileMatch?.[1]) {
+    return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileMatch[1])}&sz=w1000`;
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname === "drive.google.com") {
+      const id = parsed.searchParams.get("id");
+      if (id) {
+        return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1000`;
+      }
+    }
+  } catch {
+    // Leave non-standard URLs unchanged.
+  }
+
+  return value;
+}
+
 function initials(name: string) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "LV";
 }
@@ -57,7 +82,7 @@ export default function PublicTeamSection() {
                 <article className="public-team-card" key={`${name}-${index}`}>
                   <div className="public-team-photo">
                     {member.photoUrl ? (
-                      <img src={member.photoUrl} alt={name} loading="lazy" />
+                      <img src={getPublicImageUrl(member.photoUrl)} alt={name} loading="lazy" />
                     ) : (
                       <span>{initials(name)}</span>
                     )}
