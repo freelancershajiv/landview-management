@@ -5292,44 +5292,221 @@ tbody tr:hover td {
 /* =========================================================
    PUBLIC TEAM
 ========================================================= */
+
 .public-team {
   background: #f3f3ef;
 }
+
 .public-team-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 22px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
   margin-top: 38px;
+  align-items: stretch;
 }
+
 .public-team-card {
   min-width: 0;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: #fff;
-  border-top: 5px solid var(--lv-accent);
-  box-shadow: 0 12px 34px rgba(0,0,0,.06);
+  border-top: 4px solid var(--lv-accent);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, .065);
+  transition: transform .2s ease, box-shadow .2s ease;
 }
+
+.public-team-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, .085);
+}
+
 .public-team-photo {
   aspect-ratio: 4 / 3;
   display: grid;
   place-items: center;
   overflow: hidden;
   background:
-    linear-gradient(130deg, rgba(239,73,59,.22), transparent 48%),
+    linear-gradient(130deg, rgba(239, 73, 59, .22), transparent 48%),
     linear-gradient(145deg, #252525, #494949);
 }
-.public-team-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.public-team-photo span { color: #fff; font: 700 clamp(42px, 5vw, 68px)/1 Arial, Helvetica, sans-serif; letter-spacing: -.05em; }
-.public-team-copy { position: relative; padding: 26px; }
-.public-team-index { position: absolute; right: 24px; top: 24px; color: #c8c8c4; font-size: 9px; font-weight: 900; letter-spacing: .12em; }
-.public-team-copy h3 { margin: 0 42px 7px 0; font: 400 28px/1.05 Georgia, "Times New Roman", serif; }
-.public-team-copy strong, .public-team-copy small { display: block; }
-.public-team-copy strong { color: var(--lv-accent); font-size: 9px; text-transform: uppercase; letter-spacing: .11em; }
-.public-team-copy small { margin-top: 6px; color: #888; font-size: 9px; text-transform: uppercase; letter-spacing: .08em; }
-.public-team-copy p { margin: 18px 0 0; color: #666; font-size: 11px; line-height: 1.7; }
-.public-team-copy a { display: inline-block; margin-top: 18px; color: #222; font-size: 8px; font-weight: 900; text-transform: uppercase; letter-spacing: .1em; }
-.public-team-empty { margin-top: 34px; padding: 26px; border-left: 5px solid var(--lv-accent); background: #fff; color: #777; font-size: 11px; line-height: 1.6; }
-.public-map-link { display: inline-block; margin-top: 9px; color: var(--lv-accent); font-size: 9px; font-weight: 900; text-transform: uppercase; letter-spacing: .08em; }
-.public-employee-toggle { display: flex; align-items: center; gap: 10px; min-height: 42px; font-size: 11px; color: #444; }
-.public-employee-toggle input { width: 17px; height: 17px; accent-color: var(--lv-accent); }
-@media (max-width: 980px) { .public-team-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 640px) { .public-team-grid { grid-template-columns: 1fr; } }
+
+.public-team-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+
+.public-team-photo span {
+  color: #fff;
+  font: 700 clamp(42px, 5vw, 68px)/1 Arial, Helvetica, sans-serif;
+  letter-spacing: -.05em;
+}
+
+.public-team-copy {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: 25px 26px 28px;
+}
+
+.public-team-index {
+  position: absolute;
+  right: 24px;
+  top: 25px;
+  color: #c8c8c4;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.public-team-copy h3 {
+  margin: 0 44px 8px 0;
+  color: #1d1d1c;
+  font: 400 clamp(23px, 2.25vw, 29px)/1.03 Georgia, "Times New Roman", serif;
+  letter-spacing: -.025em;
+}
+
+.public-team-copy strong,
+.public-team-copy small {
+  display: block;
+}
+
+/* Public title: intentionally compact so longer professional titles
+   remain on one line on normal desktop cards. */
+.public-team-copy strong {
+  max-width: calc(100% - 4px);
+  overflow: hidden;
+  color: var(--lv-accent);
+  font-size: clamp(7px, .62vw, 8px);
+  font-weight: 800;
+  line-height: 1.35;
+  text-transform: uppercase;
+  letter-spacing: .075em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.public-team-copy small {
+  margin-top: 7px;
+  color: #888;
+  font-size: 8px;
+  line-height: 1.4;
+  text-transform: uppercase;
+  letter-spacing: .075em;
+}
+
+.public-team-bio {
+  display: grid;
+  gap: 0;
+  margin: 18px 0 0;
+  padding-top: 15px;
+  border-top: 1px solid #ecece8;
+  color: #555b5e;
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.public-team-bio-line {
+  display: block;
+  min-height: 1.55em;
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f0ed;
+}
+
+.public-team-bio-line:last-child {
+  border-bottom: 0;
+}
+
+/* Compatibility if an older build still renders the bio as a plain <p>. */
+.public-team-copy > p {
+  margin: 18px 0 0;
+  padding-top: 15px;
+  border-top: 1px solid #ecece8;
+  color: #555b5e;
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: pre-line;
+}
+
+.public-team-copy a {
+  display: inline-block;
+  margin-top: auto;
+  padding-top: 18px;
+  color: #222;
+  font-size: 8px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .1em;
+}
+
+.public-team-empty {
+  margin-top: 34px;
+  padding: 26px;
+  border-left: 5px solid var(--lv-accent);
+  background: #fff;
+  color: #777;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.public-map-link {
+  display: inline-block;
+  margin-top: 9px;
+  color: var(--lv-accent);
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+
+.public-employee-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 42px;
+  font-size: 11px;
+  color: #444;
+}
+
+.public-employee-toggle input {
+  width: 17px;
+  height: 17px;
+  accent-color: var(--lv-accent);
+}
+
+@media (max-width: 980px) {
+  .public-team-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 18px;
+  }
+
+  .public-team-copy {
+    padding: 22px;
+  }
+
+  .public-team-index {
+    right: 20px;
+    top: 22px;
+  }
+
+  .public-team-copy strong {
+    font-size: 7px;
+    letter-spacing: .055em;
+  }
+}
+
+@media (max-width: 640px) {
+  .public-team-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .public-team-copy strong {
+    font-size: 8px;
+    white-space: normal;
+    text-overflow: clip;
+  }
+}
