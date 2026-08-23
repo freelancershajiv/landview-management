@@ -5322,7 +5322,7 @@ tbody tr:hover td {
 }
 
 .public-team-photo {
-  aspect-ratio: 4 / 3;
+  height: 260px;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -5350,7 +5350,7 @@ tbody tr:hover td {
   flex: 1;
   display: flex;
   flex-direction: column;
-  padding: 25px 26px 28px;
+  padding: 21px 22px 24px;
 }
 
 .public-team-index {
@@ -5364,9 +5364,9 @@ tbody tr:hover td {
 }
 
 .public-team-copy h3 {
-  margin: 0 44px 8px 0;
+  margin: 0 40px 7px 0;
   color: #1d1d1c;
-  font: 400 clamp(23px, 2.25vw, 29px)/1.03 Georgia, "Times New Roman", serif;
+  font: 400 24px/1.04 Georgia, "Times New Roman", serif;
   letter-spacing: -.025em;
 }
 
@@ -5501,8 +5501,13 @@ tbody tr:hover td {
 
 @media (max-width: 640px) {
   .public-team-grid {
-    grid-template-columns: 1fr;
-  }
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 360px));
+  justify-content: start;
+  gap: 22px;
+  margin-top: 38px;
+  align-items: stretch;
+}
 
   .public-team-copy strong {
     font-size: 8px;
