@@ -58,11 +58,26 @@ export default function EmployeesPage() {
       } else {
         const result = await landViewApi.createEmployee(form);
         const account = result.account;
+
         if (account?.created && account.temporaryPassword) {
           setCredentials({
             username: account.username || result.Employee_ID || "",
             password: account.temporaryPassword,
           });
+        } else if (account?.userId) {
+          // If an account already existed for this Employee_ID, its existing
+          // password cannot be recovered (passwords are stored only as hashes).
+          // Generate a fresh one-time temporary password so the admin always
+          // receives usable credentials for the employee just created.
+          const reset = await landViewApi.resetUserPassword(account.userId);
+          setCredentials({
+            username: reset.username || account.username || result.Employee_ID || "",
+            password: reset.temporaryPassword,
+          });
+        } else {
+          throw new Error(
+            "Employee was created, but login credentials were not returned. Check the Users sheet and Apps Script deployment."
+          );
         }
       }
       setOpen(false);
