@@ -1,0 +1,87 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+type PublicTeamMember = {
+  name?: string;
+  title?: string;
+  department?: string;
+  bio?: string;
+  photoUrl?: string;
+  linkedInUrl?: string;
+};
+
+function initials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase() || "LV";
+}
+
+export default function PublicTeamSection() {
+  const [team, setTeam] = useState<PublicTeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let active = true;
+    fetch("/api/public/team", { cache: "no-store" })
+      .then(async (response) => {
+        const json = await response.json();
+        if (!response.ok || !json?.success) throw new Error("Unable to load team");
+        return Array.isArray(json.data) ? json.data : [];
+      })
+      .then((rows) => { if (active) setTeam(rows); })
+      .catch(() => { if (active) setTeam([]); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, []);
+
+  return (
+    <section className="public-section public-team" id="team">
+      <div className="public-container">
+        <div className="public-section-head">
+          <div>
+            <span className="public-section-kicker">OUR TEAM</span>
+            <h2>The people behind LAND VIEW.</h2>
+          </div>
+          <p>
+            Architects, engineers and project professionals working together to
+            carry design decisions through to practical delivery.
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="public-team-empty">Loading team profiles…</div>
+        ) : team.length ? (
+          <div className="public-team-grid">
+            {team.map((member, index) => {
+              const name = String(member.name || "LAND VIEW Team");
+              return (
+                <article className="public-team-card" key={`${name}-${index}`}>
+                  <div className="public-team-photo">
+                    {member.photoUrl ? (
+                      <img src={member.photoUrl} alt={name} loading="lazy" />
+                    ) : (
+                      <span>{initials(name)}</span>
+                    )}
+                  </div>
+                  <div className="public-team-copy">
+                    <span className="public-team-index">{String(index + 1).padStart(2, "0")}</span>
+                    <h3>{name}</h3>
+                    <strong>{member.title || member.department || "Team Member"}</strong>
+                    {member.department && member.department !== member.title ? <small>{member.department}</small> : null}
+                    {member.bio ? <p>{member.bio}</p> : null}
+                    {member.linkedInUrl ? (
+                      <a href={member.linkedInUrl} target="_blank" rel="noreferrer">Professional profile <span>↗</span></a>
+                    ) : null}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="public-team-empty">
+            Team profiles are being prepared. LAND VIEW administrators can publish employees from the Employees page.
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}

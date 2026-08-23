@@ -12,6 +12,12 @@ const blank = {
   Department: "",
   Joining_Date: "",
   Status: "Active",
+  Public_Display: "FALSE",
+  Public_Title: "",
+  Public_Bio: "",
+  Photo_URL: "",
+  LinkedIn_URL: "",
+  Display_Order: "",
 };
 
 
@@ -133,9 +139,13 @@ export default function EmployeesPage() {
     {open && <div className="modal-backdrop" onMouseDown={() => setOpen(false)}>
       <form className="modal card" onSubmit={submit} onMouseDown={e => e.stopPropagation()}>
         <div className="section-title"><div><span>{editing ? "EDIT" : "NEW"}</span><h2>{editing ? "Edit employee" : "Add employee"}</h2></div><button type="button" className="icon-button" onClick={() => setOpen(false)}>×</button></div>
-        <div className="form-grid">{Object.entries({ Employee_Name: "EMPLOYEE NAME", Phone: "PHONE", Email: "EMAIL", Position: "POSITION", Department: "DEPARTMENT", Joining_Date: "JOINING DATE", Status: "STATUS" }).map(([k, l]) =>
-          <Field key={k} label={l}><input type={k === "Joining_Date" ? "date" : "text"} value={String((form as any)[k] || "")} onChange={e => setForm(v => ({ ...v, [k]: e.target.value }))} /></Field>
-        )}</div>
+        <div className="form-grid">
+          {Object.entries({ Employee_Name: "EMPLOYEE NAME", Phone: "PHONE", Email: "EMAIL", Position: "POSITION", Department: "DEPARTMENT", Joining_Date: "JOINING DATE", Status: "STATUS", Public_Title: "PUBLIC TITLE", Photo_URL: "PHOTO URL", LinkedIn_URL: "LINKEDIN / PROFILE URL", Display_Order: "PUBLIC DISPLAY ORDER" }).map(([k, l]) =>
+            <Field key={k} label={l}><input type={k === "Joining_Date" ? "date" : k === "Display_Order" ? "number" : "text"} value={String((form as any)[k] || "")} onChange={e => setForm(v => ({ ...v, [k]: e.target.value }))} /></Field>
+          )}
+          <Field label="PUBLIC BIO"><textarea rows={4} value={String((form as any).Public_Bio || "")} onChange={e => setForm(v => ({ ...v, Public_Bio: e.target.value }))} /></Field>
+          <Field label="PUBLIC WEBSITE"><label className="public-employee-toggle"><input type="checkbox" checked={String((form as any).Public_Display || "").toUpperCase() === "TRUE"} onChange={e => setForm(v => ({ ...v, Public_Display: e.target.checked ? "TRUE" : "FALSE" }))} /><span>Show this employee on the public website</span></label></Field>
+        </div>
         <div className="form-actions"><button type="button" className="btn btn-light" onClick={() => setOpen(false)}>Cancel</button><button className="btn btn-dark">Save employee</button></div>
       </form>
     </div>}

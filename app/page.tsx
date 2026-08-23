@@ -1,5 +1,6 @@
 import Link from "next/link";
 import PublicHeader from "@/components/public-header";
+import PublicTeamSection from "@/components/public-team-section";
 
 const services = [
   {
@@ -198,6 +199,8 @@ export default function PublicHomePage() {
         </div>
       </section>
 
+      <PublicTeamSection />
+
       <section className="public-section public-projects" id="projects">
         <div className="public-container">
           <div className="public-section-head">
@@ -269,6 +272,7 @@ export default function PublicHomePage() {
               <span>OFFICE</span>
               <strong>F. Rahman AC Market (2nd Floor)</strong>
               <p>S.S.K Road, Feni Sadar, Feni-3900, Bangladesh</p>
+              <a href="https://share.google/cTmtQarK6Oo6KY8Md" target="_blank" rel="noreferrer" className="public-map-link">View office on Google Maps <span>↗</span></a>
             </div>
             <div>
               <span>EMAIL</span>
@@ -302,6 +306,7 @@ export default function PublicHomePage() {
             <a href="#about">About</a>
             <a href="#services">Services</a>
             <a href="#projects">Projects</a>
+            <a href="#team">Team</a>
             <a href="#contact">Contact</a>
           </div>
 

@@ -8,6 +8,7 @@ const nav = [
   { href: "/#about", label: "About" },
   { href: "/#services", label: "Services" },
   { href: "/#projects", label: "Projects" },
+  { href: "/#team", label: "Team" },
   { href: "/#process", label: "Process" },
   { href: "/#contact", label: "Contact" },
 ];
@@ -20,7 +21,7 @@ export default function PublicHeader() {
       <div className="public-utility">
         <div className="public-container public-utility-inner">
           <div className="public-utility-left">
-            <span><b>●</b> Feni, Bangladesh</span>
+            <a href="https://share.google/cTmtQarK6Oo6KY8Md" target="_blank" rel="noreferrer"><b>●</b> Feni, Bangladesh</a>
             <a href="mailto:landviewcivil@gmail.com"><b>◆</b> landviewcivil@gmail.com</a>
             <a href="tel:+8801902500400"><b>☎</b> +88 01902 500 400</a>
           </div>
