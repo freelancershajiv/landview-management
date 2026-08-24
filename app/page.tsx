@@ -37,6 +37,17 @@ function getPublicImageUrl(url?: string) {
   return value;
 }
 
+function isDegreeLine(value: string) {
+  return /^(ph\.?d|doctorate|m\.?\s*sc|m\.?\s*s\.?c|b\.?\s*sc|b\.?\s*s\.?c|m\.?\s*arch|b\.?\s*arch|m\.?\s*eng|b\.?\s*eng|mba|bba|diploma|associate degree|master|bachelor)/i.test(value.trim());
+}
+
+function splitCredentialText(value?: string) {
+  return String(value || "")
+    .split(/\r?\n|\s*[•|]\s*|\s+-\s+(?=(?:Ph\.?D|Doctorate|M\.?\s*Sc|M\.?\s*S\.?c|B\.?\s*Sc|B\.?\s*S\.?c|M\.?\s*Arch|B\.?\s*Arch|M\.?\s*Eng|B\.?\s*Eng|MBA|BBA|Diploma|Associate Degree|Master|Bachelor)\b)/i)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function splitBio(value?: string) {
   let position = "";
   const rawLines = String(value || "").split(/\r?\n/);
@@ -51,13 +62,16 @@ function splitBio(value?: string) {
     }
   });
 
-  const lines = contentLines
-    .join("\n")
-    .split(/\r?\n|\s*[•|]\s*/)
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const items = splitCredentialText(contentLines.join("\n"));
+  const degrees: string[] = [];
+  const specialities: string[] = [];
 
-  return { position, degree: lines[0] || "", specialities: lines.slice(1) };
+  items.forEach((item) => {
+    if (isDegreeLine(item)) degrees.push(item);
+    else specialities.push(item);
+  });
+
+  return { position, degrees, specialities };
 }
 
 function TeamCard({ member, index }: { member: PublicTeamMember; index: number }) {
@@ -65,9 +79,15 @@ function TeamCard({ member, index }: { member: PublicTeamMember; index: number }
   const designation = member.designation || member.title || "";
   const position = member.position || parsedBio.position || "";
   const department = member.department || "";
-  const degrees = member.degrees || member.degree || parsedBio.degree || "";
+
+  const explicitDegrees = splitCredentialText(member.degrees || member.degree || "");
+  const degrees = explicitDegrees.length ? explicitDegrees : parsedBio.degrees;
+
   const specialitiesValue = member.specialities || member.speciality || "";
-  const specialities = specialitiesValue ? specialitiesValue.split(/\r?\n|\s*[•|]\s*/).map((item) => item.trim()).filter(Boolean) : parsedBio.specialities;
+  const specialities = specialitiesValue
+    ? splitCredentialText(specialitiesValue)
+    : parsedBio.specialities;
+
   const initials = String(member.name || "LV").split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word.charAt(0)).join("").toUpperCase();
 
   return (
@@ -84,10 +104,14 @@ function TeamCard({ member, index }: { member: PublicTeamMember; index: number }
         </h3>
         {position ? <div className="public-team-info-block"><span className="public-team-label">POSITION</span><strong>{position}</strong></div> : null}
         {department ? <div className="public-team-info-block"><span className="public-team-label">DEPARTMENT</span><strong>{department}</strong></div> : null}
-        {degrees || specialities.length ? (
+        {degrees.length || specialities.length ? (
           <div className="public-team-info-block public-team-credentials">
             <span className="public-team-label">DEGREES &amp; SPECIALITIES</span>
-            {degrees ? <small className="public-team-degree">{degrees}</small> : null}
+            {degrees.length ? (
+              <div className="public-team-degrees">
+                {degrees.map((item, itemIndex) => <small className="public-team-degree" key={`${item}-${itemIndex}`}>{item}</small>)}
+              </div>
+            ) : null}
             {specialities.length ? <div className="public-team-specialities">{specialities.map((item, itemIndex) => <span key={`${item}-${itemIndex}`}>{item}</span>)}</div> : null}
           </div>
         ) : null}
