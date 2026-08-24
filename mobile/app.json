@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "LAND VIEW",
+    "slug": "landview-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.landview.mobile"
+    },
+    "ios": {
+      "bundleIdentifier": "com.landview.mobile",
+      "supportsTablet": true
+    },
+    "splash": {
+      "backgroundColor": "#F4F1EB"
+    }
+  }
+}
