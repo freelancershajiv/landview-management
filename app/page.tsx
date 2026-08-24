@@ -1,6 +1,212 @@
-import Link from "next/link";
+"use client";
+
+import { useEffect, useState } from "react";
 import PublicHeader from "@/components/public-header";
-import PublicTeamSection from "@/components/public-team-section";
+
+
+type PublicTeamMember = {
+  name?: string;
+  title?: string;
+  designation?: string;
+  position?: string;
+  department?: string;
+  degree?: string;
+  degrees?: string;
+  speciality?: string;
+  specialities?: string;
+  bio?: string;
+  photoUrl?: string;
+  linkedInUrl?: string;
+};
+
+function getPublicImageUrl(url?: string) {
+  const value = String(url || "").trim();
+  if (!value) return "";
+
+  const fileMatch = value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);
+  if (fileMatch?.[1]) {
+    return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileMatch[1])}&sz=w1000`;
+  }
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname === "drive.google.com") {
+      const id = parsed.searchParams.get("id");
+      if (id) {
+        return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1000`;
+      }
+    }
+  } catch {
+    return value;
+  }
+
+  return value;
+}
+
+function splitBio(value?: string) {
+  const lines = String(value || "")
+    .split(/\r?\n|\s*[•|]\s*/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return {
+    degree: lines[0] || "",
+    specialities: lines.slice(1),
+  };
+}
+
+function TeamCard({ member, index }: { member: PublicTeamMember; index: number }) {
+  const parsedBio = splitBio(member.bio);
+  const designation = member.designation || member.title || "Architect";
+  const position = member.position || member.department || "";
+  const degrees = member.degrees || member.degree || parsedBio.degree || "";
+  const specialitiesValue = member.specialities || member.speciality || "";
+  const specialities = specialitiesValue
+    ? specialitiesValue
+        .split(/\r?\n|\s*[•|]\s*/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : parsedBio.specialities;
+
+  const initials = String(member.name || "LV")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word.charAt(0))
+    .join("")
+    .toUpperCase();
+
+  return (
+    <article className="public-team-card">
+      <div className="public-team-card-accent" aria-hidden="true" />
+
+      <div className="public-team-photo">
+        {member.photoUrl ? (
+          <img
+            src={getPublicImageUrl(member.photoUrl)}
+            alt={member.name || "LAND VIEW team member"}
+          />
+        ) : (
+          <span>{initials}</span>
+        )}
+      </div>
+
+      <div className="public-team-copy">
+        <span className="public-team-index">
+          {String(index + 1).padStart(2, "0")}
+        </span>
+
+        <h3>
+          <span className="public-team-designation">{designation}</span>{" "}
+          <span className="public-team-name">{member.name}</span>
+        </h3>
+
+        {position ? (
+          <div className="public-team-info-block">
+            <span className="public-team-label">POSITION</span>
+            <strong>{position}</strong>
+          </div>
+        ) : null}
+
+        {degrees || specialities.length ? (
+          <div className="public-team-info-block public-team-credentials">
+            <span className="public-team-label">DEGREES &amp; SPECIALITIES</span>
+            {degrees ? <small className="public-team-degree">{degrees}</small> : null}
+            {specialities.length ? (
+              <div className="public-team-specialities">
+                {specialities.map((item, itemIndex) => (
+                  <span key={`${item}-${itemIndex}`}>{item}</span>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {member.linkedInUrl ? (
+          <a href={member.linkedInUrl} target="_blank" rel="noreferrer">
+            LinkedIn <span>↗</span>
+          </a>
+        ) : null}
+      </div>
+
+      <div className="public-team-card-bottom" aria-hidden="true">
+        <span />
+      </div>
+    </article>
+  );
+}
+
+function PublicTeamSection() {
+  const [team, setTeam] = useState<PublicTeamMember[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadTeam() {
+      try {
+        const response = await fetch("/api/public/team", { cache: "no-store" });
+        const data = await response.json();
+
+        if (cancelled) return;
+
+        if (Array.isArray(data)) {
+          setTeam(data);
+        } else if (Array.isArray(data?.team)) {
+          setTeam(data.team);
+        } else if (Array.isArray(data?.employees)) {
+          setTeam(data.employees);
+        } else {
+          setTeam([]);
+        }
+      } catch (error) {
+        console.error("Failed to load public team:", error);
+        if (!cancelled) setTeam([]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    loadTeam();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return (
+    <section className="public-section public-team" id="team">
+      <div className="public-container">
+        <div className="public-section-head">
+          <div>
+            <span className="public-section-kicker">OUR TEAM</span>
+            <h2>The people behind LAND VIEW.</h2>
+          </div>
+          <p>
+            Architects and engineers working together across design, technical
+            coordination and project delivery.
+          </p>
+        </div>
+
+        {loading ? (
+          <div className="public-team-empty">Loading team members...</div>
+        ) : team.length ? (
+          <div className="public-team-grid">
+            {team.map((member, index) => (
+              <TeamCard
+                key={`${member.name || "team-member"}-${index}`}
+                member={member}
+                index={index}
+              />
+            ))}
+          </div>
+        ) : (
+          <div className="public-team-empty">No team members are available right now.</div>
+        )}
+      </div>
+    </section>
+  );
+}
 
 const services = [
   {
