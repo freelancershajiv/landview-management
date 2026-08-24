@@ -4,22 +4,36 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
 import { EmptyState, Field, LoadingState, PageHeader, StatusBadge, pick } from "@/components/lv-ui";
 
+const DESIGNATIONS = [
+  "Architect",
+  "Engr.",
+  "Civil Engr.",
+  "Structural Engr.",
+  "Electrical Engr.",
+  "Mechanical Engr.",
+  "Interior Designer",
+  "Draftsman",
+  "Project Manager",
+  "Site Engineer",
+  "Surveyor",
+  "Administrator",
+];
+
 const blank = {
   Employee_Name: "",
   Phone: "",
   Email: "",
+  Public_Title: "",
   Position: "",
   Department: "",
   Joining_Date: "",
   Status: "Active",
   Public_Display: "FALSE",
-  Public_Title: "",
   Public_Bio: "",
   Photo_URL: "",
   LinkedIn_URL: "",
   Display_Order: "",
 };
-
 
 export default function EmployeesPage() {
   const [rows, setRows] = useState<any[]>([]);
@@ -71,10 +85,6 @@ export default function EmployeesPage() {
             password: account.temporaryPassword,
           });
         } else if (account?.userId) {
-          // If an account already existed for this Employee_ID, its existing
-          // password cannot be recovered (passwords are stored only as hashes).
-          // Generate a fresh one-time temporary password so the admin always
-          // receives usable credentials for the employee just created.
           const reset = await landViewApi.resetUserPassword(account.userId);
           setCredentials({
             username: reset.username || account.username || result.Employee_ID || "",
@@ -105,7 +115,6 @@ export default function EmployeesPage() {
     }
   }
 
-
   return <>
     <PageHeader
       eyebrow="TEAM"
@@ -125,10 +134,12 @@ export default function EmployeesPage() {
       <EmptyState title="No employees" text="Add the first team member to LAND VIEW." /> :
       <div className="employee-grid">{filtered.map((r: any) => {
         const id = pick(r, ["Employee_ID", "Employee ID", "EmployeeId"]);
+        const designation = pick(r, ["Public_Title", "Public Title", "Designation", "designation"], "");
+        const name = pick(r, ["Employee_Name", "Employee Name", "Name"], id);
         return <div className="employee-card" key={id}>
-          <div className="employee-avatar">{pick(r, ["Employee_Name", "Name"], id).slice(0, 2).toUpperCase()}</div>
+          <div className="employee-avatar">{name.slice(0, 2).toUpperCase()}</div>
           <div className="employee-main">
-            <div className="employee-top"><div><h3>{pick(r, ["Employee_Name", "Employee Name", "Name"], id)}</h3><p>{pick(r, ["Position", "Department"], "Team member")}</p></div><StatusBadge value={pick(r, ["Status", "status"], "Active")} /></div>
+            <div className="employee-top"><div><h3>{designation ? `${designation} ${name}` : name}</h3><p>{pick(r, ["Position"], pick(r, ["Department"], "Team member"))}</p></div><StatusBadge value={pick(r, ["Status", "status"], "Active")} /></div>
             <div className="employee-lines"><span>{id}</span><span>{pick(r, ["Phone", "Phone_Number"], "No phone")}</span><span>{pick(r, ["Email"], "No email")}</span></div>
             <div className="employee-actions"><button onClick={() => startEdit(r)}>Edit</button><button onClick={() => remove(id)}>Delete</button></div>
           </div>
@@ -140,7 +151,26 @@ export default function EmployeesPage() {
       <form className="modal card" onSubmit={submit} onMouseDown={e => e.stopPropagation()}>
         <div className="section-title"><div><span>{editing ? "EDIT" : "NEW"}</span><h2>{editing ? "Edit employee" : "Add employee"}</h2></div><button type="button" className="icon-button" onClick={() => setOpen(false)}>×</button></div>
         <div className="form-grid">
-          {Object.entries({ Employee_Name: "EMPLOYEE NAME", Phone: "PHONE", Email: "EMAIL", Position: "POSITION", Department: "DEPARTMENT", Joining_Date: "JOINING DATE", Status: "STATUS", Public_Title: "PUBLIC TITLE", Photo_URL: "PHOTO URL", LinkedIn_URL: "LINKEDIN / PROFILE URL", Display_Order: "PUBLIC DISPLAY ORDER" }).map(([k, l]) =>
+          <Field label="EMPLOYEE NAME"><input type="text" value={form.Employee_Name} onChange={e => setForm(v => ({ ...v, Employee_Name: e.target.value }))} /></Field>
+
+          <Field label="DESIGNATION">
+            <select value={form.Public_Title} onChange={e => setForm(v => ({ ...v, Public_Title: e.target.value }))}>
+              <option value="">Select designation</option>
+              {DESIGNATIONS.map(item => <option value={item} key={item}>{item}</option>)}
+            </select>
+          </Field>
+
+          {Object.entries({
+            Phone: "PHONE",
+            Email: "EMAIL",
+            Position: "POSITION",
+            Department: "DEPARTMENT",
+            Joining_Date: "JOINING DATE",
+            Status: "STATUS",
+            Photo_URL: "PHOTO URL",
+            LinkedIn_URL: "LINKEDIN / PROFILE URL",
+            Display_Order: "PUBLIC DISPLAY ORDER",
+          }).map(([k, l]) =>
             <Field key={k} label={l}><input type={k === "Joining_Date" ? "date" : k === "Display_Order" ? "number" : "text"} value={String((form as any)[k] || "")} onChange={e => setForm(v => ({ ...v, [k]: e.target.value }))} /></Field>
           )}
           <Field label="PUBLIC BIO"><textarea rows={4} value={String((form as any).Public_Bio || "")} onChange={e => setForm(v => ({ ...v, Public_Bio: e.target.value }))} /></Field>
@@ -164,6 +194,5 @@ export default function EmployeesPage() {
         </div>
       </div>
     </div>}
-
   </>;
 }
