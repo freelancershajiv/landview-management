@@ -16,8 +16,18 @@ const initial = {
   Design_Bill: "",
   Status: "Active",
   Start_Date: "",
+  Public_Display: "FALSE",
+  Public_Project_Title: "",
+  Public_Description: "",
+  Project_Category: "",
+  Project_Area: "",
+  Number_of_Stories: "",
+  Cover_Image_URL: "",
+  Gallery_Images: "",
+  Public_Services: "",
+  Completion_Year: "",
+  Public_Display_Order: "",
 };
-
 
 export default function NewProjectPage() {
   const router = useRouter();
@@ -50,14 +60,8 @@ export default function NewProjectPage() {
     }
   }
 
-
   return <>
-    <PageHeader
-      eyebrow="PROJECT CONTROL"
-      title="Create project"
-      description="Add a project with client, location, status and commercial information."
-      action={<Link href="/admin/projects" className="btn btn-light">← Projects</Link>}
-    />
+    <PageHeader eyebrow="PROJECT CONTROL" title="Create project" description="Add a project with client, location, status, commercial and public portfolio information." action={<Link href="/admin/projects" className="btn btn-light">← Projects</Link>} />
 
     <form onSubmit={submit} className="card form-card">
       {error && <div className="notice error"><strong>Could not save</strong><span>{error}</span></div>}
@@ -87,23 +91,26 @@ export default function NewProjectPage() {
         <div className="form-grid single"><Field label="DESIGN BILL"><input type="number" min="0" value={form.Design_Bill} onChange={e => set("Design_Bill", e.target.value)} placeholder="0" /></Field></div>
       </div>
 
+      <div className="form-section">
+        <div><span>04</span><h2>Public portfolio</h2><p>Only projects explicitly enabled here should appear on the public LAND VIEW portfolio.</p></div>
+        <div className="form-grid">
+          <Field label="SHOW ON WEBSITE"><select value={form.Public_Display} onChange={e => set("Public_Display", e.target.value)}><option value="FALSE">No</option><option value="TRUE">Yes</option></select></Field>
+          <Field label="PUBLIC PROJECT TITLE"><input value={form.Public_Project_Title} onChange={e => set("Public_Project_Title", e.target.value)} placeholder="7-Storied Residential Building" /></Field>
+          <Field label="CATEGORY"><input value={form.Project_Category} onChange={e => set("Project_Category", e.target.value)} placeholder="Residential" /></Field>
+          <Field label="PROJECT AREA"><input value={form.Project_Area} onChange={e => set("Project_Area", e.target.value)} placeholder="4,500 sft" /></Field>
+          <Field label="NUMBER OF STORIES"><input value={form.Number_of_Stories} onChange={e => set("Number_of_Stories", e.target.value)} placeholder="7" /></Field>
+          <Field label="COMPLETION YEAR"><input value={form.Completion_Year} onChange={e => set("Completion_Year", e.target.value)} placeholder="2026" /></Field>
+          <Field label="COVER IMAGE URL"><input value={form.Cover_Image_URL} onChange={e => set("Cover_Image_URL", e.target.value)} placeholder="Google Drive or public image URL" /></Field>
+          <Field label="DISPLAY ORDER"><input type="number" min="0" value={form.Public_Display_Order} onChange={e => set("Public_Display_Order", e.target.value)} placeholder="1" /></Field>
+          <Field label="SERVICES" hint="Separate with • or new lines"><textarea rows={4} value={form.Public_Services} onChange={e => set("Public_Services", e.target.value)} placeholder="Architectural Design • Structural Design • 3D Design - Exterior" /></Field>
+          <Field label="GALLERY IMAGE URLS" hint="One URL per line"><textarea rows={4} value={form.Gallery_Images} onChange={e => set("Gallery_Images", e.target.value)} placeholder="https://..." /></Field>
+          <Field label="PUBLIC DESCRIPTION"><textarea rows={5} value={form.Public_Description} onChange={e => set("Public_Description", e.target.value)} placeholder="Short public description of the project." /></Field>
+        </div>
+      </div>
+
       <div className="form-actions"><Link className="btn btn-light" href="/admin/projects">Cancel</Link><button disabled={saving} className="btn btn-dark">{saving ? "Saving..." : "Create project"}</button></div>
     </form>
 
-    {created && <div className="modal-backdrop">
-      <div className="modal card">
-        <div className="section-title"><div><span>CLIENT LOGIN CREATED</span><h2>Client temporary password</h2></div></div>
-        <div className="notice"><strong>Save these credentials now</strong><span>The temporary password is shown only once. Give it securely to the client.</span></div>
-        <div className="form-grid">
-          <Field label="LOGIN ID"><input readOnly value={created.username} /></Field>
-          <Field label="TEMPORARY PASSWORD"><input readOnly value={created.password} /></Field>
-        </div>
-        <div className="form-actions">
-          <button type="button" className="btn btn-light" onClick={() => navigator.clipboard.writeText(`Login ID: ${created.username}\nTemporary Password: ${created.password}`)}>Copy credentials</button>
-          <button type="button" className="btn btn-dark" onClick={() => router.push(created.id ? `/admin/projects/${encodeURIComponent(created.id)}` : "/admin/projects")}>I saved it — continue</button>
-        </div>
-      </div>
-    </div>}
-
+    {created && <div className="modal-backdrop"><div className="modal card"><div className="section-title"><div><span>CLIENT LOGIN CREATED</span><h2>Client temporary password</h2></div></div><div className="notice"><strong>Save these credentials now</strong><span>The temporary password is shown only once. Give it securely to the client.</span></div><div className="form-grid"><Field label="LOGIN ID"><input readOnly value={created.username} /></Field><Field label="TEMPORARY PASSWORD"><input readOnly value={created.password} /></Field></div><div className="form-actions"><button type="button" className="btn btn-light" onClick={() => navigator.clipboard.writeText(`Login ID: ${created.username}\nTemporary Password: ${created.password}`)}>Copy credentials</button><button type="button" className="btn btn-dark" onClick={() => router.push(created.id ? `/admin/projects/${encodeURIComponent(created.id)}` : "/admin/projects")}>I saved it — continue</button></div></div></div>}
   </>;
 }
