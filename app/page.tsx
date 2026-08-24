@@ -1,8 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import PublicHeader from "@/components/public-header";
-
 
 type PublicTeamMember = {
   name?: string;
@@ -19,21 +19,27 @@ type PublicTeamMember = {
   linkedInUrl?: string;
 };
 
+type PublicProject = {
+  projectId?: string;
+  title?: string;
+  category?: string;
+  coverImageUrl?: string;
+};
+
 const PUBLIC_POSITION_PREFIX = "__POSITION__:";
 
-function getPublicImageUrl(url?: string) {
+function imageUrl(url?: string, size = "w1600") {
   const value = String(url || "").trim();
   if (!value) return "";
-
   const fileMatch = value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);
-  if (fileMatch?.[1]) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileMatch[1])}&sz=w1000`;
+  if (fileMatch?.[1]) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileMatch[1])}&sz=${size}`;
   try {
     const parsed = new URL(value);
     if (parsed.hostname === "drive.google.com") {
       const id = parsed.searchParams.get("id");
-      if (id) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1000`;
+      if (id) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=${size}`;
     }
-  } catch { return value; }
+  } catch {}
   return value;
 }
 
@@ -50,27 +56,18 @@ function splitCredentialText(value?: string) {
 
 function splitBio(value?: string) {
   let position = "";
-  const rawLines = String(value || "").split(/\r?\n/);
   const contentLines: string[] = [];
-
-  rawLines.forEach(line => {
+  String(value || "").split(/\r?\n/).forEach((line) => {
     const trimmed = line.trim();
-    if (trimmed.startsWith(PUBLIC_POSITION_PREFIX)) {
-      position = trimmed.slice(PUBLIC_POSITION_PREFIX.length).trim();
-    } else if (trimmed) {
-      contentLines.push(trimmed);
-    }
+    if (trimmed.startsWith(PUBLIC_POSITION_PREFIX)) position = trimmed.slice(PUBLIC_POSITION_PREFIX.length).trim();
+    else if (trimmed) contentLines.push(trimmed);
   });
-
-  const items = splitCredentialText(contentLines.join("\n"));
   const degrees: string[] = [];
   const specialities: string[] = [];
-
-  items.forEach((item) => {
+  splitCredentialText(contentLines.join("\n")).forEach((item) => {
     if (isDegreeLine(item)) degrees.push(item);
     else specialities.push(item);
   });
-
   return { position, degrees, specialities };
 }
 
@@ -79,22 +76,16 @@ function TeamCard({ member, index }: { member: PublicTeamMember; index: number }
   const designation = member.designation || member.title || "";
   const position = member.position || parsedBio.position || "";
   const department = member.department || "";
-
   const explicitDegrees = splitCredentialText(member.degrees || member.degree || "");
   const degrees = explicitDegrees.length ? explicitDegrees : parsedBio.degrees;
-
-  const specialitiesValue = member.specialities || member.speciality || "";
-  const specialities = specialitiesValue
-    ? splitCredentialText(specialitiesValue)
-    : parsedBio.specialities;
-
+  const specialityValue = member.specialities || member.speciality || "";
+  const specialities = specialityValue ? splitCredentialText(specialityValue) : parsedBio.specialities;
   const initials = String(member.name || "LV").split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word.charAt(0)).join("").toUpperCase();
 
   return (
-    <article className="public-team-card">
-      <div className="public-team-card-accent" aria-hidden="true" />
+    <article className="public-team-card lv-team-card">
       <div className="public-team-photo">
-        {member.photoUrl ? <img src={getPublicImageUrl(member.photoUrl)} alt={member.name || "LAND VIEW team member"} /> : <span>{initials}</span>}
+        {member.photoUrl ? <img src={imageUrl(member.photoUrl, "w1000")} alt={member.name || "LAND VIEW team member"} /> : <span>{initials}</span>}
       </div>
       <div className="public-team-copy">
         <span className="public-team-index">{String(index + 1).padStart(2, "0")}</span>
@@ -107,17 +98,11 @@ function TeamCard({ member, index }: { member: PublicTeamMember; index: number }
         {degrees.length || specialities.length ? (
           <div className="public-team-info-block public-team-credentials">
             <span className="public-team-label">DEGREES &amp; SPECIALITIES</span>
-            {degrees.length ? (
-              <div className="public-team-degrees">
-                {degrees.map((item, itemIndex) => <small className="public-team-degree" key={`${item}-${itemIndex}`}>{item}</small>)}
-              </div>
-            ) : null}
-            {specialities.length ? <div className="public-team-specialities">{specialities.map((item, itemIndex) => <span key={`${item}-${itemIndex}`}>{item}</span>)}</div> : null}
+            {degrees.length ? <div className="public-team-degrees">{degrees.map((item, i) => <small className="public-team-degree" key={`${item}-${i}`}>{item}</small>)}</div> : null}
+            {specialities.length ? <div className="public-team-specialities">{specialities.map((item, i) => <span key={`${item}-${i}`}>{item}</span>)}</div> : null}
           </div>
         ) : null}
-        {member.linkedInUrl ? <a href={member.linkedInUrl} target="_blank" rel="noreferrer">LinkedIn <span>↗</span></a> : null}
       </div>
-      <div className="public-team-card-bottom" aria-hidden="true"><span /></div>
     </article>
   );
 }
@@ -125,6 +110,7 @@ function TeamCard({ member, index }: { member: PublicTeamMember; index: number }
 function PublicTeamSection() {
   const [team, setTeam] = useState<PublicTeamMember[]>([]);
   const [loading, setLoading] = useState(true);
+
   useEffect(() => {
     let cancelled = false;
     async function loadTeam() {
@@ -132,69 +118,174 @@ function PublicTeamSection() {
         const response = await fetch("/api/public/team", { cache: "no-store" });
         const data = await response.json();
         if (cancelled) return;
-        if (Array.isArray(data?.data)) setTeam(data.data);
-        else if (Array.isArray(data?.team)) setTeam(data.team);
-        else if (Array.isArray(data?.employees)) setTeam(data.employees);
-        else if (Array.isArray(data)) setTeam(data);
-        else setTeam([]);
-      } catch (error) {
-        console.error("Failed to load public team:", error);
+        const rows = Array.isArray(data?.data) ? data.data : Array.isArray(data?.team) ? data.team : Array.isArray(data?.employees) ? data.employees : Array.isArray(data) ? data : [];
+        setTeam(rows);
+      } catch {
         if (!cancelled) setTeam([]);
-      } finally { if (!cancelled) setLoading(false); }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
     loadTeam();
     return () => { cancelled = true; };
   }, []);
+
   return (
-    <section className="public-section public-team" id="team"><div className="public-container">
-      <div className="public-section-head"><div><span className="public-section-kicker">OUR TEAM</span><h2>The people behind LAND VIEW.</h2></div><p>Engineers and architects working together across design, technical coordination and project delivery.</p></div>
-      {loading ? <div className="public-team-empty">Loading team members...</div> : team.length ? <div className="public-team-grid">{team.map((member, index) => <TeamCard key={`${member.name || "team-member"}-${index}`} member={member} index={index} />)}</div> : <div className="public-team-empty">No team members are available right now.</div>}
-    </div></section>
+    <section className="lv-section lv-team-section" id="team">
+      <div className="public-container">
+        <div className="lv-section-head">
+          <div><span>OUR TEAM</span><h2>The people behind LAND VIEW.</h2></div>
+          <p>Engineers and architects working together across design, technical coordination and project delivery.</p>
+        </div>
+        {loading ? <div className="lv-empty">Loading team members...</div> : team.length ? <div className="public-team-grid lv-team-grid">{team.map((member, index) => <TeamCard key={`${member.name || "team"}-${index}`} member={member} index={index} />)}</div> : <div className="lv-empty">No team members are available right now.</div>}
+      </div>
+    </section>
+  );
+}
+
+function Hero() {
+  const [project, setProject] = useState<PublicProject | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadProject() {
+      try {
+        const response = await fetch("/api/public/projects", { cache: "no-store" });
+        const data = await response.json();
+        const rows: PublicProject[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+        const featured = rows.find((item) => item.coverImageUrl) || rows[0] || null;
+        if (!cancelled) setProject(featured);
+      } catch {}
+    }
+    loadProject();
+    return () => { cancelled = true; };
+  }, []);
+
+  const cover = imageUrl(project?.coverImageUrl);
+  return (
+    <section className="lv-hero" id="home">
+      <div className="lv-hero-noise" />
+      <div className="public-container lv-hero-grid">
+        <div className="lv-hero-copy">
+          <span className="lv-eyebrow">LAND VIEW ENGINEERS &amp; ARCHITECTS</span>
+          <h1>DESIGNING BETTER.<br /><em>BUILDING SAFER.</em></h1>
+          <div className="lv-gold-rule" />
+          <p>LAND VIEW Engineers &amp; Architects delivers coordinated architectural, structural and technical design solutions focused on safety, clarity and practical construction.</p>
+          <div className="lv-hero-actions">
+            <a href="#services" className="lv-btn lv-btn-gold">Our Services</a>
+            <Link href="/projects" className="lv-btn lv-btn-outline">View Projects</Link>
+          </div>
+        </div>
+        <div className={`lv-hero-visual ${cover ? "has-photo" : ""}`} style={cover ? { backgroundImage: `linear-gradient(90deg, rgba(8,15,23,.26), rgba(8,15,23,.05)), url(${cover})` } : undefined}>
+          {!cover && <><div className="lv-building"><span /><span /><span /><span /><span /></div><div className="lv-building-glow" /></>}
+          <div className="lv-project-badge"><small>FEATURED WORK</small><strong>{project?.title || "Architecture & Engineering"}</strong><span>{project?.category || "LAND VIEW PROJECT"}</span></div>
+        </div>
+      </div>
+      <div className="public-container lv-hero-services">
+        <article><b>▥</b><div><strong>Architectural Design</strong><span>Creative &amp; functional design solutions.</span></div></article>
+        <article><b>⌗</b><div><strong>Structural Design</strong><span>Safe, durable &amp; efficient structures.</span></div></article>
+        <article><b>▣</b><div><strong>Project Coordination</strong><span>Quality control &amp; clear project delivery.</span></div></article>
+        <article><b>⌂</b><div><strong>Site Supervision</strong><span>On-site monitoring for quality &amp; safety.</span></div></article>
+      </div>
+    </section>
   );
 }
 
 const services = [
-  { number: "01", title: "Architectural Design", text: "Building planning, floor plans, elevations and architectural drawing packages developed around the site and client requirements.", icon: "⌂" },
-  { number: "02", title: "Structural Design", text: "Structural analysis, reinforced-concrete design and detailing focused on safety, efficiency and practical construction.", icon: "▦" },
-  { number: "03", title: "3D Design - Exterior", text: "Exterior 3D modeling and visualization to communicate building form, facade, materials and overall architectural character.", icon: "◇" },
-  { number: "04", title: "3D Design - Interior", text: "Interior 3D design and visualization for spatial planning, finishes, furniture concepts and presentation-ready views.", icon: "◫" },
-  { number: "05", title: "Electrical Design", text: "Electrical layouts for lighting, power points, distribution and coordinated building-service planning.", icon: "⚡" },
-  { number: "06", title: "Plumbing Design", text: "Water-supply, sanitary and drainage layouts coordinated with the architectural and structural design.", icon: "≈" },
-  { number: "07", title: "Estimate & Costing", text: "Quantity takeoff, BOQ preparation and project cost estimation to support budgeting and construction decisions.", icon: "∑" },
-  { number: "08", title: "Plan Approval", text: "Preparation and coordination of drawings and documents required for the building plan approval process.", icon: "✓" },
-  { number: "09", title: "Digital Survey", text: "Digital site and land survey support for accurate measurements, existing-condition information and project planning.", icon: "⌖" },
-  { number: "10", title: "Soil Test", text: "Soil investigation and testing support to provide geotechnical information for safe and appropriate foundation decisions.", icon: "◉" },
+  ["01", "Architectural Design", "Building planning, floor plans, elevations and architectural drawing packages developed around the site and client requirements.", "▥"],
+  ["02", "Structural Design", "Structural analysis, reinforced-concrete design and detailing focused on safety, efficiency and practical construction.", "⌗"],
+  ["03", "3D Design - Exterior", "Exterior 3D modeling and visualization to communicate building form, facade, materials and overall architectural character.", "◇"],
+  ["04", "3D Design - Interior", "Interior 3D design and visualization for spatial planning, finishes, furniture concepts and presentation-ready views.", "◫"],
+  ["05", "Electrical Design", "Electrical layouts for lighting, power points, distribution and coordinated building-service planning.", "⚡"],
+  ["06", "Plumbing Design", "Water-supply, sanitary and drainage layouts coordinated with the architectural and structural design.", "≈"],
+  ["07", "Estimate & Costing", "Quantity takeoff, BOQ preparation and project cost estimation to support budgeting and construction decisions.", "∑"],
+  ["08", "Plan Approval", "Preparation and coordination of drawings and documents required for the building plan approval process.", "✓"],
+  ["09", "Digital Survey", "Digital site and land survey support for accurate measurements, existing-condition information and project planning.", "⌖"],
+  ["10", "Soil Test", "Soil investigation and testing support to provide geotechnical information for safe and appropriate foundation decisions.", "◉"],
 ];
 
-const projects = [
-  { code: "ARCHITECTURE", title: "Residential Design", text: "Efficient homes planned around daylight, circulation, privacy and buildable detailing.", className: "project-art-one" },
-  { code: "ENGINEERING", title: "Structural Design", text: "Coordinated structural systems developed for safety, economy and construction practicality.", className: "project-art-two" },
-  { code: "DELIVERY", title: "Site & Project Support", text: "Design-to-site coordination with supervision, documentation and professional follow-through.", className: "project-art-three" },
-];
-
-const process = [
-  ["01", "Brief", "Understand the site, requirements, budget and project goals."],
-  ["02", "Design", "Develop coordinated architectural and engineering solutions."],
-  ["03", "Documentation", "Prepare drawings and technical information for execution."],
-  ["04", "Delivery", "Support construction with supervision and project coordination."],
-];
+const homeCss = `
+  .public-site {
+    --lv-gold: #d79a17;
+    --lv-gold-light: #efb733;
+    --lv-navy: #07101a;
+    --lv-navy-2: #0b1621;
+    --lv-panel: #101a24;
+    --lv-line: rgba(255,255,255,.11);
+    --lv-copy: #d8dde2;
+    min-height: 100vh;
+    overflow: hidden;
+    background: var(--lv-navy);
+    color: #fff;
+  }
+  .public-container { width: min(100% - 44px, 1320px); margin: 0 auto; }
+  .lv-hero { position: relative; padding: 0 0 34px; overflow: hidden; background: radial-gradient(circle at 78% 30%, rgba(215,154,23,.12), transparent 30%), linear-gradient(115deg,#07111b,#0b1620 48%,#050a0f); }
+  .lv-hero-noise { position: absolute; inset: 0; opacity: .18; pointer-events: none; background-image: linear-gradient(rgba(255,255,255,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.018) 1px,transparent 1px); background-size: 54px 54px; }
+  .lv-hero-grid { position: relative; z-index: 2; min-height: 520px; display: grid; grid-template-columns: .92fr 1.08fr; align-items: stretch; }
+  .lv-hero-copy { align-self: center; max-width: 610px; padding: 70px 48px 70px 0; }
+  .lv-eyebrow { display: block; margin-bottom: 20px; color: #9aa5ae; font-size: 8px; font-weight: 900; letter-spacing: .22em; }
+  .lv-hero h1 { margin: 0; color: #fff; font: 500 clamp(42px,5vw,68px)/.98 Georgia,"Times New Roman",serif; letter-spacing: .025em; text-shadow: 0 4px 18px rgba(0,0,0,.28); }
+  .lv-hero h1 em { color: var(--lv-gold-light); font-style: normal; }
+  .lv-gold-rule { width: 88px; height: 3px; margin: 24px 0 20px; background: var(--lv-gold); }
+  .lv-hero-copy p { max-width: 580px; margin: 0; color: #d5dbe0; font-size: 14px; line-height: 1.8; }
+  .lv-hero-actions { display: flex; gap: 12px; margin-top: 28px; }
+  .lv-btn { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; padding: 0 24px; border-radius: 6px; font-size: 9px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; transition: .18s ease; }
+  .lv-btn:hover { transform: translateY(-2px); }
+  .lv-btn-gold { border: 1px solid var(--lv-gold-light); background: linear-gradient(180deg,#e9ae29,#c88709); color: #111820; box-shadow: 0 10px 25px rgba(0,0,0,.23); }
+  .lv-btn-outline { border: 1px solid rgba(215,154,23,.78); background: rgba(3,9,14,.18); color: #fff; }
+  .lv-hero-visual { position: relative; overflow: hidden; min-height: 500px; background: linear-gradient(160deg,#152331 0%,#0b141d 46%,#060b10 100%); background-size: cover; background-position: center; }
+  .lv-hero-visual::before { content:""; position:absolute; inset:0; background: linear-gradient(90deg,#07101a 0%,rgba(7,16,26,.55) 12%,transparent 42%),linear-gradient(0deg,rgba(3,8,12,.7),transparent 42%); z-index:1; }
+  .lv-building { position:absolute; right:8%; bottom:4%; width:72%; height:78%; border:1px solid rgba(255,255,255,.18); transform:perspective(700px) rotateY(-8deg); background:linear-gradient(90deg,rgba(215,154,23,.08),transparent 2%),linear-gradient(120deg,#1d2b36,#0d161e); box-shadow:0 25px 50px rgba(0,0,0,.4); }
+  .lv-building::before { content:""; position:absolute; inset:8% 7% 12%; background:repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 2px,transparent 2px 14%),repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 2px,transparent 2px 25%); }
+  .lv-building::after { content:""; position:absolute; left:-20%; bottom:-1px; width:42%; height:54%; border:1px solid rgba(255,255,255,.15); background:#111d27; }
+  .lv-building span { position:absolute; width:26%; height:3px; background:var(--lv-gold); box-shadow:0 0 18px rgba(215,154,23,.8); }
+  .lv-building span:nth-child(1){left:12%;top:25%}.lv-building span:nth-child(2){left:46%;top:25%}.lv-building span:nth-child(3){left:12%;top:54%}.lv-building span:nth-child(4){left:46%;top:54%}.lv-building span:nth-child(5){left:46%;top:80%}
+  .lv-building-glow { position:absolute; right:14%; bottom:7%; width:60%; height:24%; background:radial-gradient(ellipse,rgba(215,154,23,.2),transparent 65%); filter:blur(8px); }
+  .lv-project-badge { position:absolute; z-index:3; right:22px; bottom:22px; max-width:270px; padding:16px 18px; border-left:3px solid var(--lv-gold); background:rgba(5,12,18,.86); backdrop-filter:blur(8px); }
+  .lv-project-badge small,.lv-project-badge strong,.lv-project-badge span{display:block}.lv-project-badge small{color:var(--lv-gold-light);font-size:7px;font-weight:900;letter-spacing:.15em}.lv-project-badge strong{margin-top:6px;font:500 17px/1.15 Georgia,"Times New Roman",serif}.lv-project-badge span{margin-top:5px;color:#8d98a2;font-size:7px;letter-spacing:.08em}
+  .lv-hero-services { position:relative; z-index:4; display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); border:1px solid rgba(255,255,255,.22); border-radius:14px; overflow:hidden; background:rgba(8,15,22,.92); box-shadow:0 18px 40px rgba(0,0,0,.28); }
+  .lv-hero-services article { min-height:102px; display:flex; align-items:center; gap:16px; padding:20px 24px; border-right:1px solid rgba(255,255,255,.14); }
+  .lv-hero-services article:last-child{border-right:0}.lv-hero-services b{width:44px;flex:0 0 44px;color:var(--lv-gold-light);font-size:28px;text-align:center}.lv-hero-services strong,.lv-hero-services span{display:block}.lv-hero-services strong{font-size:11px;text-transform:uppercase;letter-spacing:.03em}.lv-hero-services span{margin-top:7px;color:#c3c9cf;font-size:10px;line-height:1.5}
+  .lv-section { padding:92px 0; background:#0a121b; color:#fff; }
+  .lv-section:nth-of-type(even){background:#0d1721}.lv-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:50px;margin-bottom:40px}.lv-section-head>div{max-width:720px}.lv-section-head>div>span{display:block;margin-bottom:12px;color:var(--lv-gold-light);font-size:8px;font-weight:900;letter-spacing:.2em}.lv-section-head h2{margin:0;font:500 clamp(34px,4vw,54px)/1 Georgia,"Times New Roman",serif;letter-spacing:-.025em}.lv-section-head>p{max-width:400px;margin:0;color:#9ba5ae;font-size:11px;line-height:1.75}
+  .lv-services-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));border-top:1px solid var(--lv-line);border-left:1px solid var(--lv-line)}.lv-service-card{position:relative;min-height:260px;padding:24px;border-right:1px solid var(--lv-line);border-bottom:1px solid var(--lv-line);background:#101b25;transition:.2s ease}.lv-service-card:hover{z-index:2;transform:translateY(-4px);background:#142330;box-shadow:0 18px 36px rgba(0,0,0,.25)}.lv-service-top{display:flex;align-items:center;justify-content:space-between}.lv-service-top span{color:#667482;font-size:8px;font-weight:900}.lv-service-top b{width:40px;height:40px;display:grid;place-items:center;border:1px solid #33404b;color:var(--lv-gold-light);font-size:18px}.lv-service-card h3{margin:38px 0 0;font:500 20px/1.12 Georgia,"Times New Roman",serif}.lv-service-card p{margin:14px 0 0;color:#96a2ac;font-size:10px;line-height:1.72}.lv-service-card a{position:absolute;left:24px;bottom:22px;color:var(--lv-gold-light);font-size:7px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}
+  .lv-about{position:relative;overflow:hidden;padding:100px 0;background:linear-gradient(120deg,#07101a,#111d28);color:#fff}.lv-about::after{content:"";position:absolute;inset:0;opacity:.18;background-image:linear-gradient(rgba(255,255,255,.05) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.05) 1px,transparent 1px);background-size:58px 58px}.lv-about-grid{position:relative;z-index:2;display:grid;grid-template-columns:1.15fr .85fr;gap:70px;align-items:center}.lv-about-copy>span{color:var(--lv-gold-light);font-size:8px;font-weight:900;letter-spacing:.2em}.lv-about-copy h2{margin:14px 0 0;font:500 clamp(36px,4.4vw,58px)/1 Georgia,"Times New Roman",serif}.lv-about-copy p{max-width:650px;margin:20px 0 0;color:#abb5be;font-size:12px;line-height:1.82}.lv-about-card{padding:28px;border:1px solid rgba(215,154,23,.35);border-top:5px solid var(--lv-gold);background:#0c1721;box-shadow:0 20px 42px rgba(0,0,0,.3)}.lv-about-card>span{display:block;margin-bottom:8px;color:var(--lv-gold-light);font-size:8px;font-weight:900;letter-spacing:.14em}.lv-about-row{display:grid;grid-template-columns:42px 1fr;gap:14px;padding:19px 0;border-top:1px solid var(--lv-line)}.lv-about-row>b{color:#596773;font-size:9px}.lv-about-row strong,.lv-about-row small{display:block}.lv-about-row strong{font:500 18px Georgia,"Times New Roman",serif}.lv-about-row small{margin-top:7px;color:#8f9ba5;font-size:9px;line-height:1.6}
+  .lv-team-section{background:#0b141d}.lv-team-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:18px!important}.lv-team-card{border:1px solid #2b3843!important;background:#101a24!important;color:#fff!important;box-shadow:0 14px 34px rgba(0,0,0,.22)!important}.lv-team-card .public-team-designation,.lv-team-card .public-team-label{color:var(--lv-gold-light)!important}.lv-team-card .public-team-name,.lv-team-card .public-team-info-block strong,.lv-team-card .public-team-degree{color:#fff!important}.lv-team-card .public-team-specialities,.lv-team-card .public-team-specialities span{color:#99a5ae!important}.lv-team-card .public-team-info-block{border-color:#2b3843!important}.lv-team-card .public-team-photo{border-color:var(--lv-gold)!important}.lv-team-card .public-team-photo span{background:#07101a!important}.lv-empty{padding:38px;border:1px solid #2b3843;background:#101a24;color:#aab4bc;text-align:center}
+  .lv-projects{background:#07101a}.lv-projects-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:18px}.lv-project-card{min-height:250px;display:flex;flex-direction:column;padding:26px;border:1px solid #2a3640;background:linear-gradient(145deg,#12202b,#0b141d);transition:.2s ease}.lv-project-card:hover{transform:translateY(-4px);border-color:#6d5624;box-shadow:0 18px 35px rgba(0,0,0,.24)}.lv-project-card>span{color:var(--lv-gold-light);font-size:8px;font-weight:900;letter-spacing:.15em}.lv-project-card h3{margin:48px 0 0;font:500 25px/1.1 Georgia,"Times New Roman",serif}.lv-project-card p{margin:13px 0 0;color:#94a1ab;font-size:10px;line-height:1.7}.lv-project-card a{margin-top:auto;padding-top:24px;color:var(--lv-gold-light);font-size:8px;font-weight:900;letter-spacing:.06em}
+  .lv-process{background:#0d1721}.lv-process-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border-top:1px solid #34414c;border-left:1px solid #34414c}.lv-process-grid article{min-height:210px;padding:26px;border-right:1px solid #34414c;border-bottom:1px solid #34414c;background:#101b25}.lv-process-grid span{color:var(--lv-gold-light);font-size:8px;font-weight:900}.lv-process-grid h3{margin:42px 0 0;font:500 23px Georgia,"Times New Roman",serif}.lv-process-grid p{margin:12px 0 0;color:#8f9ba5;font-size:10px;line-height:1.7}
+  .lv-contact{padding:88px 0;background:linear-gradient(125deg,#101b25,#07101a);border-top:1px solid rgba(215,154,23,.25);color:#fff}.lv-contact-grid{display:grid;grid-template-columns:1fr .85fr;gap:70px;align-items:center}.lv-contact-copy>span{color:var(--lv-gold-light);font-size:8px;font-weight:900;letter-spacing:.2em}.lv-contact h2{margin:14px 0 0;font:500 clamp(35px,4vw,54px)/1 Georgia,"Times New Roman",serif}.lv-contact p{max-width:580px;margin:18px 0 26px;color:#9ba6af;font-size:11px;line-height:1.75}.lv-contact-card{padding:24px 28px;border:1px solid #34414c;background:#0b151e}.lv-contact-card>div{padding:16px 0;border-top:1px solid #2c3944}.lv-contact-card>div:first-child{border-top:0}.lv-contact-card span{display:block;margin-bottom:6px;color:var(--lv-gold-light);font-size:7px;font-weight:900;letter-spacing:.12em}.lv-contact-card strong,.lv-contact-card a{color:#fff;font-size:11px}.lv-contact-card p{margin:5px 0 0;font-size:9px}
+  .lv-footer{padding:36px 0;border-top:1px solid #25313b;background:#050a0f;color:#fff}.lv-footer-grid{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:30px}.lv-footer-brand{display:flex;align-items:center;gap:12px}.lv-footer-brand img{width:54px;height:54px}.lv-footer-brand strong,.lv-footer-brand span{display:block}.lv-footer-brand strong{font-family:Georgia,"Times New Roman",serif;font-size:15px;letter-spacing:.1em}.lv-footer-brand span{margin-top:5px;color:#77838c;font-size:6px;letter-spacing:.17em}.lv-footer-links{display:flex;gap:18px}.lv-footer-links a{color:#9ca6ae;font-size:8px;font-weight:800;text-transform:uppercase}.lv-footer-links a:hover{color:var(--lv-gold-light)}.lv-footer-copy{text-align:right}.lv-footer-copy span,.lv-footer-copy small{display:block}.lv-footer-copy span{font-size:8px;color:#9ca6ae}.lv-footer-copy small{margin-top:5px;color:#59656e;font-size:7px}
+  html[data-public-theme="light"] .public-site{background:#f3f1eb;color:#17202a}.public-site[data-x]{display:block}html[data-public-theme="light"] .lv-section,html[data-public-theme="light"] .lv-team-section,html[data-public-theme="light"] .lv-projects{background:#f3f1eb;color:#17202a}html[data-public-theme="light"] .lv-service-card,html[data-public-theme="light"] .lv-team-card,html[data-public-theme="light"] .lv-project-card,html[data-public-theme="light"] .lv-process-grid article,html[data-public-theme="light"] .lv-empty{background:#fff!important;color:#17202a!important;border-color:#d8d4ca!important}html[data-public-theme="light"] .lv-section-head>p,html[data-public-theme="light"] .lv-service-card p,html[data-public-theme="light"] .lv-project-card p,html[data-public-theme="light"] .lv-process-grid p{color:#6f7478}html[data-public-theme="light"] .lv-team-card .public-team-name,html[data-public-theme="light"] .lv-team-card .public-team-info-block strong,html[data-public-theme="light"] .lv-team-card .public-team-degree{color:#17202a!important}
+  @media(max-width:1100px){.lv-services-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.lv-team-grid{grid-template-columns:repeat(2,minmax(0,1fr))!important}.lv-hero-services{grid-template-columns:repeat(2,minmax(0,1fr))}.lv-hero-services article:nth-child(2){border-right:0}.lv-hero-services article:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.14)}}
+  @media(max-width:850px){.lv-hero-grid{grid-template-columns:1fr}.lv-hero-copy{padding:58px 0 42px}.lv-hero-visual{min-height:360px}.lv-about-grid,.lv-contact-grid{grid-template-columns:1fr}.lv-section-head{align-items:flex-start;flex-direction:column;gap:18px}.lv-projects-grid{grid-template-columns:1fr}.lv-process-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lv-footer-grid{grid-template-columns:1fr;text-align:center}.lv-footer-brand,.lv-footer-links{justify-content:center}.lv-footer-copy{text-align:center}}
+  @media(max-width:620px){.public-container{width:min(100% - 28px,1320px)}.lv-hero h1{font-size:42px}.lv-hero-services{grid-template-columns:1fr}.lv-hero-services article{border-right:0;border-bottom:1px solid rgba(255,255,255,.14)}.lv-hero-services article:last-child{border-bottom:0}.lv-services-grid{grid-template-columns:1fr}.lv-team-grid{grid-template-columns:1fr!important}.lv-process-grid{grid-template-columns:1fr}.lv-section{padding:68px 0}.lv-about{padding:72px 0}.lv-hero-actions{flex-direction:column}.lv-btn{width:100%}}
+`;
 
 export default function PublicHomePage() {
   return (
-    <main className="public-site" id="home">
+    <main className="public-site">
+      <style dangerouslySetInnerHTML={{ __html: homeCss }} />
       <PublicHeader />
-      <section className="public-hero"><div className="public-hero-grid" /><div className="public-hero-orbit public-hero-orbit-one" /><div className="public-hero-orbit public-hero-orbit-two" /><div className="public-container public-hero-inner">
-        <div className="public-hero-copy"><span className="public-overline">ENGINEERS & ARCHITECTS</span><div className="public-hero-tag">DESIGNED TO DELIVER</div><h1>Architecture that works.<span> Engineering that lasts.</span></h1><p>LAND VIEW Engineers & Architects brings architectural design, structural design, building services, visualization and technical support into one coordinated consultancy.</p><div className="public-hero-actions"><a href="#services" className="public-btn public-btn-accent">Explore Services <span>→</span></a><a href="#contact" className="public-btn public-btn-outline">Start a Project</a></div></div>
-        <aside className="public-hero-panel"><span className="public-panel-kicker">LAND VIEW</span><strong>One team.</strong><strong>One workflow.</strong><small>Architecture • Engineering • Visualization</small><div className="public-panel-rule" /><p>From the first sketch to technical delivery, every stage is coordinated around buildability and clear communication.</p></aside>
-      </div></section>
-      <section className="public-quick-band" aria-label="LAND VIEW services overview"><div className="public-quick-label"><span className="public-quick-ring">LV</span><div><small>DISCOVER</small><strong>What we do</strong></div></div><div className="public-quick-links"><a href="#services">Architecture</a><a href="#services">Structure</a><a href="#services">3D Design</a><a href="#services">MEP Design</a><a href="#services">Survey & Soil Test</a><a href="#contact" className="dark">Get Consultation</a></div></section>
-      <section className="public-section public-services" id="services"><div className="public-container"><div className="public-section-head"><div><span className="public-section-kicker">WHAT WE DO</span><h2>Complete building design and technical services.</h2></div><p>LAND VIEW Engineers & Architects coordinates architecture, structure, visualization, building services, costing, approvals, survey and soil investigation for a more complete project workflow.</p></div><div className="public-service-grid">{services.map((service) => <article className="public-service-card" key={service.number}><div className="public-service-top"><span>{service.number}</span><b>{service.icon}</b></div><h3>{service.title}</h3><p>{service.text}</p><a href="#contact">Discuss your project <span>→</span></a></article>)}</div></div></section>
-      <section className="public-about" id="about"><div className="public-about-technical" /><div className="public-container public-about-grid"><div className="public-about-copy"><span className="public-section-kicker light">ABOUT LAND VIEW</span><h2>Built around clear thinking and practical delivery.</h2><p>LAND VIEW Engineers & Architects approaches each project as one coordinated design problem—not separate architectural, structural and technical tasks.</p><p>The result is a more direct path from concept to drawings to site, with technical decisions considered early and communicated clearly.</p><a href="#contact" className="public-text-link">Work with LAND VIEW <span>→</span></a></div><div className="public-about-card"><span>OUR APPROACH</span><div className="public-about-row"><b>01</b><div><strong>Integrated</strong><small>Architecture and engineering coordinated together.</small></div></div><div className="public-about-row"><b>02</b><div><strong>Practical</strong><small>Solutions shaped for real construction conditions.</small></div></div><div className="public-about-row"><b>03</b><div><strong>Accountable</strong><small>Clear documentation and project follow-through.</small></div></div></div></div></section>
+      <Hero />
+
+      <section className="lv-section" id="services">
+        <div className="public-container">
+          <div className="lv-section-head"><div><span>WHAT WE DO</span><h2>Complete building design and technical services.</h2></div><p>One coordinated consultancy for architecture, structure, visualization, building services, costing, approval, survey and soil investigation.</p></div>
+          <div className="lv-services-grid">{services.map(([number,title,text,icon]) => <article className="lv-service-card" key={number}><div className="lv-service-top"><span>{number}</span><b>{icon}</b></div><h3>{title}</h3><p>{text}</p><a href="#contact">Discuss your project →</a></article>)}</div>
+        </div>
+      </section>
+
+      <section className="lv-about" id="about"><div className="public-container lv-about-grid"><div className="lv-about-copy"><span>ABOUT LAND VIEW</span><h2>Designing better. Building safer.</h2><p>LAND VIEW Engineers &amp; Architects approaches each project as one coordinated design problem—not separate architectural, structural and technical tasks.</p><p>Our goal is a clearer path from concept to drawings to site, with technical decisions considered early and communicated clearly.</p><div className="lv-hero-actions"><a href="#contact" className="lv-btn lv-btn-gold">Work with LAND VIEW</a></div></div><div className="lv-about-card"><span>OUR APPROACH</span><div className="lv-about-row"><b>01</b><div><strong>Integrated</strong><small>Architecture and engineering coordinated together.</small></div></div><div className="lv-about-row"><b>02</b><div><strong>Practical</strong><small>Solutions shaped for real construction conditions.</small></div></div><div className="lv-about-row"><b>03</b><div><strong>Accountable</strong><small>Clear documentation and project follow-through.</small></div></div></div></div></section>
+
       <PublicTeamSection />
-      <section className="public-section public-projects" id="projects"><div className="public-container"><div className="public-section-head"><div><span className="public-section-kicker">FEATURED WORK</span><h2>Designed for the way projects are actually built.</h2></div><p>This portfolio area is ready for your real project photographs, drawings and completed LAND VIEW work.</p></div><div className="public-project-grid">{projects.map((project) => <article className="public-project-card" key={project.title}><div className={`public-project-art ${project.className}`}><div className="public-project-lines" /><span>{project.code}</span></div><div className="public-project-copy"><h3>{project.title}</h3><p>{project.text}</p><span className="public-project-link">LAND VIEW PROJECTS →</span></div></article>)}</div></div></section>
-      <section className="public-process" id="process"><div className="public-container"><div className="public-section-head compact light-head"><div><span className="public-section-kicker light">HOW WE WORK</span><h2>A clear path from brief to delivery.</h2></div></div><div className="public-process-grid">{process.map(([number, title, text]) => <article key={number}><span>{number}</span><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
-      <section className="public-contact" id="contact"><div className="public-container public-contact-grid"><div className="public-contact-copy"><span className="public-section-kicker light">START A CONVERSATION</span><h2>Planning a building or engineering project?</h2><p>Tell us what you are planning. LAND VIEW can help you define the right architectural, structural and technical service scope.</p><a href="mailto:landviewcivil@gmail.com" className="public-btn public-btn-white">Email LAND VIEW <span>→</span></a></div><div className="public-contact-details"><div><span>OFFICE</span><strong>F. Rahman AC Market (2nd Floor)</strong><p>S.S.K Road, Feni Sadar, Feni-3900, Bangladesh</p><a href="https://share.google/cTmtQarK6Oo6KY8Md" target="_blank" rel="noreferrer" className="public-map-link">View office on Google Maps <span>↗</span></a></div><div><span>EMAIL</span><a href="mailto:landviewcivil@gmail.com">landviewcivil@gmail.com</a></div><div className="public-contact-phones"><div><span>ENGINEERING</span><a href="tel:+8801408080400">+88 0140 8080 400</a></div><div><span>ARCHITECTURE</span><a href="tel:+8801902500400">+88 01902 500 400</a></div></div></div></div></section>
-      <footer className="public-footer"><div className="public-container public-footer-grid"><div className="public-footer-brand"><img src="/land-view-logo.png" alt="LAND VIEW" /><div><strong>LAND VIEW</strong><span>ENGINEERS & ARCHITECTS</span></div></div><div className="public-footer-links"><a href="#about">About</a><a href="#services">Services</a><a href="#projects">Projects</a><a href="#team">Team</a><a href="#contact">Contact</a></div><div className="public-footer-copy"><span>© 2026 LAND VIEW</span><small>Architecture • Engineering • Visualization</small></div></div></footer>
+
+      <section className="lv-section lv-projects" id="projects"><div className="public-container"><div className="lv-section-head"><div><span>FEATURED WORK</span><h2>Designed for the way projects are actually built.</h2></div><p>Explore LAND VIEW architectural and engineering work selected for public display.</p></div><div className="lv-projects-grid"><article className="lv-project-card"><span>ARCHITECTURE</span><h3>Residential Design</h3><p>Efficient homes planned around daylight, circulation, privacy and buildable detailing.</p><Link href="/projects">View Projects →</Link></article><article className="lv-project-card"><span>ENGINEERING</span><h3>Structural Design</h3><p>Coordinated structural systems developed for safety, economy and construction practicality.</p><Link href="/projects">View Projects →</Link></article><article className="lv-project-card"><span>DELIVERY</span><h3>Site &amp; Project Support</h3><p>Design-to-site coordination with supervision, documentation and professional follow-through.</p><Link href="/projects">View Projects →</Link></article></div></div></section>
+
+      <section className="lv-section lv-process" id="process"><div className="public-container"><div className="lv-section-head"><div><span>HOW WE WORK</span><h2>A clear path from brief to delivery.</h2></div></div><div className="lv-process-grid"><article><span>01</span><h3>Brief</h3><p>Understand the site, requirements, budget and project goals.</p></article><article><span>02</span><h3>Design</h3><p>Develop coordinated architectural and engineering solutions.</p></article><article><span>03</span><h3>Documentation</h3><p>Prepare drawings and technical information for execution.</p></article><article><span>04</span><h3>Delivery</h3><p>Support construction with supervision and project coordination.</p></article></div></div></section>
+
+      <section className="lv-contact" id="contact"><div className="public-container lv-contact-grid"><div className="lv-contact-copy"><span>START A CONVERSATION</span><h2>Planning a building or engineering project?</h2><p>Tell us what you are planning. LAND VIEW can help define the right architectural, structural and technical service scope.</p><a href="mailto:landviewcivil@gmail.com" className="lv-btn lv-btn-gold">Email LAND VIEW</a></div><div className="lv-contact-card"><div><span>OFFICE</span><strong>F. Rahman AC Market (2nd Floor)</strong><p>S.S.K Road, Feni Sadar, Feni-3900, Bangladesh</p></div><div><span>EMAIL</span><a href="mailto:landviewcivil@gmail.com">landviewcivil@gmail.com</a></div><div><span>ENGINEERING</span><a href="tel:+8801408080400">+88 0140 8080 400</a></div><div><span>ARCHITECTURE</span><a href="tel:+8801902500400">+88 01902 500 400</a></div></div></div></section>
+
+      <footer className="lv-footer"><div className="public-container lv-footer-grid"><div className="lv-footer-brand"><img src="/land-view-logo.svg" alt="LAND VIEW" /><div><strong>LAND VIEW</strong><span>ENGINEERS &amp; ARCHITECTS</span></div></div><div className="lv-footer-links"><a href="#about">About</a><a href="#services">Services</a><Link href="/projects">Projects</Link><a href="#team">Team</a><a href="#contact">Contact</a></div><div className="lv-footer-copy"><span>© 2026 LAND VIEW</span><small>Designing Better. Building Safer.</small></div></div></footer>
     </main>
   );
 }
