@@ -38,7 +38,7 @@ export default function PublicHeader() {
             <img src="/land-view-logo.png" alt="LAND VIEW logo" />
             <div>
               <strong>LAND VIEW</strong>
-              <span>ARCHITECTS & ENGINEERS</span>
+              <span>ENGINEERS & ARCHITECTS</span>
             </div>
           </Link>
 
