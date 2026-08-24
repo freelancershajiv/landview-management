@@ -5,6 +5,7 @@ import { landViewApi } from "@/lib/api";
 import { EmptyState, Field, LoadingState, PageHeader, StatusBadge, pick } from "@/components/lv-ui";
 
 const DESIGNATIONS = ["Dr.", "Engr.", "Arch."];
+const PUBLIC_POSITION_PREFIX = "__POSITION__:";
 
 function normalizeDesignation(value: unknown) {
   const raw = String(value || "").trim();
@@ -12,6 +13,22 @@ function normalizeDesignation(value: unknown) {
   if (raw === "Engr." || raw === "Engineer" || raw === "Engr") return "Engr.";
   if (raw === "Arch." || raw === "Architect" || raw === "Arch") return "Arch.";
   return "";
+}
+
+function stripPublicPositionMarker(value: unknown) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .filter(line => !line.trim().startsWith(PUBLIC_POSITION_PREFIX))
+    .join("\n")
+    .trim();
+}
+
+function buildPublicBio(position: unknown, bio: unknown) {
+  const cleanBio = stripPublicPositionMarker(bio);
+  const cleanPosition = String(position || "").trim();
+  return [cleanPosition ? `${PUBLIC_POSITION_PREFIX}${cleanPosition}` : "", cleanBio]
+    .filter(Boolean)
+    .join("\n");
 }
 
 const blank = {
@@ -67,6 +84,7 @@ export default function EmployeesPage() {
       Public_Title: normalizeDesignation(
         pick(r, ["Public_Title", "Public Title", "Designation", "designation"], "")
       ),
+      Public_Bio: stripPublicPositionMarker(pick(r, ["Public_Bio", "Public Bio", "Bio"], "")),
     });
     setOpen(true);
   }
@@ -74,10 +92,15 @@ export default function EmployeesPage() {
   async function submit(e: FormEvent) {
     e.preventDefault();
     try {
+      const payload = {
+        ...form,
+        Public_Bio: buildPublicBio(form.Position, form.Public_Bio),
+      };
+
       if (editing) {
-        await landViewApi.updateEmployee(editing, form);
+        await landViewApi.updateEmployee(editing, payload);
       } else {
-        const result = await landViewApi.createEmployee(form);
+        const result = await landViewApi.createEmployee(payload);
         const account = result.account;
 
         if (account?.created && account.temporaryPassword) {
