@@ -1,5 +1,7 @@
 import AdminShell from "@/components/admin-shell";
+import { requirePortalSession } from "@/lib/server-auth";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default async function AdminLayout({ children }: { children: React.ReactNode }) {
+  await requirePortalSession(["admin", "manager"]);
   return <AdminShell>{children}</AdminShell>;
 }
