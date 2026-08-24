@@ -7,7 +7,7 @@ const nav = [
   { href: "/#home", label: "Home" },
   { href: "/#about", label: "About" },
   { href: "/#services", label: "Services" },
-  { href: "/#projects", label: "Projects" },
+  { href: "/projects", label: "Projects" },
   { href: "/#team", label: "Team" },
   { href: "/#process", label: "Process" },
   { href: "/#contact", label: "Contact" },
@@ -38,7 +38,7 @@ export default function PublicHeader() {
             <img src="/land-view-logo.png" alt="LAND VIEW logo" />
             <div>
               <strong>LAND VIEW</strong>
-              <span>ENGINEERS & ARCHITECTS</span>
+              <span>ENGINEERS &amp; ARCHITECTS</span>
             </div>
           </Link>
 
