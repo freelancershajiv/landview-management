@@ -23,7 +23,7 @@ const blank = {
   Employee_Name: "",
   Phone: "",
   Email: "",
-  Designation: "",
+  Public_Title: "",
   Position: "",
   Department: "",
   Joining_Date: "",
@@ -134,7 +134,7 @@ export default function EmployeesPage() {
       <EmptyState title="No employees" text="Add the first team member to LAND VIEW." /> :
       <div className="employee-grid">{filtered.map((r: any) => {
         const id = pick(r, ["Employee_ID", "Employee ID", "EmployeeId"]);
-        const designation = pick(r, ["Designation", "designation"], "");
+        const designation = pick(r, ["Public_Title", "Public Title", "Designation", "designation"], "");
         const name = pick(r, ["Employee_Name", "Employee Name", "Name"], id);
         return <div className="employee-card" key={id}>
           <div className="employee-avatar">{name.slice(0, 2).toUpperCase()}</div>
@@ -154,7 +154,7 @@ export default function EmployeesPage() {
           <Field label="EMPLOYEE NAME"><input type="text" value={form.Employee_Name} onChange={e => setForm(v => ({ ...v, Employee_Name: e.target.value }))} /></Field>
 
           <Field label="DESIGNATION">
-            <select value={form.Designation} onChange={e => setForm(v => ({ ...v, Designation: e.target.value }))}>
+            <select value={form.Public_Title} onChange={e => setForm(v => ({ ...v, Public_Title: e.target.value }))}>
               <option value="">Select designation</option>
               {DESIGNATIONS.map(item => <option value={item} key={item}>{item}</option>)}
             </select>
