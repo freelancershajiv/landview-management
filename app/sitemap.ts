@@ -1,8 +1,23 @@
 import type { MetadataRoute } from "next";
+import { getPublicProjectsForSeo } from "@/lib/public-projects-server";
 
 const baseUrl = "https://landview.com.bd";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const projects = await getPublicProjectsForSeo();
+
+  const projectEntries: MetadataRoute.Sitemap = projects
+    .filter((project) => String(project.projectId || "").trim())
+    .map((project) => ({
+      url: `${baseUrl}/projects/${encodeURIComponent(String(project.projectId))}`,
+      lastModified: project.completionYear
+        ? new Date(`${project.completionYear}-01-01`)
+        : new Date(),
+      changeFrequency: "monthly" as const,
+      priority: 0.8,
+      images: project.coverImageUrl ? [String(project.coverImageUrl)] : undefined,
+    }));
+
   return [
     {
       url: baseUrl,
@@ -16,5 +31,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "weekly",
       priority: 0.9,
     },
+    ...projectEntries,
   ];
 }
