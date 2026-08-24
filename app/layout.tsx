@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import ContactMapEnhancer from "@/components/contact-map-enhancer";
 import "./globals.css";
 import "./premium-theme.css";
 
@@ -16,7 +17,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {children}
+        <ContactMapEnhancer />
+      </body>
     </html>
   );
 }
