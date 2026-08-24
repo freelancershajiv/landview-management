@@ -74,7 +74,15 @@ export default function PublicProjectDetailPage() {
             <p>{project.description}</p>
           </div>
 
-          {cover && <img src={cover} alt={project.title || "LAND VIEW project"} style={{ width: "100%", maxHeight: 720, objectFit: "cover", borderRadius: 18, marginBottom: 34 }} />}
+          {cover && (
+            <div style={{ width: "100%", display: "flex", justifyContent: "center", alignItems: "center", marginBottom: 34 }}>
+              <img
+                src={cover}
+                alt={project.title || "LAND VIEW project"}
+                style={{ width: "100%", height: "auto", maxHeight: 900, objectFit: "contain", objectPosition: "center", borderRadius: 18, display: "block" }}
+              />
+            </div>
+          )}
 
           <div className="public-project-grid" style={{ marginBottom: 40 }}>
             <article className="public-project-card"><div className="public-project-copy"><small>PROJECT ID</small><h3>{project.projectId}</h3><p>{project.location || "Location not published"}</p></div></article>
@@ -84,7 +92,19 @@ export default function PublicProjectDetailPage() {
 
           {project.services?.length ? <section style={{ marginBottom: 48 }}><span className="public-section-kicker">LAND VIEW SERVICES</span><h2>{project.services.join(" • ")}</h2></section> : null}
 
-          {gallery.length ? <div className="public-project-grid">{gallery.map((src, index) => <article className="public-project-card" key={src + index}><img src={src} alt={`${project.title || "Project"} gallery ${index + 1}`} style={{ width: "100%", aspectRatio: "4/3", objectFit: "cover" }} /></article>)}</div> : null}
+          {gallery.length ? (
+            <div className="public-project-grid">
+              {gallery.map((src, index) => (
+                <article className="public-project-card" key={src + index} style={{ display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                  <img
+                    src={src}
+                    alt={`${project.title || "Project"} gallery ${index + 1}`}
+                    style={{ width: "100%", height: "auto", maxHeight: 760, objectFit: "contain", objectPosition: "center", display: "block" }}
+                  />
+                </article>
+              ))}
+            </div>
+          ) : null}
         </div>
       </section>
     </main>
