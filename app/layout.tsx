@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "./premium-theme.css";
 
 export const metadata: Metadata = {
   title: "LAND VIEW Engineers & Architects",
