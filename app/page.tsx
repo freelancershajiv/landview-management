@@ -150,12 +150,14 @@ function PublicTeamSection() {
 
         if (cancelled) return;
 
-        if (Array.isArray(data)) {
-          setTeam(data);
+        if (Array.isArray(data?.data)) {
+          setTeam(data.data);
         } else if (Array.isArray(data?.team)) {
           setTeam(data.team);
         } else if (Array.isArray(data?.employees)) {
           setTeam(data.employees);
+        } else if (Array.isArray(data)) {
+          setTeam(data);
         } else {
           setTeam([]);
         }
