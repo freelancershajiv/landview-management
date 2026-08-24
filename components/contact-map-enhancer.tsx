@@ -2,8 +2,8 @@
 
 import { useEffect } from "react";
 
-const MAP_SRC = "https://www.google.com/maps?q=23.009163916827497,91.39055807588109&z=17&output=embed";
-const MAP_LINK = "https://www.google.com/maps/search/?api=1&query=23.009163916827497,91.39055807588109";
+const MAP_SRC = "https://maps.google.com/maps?width=100%25&height=600&hl=en&q=Land%20View%20Building%20Design%20%26%20Architecture%2C%20Feni%2C%20Bangladesh&t=&z=17&ie=UTF8&iwloc=B&output=embed";
+const MAP_LINK = "https://www.google.com/maps/search/?api=1&query=Land%20View%20Building%20Design%20%26%20Architecture%2C%20Feni%2C%20Bangladesh";
 
 const css = `
   .lv-contact-grid { grid-template-columns: .82fr 1.18fr !important; gap: 54px !important; align-items: start !important; }
@@ -53,14 +53,13 @@ export default function ContactMapEnhancer() {
     iframe.src = MAP_SRC;
     iframe.title = "LAND VIEW office location on Google Maps";
     iframe.loading = "lazy";
-    iframe.referrerPolicy = "strict-origin-when-cross-origin";
     iframe.allowFullscreen = true;
 
     const openMap = document.createElement("a");
     openMap.className = "lv-contact-map-link";
     openMap.href = MAP_LINK;
     openMap.target = "_blank";
-    openMap.rel = "noreferrer";
+    openMap.rel = "noopener noreferrer";
     openMap.textContent = "Open in Google Maps";
 
     map.append(label, iframe, openMap);
