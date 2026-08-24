@@ -7,7 +7,7 @@ type RawResponse<T = unknown> = {
 };
 
 const API_URL = "/api/landview";
-const API_TIMEOUT_MS = 12000;
+const API_TIMEOUT_MS = 30000;
 const LEGACY_TOKEN_KEYS = ["land_view_session_token", "land_view_token", "landview_token"];
 
 /**
