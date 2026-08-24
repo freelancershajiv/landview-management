@@ -111,7 +111,12 @@ export default function PublicProjectsPage() {
                   <article className="public-project-card" key={project.projectId || `${project.title}-${index}`}>
                     <div
                       className="public-project-art"
-                      style={cover ? { backgroundImage: `linear-gradient(rgba(10,12,14,.08),rgba(10,12,14,.35)),url(${cover})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
+                      style={cover ? {
+                        backgroundImage: `url(${cover})`,
+                        backgroundSize: "contain",
+                        backgroundPosition: "center",
+                        backgroundRepeat: "no-repeat"
+                      } : undefined}
                     >
                       {!cover && <div className="public-project-lines" />}
                       <span>{project.category || project.status || "LAND VIEW"}</span>
