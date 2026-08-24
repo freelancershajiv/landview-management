@@ -89,7 +89,7 @@ export default function PublicHeader() {
               {nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>)}
             </nav>
             <div className="public-header-actions">
-              <Link className="public-header-login" href="/login" onClick={() => setOpen(false)}><b>↪</b><span>Login</span></Link>
+              <a className="public-header-login" href="https://app.landview.com.bd/login" onClick={() => setOpen(false)}><b>↪</b><span>Login</span></a>
               <a className="public-header-cta" href="/#contact">Get in touch</a>
               <button type="button" className="public-menu-button" aria-label="Toggle website navigation" aria-expanded={open} onClick={() => setOpen((value) => !value)}><span /><span /><span /></button>
             </div>
