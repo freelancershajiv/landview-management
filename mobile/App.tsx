@@ -6,7 +6,6 @@ import {
   Alert,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,7 +13,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 type SessionUser = {
   userId?: string;
@@ -132,7 +131,7 @@ function LoginScreen({ onLogin }: { onLogin: (user: SessionUser) => void }) {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "right", "bottom", "left"]}>
       <StatusBar style="dark" />
       <View style={[styles.loginPage, isWebWide && styles.loginPageWeb]}>
         {isWebWide ? (
@@ -177,7 +176,7 @@ function DashboardScreen({ user, onLogout, onOpenModule }: { user: SessionUser; 
   const cardWidth = isDesktop ? "31.7%" : isTablet ? "48.8%" : "100%";
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "right", "bottom", "left"]}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.dashboardScroll}>
         <View style={[styles.dashboard, isDesktop && styles.dashboardDesktop]}>
@@ -258,7 +257,7 @@ function ProjectsScreen({ onBack, onOpenProject }: { onBack: () => void; onOpenP
   const cardWidth = isDesktop ? "31.7%" : isTablet ? "48.8%" : "100%";
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "right", "bottom", "left"]}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.dashboardScroll} keyboardShouldPersistTaps="handled">
         <View style={[styles.dashboard, isDesktop && styles.dashboardDesktop]}>
@@ -278,13 +277,15 @@ function ProjectsScreen({ onBack, onOpenProject }: { onBack: () => void; onOpenP
           ) : (
             <View style={styles.cardGrid}>
               {filtered.map((project, index) => {
-                const id = projectIdOf(project) || `Project-${index + 1}`;
+                const rawId = projectIdOf(project);
+                const id = rawId || `Project-${index + 1}`;
                 const title = pick(project, ["Project_Name", "Project Name", "Name", "Project_Type", "Project Type"], id);
                 const client = pick(project, ["Client_Name", "Client Name", "Client"], "—");
                 const location = pick(project, ["Location", "Address", "Project_Location"], "Location not set");
                 const status = pick(project, ["Status", "status", "Active"], "Active");
+                const stableKey = `${rawId || "project"}-${index}-${pick(project, ["Created_Date", "Created Date", "Start_Date", "Start Date"], "")}`;
                 return (
-                  <Pressable key={id} onPress={() => onOpenProject(project)} style={({ pressed }) => [styles.projectCard, { width: cardWidth }, pressed && styles.menuCardPressed]}>
+                  <Pressable key={stableKey} onPress={() => onOpenProject(project)} style={({ pressed }) => [styles.projectCard, { width: cardWidth }, pressed && styles.menuCardPressed]}>
                     <View style={styles.projectCardTop}>
                       <Text style={styles.projectIndex}>{String(index + 1).padStart(2, "0")}</Text>
                       <View style={styles.statusBadge}><Text style={styles.statusBadgeText}>{status.toUpperCase()}</Text></View>
@@ -345,7 +346,7 @@ function ProjectDetailScreen({ projectSeed, onBack }: { projectSeed: ProjectReco
   ];
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={["top", "right", "bottom", "left"]}>
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.dashboardScroll}>
         <View style={[styles.dashboard, isDesktop && styles.dashboardDesktop]}>
