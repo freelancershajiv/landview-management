@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">LAND VIEW logo</title>
+  <desc id="desc">Navy and gold LV architectural emblem with building and roof forms.</desc>
+  <defs>
+    <linearGradient id="navy" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b356d"/>
+      <stop offset="1" stop-color="#062653"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e5b11f"/>
+      <stop offset="1" stop-color="#c98e00"/>
+    </linearGradient>
+  </defs>
+  <path d="M93 371C48 323 31 253 47 188C65 114 126 56 204 39C273 25 343 43 391 80" fill="none" stroke="url(#navy)" stroke-width="15" stroke-linecap="round"/>
+  <path d="M406 93C452 138 471 201 462 260C456 302 438 340 410 370" fill="none" stroke="url(#gold)" stroke-width="15" stroke-linecap="round"/>
+  <path d="M170 210V164L197 142V211Z" fill="url(#navy)"/>
+  <path d="M211 227V96L263 51V194L241 207V105L225 120V214Z" fill="url(#navy)"/>
+  <path d="M276 180V68L320 104V213L299 194V111L290 104V188Z" fill="url(#gold)"/>
+  <path d="M334 216V143L367 170V241Z" fill="url(#navy)"/>
+  <path d="M176 273L259 205L342 273H314L259 228L204 273Z" fill="url(#navy)"/>
+  <path d="M242 250h15v15h-15zm19 0h15v15h-15zm-19 19h15v15h-15zm19 0h15v15h-15z" fill="url(#navy)"/>
+  <text x="92" y="388" font-family="Georgia, 'Times New Roman', serif" font-size="188" font-weight="700" fill="url(#navy)">L</text>
+  <text x="238" y="388" font-family="Georgia, 'Times New Roman', serif" font-size="188" font-weight="700" fill="url(#gold)">V</text>
+  <path d="M93 425C170 399 341 400 419 425" fill="none" stroke="url(#gold)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M76 439C165 414 349 414 438 439" fill="none" stroke="url(#navy)" stroke-width="8" stroke-linecap="round"/>
+</svg>
