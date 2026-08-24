@@ -19,6 +19,8 @@ type PublicTeamMember = {
   linkedInUrl?: string;
 };
 
+const PUBLIC_POSITION_PREFIX = "__POSITION__:";
+
 function getPublicImageUrl(url?: string) {
   const value = String(url || "").trim();
   if (!value) return "";
@@ -36,14 +38,32 @@ function getPublicImageUrl(url?: string) {
 }
 
 function splitBio(value?: string) {
-  const lines = String(value || "").split(/\r?\n|\s*[•|]\s*/).map((line) => line.trim()).filter(Boolean);
-  return { degree: lines[0] || "", specialities: lines.slice(1) };
+  let position = "";
+  const rawLines = String(value || "").split(/\r?\n/);
+  const contentLines: string[] = [];
+
+  rawLines.forEach(line => {
+    const trimmed = line.trim();
+    if (trimmed.startsWith(PUBLIC_POSITION_PREFIX)) {
+      position = trimmed.slice(PUBLIC_POSITION_PREFIX.length).trim();
+    } else if (trimmed) {
+      contentLines.push(trimmed);
+    }
+  });
+
+  const lines = contentLines
+    .join("\n")
+    .split(/\r?\n|\s*[•|]\s*/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  return { position, degree: lines[0] || "", specialities: lines.slice(1) };
 }
 
 function TeamCard({ member, index }: { member: PublicTeamMember; index: number }) {
   const parsedBio = splitBio(member.bio);
   const designation = member.designation || member.title || "";
-  const position = member.position || "";
+  const position = member.position || parsedBio.position || "";
   const department = member.department || "";
   const degrees = member.degrees || member.degree || parsedBio.degree || "";
   const specialitiesValue = member.specialities || member.speciality || "";
