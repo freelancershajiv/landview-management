@@ -4,20 +4,15 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
 import { EmptyState, Field, LoadingState, PageHeader, StatusBadge, pick } from "@/components/lv-ui";
 
-const DESIGNATIONS = [
-  "Architect",
-  "Engr.",
-  "Civil Engr.",
-  "Structural Engr.",
-  "Electrical Engr.",
-  "Mechanical Engr.",
-  "Interior Designer",
-  "Draftsman",
-  "Project Manager",
-  "Site Engineer",
-  "Surveyor",
-  "Administrator",
-];
+const DESIGNATIONS = ["Dr.", "Engr.", "Arch."];
+
+function normalizeDesignation(value: unknown) {
+  const raw = String(value || "").trim();
+  if (raw === "Dr." || raw === "Dr") return "Dr.";
+  if (raw === "Engr." || raw === "Engineer" || raw === "Engr") return "Engr.";
+  if (raw === "Arch." || raw === "Architect" || raw === "Arch") return "Arch.";
+  return "";
+}
 
 const blank = {
   Employee_Name: "",
@@ -66,7 +61,13 @@ export default function EmployeesPage() {
 
   function startEdit(r: any) {
     setEditing(pick(r, ["Employee_ID", "Employee ID", "EmployeeId"]));
-    setForm({ ...blank, ...r });
+    setForm({
+      ...blank,
+      ...r,
+      Public_Title: normalizeDesignation(
+        pick(r, ["Public_Title", "Public Title", "Designation", "designation"], "")
+      ),
+    });
     setOpen(true);
   }
 
@@ -134,7 +135,9 @@ export default function EmployeesPage() {
       <EmptyState title="No employees" text="Add the first team member to LAND VIEW." /> :
       <div className="employee-grid">{filtered.map((r: any) => {
         const id = pick(r, ["Employee_ID", "Employee ID", "EmployeeId"]);
-        const designation = pick(r, ["Public_Title", "Public Title", "Designation", "designation"], "");
+        const designation = normalizeDesignation(
+          pick(r, ["Public_Title", "Public Title", "Designation", "designation"], "")
+        );
         const name = pick(r, ["Employee_Name", "Employee Name", "Name"], id);
         return <div className="employee-card" key={id}>
           <div className="employee-avatar">{name.slice(0, 2).toUpperCase()}</div>
@@ -155,7 +158,7 @@ export default function EmployeesPage() {
 
           <Field label="DESIGNATION">
             <select value={form.Public_Title} onChange={e => setForm(v => ({ ...v, Public_Title: e.target.value }))}>
-              <option value="">Select designation</option>
+              <option value="">None</option>
               {DESIGNATIONS.map(item => <option value={item} key={item}>{item}</option>)}
             </select>
           </Field>
