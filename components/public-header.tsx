@@ -35,8 +35,9 @@ const headerCss = `
   .public-nav a::after { left: 14px !important; right: 14px !important; bottom: 20px !important; height: 2px !important; background: #d79a17 !important; }
   .public-nav a:hover { background: transparent !important; color: #d79a17 !important; }
   .public-header-actions { display: flex; align-items: center; gap: 10px; margin-left: 6px; }
-  .public-header-phone { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; padding: 0 10px; color: #f2f3f4; font-size: 10px; font-weight: 700; white-space: nowrap; }
-  .public-header-phone b { color: #d79a17; font-size: 16px; }
+  .public-header-login { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 0 14px; border: 1px solid rgba(215,154,23,.55); border-radius: 7px; background: rgba(215,154,23,.06); color: #f4f5f6 !important; font-size: 9px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; white-space: nowrap; transition: .18s ease; }
+  .public-header-login b { color: #d79a17; font-size: 13px; }
+  .public-header-login:hover { border-color: #d79a17; color: #d79a17 !important; background: rgba(215,154,23,.10); transform: translateY(-1px); }
   .public-header-cta { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; border: 1px solid #d79a17; border-radius: 7px; background: linear-gradient(180deg, #e6aa27, #c98709); color: #111820; font-size: 9px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; box-shadow: inset 0 1px rgba(255,255,255,.25), 0 8px 22px rgba(0,0,0,.18); transition: .18s ease; }
   .public-header-cta:hover { transform: translateY(-1px); filter: brightness(1.08); }
   .public-menu-button { display: none; width: 42px; height: 42px; padding: 10px; border: 1px solid #36414c; background: #101820; }
@@ -44,7 +45,7 @@ const headerCss = `
   @media (max-width: 1180px) {
     .public-brand { min-width: 250px !important; }
     .public-brand-copy strong { font-size: 18px !important; }
-    .public-header-phone { display: none; }
+    .public-header-login { padding: 0 12px; }
     .public-nav a { padding: 0 10px !important; }
   }
   @media (max-width: 900px) {
@@ -54,6 +55,7 @@ const headerCss = `
     .public-brand-copy strong { font-size: 16px !important; }
     .public-brand-copy span { font-size: 6px !important; }
     .public-header-actions { margin-left: auto; }
+    .public-header-login { min-height: 40px; padding: 0 11px; font-size: 8px; }
     .public-header-cta { display: none; }
     .public-menu-button { display: block; }
     .public-nav { position: absolute; left: 0; right: 0; top: 74px; display: none; grid-template-columns: repeat(2, minmax(0,1fr)); background: #09111a; border-top: 1px solid rgba(255,255,255,.08); box-shadow: 0 18px 30px rgba(0,0,0,.28); }
@@ -64,6 +66,8 @@ const headerCss = `
   @media (max-width: 560px) {
     .public-brand-copy span { display: none; }
     .public-brand-copy strong { font-size: 14px !important; }
+    .public-header-login span { display: none; }
+    .public-header-login { width: 40px; padding: 0; }
     .public-nav { grid-template-columns: 1fr; }
   }
 `;
@@ -85,7 +89,7 @@ export default function PublicHeader() {
               {nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>)}
             </nav>
             <div className="public-header-actions">
-              <a className="public-header-phone" href="tel:+8801902500400"><b>☎</b> +88 01902 500 400</a>
+              <Link className="public-header-login" href="/login" onClick={() => setOpen(false)}><b>↪</b><span>Login</span></Link>
               <a className="public-header-cta" href="/#contact">Get in touch</a>
               <button type="button" className="public-menu-button" aria-label="Toggle website navigation" aria-expanded={open} onClick={() => setOpen((value) => !value)}><span /><span /><span /></button>
             </div>
