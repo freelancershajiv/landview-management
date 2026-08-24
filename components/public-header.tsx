@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 const nav = [
   { href: "/#home", label: "Home" },
@@ -11,8 +11,6 @@ const nav = [
   { href: "/#team", label: "Team" },
   { href: "/#contact", label: "Contact" },
 ];
-
-type PublicTheme = "light" | "dark";
 
 const headerCss = `
   .public-header {
@@ -41,9 +39,6 @@ const headerCss = `
   .public-header-phone b { color: #d79a17; font-size: 16px; }
   .public-header-cta { min-height: 44px; display: inline-flex; align-items: center; justify-content: center; padding: 0 18px; border: 1px solid #d79a17; border-radius: 7px; background: linear-gradient(180deg, #e6aa27, #c98709); color: #111820; font-size: 9px; font-weight: 900; letter-spacing: .04em; text-transform: uppercase; box-shadow: inset 0 1px rgba(255,255,255,.25), 0 8px 22px rgba(0,0,0,.18); transition: .18s ease; }
   .public-header-cta:hover { transform: translateY(-1px); filter: brightness(1.08); }
-  .public-theme-toggle { flex: 0 0 auto; width: 42px; height: 42px; display: inline-grid; place-items: center; border: 1px solid rgba(255,255,255,.16); border-radius: 50%; background: #101820; color: #fff; cursor: pointer; }
-  .public-theme-toggle:hover { border-color: #d79a17; }
-  .public-theme-toggle-icon { font-size: 16px; line-height: 1; }
   .public-menu-button { display: none; width: 42px; height: 42px; padding: 10px; border: 1px solid #36414c; background: #101820; }
   .public-menu-button span { display: block; height: 2px; margin: 4px 0; background: white; }
   @media (max-width: 1180px) {
@@ -58,8 +53,8 @@ const headerCss = `
     .public-brand img { width: 52px !important; height: 52px !important; }
     .public-brand-copy strong { font-size: 16px !important; }
     .public-brand-copy span { font-size: 6px !important; }
+    .public-header-actions { margin-left: auto; }
     .public-header-cta { display: none; }
-    .public-theme-toggle { margin-left: auto; }
     .public-menu-button { display: block; }
     .public-nav { position: absolute; left: 0; right: 0; top: 74px; display: none; grid-template-columns: repeat(2, minmax(0,1fr)); background: #09111a; border-top: 1px solid rgba(255,255,255,.08); box-shadow: 0 18px 30px rgba(0,0,0,.28); }
     .public-nav.open { display: grid; }
@@ -75,21 +70,6 @@ const headerCss = `
 
 export default function PublicHeader() {
   const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useState<PublicTheme>("dark");
-
-  useEffect(() => {
-    const saved = window.localStorage.getItem("landview-public-theme");
-    const nextTheme: PublicTheme = saved === "light" ? "light" : "dark";
-    setTheme(nextTheme);
-    document.documentElement.dataset.publicTheme = nextTheme;
-  }, []);
-
-  function toggleTheme() {
-    const nextTheme: PublicTheme = theme === "dark" ? "light" : "dark";
-    setTheme(nextTheme);
-    document.documentElement.dataset.publicTheme = nextTheme;
-    window.localStorage.setItem("landview-public-theme", nextTheme);
-  }
 
   return (
     <>
@@ -107,7 +87,6 @@ export default function PublicHeader() {
             <div className="public-header-actions">
               <a className="public-header-phone" href="tel:+8801902500400"><b>☎</b> +88 01902 500 400</a>
               <a className="public-header-cta" href="/#contact">Get in touch</a>
-              <button type="button" className="public-theme-toggle" aria-label={theme === "dark" ? "Switch to normal mode" : "Switch to dark mode"} title={theme === "dark" ? "Normal mode" : "Dark mode"} onClick={toggleTheme}><span className="public-theme-toggle-icon" aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span></button>
               <button type="button" className="public-menu-button" aria-label="Toggle website navigation" aria-expanded={open} onClick={() => setOpen((value) => !value)}><span /><span /><span /></button>
             </div>
           </div>
