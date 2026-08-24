@@ -20,6 +20,10 @@ const themeCss = `
     --public-accent: #C63C3C;
     --public-accent-dark: #A92F2F;
   }
+  .public-brand img,
+  .public-footer-brand img {
+    content: url('/land-view-logo.svg');
+  }
   .public-theme-toggle {
     flex: 0 0 auto;
     width: 44px;
@@ -134,7 +138,7 @@ export default function PublicHeader() {
         <div className="public-nav-wrap">
           <div className="public-container public-nav-inner">
             <Link href="/#home" className="public-brand" onClick={() => setOpen(false)}>
-              <img src="/land-view-logo.png" alt="LAND VIEW logo" />
+              <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
               <div><strong>LAND VIEW</strong><span>ENGINEERS &amp; ARCHITECTS</span></div>
             </Link>
             <nav className={`public-nav ${open ? "open" : ""}`}>
