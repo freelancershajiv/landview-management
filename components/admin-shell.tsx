@@ -42,7 +42,6 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     }, SESSION_WATCHDOG_MS);
 
     async function verify() {
-
       try {
         const session = await landViewApi.getSession();
 
@@ -111,7 +110,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <div className="loading-panel" style={{ maxWidth: 520, padding: 24 }}>
           <img
             className="loading-brand-image"
-            src="/land-view-logo.png"
+            src="/land-view-logo.svg"
             alt="LAND VIEW"
           />
           <p style={{ marginBottom: 16 }}>{sessionError}</p>
@@ -135,7 +134,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <div className="loading-panel">
           <img
             className="loading-brand-image"
-            src="/land-view-logo.png"
+            src="/land-view-logo.svg"
             alt="LAND VIEW"
           />
           <div className="loading-spinner" />
@@ -160,10 +159,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         <div className="utility-bar">
           <div className="utility-inner">
             <Link href="/admin" className="masthead-brand">
-              <img src="/land-view-logo.png" alt="LAND VIEW logo" />
+              <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
               <div>
                 <strong>LAND VIEW</strong>
-                <span>ARCHITECTS & ENGINEERS</span>
+                <span>ENGINEERS &amp; ARCHITECTS</span>
               </div>
             </Link>
 
