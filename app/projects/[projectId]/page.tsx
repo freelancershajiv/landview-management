@@ -40,6 +40,7 @@ export default function PublicProjectDetailPage() {
   const projectId = decodeURIComponent(String(params.projectId || ""));
   const [project, setProject] = useState<PublicProject | null>(null);
   const [loading, setLoading] = useState(true);
+  const [fullImage, setFullImage] = useState<{ src: string; alt: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,11 +58,26 @@ export default function PublicProjectDetailPage() {
     return () => { cancelled = true; };
   }, [projectId]);
 
+  useEffect(() => {
+    if (!fullImage) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setFullImage(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [fullImage]);
+
   if (loading) return <main className="public-site"><PublicHeader /><section className="public-section"><div className="public-container"><div className="public-team-empty">Loading project...</div></div></section></main>;
   if (!project) return <main className="public-site"><PublicHeader /><section className="public-section"><div className="public-container"><div className="public-team-empty">Project not found or not available for public display.<br/><br/><Link href="/projects">← Back to Projects</Link></div></div></section></main>;
 
   const cover = imageUrl(project.coverImageUrl);
   const gallery = (project.galleryImages || []).map(imageUrl).filter(Boolean);
+  const openImage = (src: string, alt: string) => setFullImage({ src, alt });
 
   return (
     <main className="public-site">
@@ -79,7 +95,9 @@ export default function PublicProjectDetailPage() {
               <img
                 src={cover}
                 alt={project.title || "LAND VIEW project"}
-                style={{ width: "100%", height: "auto", maxHeight: 900, objectFit: "contain", objectPosition: "center", borderRadius: 18, display: "block" }}
+                onClick={() => openImage(cover, project.title || "LAND VIEW project")}
+                title="Click to view full screen"
+                style={{ width: "100%", height: "auto", maxHeight: 900, objectFit: "contain", objectPosition: "center", borderRadius: 18, display: "block", cursor: "zoom-in" }}
               />
             </div>
           )}
@@ -94,19 +112,61 @@ export default function PublicProjectDetailPage() {
 
           {gallery.length ? (
             <div className="public-project-grid">
-              {gallery.map((src, index) => (
-                <article className="public-project-card" key={src + index} style={{ display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                  <img
-                    src={src}
-                    alt={`${project.title || "Project"} gallery ${index + 1}`}
-                    style={{ width: "100%", height: "auto", maxHeight: 760, objectFit: "contain", objectPosition: "center", display: "block" }}
-                  />
-                </article>
-              ))}
+              {gallery.map((src, index) => {
+                const alt = `${project.title || "Project"} gallery ${index + 1}`;
+                return (
+                  <article className="public-project-card" key={src + index} style={{ display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
+                    <img
+                      src={src}
+                      alt={alt}
+                      onClick={() => openImage(src, alt)}
+                      title="Click to view full screen"
+                      style={{ width: "100%", height: "auto", maxHeight: 760, objectFit: "contain", objectPosition: "center", display: "block", cursor: "zoom-in" }}
+                    />
+                  </article>
+                );
+              })}
             </div>
           ) : null}
         </div>
       </section>
+
+      {fullImage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="Full screen project image"
+          onClick={() => setFullImage(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 99999,
+            background: "rgba(0,0,0,.94)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "clamp(12px, 2vw, 28px)",
+            cursor: "zoom-out"
+          }}
+        >
+          <img
+            src={fullImage.src}
+            alt={fullImage.alt}
+            onClick={() => setFullImage(null)}
+            style={{
+              width: "auto",
+              height: "auto",
+              maxWidth: "100%",
+              maxHeight: "100%",
+              objectFit: "contain",
+              objectPosition: "center",
+              display: "block",
+              cursor: "zoom-out",
+              userSelect: "none"
+            }}
+          />
+        </div>
+      )}
     </main>
   );
 }
