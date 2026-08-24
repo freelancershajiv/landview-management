@@ -141,11 +141,11 @@ const themeCss = `
 
 export default function PublicHeader() {
   const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useState<PublicTheme>("light");
+  const [theme, setTheme] = useState<PublicTheme>("dark");
 
   useEffect(() => {
     const saved = window.localStorage.getItem("landview-public-theme");
-    const nextTheme: PublicTheme = saved === "dark" ? "dark" : "light";
+    const nextTheme: PublicTheme = saved === "light" ? "light" : "dark";
     setTheme(nextTheme);
     document.documentElement.dataset.publicTheme = nextTheme;
   }, []);
