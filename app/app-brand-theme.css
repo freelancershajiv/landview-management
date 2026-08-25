@@ -1,0 +1,282 @@
+/* LAND VIEW app portal theme — aligned with the public website */
+
+:root {
+  --app-navy: #07101a;
+  --app-navy-2: #0b141d;
+  --app-panel: #101a24;
+  --app-panel-2: #142330;
+  --app-gold: #d79a17;
+  --app-gold-light: #efb733;
+  --app-text: #ffffff;
+  --app-muted: #99a5ae;
+  --app-line: #2b3843;
+}
+
+.admin-shell,
+.client-shell,
+.employee-shell {
+  background: var(--app-navy) !important;
+  color: var(--app-text) !important;
+}
+
+.admin-shell .main-content,
+.admin-shell .content,
+.admin-shell .page-content,
+.client-shell .main-content,
+.employee-shell .main-content {
+  background: var(--app-navy) !important;
+  color: var(--app-text) !important;
+}
+
+.sidebar,
+.admin-shell .sidebar {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(215,154,23,.10), transparent 26%),
+    linear-gradient(180deg, #09131d 0%, #050a0f 100%) !important;
+  color: #fff !important;
+  border-right: 1px solid rgba(215,154,23,.18) !important;
+}
+
+.sidebar-nav a,
+.admin-shell .sidebar-nav a {
+  color: #aab4bc !important;
+}
+
+.sidebar-nav a:hover,
+.admin-shell .sidebar-nav a:hover {
+  color: #fff !important;
+  background: rgba(215,154,23,.08) !important;
+  border-color: rgba(215,154,23,.12) !important;
+}
+
+.sidebar-nav a.active,
+.admin-shell .sidebar-nav a.active {
+  color: #fff !important;
+  background: rgba(215,154,23,.11) !important;
+  border-color: rgba(215,154,23,.28) !important;
+}
+
+.sidebar-nav a.active::before,
+.admin-shell .sidebar-nav a.active::before,
+.security-dot,
+.system-dot {
+  background: var(--app-gold) !important;
+}
+
+.sidebar-nav a.active i,
+.sidebar-caption,
+.eyebrow,
+.card-kicker,
+.section-title > div > span,
+.page-header .eyebrow,
+.public-team-label {
+  color: var(--app-gold-light) !important;
+}
+
+.avatar,
+.employee-avatar {
+  background: var(--app-gold) !important;
+  color: #101820 !important;
+}
+
+.admin-shell .card,
+.admin-shell .modal.card,
+.admin-shell .employee-card,
+.admin-shell .project-card,
+.admin-shell .stat-card,
+.admin-shell .summary-card,
+.admin-shell .table-card,
+.admin-shell .toolbar,
+.admin-shell .notice:not(.error),
+.client-shell .card,
+.employee-shell .card {
+  background: var(--app-panel) !important;
+  color: #fff !important;
+  border-color: var(--app-line) !important;
+  box-shadow: 0 14px 34px rgba(0,0,0,.22) !important;
+}
+
+.admin-shell h1,
+.admin-shell h2,
+.admin-shell h3,
+.admin-shell h4,
+.admin-shell strong,
+.client-shell h1,
+.client-shell h2,
+.client-shell h3,
+.employee-shell h1,
+.employee-shell h2,
+.employee-shell h3 {
+  color: #fff !important;
+}
+
+.admin-shell p,
+.admin-shell small,
+.admin-shell .muted,
+.admin-shell .toolbar-count,
+.admin-shell .employee-lines,
+.admin-shell .employee-top p,
+.client-shell p,
+.employee-shell p {
+  color: var(--app-muted) !important;
+}
+
+.admin-shell input,
+.admin-shell select,
+.admin-shell textarea,
+.client-shell input,
+.client-shell select,
+.client-shell textarea,
+.employee-shell input,
+.employee-shell select,
+.employee-shell textarea {
+  background: #0b151e !important;
+  color: #fff !important;
+  border-color: #34414c !important;
+}
+
+.admin-shell input::placeholder,
+.admin-shell textarea::placeholder,
+.client-shell input::placeholder,
+.employee-shell input::placeholder {
+  color: #71808c !important;
+}
+
+.admin-shell input:focus,
+.admin-shell select:focus,
+.admin-shell textarea:focus,
+.client-shell input:focus,
+.client-shell select:focus,
+.employee-shell input:focus,
+.employee-shell select:focus {
+  border-color: var(--app-gold) !important;
+  box-shadow: 0 0 0 3px rgba(215,154,23,.12) !important;
+  outline: none !important;
+}
+
+.btn-dark,
+.login-submit,
+.admin-shell .btn-dark,
+.client-shell .btn-dark,
+.employee-shell .btn-dark {
+  background: linear-gradient(180deg, #e9ae29, #c88709) !important;
+  color: #111820 !important;
+  border-color: var(--app-gold-light) !important;
+}
+
+.btn-dark:hover:not(:disabled),
+.login-submit:hover:not(:disabled),
+.admin-shell .btn-dark:hover:not(:disabled) {
+  background: linear-gradient(180deg, #f2bd3e, #d59611) !important;
+  box-shadow: 0 10px 25px rgba(0,0,0,.23) !important;
+}
+
+.btn-light,
+.admin-shell .btn-light,
+.client-shell .btn-light,
+.employee-shell .btn-light {
+  background: #101a24 !important;
+  color: #fff !important;
+  border-color: #34414c !important;
+}
+
+.admin-shell button:not(.btn-dark):not(.btn-light):not(.icon-button),
+.client-shell button:not(.btn-dark):not(.btn-light),
+.employee-shell button:not(.btn-dark):not(.btn-light) {
+  color: var(--app-gold-light);
+}
+
+.admin-shell table,
+.admin-shell th,
+.admin-shell td {
+  border-color: var(--app-line) !important;
+}
+
+.admin-shell th {
+  color: var(--app-gold-light) !important;
+  background: #0b151e !important;
+}
+
+.admin-shell td {
+  color: #d7dde2 !important;
+  background: var(--app-panel) !important;
+}
+
+.admin-shell tr:hover td {
+  background: var(--app-panel-2) !important;
+}
+
+.modal-backdrop {
+  background: rgba(2,7,11,.76) !important;
+  backdrop-filter: blur(5px);
+}
+
+.login-page {
+  background: var(--app-navy) !important;
+}
+
+.login-brand {
+  background:
+    radial-gradient(circle at 82% 14%, rgba(215,154,23,.13), transparent 29%),
+    radial-gradient(circle at 10% 86%, rgba(255,255,255,.04), transparent 30%),
+    linear-gradient(145deg, #07101a, #0b1621) !important;
+}
+
+.login-brand::after {
+  border-color: rgba(215,154,23,.25) !important;
+}
+
+.brand-eyebrow,
+.brand-content h1 span {
+  color: var(--app-gold-light) !important;
+}
+
+.brand-line {
+  background: var(--app-gold) !important;
+}
+
+.login-panel {
+  background: #0b141d !important;
+  color: #fff !important;
+}
+
+.login-heading h2 {
+  color: #fff !important;
+}
+
+.login-heading p,
+.login-eyebrow,
+.login-security,
+.login-footer {
+  color: var(--app-muted) !important;
+}
+
+.login-panel input,
+.login-panel select,
+.login-panel textarea {
+  background: #0b151e !important;
+  color: #fff !important;
+  border-color: #34414c !important;
+}
+
+.login-panel input:focus,
+.login-panel select:focus {
+  border-color: var(--app-gold) !important;
+  box-shadow: 0 0 0 3px rgba(215,154,23,.12) !important;
+}
+
+.login-error,
+.notice.error {
+  background: #211216 !important;
+  border-color: #6a3037 !important;
+  color: #f1b7bd !important;
+}
+
+@media (max-width: 900px) {
+  .mobile-brand,
+  .mobile-header {
+    background: #07101a !important;
+    color: #fff !important;
+    border-color: rgba(215,154,23,.18) !important;
+  }
+}
