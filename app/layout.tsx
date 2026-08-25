@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import ContactMapEnhancer from "@/components/contact-map-enhancer";
+import GlobalActionFeedback from "@/components/global-action-feedback";
 import "./globals.css";
 import "./premium-theme.css";
 import "./team-overrides.css";
 import "./app-brand-theme.css";
+import "./action-feedback.css";
 
 const siteUrl = "https://landview.com.bd";
 
@@ -113,6 +115,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en-BD">
       <body>
         {children}
+        <GlobalActionFeedback />
         <ContactMapEnhancer />
         <script
           type="application/ld+json"
