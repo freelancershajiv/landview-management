@@ -1,0 +1,52 @@
+/* Public team card readability overrides */
+.public-site .lv-team-card .public-team-copy h3 {
+  white-space: nowrap;
+  font-size: clamp(16px, 1.35vw, 20px) !important;
+  line-height: 1.15 !important;
+  letter-spacing: -0.02em !important;
+}
+
+.public-site .lv-team-card .public-team-designation,
+.public-site .lv-team-card .public-team-name {
+  white-space: nowrap;
+}
+
+.public-site .lv-team-card .public-team-info-block strong {
+  font-size: 14px !important;
+  line-height: 1.55 !important;
+}
+
+.public-site .lv-team-card .public-team-label {
+  font-size: 9px !important;
+  letter-spacing: 0.12em !important;
+}
+
+.public-site .lv-team-card .public-team-degree,
+.public-site .lv-team-card .public-team-specialities,
+.public-site .lv-team-card .public-team-specialities span {
+  font-size: 13px !important;
+  line-height: 1.6 !important;
+}
+
+.public-site .lv-team-card .public-team-degrees,
+.public-site .lv-team-card .public-team-specialities {
+  gap: 6px !important;
+}
+
+@media (max-width: 1100px) {
+  .public-site .lv-team-card .public-team-copy h3 {
+    font-size: 18px !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .public-site .lv-team-card .public-team-copy h3 {
+    white-space: normal;
+    font-size: 18px !important;
+  }
+
+  .public-site .lv-team-card .public-team-designation,
+  .public-site .lv-team-card .public-team-name {
+    white-space: normal;
+  }
+}
