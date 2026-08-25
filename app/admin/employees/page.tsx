@@ -197,9 +197,13 @@ export default function EmployeesPage() {
           <Field label="POSITION"><input type="text" value={form.Position} onChange={e => setForm(v => ({ ...v, Position: e.target.value }))} /></Field>
 
           <Field label="DEPARTMENT">
-            <select value={form.Department} onChange={e => setForm(v => ({ ...v, Department: e.target.value }))}>
-              <option value="">Select department</option>
-              {DEPARTMENTS.map(item => <option value={item} key={item}>{item}</option>)}
+            <select
+              value={form.Department}
+              onChange={e => setForm(v => ({ ...v, Department: e.target.value }))}
+              style={{ textAlign: "center", textAlignLast: "center" }}
+            >
+              <option value="" style={{ textAlign: "center" }}>Select department</option>
+              {DEPARTMENTS.map(item => <option value={item} key={item} style={{ textAlign: "center" }}>{item}</option>)}
             </select>
           </Field>
 
