@@ -16,7 +16,7 @@ const securityHeaders = [
       "form-action 'self'",
       "img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com https://lh3.googleusercontent.com",
       "font-src 'self' data:",
-      "connect-src 'self'",
+      "connect-src 'self' https://vitals.vercel-insights.com",
       "style-src 'self' 'unsafe-inline'",
       "script-src 'self' 'unsafe-inline'",
       "upgrade-insecure-requests",
