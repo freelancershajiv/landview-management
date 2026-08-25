@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import ContactMapEnhancer from "@/components/contact-map-enhancer";
 import "./globals.css";
 import "./premium-theme.css";
+import "./team-overrides.css";
 
 const siteUrl = "https://landview.com.bd";
 
