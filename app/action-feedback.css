@@ -1,0 +1,24 @@
+.lv-action-busy {
+  position: relative;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  cursor: wait !important;
+  opacity: .84;
+  pointer-events: none;
+}
+
+.lv-action-spinner {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 999px;
+  animation: lv-action-spin .72s linear infinite;
+}
+
+@keyframes lv-action-spin {
+  to { transform: rotate(360deg); }
+}
