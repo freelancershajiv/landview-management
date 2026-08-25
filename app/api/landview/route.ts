@@ -20,6 +20,7 @@ const GET_ACTIONS = new Set([
   "getProject",
   "getProjectEmployees",
   "getProjectDriveFolder",
+  "getProjectServiceFolders",
   "getEmployees",
   "getDocuments",
   "getSiteVisits",
@@ -41,6 +42,7 @@ const POST_ACTIONS = new Set([
   "updateProject",
   "deleteProject",
   "updateProjectEmployees",
+  "uploadProjectServiceFile",
   "createEmployee",
   "updateEmployee",
   "deleteEmployee",
@@ -62,10 +64,7 @@ function requiredEnv() {
 }
 
 function normalizeHost(value: string | null | undefined) {
-  return String(value || "")
-    .split(":")[0]
-    .trim()
-    .toLowerCase();
+  return String(value || "").split(":")[0].trim().toLowerCase();
 }
 
 function getRequestHost(request: NextRequest) {
@@ -74,23 +73,14 @@ function getRequestHost(request: NextRequest) {
 
 function trustedVercelHosts() {
   return new Set(
-    [
-      process.env.VERCEL_URL,
-      process.env.VERCEL_BRANCH_URL,
-      process.env.VERCEL_PROJECT_PRODUCTION_URL,
-    ]
+    [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL]
       .map(normalizeHost)
       .filter(Boolean)
   );
 }
 
 function isAppHost(host: string) {
-  return (
-    host === "app.landview.com.bd" ||
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    trustedVercelHosts().has(host)
-  );
+  return host === "app.landview.com.bd" || host === "localhost" || host === "127.0.0.1" || trustedVercelHosts().has(host);
 }
 
 function isPublicHost(host: string) {
@@ -99,15 +89,10 @@ function isPublicHost(host: string) {
 
 function originAllowed(request: NextRequest) {
   const origin = request.headers.get("origin");
-
-  // Normal browser POST/fetch requests send Origin. If an older browser or
-  // same-origin navigation omits it, only accept an explicit same-origin
-  // Fetch Metadata signal. Development remains convenient on localhost.
   if (!origin) {
     if (process.env.NODE_ENV !== "production") return true;
     return request.headers.get("sec-fetch-site") === "same-origin";
   }
-
   try {
     const url = new URL(origin);
     const host = normalizeHost(url.hostname);
@@ -118,13 +103,8 @@ function originAllowed(request: NextRequest) {
 }
 
 function clientKey(request: NextRequest) {
-  const forwarded =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-
-  return createHmac("sha256", PROXY_SECRET)
-    .update(forwarded)
-    .digest("hex")
-    .slice(0, 32);
+  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
+  return createHmac("sha256", PROXY_SECRET).update(forwarded).digest("hex").slice(0, 32);
 }
 
 async function callBackend(payload: Record<string, unknown>) {
@@ -135,20 +115,13 @@ async function callBackend(payload: Record<string, unknown>) {
     cache: "no-store",
     redirect: "follow",
   });
-
   const text = await response.text();
   let json: any;
-
   try {
     json = JSON.parse(text);
   } catch {
-    throw new Error(
-      /^\s*</.test(text)
-        ? "Apps Script returned HTML instead of JSON."
-        : "Apps Script returned invalid JSON."
-    );
+    throw new Error(/^\s*</.test(text) ? "Apps Script returned HTML instead of JSON." : "Apps Script returned invalid JSON.");
   }
-
   return { response, json };
 }
 
@@ -163,10 +136,7 @@ function safeJson(json: any) {
 function backendResponse(status: number, json: any) {
   return NextResponse.json(safeJson(json), {
     status,
-    headers: {
-      "Cache-Control": "no-store, max-age=0",
-      Pragma: "no-cache",
-    },
+    headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" },
   });
 }
 
@@ -194,55 +164,34 @@ function clearSessionCookie(response: NextResponse) {
 async function handle(request: NextRequest, method: "GET" | "POST") {
   try {
     requiredEnv();
-
     let input: Record<string, unknown> = {};
-
     if (method === "GET") {
-      request.nextUrl.searchParams.forEach((value, key) => {
-        input[key] = value;
-      });
+      request.nextUrl.searchParams.forEach((value, key) => { input[key] = value; });
     } else {
       try {
         input = await request.json();
       } catch {
-        return NextResponse.json(
-          { success: false, error: "Invalid JSON request." },
-          { status: 400 }
-        );
+        return NextResponse.json({ success: false, error: "Invalid JSON request." }, { status: 400 });
       }
     }
 
     const action = String(input.action || "").trim();
     const allowedActions = method === "GET" ? GET_ACTIONS : POST_ACTIONS;
-
     if (!allowedActions.has(action)) {
-      return NextResponse.json(
-        { success: false, error: "Unsupported action." },
-        { status: 405 }
-      );
+      return NextResponse.json({ success: false, error: "Unsupported action." }, { status: 405 });
     }
 
     const host = getRequestHost(request);
-
     if (isPublicHost(host)) {
       if (method !== "GET" || !PUBLIC_GET_ACTIONS.has(action)) {
-        return NextResponse.json(
-          { success: false, error: "Not found." },
-          { status: 404 }
-        );
+        return NextResponse.json({ success: false, error: "Not found." }, { status: 404 });
       }
     } else if (!isAppHost(host)) {
-      return NextResponse.json(
-        { success: false, error: "Not found." },
-        { status: 404 }
-      );
+      return NextResponse.json({ success: false, error: "Not found." }, { status: 404 });
     }
 
     if (method === "POST" && !originAllowed(request)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid request origin." },
-        { status: 403 }
-      );
+      return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
     }
 
     delete input.token;
@@ -250,55 +199,29 @@ async function handle(request: NextRequest, method: "GET" | "POST") {
     delete input._clientKey;
 
     const token = request.cookies.get(COOKIE_NAME)?.value || "";
-
     const payload: Record<string, unknown> = {
       ...input,
       action,
       proxySecret: PROXY_SECRET,
       _clientKey: clientKey(request),
     };
-
     if (token && action !== "login") payload.token = token;
 
     const { response: backend, json } = await callBackend(payload);
     const out = backendResponse(backend.ok ? 200 : backend.status, json);
-
     const returnedToken = String(json?.data?.token || "");
 
-    if (
-      json?.success &&
-      returnedToken &&
-      (action === "login" || action === "changeOwnPassword")
-    ) {
+    if (json?.success && returnedToken && (action === "login" || action === "changeOwnPassword")) {
       setSessionCookie(out, returnedToken);
     }
-
-    if (
-      action === "logout" ||
-      (!json?.success &&
-        /unauthorized|session expired/i.test(
-          String(json?.error || json?.message || "")
-        ))
-    ) {
+    if (action === "logout" || (!json?.success && /unauthorized|session expired/i.test(String(json?.error || json?.message || "")))) {
       clearSessionCookie(out);
     }
-
     return out;
   } catch (error: any) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: error?.message || "Unable to reach LAND VIEW backend.",
-      },
-      { status: 502 }
-    );
+    return NextResponse.json({ success: false, error: error?.message || "Unable to reach LAND VIEW backend." }, { status: 502 });
   }
 }
 
-export async function GET(request: NextRequest) {
-  return handle(request, "GET");
-}
-
-export async function POST(request: NextRequest) {
-  return handle(request, "POST");
-}
+export async function GET(request: NextRequest) { return handle(request, "GET"); }
+export async function POST(request: NextRequest) { return handle(request, "POST"); }
