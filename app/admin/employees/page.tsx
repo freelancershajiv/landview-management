@@ -56,6 +56,7 @@ const blank = {
 export default function EmployeesPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
@@ -82,6 +83,12 @@ export default function EmployeesPage() {
     [rows, query]
   );
 
+  function closeEditor() {
+    setOpen(false);
+    setEditing("");
+    setForm(blank);
+  }
+
   function startEdit(r: any) {
     setEditing(pick(r, ["Employee_ID", "Employee ID", "EmployeeId"]));
     setForm({
@@ -97,6 +104,11 @@ export default function EmployeesPage() {
 
   async function submit(e: FormEvent) {
     e.preventDefault();
+    if (saving) return;
+
+    setSaving(true);
+    setError("");
+
     try {
       const payload = {
         ...form,
@@ -105,33 +117,37 @@ export default function EmployeesPage() {
 
       if (editing) {
         await landViewApi.updateEmployee(editing, payload);
-      } else {
-        const result = await landViewApi.createEmployee(payload);
-        const account = result.account;
-
-        if (account?.created && account.temporaryPassword) {
-          setCredentials({
-            username: account.username || result.Employee_ID || "",
-            password: account.temporaryPassword,
-          });
-        } else if (account?.userId) {
-          const reset = await landViewApi.resetUserPassword(account.userId);
-          setCredentials({
-            username: reset.username || account.username || result.Employee_ID || "",
-            password: reset.temporaryPassword,
-          });
-        } else {
-          throw new Error(
-            "Employee was created, but login credentials were not returned. Check the Users sheet and Apps Script deployment."
-          );
-        }
+        closeEditor();
+        void load();
+        return;
       }
-      setOpen(false);
-      setEditing("");
-      setForm(blank);
-      await load();
+
+      const result = await landViewApi.createEmployee(payload);
+      const account = result.account;
+
+      closeEditor();
+      void load();
+
+      if (account?.created && account.temporaryPassword) {
+        setCredentials({
+          username: account.username || result.Employee_ID || "",
+          password: account.temporaryPassword,
+        });
+      } else if (account?.userId) {
+        const reset = await landViewApi.resetUserPassword(account.userId);
+        setCredentials({
+          username: reset.username || account.username || result.Employee_ID || "",
+          password: reset.temporaryPassword,
+        });
+      } else {
+        throw new Error(
+          "Employee was created, but login credentials were not returned. Check the Users sheet and Apps Script deployment."
+        );
+      }
     } catch (e: any) {
       setError(e?.message || "Could not save employee.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -179,9 +195,9 @@ export default function EmployeesPage() {
       })}</div>
     }
 
-    {open && <div className="modal-backdrop" onMouseDown={() => setOpen(false)}>
+    {open && <div className="modal-backdrop" onMouseDown={() => !saving && closeEditor()}>
       <form className="modal card" onSubmit={submit} onMouseDown={e => e.stopPropagation()}>
-        <div className="section-title"><div><span>{editing ? "EDIT" : "NEW"}</span><h2>{editing ? "Edit employee" : "Add employee"}</h2></div><button type="button" className="icon-button" onClick={() => setOpen(false)}>×</button></div>
+        <div className="section-title"><div><span>{editing ? "EDIT" : "NEW"}</span><h2>{editing ? "Edit employee" : "Add employee"}</h2></div><button type="button" className="icon-button" disabled={saving} onClick={closeEditor}>×</button></div>
         <div className="form-grid">
           <Field label="EMPLOYEE NAME"><input type="text" value={form.Employee_Name} onChange={e => setForm(v => ({ ...v, Employee_Name: e.target.value }))} /></Field>
 
@@ -219,7 +235,7 @@ export default function EmployeesPage() {
           <Field label="PUBLIC BIO"><textarea rows={4} value={String((form as any).Public_Bio || "")} onChange={e => setForm(v => ({ ...v, Public_Bio: e.target.value }))} /></Field>
           <Field label="PUBLIC WEBSITE"><label className="public-employee-toggle"><input type="checkbox" checked={String((form as any).Public_Display || "").toUpperCase() === "TRUE"} onChange={e => setForm(v => ({ ...v, Public_Display: e.target.checked ? "TRUE" : "FALSE" }))} /><span>Show this employee on the public website</span></label></Field>
         </div>
-        <div className="form-actions"><button type="button" className="btn btn-light" onClick={() => setOpen(false)}>Cancel</button><button className="btn btn-dark">Save employee</button></div>
+        <div className="form-actions"><button type="button" className="btn btn-light" disabled={saving} onClick={closeEditor}>Cancel</button><button className="btn btn-dark" disabled={saving}>{saving ? "Saving..." : "Save employee"}</button></div>
       </form>
     </div>}
 
