@@ -29,6 +29,11 @@ function isInternalAppPath() {
   return path.startsWith("/admin") || path.startsWith("/employee") || path.startsWith("/client") || path.startsWith("/login");
 }
 
+function isSubmitButton(button: HTMLButtonElement) {
+  const type = (button.getAttribute("type") || "submit").toLowerCase();
+  return Boolean(button.form) && type === "submit";
+}
+
 export default function GlobalActionFeedback() {
   useEffect(() => {
     if (!isInternalAppPath()) return;
@@ -64,7 +69,7 @@ export default function GlobalActionFeedback() {
       button.classList.add("lv-action-busy");
       button.innerHTML = `<span class="lv-action-spinner" aria-hidden="true"></span><span>${loadingLabel(label)}</span>`;
       armedButton = button;
-      armedUntil = Date.now() + 500;
+      armedUntil = Date.now() + 1500;
 
       if (fallbackTimer) window.clearTimeout(fallbackTimer);
       fallbackTimer = window.setTimeout(() => {
@@ -76,15 +81,28 @@ export default function GlobalActionFeedback() {
       const target = event.target as Element | null;
       const button = target?.closest("button") as HTMLButtonElement | null;
       if (!button) return;
-      arm(button);
+
+      // Never disable a submit button during the click event. Doing so before
+      // the browser's default action prevents the form submit event entirely.
+      // Submit buttons are armed safely from onSubmit below.
+      if (isSubmitButton(button)) return;
+
+      // For ordinary action buttons, wait until their click handlers have run.
+      // This prevents the global feedback layer from suppressing React onClick.
+      window.setTimeout(() => {
+        if (button.isConnected) arm(button);
+      }, 0);
     }
 
     function onSubmit(event: SubmitEvent) {
       const submitter = event.submitter as HTMLButtonElement | null;
       if (submitter) {
+        // The submit event already exists at this point, so disabling the
+        // submitter now cannot cancel the form submission.
         arm(submitter);
         return;
       }
+
       const form = event.target as HTMLFormElement;
       const button = form.querySelector('button[type="submit"], button:not([type])') as HTMLButtonElement | null;
       if (button) arm(button);
@@ -110,11 +128,13 @@ export default function GlobalActionFeedback() {
       }
     };
 
-    document.addEventListener("click", onClick, true);
+    // Capture submit so the loading state is ready before React's onSubmit
+    // starts its fetch, but do not capture/disable ordinary clicks.
+    document.addEventListener("click", onClick, false);
     document.addEventListener("submit", onSubmit, true);
 
     return () => {
-      document.removeEventListener("click", onClick, true);
+      document.removeEventListener("click", onClick, false);
       document.removeEventListener("submit", onSubmit, true);
       window.fetch = originalFetch;
       if (fallbackTimer) window.clearTimeout(fallbackTimer);
