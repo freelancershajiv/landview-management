@@ -106,18 +106,23 @@ export default function EmployeesPage() {
     e.preventDefault();
     if (saving) return;
 
+    const editingId = editing;
+    const draft = form;
+    const payload = {
+      ...draft,
+      Public_Bio: buildPublicBio(draft.Position, draft.Public_Bio),
+    };
+
     setSaving(true);
     setError("");
 
-    try {
-      const payload = {
-        ...form,
-        Public_Bio: buildPublicBio(form.Position, form.Public_Bio),
-      };
+    // Existing employees close immediately when Save is pressed.
+    // If the request fails, the exact draft is restored and reopened.
+    if (editingId) closeEditor();
 
-      if (editing) {
-        await landViewApi.updateEmployee(editing, payload);
-        closeEditor();
+    try {
+      if (editingId) {
+        await landViewApi.updateEmployee(editingId, payload);
         void load();
         return;
       }
@@ -146,6 +151,11 @@ export default function EmployeesPage() {
       }
     } catch (e: any) {
       setError(e?.message || "Could not save employee.");
+      if (editingId) {
+        setEditing(editingId);
+        setForm(draft);
+        setOpen(true);
+      }
     } finally {
       setSaving(false);
     }
