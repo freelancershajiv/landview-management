@@ -5,6 +5,12 @@ import { landViewApi } from "@/lib/api";
 import { EmptyState, Field, LoadingState, PageHeader, StatusBadge, pick } from "@/components/lv-ui";
 
 const DESIGNATIONS = ["Dr.", "Engr.", "Arch."];
+const DEPARTMENTS = [
+  "Structural Engineers",
+  "Architects",
+  "Electrical Engineers",
+  "Project Management & Supervision",
+];
 const PUBLIC_POSITION_PREFIX = "__POSITION__:";
 
 function normalizeDesignation(value: unknown) {
@@ -186,11 +192,18 @@ export default function EmployeesPage() {
             </select>
           </Field>
 
+          <Field label="PHONE"><input type="text" value={form.Phone} onChange={e => setForm(v => ({ ...v, Phone: e.target.value }))} /></Field>
+          <Field label="EMAIL"><input type="text" value={form.Email} onChange={e => setForm(v => ({ ...v, Email: e.target.value }))} /></Field>
+          <Field label="POSITION"><input type="text" value={form.Position} onChange={e => setForm(v => ({ ...v, Position: e.target.value }))} /></Field>
+
+          <Field label="DEPARTMENT">
+            <select value={form.Department} onChange={e => setForm(v => ({ ...v, Department: e.target.value }))}>
+              <option value="">Select department</option>
+              {DEPARTMENTS.map(item => <option value={item} key={item}>{item}</option>)}
+            </select>
+          </Field>
+
           {Object.entries({
-            Phone: "PHONE",
-            Email: "EMAIL",
-            Position: "POSITION",
-            Department: "DEPARTMENT",
             Joining_Date: "JOINING DATE",
             Status: "STATUS",
             Photo_URL: "PHOTO URL",
