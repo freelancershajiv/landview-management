@@ -10,10 +10,6 @@ const API_URL = "/api/landview";
 const API_TIMEOUT_MS = 30000;
 const LEGACY_TOKEN_KEYS = ["land_view_session_token", "land_view_token", "landview_token"];
 
-/**
- * Session tokens are now stored only in an HttpOnly cookie by the Next.js API
- * proxy. This function only removes legacy browser tokens left by older builds.
- */
 export function clearStoredSession() {
   if (typeof window === "undefined") return;
   for (const key of LEGACY_TOKEN_KEYS) localStorage.removeItem(key);
@@ -22,7 +18,6 @@ export function clearStoredSession() {
 async function parseResponse<T>(response: Response): Promise<T> {
   const text = await response.text();
   let json: RawResponse<T>;
-
   try {
     json = JSON.parse(text) as RawResponse<T>;
   } catch {
@@ -33,11 +28,9 @@ async function parseResponse<T>(response: Response): Promise<T> {
         : "The server returned an invalid response."
     );
   }
-
   if (!response.ok || !json.success) {
     throw new Error(String(json.error || json.message || `HTTP ${response.status}`));
   }
-
   return (json.data ?? (json as unknown)) as T;
 }
 
@@ -92,6 +85,23 @@ export type InvoiceCreateResult = {
   pdfUrl?: string; downloadUrl?: string; folderUrl?: string;
   invoice?: Record<string, unknown> & { Invoice_ID?: string };
 };
+export type ProjectServiceFolderInfo = { name: string; id: string; url: string };
+export type ProjectServiceFoldersResult = {
+  projectId: string;
+  projectFolderId: string;
+  projectFolderUrl: string;
+  folders: ProjectServiceFolderInfo[];
+};
+export type ProjectServiceUploadResult = {
+  projectId: string;
+  folderName: string;
+  folderId: string;
+  folderUrl: string;
+  fileId: string;
+  fileName: string;
+  fileUrl: string;
+  size: number;
+};
 
 export type SessionUser = {
   userId?: string; username?: string; name?: string; role?: string;
@@ -125,6 +135,9 @@ export const landViewApi = {
   getProjectEmployees: (projectId: string) => get<Record<string, unknown>[]>("getProjectEmployees", { projectId }),
   updateProjectEmployees: (projectId: string, employeeIds: string[]) => post<unknown>("updateProjectEmployees", { projectId, employeeIds }),
   getProjectDriveFolder: (projectId: string) => get<{ projectId: string; folderId: string; url: string }>("getProjectDriveFolder", { projectId }),
+  getProjectServiceFolders: (projectId: string) => get<ProjectServiceFoldersResult>("getProjectServiceFolders", { projectId }),
+  uploadProjectServiceFile: (projectId: string, folderName: string, file: { fileName: string; mimeType: string; base64: string }) =>
+    post<ProjectServiceUploadResult>("uploadProjectServiceFile", { projectId, folderName, ...file }),
   getEmployees: () => get<Record<string, unknown>[]>("getEmployees"),
   createEmployee: (employee: Record<string, unknown>) => post<EmployeeRecord>("createEmployee", employee),
   updateEmployee: (employeeId: string, employee: Record<string, unknown>) => post<unknown>("updateEmployee", { employeeId, ...employee }),
