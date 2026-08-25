@@ -1,16 +1,5 @@
 /**
  * LAND VIEW — Project Service Folder Module
- *
- * Add this file to the same Google Apps Script project as Code.gs.
- * Then add these two cases to handleAction() in Code.gs:
- *
- *   case "getProjectServiceFolders":
- *     return getProjectServiceFolders(params);
- *
- *   case "uploadProjectServiceFile":
- *     return uploadProjectServiceFile(params);
- *
- * Redeploy the Apps Script web app after adding the file/cases.
  */
 
 var PROJECT_SERVICE_FOLDERS = [
@@ -40,12 +29,7 @@ function ensureProjectServiceFolders_(projectId) {
   var projectFolder = drive.projectFolder;
   var folders = PROJECT_SERVICE_FOLDERS.map(function(name) {
     var folder = getOrCreateChildFolder(projectFolder, name);
-    return {
-      name: name,
-      id: folder.getId(),
-      url: folder.getUrl(),
-      folder: folder
-    };
+    return { name: name, id: folder.getId(), url: folder.getUrl(), folder: folder };
   });
 
   return {
@@ -73,6 +57,13 @@ function getProjectServiceFolders(params) {
       })
     }
   };
+}
+
+function isPortfolioExteriorImage_(folderName, fileName, mimeType) {
+  if (String(folderName || "") !== "3D Design - Exterior") return false;
+  var name = String(fileName || "").toLowerCase();
+  var mime = String(mimeType || "").toLowerCase();
+  return /\.(jpe?g|png|webp)$/i.test(name) || /image\/(jpeg|jpg|png|webp)/i.test(mime);
 }
 
 function uploadProjectServiceFile(params) {
@@ -107,6 +98,15 @@ function uploadProjectServiceFile(params) {
   var blob = Utilities.newBlob(bytes, mimeType || "application/octet-stream", safeName);
   var file = target.folder.createFile(blob);
 
+  /* Exterior render images are intended for the public portfolio. */
+  if (isPortfolioExteriorImage_(folderName, safeName, mimeType)) {
+    try {
+      file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (error) {
+      /* Workspace policies may prevent link sharing. */
+    }
+  }
+
   try {
     appendRecord(CONFIG.SHEETS.DOCUMENTS, {
       Project_ID: projectId,
@@ -118,10 +118,7 @@ function uploadProjectServiceFile(params) {
       Folder_URL: target.url,
       Client_Visible: "FALSE"
     }, "DOC-", "Document_ID");
-  } catch (error) {
-    // The Drive upload is the primary operation. A Documents-sheet schema
-    // mismatch should not delete a successfully uploaded file.
-  }
+  } catch (error) {}
 
   return {
     success: true,
@@ -138,10 +135,6 @@ function uploadProjectServiceFile(params) {
   };
 }
 
-/**
- * Optional manual migration helper. Run once from the Apps Script editor if
- * you want all 11 folders created immediately for every existing project.
- */
 function initializeProjectServiceFolders() {
   var projects = readSheet(CONFIG.SHEETS.PROJECTS);
   var results = [];
