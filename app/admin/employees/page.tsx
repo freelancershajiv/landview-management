@@ -92,12 +92,21 @@ export default function EmployeesPage() {
   function startEdit(r: any) {
     setEditing(pick(r, ["Employee_ID", "Employee ID", "EmployeeId"]));
     setForm({
-      ...blank,
-      ...r,
+      Employee_Name: pick(r, ["Employee_Name", "Employee Name", "Name"], ""),
+      Phone: pick(r, ["Phone", "Phone_Number", "Phone Number", "Mobile"], ""),
+      Email: pick(r, ["Email", "Email_Address", "Email Address"], ""),
       Public_Title: normalizeDesignation(
         pick(r, ["Public_Title", "Public Title", "Designation", "designation"], "")
       ),
+      Position: pick(r, ["Position", "Job_Title", "Job Title"], ""),
+      Department: pick(r, ["Department", "department"], ""),
+      Joining_Date: pick(r, ["Joining_Date", "Joining Date", "Join_Date", "Join Date"], ""),
+      Status: pick(r, ["Status", "status"], "Active"),
+      Public_Display: String(pick(r, ["Public_Display", "Public Display", "Show_Publicly", "Show Publicly"], "FALSE")),
       Public_Bio: stripPublicPositionMarker(pick(r, ["Public_Bio", "Public Bio", "Bio"], "")),
+      Photo_URL: pick(r, ["Photo_URL", "Photo URL", "Photo"], ""),
+      LinkedIn_URL: pick(r, ["LinkedIn_URL", "LinkedIn URL", "LinkedIn"], ""),
+      Display_Order: pick(r, ["Display_Order", "Display Order"], ""),
     });
     setOpen(true);
   }
@@ -108,30 +117,70 @@ export default function EmployeesPage() {
 
     const editingId = editing;
     const draft = form;
+    const publicBio = buildPublicBio(draft.Position, draft.Public_Bio);
+
+    // Send canonical fields AND common Google Sheet header aliases with the same
+    // new value. This prevents stale values from an existing alias column from
+    // being written back by the generic Apps Script updater.
     const payload = {
-      ...draft,
-      Public_Bio: buildPublicBio(draft.Position, draft.Public_Bio),
+      Employee_Name: draft.Employee_Name,
+      "Employee Name": draft.Employee_Name,
+      Name: draft.Employee_Name,
+      Phone: draft.Phone,
+      Phone_Number: draft.Phone,
+      "Phone Number": draft.Phone,
+      Mobile: draft.Phone,
+      Email: draft.Email,
+      Email_Address: draft.Email,
+      "Email Address": draft.Email,
+      Public_Title: draft.Public_Title,
+      "Public Title": draft.Public_Title,
+      Designation: draft.Public_Title,
+      Position: draft.Position,
+      Job_Title: draft.Position,
+      "Job Title": draft.Position,
+      Department: draft.Department,
+      Joining_Date: draft.Joining_Date,
+      "Joining Date": draft.Joining_Date,
+      Join_Date: draft.Joining_Date,
+      "Join Date": draft.Joining_Date,
+      Status: draft.Status,
+      Public_Display: draft.Public_Display,
+      "Public Display": draft.Public_Display,
+      Show_Publicly: draft.Public_Display,
+      "Show Publicly": draft.Public_Display,
+      Public_Bio: publicBio,
+      "Public Bio": publicBio,
+      Bio: publicBio,
+      Photo_URL: draft.Photo_URL,
+      "Photo URL": draft.Photo_URL,
+      Photo: draft.Photo_URL,
+      LinkedIn_URL: draft.LinkedIn_URL,
+      "LinkedIn URL": draft.LinkedIn_URL,
+      LinkedIn: draft.LinkedIn_URL,
+      Display_Order: draft.Display_Order,
+      "Display Order": draft.Display_Order,
     };
 
     setSaving(true);
     setError("");
 
-    // Existing employees close immediately when Save is pressed.
-    // If the request fails, the exact draft is restored and reopened.
-    if (editingId) closeEditor();
-
     try {
       if (editingId) {
         await landViewApi.updateEmployee(editingId, payload);
-        void load();
+        closeEditor();
+        await load();
         return;
       }
 
-      const result = await landViewApi.createEmployee(payload);
+      const result = await landViewApi.createEmployee({
+        ...payload,
+        Employee_ID: undefined,
+      });
       const account = result.account;
 
       closeEditor();
-      void load();
+      await load();
 
       if (account?.created && account.temporaryPassword) {
         setCredentials({
@@ -223,13 +272,9 @@ export default function EmployeesPage() {
           <Field label="POSITION"><input type="text" value={form.Position} onChange={e => setForm(v => ({ ...v, Position: e.target.value }))} /></Field>
 
           <Field label="DEPARTMENT">
-            <select
-              value={form.Department}
-              onChange={e => setForm(v => ({ ...v, Department: e.target.value }))}
-              style={{ textAlign: "center", textAlignLast: "center" }}
-            >
-              <option value="" style={{ textAlign: "center" }}>Select department</option>
-              {DEPARTMENTS.map(item => <option value={item} key={item} style={{ textAlign: "center" }}>{item}</option>)}
+            <select value={form.Department} onChange={e => setForm(v => ({ ...v, Department: e.target.value }))}>
+              <option value="">Select department</option>
+              {DEPARTMENTS.map(item => <option value={item} key={item}>{item}</option>)}
             </select>
           </Field>
 
@@ -242,8 +287,8 @@ export default function EmployeesPage() {
           }).map(([k, l]) =>
             <Field key={k} label={l}><input type={k === "Joining_Date" ? "date" : k === "Display_Order" ? "number" : "text"} value={String((form as any)[k] || "")} onChange={e => setForm(v => ({ ...v, [k]: e.target.value }))} /></Field>
           )}
-          <Field label="PUBLIC BIO"><textarea rows={4} value={String((form as any).Public_Bio || "")} onChange={e => setForm(v => ({ ...v, Public_Bio: e.target.value }))} /></Field>
-          <Field label="PUBLIC WEBSITE"><label className="public-employee-toggle"><input type="checkbox" checked={String((form as any).Public_Display || "").toUpperCase() === "TRUE"} onChange={e => setForm(v => ({ ...v, Public_Display: e.target.checked ? "TRUE" : "FALSE" }))} /><span>Show this employee on the public website</span></label></Field>
+          <Field label="PUBLIC BIO"><textarea rows={4} value={String(form.Public_Bio || "")} onChange={e => setForm(v => ({ ...v, Public_Bio: e.target.value }))} /></Field>
+          <Field label="PUBLIC WEBSITE"><label className="public-employee-toggle"><input type="checkbox" checked={String(form.Public_Display || "").toUpperCase() === "TRUE"} onChange={e => setForm(v => ({ ...v, Public_Display: e.target.checked ? "TRUE" : "FALSE" }))} /><span>Show this employee on the public website</span></label></Field>
         </div>
         <div className="form-actions"><button type="button" className="btn btn-light" disabled={saving} onClick={closeEditor}>Cancel</button><button className="btn btn-dark" disabled={saving}>{saving ? "Saving..." : "Save employee"}</button></div>
       </form>
