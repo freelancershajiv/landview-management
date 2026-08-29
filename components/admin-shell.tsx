@@ -10,13 +10,21 @@ import {
 } from "@/lib/api";
 
 const nav = [
-  { href: "/admin", label: "Dashboard" },
-  { href: "/admin/projects", label: "Projects" },
+  { href: "/admin", label: "Dashboard", accounts: true },
+  { href: "/admin/clients", label: "Clients", accounts: true },
+  { href: "/admin/projects", label: "Projects", accounts: true },
+  { href: "/admin/tasks", label: "Tasks" },
+  { href: "/admin/attendance", label: "Attendance" },
+  { href: "/admin/leave", label: "Leave" },
   { href: "/admin/employees", label: "Employees" },
+  { href: "/admin/drawings", label: "Drawings" },
+  { href: "/admin/approvals", label: "Approvals" },
+  { href: "/admin/quotations", label: "Quotations", accounts: true },
+  { href: "/admin/expenses", label: "Expenses", accounts: true },
   { href: "/admin/documents", label: "Documents" },
   { href: "/admin/site-supervision", label: "Site Supervision" },
-  { href: "/admin/finance", label: "Finance" },
-  { href: "/admin/reports", label: "Reports" },
+  { href: "/admin/finance", label: "Finance", accounts: true },
+  { href: "/admin/reports", label: "Reports", accounts: true },
   { href: "/admin/users", label: "Users & Access" },
 ];
 
@@ -65,7 +73,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           return;
         }
 
-        if (sessionRole !== "admin" && sessionRole !== "manager") {
+        if (sessionRole !== "admin" && sessionRole !== "manager" && sessionRole !== "accounts") {
           throw new Error("This account does not have administrator access.");
         }
 
@@ -152,6 +160,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     "LAND VIEW User";
 
   const role = user?.role || user?.Role || "User";
+  const visibleNav = String(role).toLowerCase() === "accounts" ? nav.filter((item) => item.accounts) : nav;
 
   return (
     <div className="admin-shell tmg-shell">
@@ -198,7 +207,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
         <nav className={`primary-nav ${mobileOpen ? "open" : ""}`}>
           <div className="primary-nav-inner">
-            {nav.map((item) => {
+            {visibleNav.map((item) => {
               const active =
                 item.href === "/admin"
                   ? pathname === "/admin"

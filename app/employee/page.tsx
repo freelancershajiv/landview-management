@@ -24,6 +24,9 @@ export default function EmployeePortalPage() {
   const [projects, setProjects] = useState<Row[]>([]);
   const [documents, setDocuments] = useState<Row[]>([]);
   const [visits, setVisits] = useState<Row[]>([]);
+  const [tasks, setTasks] = useState<Row[]>([]);
+  const [attendance, setAttendance] = useState<Row[]>([]);
+  const [drawings, setDrawings] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -32,15 +35,21 @@ export default function EmployeePortalPage() {
 
     async function load() {
       try {
-        const [p, d, v] = await Promise.all([
+        const [p, d, v, t, a, drawingRows] = await Promise.all([
           landViewApi.getProjects(),
           landViewApi.getDocuments(),
           landViewApi.getSiteVisits(),
+          landViewApi.getErpRecords("tasks"),
+          landViewApi.getErpRecords("attendance"),
+          landViewApi.getErpRecords("drawings"),
         ]);
         if (!cancelled) {
           setProjects(p || []);
           setDocuments(d || []);
           setVisits(v || []);
+          setTasks(t || []);
+          setAttendance(a || []);
+          setDrawings(drawingRows || []);
         }
       } catch (err: any) {
         if (!cancelled) setError(err?.message || "Unable to load employee workspace.");
@@ -83,7 +92,30 @@ export default function EmployeePortalPage() {
       <div className="role-portal-grid role-portal-stats">
         <article><b>01</b><h2>{projects.length}</h2><p>Assigned projects</p><span>MY PROJECTS</span></article>
         <article><b>02</b><h2>{activeProjects}</h2><p>Active assignments</p><span>ACTIVE WORK</span></article>
-        <article><b>03</b><h2>{documents.length + visits.length}</h2><p>Documents + site records</p><span>PROJECT ACTIVITY</span></article>
+        <article><b>03</b><h2>{tasks.filter((task) => String(task.Status || "").toLowerCase() !== "completed").length}</h2><p>Open assigned tasks</p><span>MY TASKS</span></article>
+      </div>
+
+      <div className="role-portal-two-column">
+        <div className="role-portal-section">
+          <div className="role-portal-section-head"><div><span>WORK QUEUE</span><h2>My Tasks</h2></div><small>{tasks.length} assigned</small></div>
+          <div className="role-record-list">{tasks.slice(-8).reverse().map((task, index) => <article key={String(task.Task_ID || index)}>
+            <div><strong>{pick(task, ["Task_Title"]) || "Task"}</strong><span>{pick(task, ["Project_ID"]) || "General"} · due {dateText(task.Due_Date)}</span></div><small>{pick(task, ["Status"]) || "Pending"}</small>
+          </article>)}{!tasks.length && <div className="role-empty-state compact">No tasks assigned.</div>}</div>
+        </div>
+        <div className="role-portal-section">
+          <div className="role-portal-section-head"><div><span>TIME & ATTENDANCE</span><h2>Recent Attendance</h2></div><small>{attendance.length} records</small></div>
+          <div className="role-record-list">{attendance.slice(-8).reverse().map((row, index) => <article key={String(row.Attendance_ID || index)}>
+            <div><strong>{dateText(row.Attendance_Date)}</strong><span>{pick(row, ["Check_In"]) || "—"} – {pick(row, ["Check_Out"]) || "—"}</span></div><small>{pick(row, ["Status"]) || "Present"}</small>
+          </article>)}{!attendance.length && <div className="role-empty-state compact">No attendance records.</div>}</div>
+        </div>
+      </div>
+
+      <div className="role-portal-section">
+        <div className="role-portal-section-head"><div><span>DESIGN CONTROL</span><h2>Assigned Drawings</h2></div><small>{drawings.length} records</small></div>
+        <div className="role-record-list role-record-grid">{drawings.map((drawing, index) => <article key={String(drawing.Drawing_ID || index)}>
+          <div><strong>{pick(drawing, ["Drawing_Title"]) || "Drawing"}</strong><span>{pick(drawing, ["Project_ID"]) || "Project"} · Rev {pick(drawing, ["Revision"]) || "—"}</span></div>
+          {drawing.Drive_URL ? <a href={String(drawing.Drive_URL)} target="_blank" rel="noreferrer">Open</a> : <small>{pick(drawing, ["Status"]) || "Draft"}</small>}
+        </article>)}{!drawings.length && <div className="role-empty-state compact">No drawings assigned.</div>}</div>
       </div>
 
       <div className="role-portal-section">

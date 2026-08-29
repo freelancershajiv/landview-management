@@ -23,6 +23,8 @@ export default function ClientPortalPage() {
   const [projects, setProjects] = useState<Row[]>([]);
   const [documents, setDocuments] = useState<Row[]>([]);
   const [finance, setFinance] = useState<Record<string, ProjectFinance>>({});
+  const [drawings, setDrawings] = useState<Row[]>([]);
+  const [approvals, setApprovals] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -31,9 +33,11 @@ export default function ClientPortalPage() {
 
     async function load() {
       try {
-        const [p, d] = await Promise.all([
+        const [p, d, drawingRows, approvalRows] = await Promise.all([
           landViewApi.getProjects(),
           landViewApi.getDocuments(),
+          landViewApi.getErpRecords("drawings"),
+          landViewApi.getErpRecords("approvals"),
         ]);
 
         const rows = p || [];
@@ -50,6 +54,8 @@ export default function ClientPortalPage() {
         if (!cancelled) {
           setProjects(rows);
           setDocuments(d || []);
+          setDrawings(drawingRows || []);
+          setApprovals(approvalRows || []);
           setFinance(Object.fromEntries(entries.filter(([, value]) => value)) as Record<string, ProjectFinance>);
         }
       } catch (err: any) {
@@ -136,6 +142,18 @@ export default function ClientPortalPage() {
             })}
           </div>
         ) : <div className="role-empty-state">No projects are linked to this client account yet.</div>}
+      </div>
+
+      <div className="role-portal-section">
+        <div className="role-portal-section-head"><div><span>DESIGN REVIEW</span><h2>Drawings & Approvals</h2></div><small>{drawings.length + approvals.length} records</small></div>
+        <div className="role-record-list role-record-grid">
+          {drawings.map((drawing, index) => {
+            const url = String(pick(drawing, ["Drive_URL"]) || "");
+            return <article key={String(pick(drawing, ["Drawing_ID"]) || index)}><div><strong>{pick(drawing, ["Drawing_Title"]) || "Drawing"}</strong><span>{pick(drawing, ["Project_ID"]) || "Project"} · Revision {pick(drawing, ["Revision"]) || "—"}</span></div>{url ? <a href={url} target="_blank" rel="noreferrer">Review</a> : <small>{pick(drawing, ["Status"]) || "Pending"}</small>}</article>;
+          })}
+          {approvals.map((approval, index) => <article key={String(pick(approval, ["Approval_ID"]) || index)}><div><strong>{pick(approval, ["Approval_Type"]) || "Approval request"}</strong><span>{pick(approval, ["Project_ID"]) || "Project"}</span></div><small>{pick(approval, ["Status"]) || "Pending"}</small></article>)}
+          {!drawings.length && !approvals.length && <div className="role-empty-state compact">No drawings are awaiting client review.</div>}
+        </div>
       </div>
 
       <div className="role-portal-section">

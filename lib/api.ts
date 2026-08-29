@@ -116,6 +116,7 @@ export type DashboardData = {
 };
 export type BillingDashboardData = { projectCount: number; billCount: number; paymentCount: number; totalBill: number; totalPaid: number; pending: number };
 export type ProjectBillingData = { projectId: string; bills: Record<string, unknown>[]; payments: Record<string, unknown>[]; totalBill: number; totalPaid: number; due: number };
+export type ErpModule = "clients" | "tasks" | "attendance" | "leave" | "expenses" | "quotations" | "drawings" | "approvals";
 
 export const landViewApi = {
   health: () => get<unknown>("health"),
@@ -158,4 +159,8 @@ export const landViewApi = {
   createInvoice: (projectId: string) => post<InvoiceCreateResult>("createInvoice", { projectId }),
   getPermissions: () => get<Record<string, unknown>[]>("getPermissions"),
   createPermission: (permission: Record<string, unknown>) => post<unknown>("createPermission", permission),
+  initializeErpSheets: () => post<{ initialized: boolean; modules: string[] }>("initializeErpSheets"),
+  getErpRecords: (module: ErpModule) => get<Record<string, unknown>[]>("getErpRecords", { module }),
+  createErpRecord: (module: ErpModule, record: Record<string, unknown>) => post<unknown>("createErpRecord", { module, ...record }),
+  updateErpRecord: (module: ErpModule, id: string, changes: Record<string, unknown>) => post<unknown>("updateErpRecord", { module, id, ...changes }),
 };

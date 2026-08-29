@@ -27,11 +27,13 @@
 ========================================================= */
 
 const CONFIG = {
-  SPREADSHEET_ID: "1PDUQsDrEvbNBb1ZHrIJffhLKGo61mcgS",
+  // Production resource IDs are stored in Apps Script Script Properties.
+  // Required keys: LAND_VIEW_SPREADSHEET_ID and LAND_VIEW_ROOT_FOLDER_ID.
+  SPREADSHEET_ID: "",
 
   // LAND VIEW master Google Drive folder.
   // Every project folder is created/reused inside this folder.
-  ROOT_FOLDER_ID: "1UkXpEI4Evw9b2x5E5vjIqmuYFBe2tcjX",
+  ROOT_FOLDER_ID: "",
 
   // Security: short absolute lifetime plus idle timeout.
   SESSION_HOURS: 8,
@@ -40,7 +42,9 @@ const CONFIG = {
 
   // Apps Script-friendly password stretching. The unique salt is stored per user;
   // a secret pepper is generated in Script Properties and never stored in Sheets.
-  PASSWORD_HASH_ROUNDS: 3000,
+  PASSWORD_HASH_VERSION: "v2",
+  PASSWORD_HASH_ROUNDS: 5000,
+  LEGACY_PASSWORD_HASH_ROUNDS: 3000,
   LOGIN_MAX_FAILURES: 5,
   LOGIN_WINDOW_MINUTES: 15,
   LOGIN_LOCK_MINUTES: 15,
@@ -67,7 +71,15 @@ const CONFIG = {
     PAYMENTS: "Payments",
     BILLS: "Bills",
     PERMISSIONS: "Permissions",
-    AUDIT_LOG: "Audit Log"
+    AUDIT_LOG: "Audit Log",
+    CLIENTS: "Clients",
+    TASKS: "Tasks",
+    ATTENDANCE: "Attendance",
+    LEAVE_REQUESTS: "Leave Requests",
+    EXPENSES: "Expenses",
+    QUOTATIONS: "Quotations",
+    DRAWINGS: "Drawing Submissions",
+    APPROVALS: "Approvals"
   }
 };
 
@@ -76,21 +88,22 @@ const CONFIG = {
    SPREADSHEET
 ========================================================= */
 
+function getRequiredScriptProperty_(key) {
+  const value = String(
+    PropertiesService.getScriptProperties().getProperty(key) || ""
+  ).trim();
+
+  if (!value) {
+    throw new Error("Missing required Script Property: " + key);
+  }
+
+  return value;
+}
+
+
 function getSpreadsheet() {
-
-  if (CONFIG.SPREADSHEET_ID) {
-    return SpreadsheetApp.openById(CONFIG.SPREADSHEET_ID);
-  }
-
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-
-  if (!ss) {
-    throw new Error(
-      "Spreadsheet not found. Bind this Apps Script to the LAND VIEW spreadsheet."
-    );
-  }
-
-  return ss;
+  const spreadsheetId = getRequiredScriptProperty_("LAND_VIEW_SPREADSHEET_ID");
+  return SpreadsheetApp.openById(spreadsheetId);
 }
 
 
@@ -255,11 +268,20 @@ function handleAction(
     case "getProjectDriveFolder":
       return getProjectDriveFolder(params);
 
+    case "getProjectServiceFolders":
+      return getProjectServiceFolders(params);
+
+    case "uploadProjectServiceFile":
+      return uploadProjectServiceFile(params);
+
     case "syncProjectDriveFolders":
       return syncProjectDriveFolders(params);
 
     case "getPublicTeam":
       return getPublicTeam(params);
+
+    case "getPublicProjects":
+      return getPublicProjects(params);
 
     case "getEmployees":
       return getEmployees(params);
@@ -320,6 +342,18 @@ function handleAction(
 
     case "createPermission":
       return createPermission(params);
+
+    case "getErpRecords":
+      return getErpRecords(params);
+
+    case "createErpRecord":
+      return createErpRecord(params);
+
+    case "updateErpRecord":
+      return updateErpRecord(params);
+
+    case "initializeErpSheets":
+      return initializeErpSheets(params);
 
     default:
 
@@ -383,23 +417,17 @@ function health() {
 
 const ROLE_ACCESS = {
   employee: [
-    "getProjects",
-    "getProject",
-    "getDocuments",
-    "createDocument",
-    "getSiteVisits",
-    "createSiteVisit",
-    "changeOwnPassword"
+    "getProjects", "getProject", "getDocuments", "createDocument", "getSiteVisits", "createSiteVisit", "changeOwnPassword",
+    "getErpRecords", "createErpRecord", "updateErpRecord"
   ],
   client: [
-    "getProjects",
-    "getProject",
-    "getDocuments",
-    "getProjectBilling",
-    "getBillingRecords",
-    "getPayments",
-    "getInvoices",
-    "changeOwnPassword"
+    "getProjects", "getProject", "getDocuments", "getProjectBilling", "getBillingRecords", "getPayments", "getInvoices", "changeOwnPassword",
+    "getErpRecords"
+  ],
+  accounts: [
+    "getDashboard", "getProjects", "getProject", "getEmployees", "getBillingDashboard", "getProjectBilling", "getBillingRecords",
+    "saveBill", "createBill", "getPayments", "savePayment", "createPayment", "getInvoices", "createInvoice",
+    "getErpRecords", "createErpRecord", "updateErpRecord", "changeOwnPassword"
   ]
 };
 
@@ -410,6 +438,11 @@ function normalizeRoleName(value) {
 function isAdminRole(role) {
   const r = normalizeRoleName(role);
   return r === "admin" || r === "manager";
+}
+
+function isWorkspaceRole(role) {
+  const r = normalizeRoleName(role);
+  return isAdminRole(r) || r === "accounts";
 }
 
 function getOrCreateProxySecret_() {
@@ -431,7 +464,12 @@ function authorizeProxyRequest_(params) {
 
 function authorizeActionRequest(action, params) {
   // These actions do not require an authenticated user session.
-  const publicActions = ["health", "login", "getPublicTeam"];
+  const publicActions = [
+  "health",
+  "login",
+  "getPublicTeam",
+  "getPublicProjects"
+];
   if (publicActions.includes(action)) return null;
 
   // Every action below this point requires a valid session.
@@ -668,8 +706,8 @@ function loginUser(params) {
 
   clearLoginGuard_(identifier);
 
-  // Transparently migrate a legacy plaintext password after a successful login.
-  if (!String(firstValue(foundUser, ["Password_Hash"]) || "")) {
+  // Transparently upgrade plaintext, legacy, or lower-cost hashes after a successful login.
+  if (userPasswordNeedsUpgrade_(foundUser)) {
     migrateUserPasswordRow_(foundUser, password);
   }
 
@@ -871,14 +909,37 @@ function newPasswordSalt_() {
   return Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, "");
 }
 
-function derivePasswordHash_(password, salt) {
+function derivePasswordHashWithRounds_(password, salt, rounds) {
   const pepper = getAuthPepper_();
-  let value = String(salt || "") + "|" + String(password || "") + "|" + pepper;
-  const rounds = Math.max(1, Number(CONFIG.PASSWORD_HASH_ROUNDS || 3000));
-  for (let i = 0; i < rounds; i++) {
-    value = sha256Hex_(value + "|" + salt + "|" + pepper);
+  const cleanSalt = String(salt || "");
+  let value = cleanSalt + "|" + String(password || "") + "|" + pepper;
+  const count = Math.max(1, Number(rounds || 1));
+
+  for (let i = 0; i < count; i++) {
+    value = sha256Hex_(value + "|" + cleanSalt + "|" + pepper);
   }
+
   return value;
+}
+
+
+function derivePasswordHash_(password, salt) {
+  const version = String(CONFIG.PASSWORD_HASH_VERSION || "v2");
+  const rounds = Math.max(1, Number(CONFIG.PASSWORD_HASH_ROUNDS || 5000));
+  const digest = derivePasswordHashWithRounds_(password, salt, rounds);
+  return version + "$" + rounds + "$" + digest;
+}
+
+
+function parseVersionedPasswordHash_(storedHash) {
+  const match = String(storedHash || "").match(/^([A-Za-z0-9_-]+)\$(\d+)\$([0-9a-f]{64})$/i);
+  if (!match) return null;
+
+  return {
+    version: match[1],
+    rounds: Number(match[2]),
+    digest: match[3].toLowerCase()
+  };
 }
 
 function constantTimeEqual_(a, b) {
@@ -903,11 +964,43 @@ function passwordFields_(password) {
 function verifyUserPassword_(user, password) {
   const hash = String(firstValue(user, ["Password_Hash", "Password Hash"]) || "");
   const salt = String(firstValue(user, ["Password_Salt", "Password Salt"]) || "");
+
   if (hash && salt) {
-    return constantTimeEqual_(hash, derivePasswordHash_(password, salt));
+    const versioned = parseVersionedPasswordHash_(hash);
+
+    if (versioned) {
+      if (versioned.version !== String(CONFIG.PASSWORD_HASH_VERSION || "v2")) {
+        return false;
+      }
+
+      const calculated = derivePasswordHashWithRounds_(password, salt, versioned.rounds);
+      return constantTimeEqual_(versioned.digest, calculated);
+    }
+
+    // Backward compatibility with the original unversioned 3,000-round hash.
+    const legacyRounds = Math.max(1, Number(CONFIG.LEGACY_PASSWORD_HASH_ROUNDS || 3000));
+    const legacyHash = derivePasswordHashWithRounds_(password, salt, legacyRounds);
+    return constantTimeEqual_(hash, legacyHash);
   }
-  // Temporary backward compatibility for accounts not migrated yet.
-  return constantTimeEqual_(String(firstValue(user, ["Password", "password"]) || ""), String(password || ""));
+
+  // Temporary backward compatibility for accounts that still contain plaintext.
+  return constantTimeEqual_(
+    String(firstValue(user, ["Password", "password"]) || ""),
+    String(password || "")
+  );
+}
+
+
+function userPasswordNeedsUpgrade_(user) {
+  const hash = String(firstValue(user, ["Password_Hash", "Password Hash"]) || "");
+  const parsed = parseVersionedPasswordHash_(hash);
+
+  if (!parsed) return true;
+
+  return (
+    parsed.version !== String(CONFIG.PASSWORD_HASH_VERSION || "v2") ||
+    parsed.rounds < Math.max(1, Number(CONFIG.PASSWORD_HASH_ROUNDS || 5000))
+  );
 }
 
 function migrateUserPasswordRow_(user, plainPassword) {
@@ -1800,19 +1893,7 @@ function getProjectDriveFolder(params) {
 function getLandViewRootFolder() {
 
   const rootFolderId =
-    String(
-      CONFIG.ROOT_FOLDER_ID ||
-      ""
-    ).trim();
-
-
-  if (!rootFolderId) {
-
-    throw new Error(
-      "CONFIG.ROOT_FOLDER_ID is not configured."
-    );
-
-  }
+    getRequiredScriptProperty_("LAND_VIEW_ROOT_FOLDER_ID");
 
 
   try {
@@ -1825,7 +1906,7 @@ function getLandViewRootFolder() {
   } catch (error) {
 
     throw new Error(
-      "LAND VIEW root Drive folder could not be opened. Check CONFIG.ROOT_FOLDER_ID and Apps Script Drive permissions."
+      "LAND VIEW root Drive folder could not be opened. Check LAND_VIEW_ROOT_FOLDER_ID in Script Properties and Apps Script Drive permissions."
     );
 
   }
@@ -2230,12 +2311,26 @@ function ensureProjectDriveStructureForRecord(
       "Invoices"
     );
 
+  /*
+   * LAND VIEW discipline/service folders.
+   * These are created automatically for every project.
+   */
+  const serviceFolders = {};
+  getProjectServiceFolderNames_().forEach(function(folderName) {
+    serviceFolders[folderName] =
+      getOrCreateChildFolder(
+        projectFolder,
+        folderName
+      );
+  });
+
 
   return {
     rootFolder: rootFolder,
     projectFolder: projectFolder,
     documentsFolder: documentsFolder,
-    invoicesFolder: invoicesFolder
+    invoicesFolder: invoicesFolder,
+    serviceFolders: serviceFolders
   };
 
 }
@@ -2442,6 +2537,455 @@ function ensureProjectDriveStructure(
 }
 
 
+
+/* =========================================================
+   DRIVE — PROJECT SERVICE FOLDERS + FILE UPLOADS
+========================================================= */
+
+function getProjectServiceFolderNames_() {
+  return [
+    "Architectural Design",
+    "Structural Design",
+    "3D Design - Exterior",
+    "3D Design - Interior",
+    "Electrical Design",
+    "Plumbing Design",
+    "Estimate & Costing",
+    "Plan Approval",
+    "Digital Survey",
+    "Soil Test",
+    "Others"
+  ];
+}
+
+
+function isAllowedProjectServiceFolder_(folderName) {
+  const target = String(folderName || "").trim();
+
+  return getProjectServiceFolderNames_()
+    .includes(target);
+}
+
+
+function getProjectServiceFolderObjects_(projectId) {
+  const drive =
+    ensureProjectDriveStructure(
+      projectId
+    );
+
+  const folders = [];
+
+  getProjectServiceFolderNames_()
+    .forEach(
+      folderName => {
+
+        const folder =
+          drive.serviceFolders &&
+          drive.serviceFolders[folderName]
+            ? drive.serviceFolders[folderName]
+            : getOrCreateChildFolder(
+                drive.projectFolder,
+                folderName
+              );
+
+        folders.push({
+          name: folderName,
+          id: folder.getId(),
+          url: folder.getUrl(),
+          folder: folder
+        });
+
+      }
+    );
+
+  return {
+    drive: drive,
+    folders: folders
+  };
+}
+
+
+function getProjectServiceFolders(params) {
+
+  const session =
+    requireSession(
+      params
+    );
+
+  const projectId =
+    String(
+      params.projectId ||
+      params.Project_ID ||
+      ""
+    ).trim();
+
+  assertProjectAccess(
+    session,
+    projectId
+  );
+
+  const result =
+    getProjectServiceFolderObjects_(
+      projectId
+    );
+
+  return {
+    success: true,
+    data: {
+      projectId: projectId,
+      projectFolderId:
+        result.drive.projectFolder.getId(),
+      projectFolderUrl:
+        result.drive.projectFolder.getUrl(),
+      folders:
+        result.folders.map(
+          item => ({
+            name: item.name,
+            id: item.id,
+            url: item.url
+          })
+        )
+    }
+  };
+
+}
+
+
+function isPortfolioExteriorImage_(
+  folderName,
+  fileName,
+  mimeType
+) {
+
+  if (
+    String(folderName || "").trim() !==
+    "3D Design - Exterior"
+  ) {
+    return false;
+  }
+
+  const name =
+    String(fileName || "")
+      .toLowerCase();
+
+  const mime =
+    String(mimeType || "")
+      .toLowerCase();
+
+  return (
+    /\.(jpe?g|png|webp)$/i.test(name) ||
+    /image\/(jpeg|jpg|png|webp)/i.test(mime)
+  );
+
+}
+
+
+function uploadProjectServiceFile(params) {
+
+  const session =
+    requireSession(
+      params
+    );
+
+  if (
+    !isAdminRole(
+      session.role
+    )
+  ) {
+    throw new Error(
+      "Access denied."
+    );
+  }
+
+  const projectId =
+    String(
+      params.projectId ||
+      params.Project_ID ||
+      ""
+    ).trim();
+
+  const folderName =
+    String(
+      params.folderName ||
+      params.Folder_Name ||
+      ""
+    ).trim();
+
+  const fileName =
+    String(
+      params.fileName ||
+      params.File_Name ||
+      ""
+    ).trim();
+
+  const mimeType =
+    String(
+      params.mimeType ||
+      params.Mime_Type ||
+      "application/octet-stream"
+    ).trim();
+
+  const base64 =
+    String(
+      params.base64 ||
+      params.fileBase64 ||
+      ""
+    ).trim();
+
+
+  if (!projectId) {
+    throw new Error(
+      "Project ID is required."
+    );
+  }
+
+  if (
+    !isAllowedProjectServiceFolder_(
+      folderName
+    )
+  ) {
+    throw new Error(
+      "Invalid project service folder."
+    );
+  }
+
+  if (!fileName) {
+    throw new Error(
+      "File name is required."
+    );
+  }
+
+  if (!base64) {
+    throw new Error(
+      "File data is required."
+    );
+  }
+
+
+  assertProjectAccess(
+    session,
+    projectId
+  );
+
+
+  const result =
+    getProjectServiceFolderObjects_(
+      projectId
+    );
+
+  const target =
+    result.folders.find(
+      item =>
+        item.name === folderName
+    );
+
+
+  if (!target) {
+    throw new Error(
+      "Project service folder not found."
+    );
+  }
+
+
+  let bytes;
+
+  try {
+
+    bytes =
+      Utilities.base64Decode(
+        base64
+      );
+
+  } catch (error) {
+
+    throw new Error(
+      "Invalid file data."
+    );
+
+  }
+
+
+  const safeFileName =
+    sanitizeFileName(
+      fileName
+    ) ||
+    "LAND VIEW File";
+
+
+  const blob =
+    Utilities.newBlob(
+      bytes,
+      mimeType ||
+      "application/octet-stream",
+      safeFileName
+    );
+
+
+  const file =
+    target.folder
+      .createFile(
+        blob
+      );
+
+
+  /*
+   * Exterior render images are used automatically by the
+   * public project portfolio. Make them readable by link.
+   */
+  if (
+    isPortfolioExteriorImage_(
+      folderName,
+      safeFileName,
+      mimeType
+    )
+  ) {
+
+    try {
+
+      file.setSharing(
+        DriveApp.Access.ANYONE_WITH_LINK,
+        DriveApp.Permission.VIEW
+      );
+
+    } catch (error) {
+
+      /*
+       * Some Google Workspace policies may block link sharing.
+       * The upload itself remains successful.
+       */
+
+    }
+
+  }
+
+
+  /*
+   * Also register the Drive file in Documents when that
+   * sheet contains the matching columns.
+   */
+  try {
+
+    appendRecord(
+      CONFIG.SHEETS.DOCUMENTS,
+      {
+        Project_ID:
+          projectId,
+        Document_Name:
+          safeFileName,
+        Document_Type:
+          folderName,
+        Document_Date:
+          new Date(),
+        File_URL:
+          file.getUrl(),
+        Folder_ID:
+          target.id,
+        Folder_URL:
+          target.url,
+        Client_Visible:
+          "FALSE"
+      },
+      "DOC-",
+      "Document_ID"
+    );
+
+  } catch (error) {
+    // The Drive upload succeeded. Do not delete the file merely
+    // because an optional Documents-sheet column is unavailable.
+  }
+
+
+  return {
+    success: true,
+    data: {
+      projectId:
+        projectId,
+      folderName:
+        folderName,
+      folderId:
+        target.id,
+      folderUrl:
+        target.url,
+      fileId:
+        file.getId(),
+      fileName:
+        file.getName(),
+      fileUrl:
+        file.getUrl(),
+      size:
+        bytes.length
+    }
+  };
+
+}
+
+
+/*
+ * Optional one-time migration for existing projects.
+ * Run manually from Apps Script if you want all eleven
+ * service folders created immediately for every old project.
+ */
+function initializeProjectServiceFolders() {
+
+  const projects =
+    readSheet(
+      CONFIG.SHEETS.PROJECTS
+    );
+
+  const results = [];
+
+  projects.forEach(
+    project => {
+
+      const projectId =
+        getProjectIdValue(
+          project
+        );
+
+      if (!projectId) {
+        return;
+      }
+
+      try {
+
+        const service =
+          getProjectServiceFolderObjects_(
+            projectId
+          );
+
+        results.push({
+          projectId:
+            projectId,
+          success:
+            true,
+          folders:
+            service.folders.length
+        });
+
+      } catch (error) {
+
+        results.push({
+          projectId:
+            projectId,
+          success:
+            false,
+          error:
+            error &&
+            error.message
+              ? error.message
+              : String(error)
+        });
+
+      }
+
+    }
+  );
+
+  return results;
+
+}
+
+
 /* =========================================================
    DRIVE — BULK INITIALIZATION / MIGRATION
 ========================================================= */
@@ -2551,7 +3095,7 @@ function syncAllProjectDriveFolders_() {
 
     data: {
       rootFolderId:
-        CONFIG.ROOT_FOLDER_ID,
+        getLandViewRootFolder().getId(),
       projectCount:
         projects.length,
       synced:
@@ -2561,6 +3105,517 @@ function syncAllProjectDriveFolders_() {
       results:
         results
     }
+  };
+
+}
+
+
+/* =========================================================
+   PUBLIC PROJECT PORTFOLIO
+========================================================= */
+
+/*
+ * Project images are sourced ONLY from:
+ *
+ *   3D Design - Exterior
+ *
+ * Naming:
+ *   front.jpeg / front.jpg / front.png / front.webp
+ *     -> cover image
+ *
+ *   all other JPG/JPEG/PNG/WEBP images
+ *     -> gallery
+ *
+ * Cover_Image_URL and Gallery_Images are intentionally
+ * not required and are ignored by this backend.
+ */
+
+function ensureProjectPublicHeaders_() {
+
+  return ensureHeaders_(
+    getSheet(
+      CONFIG.SHEETS.PROJECTS
+    ),
+    [
+      "Public_Display",
+      "Public_Project_Title",
+      "Public_Description",
+      "Project_Category",
+      "Project_Area",
+      "Number_of_Stories",
+      "Public_Services",
+      "Completion_Year",
+      "Public_Display_Order"
+    ]
+  );
+
+}
+
+
+function initializePublicProjectPortfolio() {
+
+  const headers =
+    ensureProjectPublicHeaders_();
+
+  return {
+    success: true,
+    data: {
+      initialized: true,
+      headers: headers
+    }
+  };
+
+}
+
+
+function splitPublicList_(value) {
+
+  return String(
+    value || ""
+  )
+    .split(
+      /\r?\n|\s*[•|]\s*/
+    )
+    .map(
+      function(item) {
+        return String(
+          item || ""
+        ).trim();
+      }
+    )
+    .filter(Boolean);
+
+}
+
+
+function isPublicProjectImageFile_(file) {
+
+  const name =
+    String(
+      file.getName() || ""
+    ).toLowerCase();
+
+  const mime =
+    String(
+      file.getMimeType() || ""
+    ).toLowerCase();
+
+  return (
+    mime.indexOf("image/") === 0 &&
+    (
+      /\.(jpe?g|png|webp)$/i.test(name) ||
+      /image\/(jpeg|jpg|png|webp)/i.test(mime)
+    )
+  );
+
+}
+
+
+function projectDriveImageUrl_(file) {
+
+  return (
+    "https://drive.google.com/file/d/" +
+    file.getId() +
+    "/view"
+  );
+
+}
+
+
+function makePublicProjectImageReadable_(file) {
+
+  try {
+
+    file.setSharing(
+      DriveApp.Access.ANYONE_WITH_LINK,
+      DriveApp.Permission.VIEW
+    );
+
+  } catch (error) {
+
+    /*
+     * Do not break the public-project API when a Google
+     * Workspace sharing policy prevents link sharing.
+     */
+
+  }
+
+}
+
+
+function getExteriorPublicImages_(project) {
+
+  try {
+
+    const rootFolder =
+      getLandViewRootFolder();
+
+    const projectFolder =
+      findExistingProjectFolder(
+        rootFolder,
+        project
+      );
+
+    if (!projectFolder) {
+
+      return {
+        coverImageUrl: "",
+        galleryImages: []
+      };
+
+    }
+
+
+    const folders =
+      projectFolder
+        .getFoldersByName(
+          "3D Design - Exterior"
+        );
+
+
+    if (!folders.hasNext()) {
+
+      return {
+        coverImageUrl: "",
+        galleryImages: []
+      };
+
+    }
+
+
+    const exteriorFolder =
+      folders.next();
+
+    const files =
+      exteriorFolder.getFiles();
+
+    const images = [];
+
+
+    while (files.hasNext()) {
+
+      const file =
+        files.next();
+
+      if (
+        !isPublicProjectImageFile_(
+          file
+        )
+      ) {
+        continue;
+      }
+
+
+      makePublicProjectImageReadable_(
+        file
+      );
+
+
+      images.push({
+        name:
+          String(
+            file.getName() || ""
+          ),
+        lowerName:
+          String(
+            file.getName() || ""
+          ).toLowerCase(),
+        url:
+          projectDriveImageUrl_(
+            file
+          )
+      });
+
+    }
+
+
+    if (!images.length) {
+
+      return {
+        coverImageUrl: "",
+        galleryImages: []
+      };
+
+    }
+
+
+    images.sort(
+      function(a, b) {
+
+        return a.name.localeCompare(
+          b.name,
+          undefined,
+          {
+            numeric: true,
+            sensitivity: "base"
+          }
+        );
+
+      }
+    );
+
+
+    /*
+     * Prefer front.jpeg / front.jpg / front.png / front.webp.
+     * If none exists, the first image becomes the cover.
+     */
+    const frontIndex =
+      images.findIndex(
+        function(image) {
+
+          return /^front\.(jpe?g|png|webp)$/i
+            .test(
+              image.lowerName
+            );
+
+        }
+      );
+
+
+    const cover =
+      frontIndex >= 0
+        ? images[frontIndex]
+        : images[0];
+
+
+    const gallery =
+      images
+        .filter(
+          function(image) {
+            return (
+              image.url !==
+              cover.url
+            );
+          }
+        )
+        .map(
+          function(image) {
+            return image.url;
+          }
+        );
+
+
+    return {
+      coverImageUrl:
+        cover.url,
+      galleryImages:
+        gallery
+    };
+
+
+  } catch (error) {
+
+    return {
+      coverImageUrl: "",
+      galleryImages: []
+    };
+
+  }
+
+}
+
+
+function getPublicProjects(params) {
+
+  ensureProjectPublicHeaders_();
+
+
+  const rows =
+    readSheet(
+      CONFIG.SHEETS.PROJECTS
+    );
+
+
+  const publicRows =
+    rows
+      .filter(
+        function(project) {
+
+          const visible =
+            normalize(
+              firstValue(
+                project,
+                [
+                  "Public_Display",
+                  "Public Display",
+                  "Show_Publicly",
+                  "Show Publicly"
+                ]
+              )
+            );
+
+          return (
+            visible === "true" ||
+            visible === "yes" ||
+            visible === "1"
+          );
+
+        }
+      )
+      .map(
+        function(project) {
+
+          const exteriorImages =
+            getExteriorPublicImages_(
+              project
+            );
+
+
+          return {
+
+            projectId:
+              firstValue(
+                project,
+                [
+                  "Project_ID",
+                  "Project ID",
+                  "ProjectId"
+                ]
+              ),
+
+            title:
+              firstValue(
+                project,
+                [
+                  "Public_Project_Title",
+                  "Public Project Title",
+                  "Project_Name",
+                  "Project Name",
+                  "Name"
+                ]
+              ),
+
+            category:
+              firstValue(
+                project,
+                [
+                  "Project_Category",
+                  "Project Category",
+                  "Project_Type",
+                  "Project Type"
+                ]
+              ),
+
+            location:
+              firstValue(
+                project,
+                [
+                  "Location",
+                  "Project_Location",
+                  "Project Location"
+                ]
+              ),
+
+            status:
+              firstValue(
+                project,
+                [
+                  "Status",
+                  "status"
+                ]
+              ),
+
+            area:
+              firstValue(
+                project,
+                [
+                  "Project_Area",
+                  "Project Area",
+                  "Land_Area",
+                  "Land Area"
+                ]
+              ),
+
+            stories:
+              firstValue(
+                project,
+                [
+                  "Number_of_Stories",
+                  "Number of Stories",
+                  "Floor_Story",
+                  "Floor/Story",
+                  "Floors"
+                ]
+              ),
+
+            completionYear:
+              firstValue(
+                project,
+                [
+                  "Completion_Year",
+                  "Completion Year"
+                ]
+              ),
+
+            description:
+              firstValue(
+                project,
+                [
+                  "Public_Description",
+                  "Public Description"
+                ]
+              ),
+
+            coverImageUrl:
+              exteriorImages
+                .coverImageUrl,
+
+            galleryImages:
+              exteriorImages
+                .galleryImages,
+
+            services:
+              splitPublicList_(
+                firstValue(
+                  project,
+                  [
+                    "Public_Services",
+                    "Public Services",
+                    "Services"
+                  ]
+                )
+              ),
+
+            displayOrder:
+              Number(
+                firstValue(
+                  project,
+                  [
+                    "Public_Display_Order",
+                    "Public Display Order"
+                  ]
+                ) ||
+                9999
+              )
+
+          };
+
+        }
+      )
+      .sort(
+        function(a, b) {
+
+          return (
+            a.displayOrder -
+            b.displayOrder
+            ||
+            String(
+              a.title || ""
+            ).localeCompare(
+              String(
+                b.title || ""
+              )
+            )
+          );
+
+        }
+      );
+
+
+  return {
+    success: true,
+    data:
+      publicRows
   };
 
 }
@@ -4415,6 +5470,147 @@ function createTemporaryAdminTestSession() {
 
   return createSession(users[0]);
 
+}
+
+
+/* =========================================================
+   ERP CORE MODULES
+========================================================= */
+
+const ERP_MODULES = {
+  clients: {
+    sheet: "CLIENTS", id: "Client_ID", prefix: "CL-",
+    headers: ["Client_ID", "Client_Name", "Phone_Number", "Email", "Address", "Client_Type", "Status", "Notes", "Created_At", "Created_By"]
+  },
+  tasks: {
+    sheet: "TASKS", id: "Task_ID", prefix: "TASK-",
+    headers: ["Task_ID", "Project_ID", "Task_Title", "Description", "Assigned_Employee_ID", "Priority", "Status", "Start_Date", "Due_Date", "Completed_At", "Created_At", "Created_By"]
+  },
+  attendance: {
+    sheet: "ATTENDANCE", id: "Attendance_ID", prefix: "ATT-",
+    headers: ["Attendance_ID", "Employee_ID", "Attendance_Date", "Check_In", "Check_Out", "Work_Hours", "Status", "Notes", "Created_At", "Created_By"]
+  },
+  leave: {
+    sheet: "LEAVE_REQUESTS", id: "Leave_ID", prefix: "LVREQ-",
+    headers: ["Leave_ID", "Employee_ID", "Leave_Type", "Start_Date", "End_Date", "Reason", "Status", "Reviewed_By", "Reviewed_At", "Created_At", "Created_By"]
+  },
+  expenses: {
+    sheet: "EXPENSES", id: "Expense_ID", prefix: "EXP-",
+    headers: ["Expense_ID", "Project_ID", "Expense_Date", "Category", "Description", "Amount", "Payment_Method", "Reference", "Status", "Created_At", "Created_By"]
+  },
+  quotations: {
+    sheet: "QUOTATIONS", id: "Quotation_ID", prefix: "QT-",
+    headers: ["Quotation_ID", "Client_ID", "Project_ID", "Quotation_Date", "Valid_Until", "Description", "Amount", "Status", "Notes", "Created_At", "Created_By"]
+  },
+  drawings: {
+    sheet: "DRAWINGS", id: "Drawing_ID", prefix: "DWG-",
+    headers: ["Drawing_ID", "Project_ID", "Drawing_Title", "Discipline", "Revision", "Assigned_Employee_ID", "Drive_URL", "Status", "Submitted_At", "Approved_At", "Approved_By", "Comments", "Created_At", "Created_By"]
+  },
+  approvals: {
+    sheet: "APPROVALS", id: "Approval_ID", prefix: "APR-",
+    headers: ["Approval_ID", "Project_ID", "Drawing_ID", "Approval_Type", "Requested_From", "Status", "Decision_Notes", "Requested_At", "Decided_At", "Created_At", "Created_By"]
+  }
+};
+
+function erpModule_(name) {
+  const key = normalizeRoleName(name);
+  const module = ERP_MODULES[key];
+  if (!module) throw new Error("Unknown ERP module: " + name);
+  return module;
+}
+
+function ensureErpModule_(module) {
+  ensureHeaders_(getSheet(CONFIG.SHEETS[module.sheet]), module.headers);
+}
+
+function initializeErpSheets(params) {
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+  Object.keys(ERP_MODULES).forEach(function(key) { ensureErpModule_(ERP_MODULES[key]); });
+  return { success: true, data: { initialized: true, modules: Object.keys(ERP_MODULES) } };
+}
+
+function filterErpRecordsForSession_(moduleName, records, session) {
+  const role = normalizeRoleName(session.role);
+  if (isWorkspaceRole(role)) return records;
+
+  if (role === "employee") {
+    const employeeId = String(session.employeeId || "").trim();
+    if (moduleName === "tasks" || moduleName === "drawings") {
+      return records.filter(function(row) { return String(row.Assigned_Employee_ID || "").trim() === employeeId; });
+    }
+    if (moduleName === "attendance" || moduleName === "leave") {
+      return records.filter(function(row) { return String(row.Employee_ID || "").trim() === employeeId; });
+    }
+    return [];
+  }
+
+  if (role === "client") {
+    const projectIds = splitIds(session.projectIds || "");
+    if (moduleName !== "drawings" && moduleName !== "approvals") return [];
+    return records.filter(function(row) { return projectIds.includes(String(row.Project_ID || "").trim()); });
+  }
+
+  return [];
+}
+
+function getErpRecords(params) {
+  const session = requireSession(params);
+  const moduleName = normalizeRoleName(params.module);
+  const module = erpModule_(moduleName);
+  ensureErpModule_(module);
+  const records = readSheet(CONFIG.SHEETS[module.sheet]);
+  return { success: true, data: filterErpRecordsForSession_(moduleName, records, session) };
+}
+
+function createErpRecord(params) {
+  const session = requireSession(params);
+  const role = normalizeRoleName(session.role);
+  const moduleName = normalizeRoleName(params.module);
+  const module = erpModule_(moduleName);
+  const employeeModules = ["tasks", "attendance", "leave", "drawings"];
+  const accountsModules = ["clients", "expenses", "quotations"];
+  if (role === "accounts" && !accountsModules.includes(moduleName)) throw new Error("Access denied for accounts role.");
+  if (!isWorkspaceRole(role) && !(role === "employee" && employeeModules.includes(moduleName))) {
+    throw new Error("Access denied.");
+  }
+  ensureErpModule_(module);
+  const record = cleanParams(params);
+  delete record.module;
+  record.Created_At = record.Created_At || new Date().toISOString();
+  record.Created_By = session.userId || session.username || "";
+  if (role === "employee") {
+    if (moduleName === "attendance" || moduleName === "leave") record.Employee_ID = session.employeeId || "";
+    if (moduleName === "tasks" || moduleName === "drawings") record.Assigned_Employee_ID = session.employeeId || "";
+  }
+  return appendRecord(CONFIG.SHEETS[module.sheet], record, module.prefix, module.id);
+}
+
+function updateErpRecord(params) {
+  const session = requireSession(params);
+  const role = normalizeRoleName(session.role);
+  const moduleName = normalizeRoleName(params.module);
+  const module = erpModule_(moduleName);
+  ensureErpModule_(module);
+  if (role === "accounts" && !["clients", "expenses", "quotations"].includes(moduleName)) throw new Error("Access denied for accounts role.");
+  if (!isWorkspaceRole(role) && role !== "employee" && role !== "client") throw new Error("Access denied.");
+  const visible = filterErpRecordsForSession_(moduleName, readSheet(CONFIG.SHEETS[module.sheet]), session);
+  const id = String(params.id || "").trim();
+  if (!isWorkspaceRole(role) && !visible.some(function(row) { return String(row[module.id] || "").trim() === id; })) {
+    throw new Error("Record not found or access denied.");
+  }
+  const changes = cleanParams(params);
+  delete changes.module;
+  delete changes.id;
+  if (role === "employee") {
+    const allowedEmployeeFields = ["Status", "Check_In", "Check_Out", "Work_Hours", "Notes", "Drive_URL", "Comments", "Completed_At", "Submitted_At"];
+    Object.keys(changes).forEach(function(key) { if (!allowedEmployeeFields.includes(key)) delete changes[key]; });
+  }
+  if (role === "client") {
+    const allowedClientFields = ["Status", "Decision_Notes", "Decided_At"];
+    Object.keys(changes).forEach(function(key) { if (!allowedClientFields.includes(key)) delete changes[key]; });
+  }
+  return updateGeneric(CONFIG.SHEETS[module.sheet], changes, [module.id], id);
 }
 
 

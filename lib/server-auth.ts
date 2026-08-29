@@ -1,7 +1,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-export type PortalRole = "admin" | "manager" | "employee" | "client";
+export type PortalRole = "admin" | "manager" | "accounts" | "employee" | "client";
 
 type SessionUser = {
   role?: string;
@@ -96,7 +96,7 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
   if (!authenticated || !allowedRoles.includes(role)) {
     if (role === "employee") redirect("/employee");
     if (role === "client") redirect("/client");
-    if (role === "admin" || role === "manager") redirect("/admin");
+    if (role === "admin" || role === "manager" || role === "accounts") redirect("/admin");
     loginRedirect();
   }
 

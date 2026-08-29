@@ -37,6 +37,90 @@ body {
   min-height: 100%;
 }
 
+/* ERP modules */
+.erp-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.erp-summary-grid article {
+  min-height: 138px;
+  padding: 24px;
+  border: 1px solid var(--lv-border);
+  border-radius: var(--lv-radius);
+  background: var(--lv-surface);
+  box-shadow: var(--lv-shadow);
+}
+
+.erp-summary-grid span,
+.erp-summary-grid small {
+  display: block;
+  color: var(--lv-muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .12em;
+}
+
+.erp-summary-grid strong {
+  display: block;
+  margin: 12px 0 8px;
+  font-size: 34px;
+}
+
+.erp-toolbar {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) 190px auto;
+  gap: 12px;
+  align-items: center;
+  padding: 18px;
+  border-bottom: 1px solid var(--lv-border);
+}
+
+.erp-toolbar input,
+.erp-toolbar select,
+.erp-status-select {
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid var(--lv-border-strong);
+  border-radius: 8px;
+  background: var(--lv-white);
+  color: var(--lv-text);
+}
+
+.erp-toolbar > span {
+  color: var(--lv-muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.erp-status-select {
+  min-height: 34px;
+  font-size: 12px;
+}
+
+.erp-alert {
+  margin-bottom: 16px;
+  padding: 13px 16px;
+  border: 1px solid rgba(191,75,75,.25);
+  border-radius: 10px;
+  background: rgba(191,75,75,.08);
+  color: var(--lv-danger);
+}
+
+.erp-modal {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+}
+
+@media (max-width: 800px) {
+  .erp-summary-grid { grid-template-columns: 1fr; }
+  .erp-toolbar { grid-template-columns: 1fr; }
+  .erp-toolbar > span { text-align: left; }
+}
+
 body {
   background: var(--lv-paper);
   color: var(--lv-text);

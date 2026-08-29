@@ -43,7 +43,7 @@ function normalizeRole(value: unknown) {
 
 function roleMatchesPortal(role: string, portal: PortalType) {
   if (portal === "admin") {
-    return role === "admin" || role === "manager";
+    return role === "admin" || role === "manager" || role === "accounts";
   }
   if (portal === "employee") {
     return role === "employee";
