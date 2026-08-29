@@ -30,6 +30,7 @@ const GET_ACTIONS = new Set([
   "getPayments",
   "getInvoices",
   "getPermissions",
+  "getErpRecords",
 ]);
 
 const POST_ACTIONS = new Set([
@@ -54,6 +55,9 @@ const POST_ACTIONS = new Set([
   "createPayment",
   "createInvoice",
   "createPermission",
+  "initializeErpSheets",
+  "createErpRecord",
+  "updateErpRecord",
 ]);
 
 const PUBLIC_GET_ACTIONS = new Set(["health", "getPublicTeam"]);
