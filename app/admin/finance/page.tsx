@@ -28,10 +28,11 @@ export default function FinancePage() {
     return () => { request.current++; };
   }, [tab, revision]);
 
-  const statusColumn = tab === "Summary" ? (data?.headers || []).findIndex(heading => /^\s*(status|payment status|project status)\s*$/i.test(heading)) : -1;
+  // Summary column Q is the Status source in Google Sheets.
+  const statusColumn = tab === "Summary" ? 16 : -1;
   const searchedRows = (data?.rows || []).filter(row => row.some(cell => cell.toLowerCase().includes(query.trim().toLowerCase())));
   const rows = searchedRows.filter(row => {
-    if (tab !== "Summary" || status === "all" || statusColumn < 0) return true;
+    if (tab !== "Summary" || status === "all") return true;
     const value = normalizeStatus(row[statusColumn]);
     if (status === "due") return value === "due";
     if (status === "full-paid") return value === "full paid" || value === "fully paid" || value === "paid";
@@ -70,7 +71,6 @@ export default function FinancePage() {
           <input aria-label="Search worksheet" type="search" placeholder="Search file, name or amount…" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} />
         </div>
       </div>
-      {tab === "Summary" && data && statusColumn < 0 && <div className={styles.message}>Status column was not found in Summary. Name the column <strong>Status</strong> to enable the payment filters.</div>}
       {error && <div role="alert" className={styles.message}>{error}<button onClick={() => setRevision(value => value + 1)}>Try again</button></div>}
       {busy && <div role="status" className={styles.message}>Loading {tab}…</div>}
       {!busy && data && <>
