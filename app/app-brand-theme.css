@@ -1,15 +1,15 @@
 /* LAND VIEW app portal theme — aligned with the public website */
 
 :root {
-  --app-navy: #07101a;
-  --app-navy-2: #0b141d;
-  --app-panel: #101a24;
-  --app-panel-2: #142330;
-  --app-gold: #d79a17;
-  --app-gold-light: #efb733;
+  --app-navy: #202020;
+  --app-navy-2: #242424;
+  --app-panel: #282828;
+  --app-panel-2: #343434;
+  --app-gold: #ef493b;
+  --app-gold-light: #ef493b;
   --app-text: #ffffff;
-  --app-muted: #99a5ae;
-  --app-line: #2b3843;
+  --app-muted: #aaaaaa;
+  --app-line: #444444;
 }
 
 .admin-shell,
@@ -31,10 +31,10 @@
 .sidebar,
 .admin-shell .sidebar {
   background:
-    radial-gradient(circle at 20% 0%, rgba(215,154,23,.10), transparent 26%),
-    linear-gradient(180deg, #09131d 0%, #050a0f 100%) !important;
+    radial-gradient(circle at 20% 0%, rgba(239,73,59,.10), transparent 26%),
+    linear-gradient(180deg, #242424 0%, #1b1b1b 100%) !important;
   color: #fff !important;
-  border-right: 1px solid rgba(215,154,23,.18) !important;
+  border-right: 1px solid rgba(239,73,59,.18) !important;
 }
 
 .sidebar-nav a,
@@ -45,15 +45,15 @@
 .sidebar-nav a:hover,
 .admin-shell .sidebar-nav a:hover {
   color: #fff !important;
-  background: rgba(215,154,23,.08) !important;
-  border-color: rgba(215,154,23,.12) !important;
+  background: rgba(239,73,59,.08) !important;
+  border-color: rgba(239,73,59,.12) !important;
 }
 
 .sidebar-nav a.active,
 .admin-shell .sidebar-nav a.active {
   color: #fff !important;
-  background: rgba(215,154,23,.11) !important;
-  border-color: rgba(215,154,23,.28) !important;
+  background: rgba(239,73,59,.11) !important;
+  border-color: rgba(239,73,59,.28) !important;
 }
 
 .sidebar-nav a.active::before,
@@ -76,7 +76,7 @@
 .avatar,
 .employee-avatar {
   background: var(--app-gold) !important;
-  color: #101820 !important;
+  color: #fff !important;
 }
 
 .admin-shell .card,
@@ -130,9 +130,9 @@
 .employee-shell input,
 .employee-shell select,
 .employee-shell textarea {
-  background: #0b151e !important;
+  background: #202020 !important;
   color: #fff !important;
-  border-color: #34414c !important;
+  border-color: #4a4a4a !important;
 }
 
 .admin-shell input::placeholder,
@@ -150,7 +150,7 @@
 .employee-shell input:focus,
 .employee-shell select:focus {
   border-color: var(--app-gold) !important;
-  box-shadow: 0 0 0 3px rgba(215,154,23,.12) !important;
+  box-shadow: 0 0 0 3px rgba(239,73,59,.12) !important;
   outline: none !important;
 }
 
@@ -159,15 +159,15 @@
 .admin-shell .btn-dark,
 .client-shell .btn-dark,
 .employee-shell .btn-dark {
-  background: linear-gradient(180deg, #e9ae29, #c88709) !important;
-  color: #111820 !important;
+  background: linear-gradient(180deg, #ef493b, #d83f33) !important;
+  color: #fff !important;
   border-color: var(--app-gold-light) !important;
 }
 
 .btn-dark:hover:not(:disabled),
 .login-submit:hover:not(:disabled),
 .admin-shell .btn-dark:hover:not(:disabled) {
-  background: linear-gradient(180deg, #f2bd3e, #d59611) !important;
+  background: linear-gradient(180deg, #f45b4e, #e24639) !important;
   box-shadow: 0 10px 25px rgba(0,0,0,.23) !important;
 }
 
@@ -175,9 +175,9 @@
 .admin-shell .btn-light,
 .client-shell .btn-light,
 .employee-shell .btn-light {
-  background: #101a24 !important;
+  background: #282828 !important;
   color: #fff !important;
-  border-color: #34414c !important;
+  border-color: #4a4a4a !important;
 }
 
 .admin-shell button:not(.btn-dark):not(.btn-light):not(.icon-button),
@@ -194,7 +194,7 @@
 
 .admin-shell th {
   color: var(--app-gold-light) !important;
-  background: #0b151e !important;
+  background: #202020 !important;
 }
 
 .admin-shell td {
@@ -204,6 +204,37 @@
 
 .admin-shell tr:hover td {
   background: var(--app-panel-2) !important;
+}
+
+/* Dashboard tiles inherited hard-coded white surfaces from the base theme. */
+.admin-shell .quick-grid a {
+  background: var(--app-panel-2) !important;
+  color: #fff !important;
+  border-color: var(--app-line) !important;
+}
+
+.admin-shell .quick-grid a:hover {
+  background: #3b3b3b !important;
+  border-color: var(--app-gold) !important;
+}
+
+.admin-shell .quick-grid a span {
+  color: #fff !important;
+}
+
+.admin-shell .quick-grid b {
+  background: var(--app-gold) !important;
+  color: #fff !important;
+}
+
+.admin-shell .table-card > .section-title {
+  background: var(--app-panel) !important;
+  color: #fff !important;
+  border-bottom-color: var(--app-line) !important;
+}
+
+.admin-shell .table-card > .section-title h2 {
+  color: #fff !important;
 }
 
 .modal-backdrop {
@@ -217,13 +248,13 @@
 
 .login-brand {
   background:
-    radial-gradient(circle at 82% 14%, rgba(215,154,23,.13), transparent 29%),
+    radial-gradient(circle at 82% 14%, rgba(239,73,59,.13), transparent 29%),
     radial-gradient(circle at 10% 86%, rgba(255,255,255,.04), transparent 30%),
-    linear-gradient(145deg, #07101a, #0b1621) !important;
+    linear-gradient(145deg, #202020, #282828) !important;
 }
 
 .login-brand::after {
-  border-color: rgba(215,154,23,.25) !important;
+  border-color: rgba(239,73,59,.25) !important;
 }
 
 .brand-eyebrow,
@@ -236,7 +267,7 @@
 }
 
 .login-panel {
-  background: #0b141d !important;
+  background: #242424 !important;
   color: #fff !important;
 }
 
@@ -254,15 +285,15 @@
 .login-panel input,
 .login-panel select,
 .login-panel textarea {
-  background: #0b151e !important;
+  background: #202020 !important;
   color: #fff !important;
-  border-color: #34414c !important;
+  border-color: #4a4a4a !important;
 }
 
 .login-panel input:focus,
 .login-panel select:focus {
   border-color: var(--app-gold) !important;
-  box-shadow: 0 0 0 3px rgba(215,154,23,.12) !important;
+  box-shadow: 0 0 0 3px rgba(239,73,59,.12) !important;
 }
 
 .login-error,
@@ -275,8 +306,8 @@
 @media (max-width: 900px) {
   .mobile-brand,
   .mobile-header {
-    background: #07101a !important;
+    background: #202020 !important;
     color: #fff !important;
-    border-color: rgba(215,154,23,.18) !important;
+    border-color: rgba(239,73,59,.18) !important;
   }
 }
