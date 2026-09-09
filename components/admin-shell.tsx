@@ -14,8 +14,6 @@ const nav = [
   { href: "/admin/clients", label: "Clients", accounts: true },
   { href: "/admin/projects", label: "Projects", accounts: true },
   { href: "/admin/tasks", label: "Tasks" },
-  { href: "/admin/attendance", label: "Attendance" },
-  { href: "/admin/leave", label: "Leave" },
   { href: "/admin/employees", label: "Employees" },
   { href: "/admin/drawings", label: "Drawings" },
   { href: "/admin/approvals", label: "Approvals" },
@@ -24,7 +22,6 @@ const nav = [
   { href: "/admin/documents", label: "Documents" },
   { href: "/admin/site-supervision", label: "Site Supervision" },
   { href: "/admin/finance", label: "Finance", accounts: true },
-  { href: "/admin/billing-book", label: "Billing Book", accounts: true },
   { href: "/admin/reports", label: "Reports", accounts: true },
   { href: "/admin/users", label: "Users & Access" },
 ];

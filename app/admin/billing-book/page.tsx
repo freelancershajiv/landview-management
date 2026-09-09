@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 import { EmptyState, LoadingState, Money, PageHeader, StatCard } from "@/components/lv-ui";
@@ -13,6 +14,10 @@ const BATCH_SIZE = 25;
 
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+function backendNeedsUpdate(error: unknown) {
+  return errorMessage(error, "").toLowerCase().includes("unknown action");
 }
 
 function countRows(data: LegacyBillingImport) {
@@ -48,6 +53,7 @@ async function importRows(
 }
 
 export default function BillingBookPage() {
+  const router = useRouter();
   const [data, setData] = useState<BillingBookData | null>(null);
   const [preview, setPreview] = useState<LegacyBillingImport | null>(null);
   const [fileName, setFileName] = useState("");
@@ -64,6 +70,10 @@ export default function BillingBookPage() {
     try {
       setData(await landViewApi.getBillingBook());
     } catch (err: unknown) {
+      if (backendNeedsUpdate(err)) {
+        router.replace("/admin/finance");
+        return;
+      }
       setError(errorMessage(err, "Could not load the billing book."));
     } finally {
       setLoading(false);
@@ -107,6 +117,10 @@ export default function BillingBookPage() {
       setFileName("");
       await load();
     } catch (err: unknown) {
+      if (backendNeedsUpdate(err)) {
+        router.replace("/admin/finance");
+        return;
+      }
       setError(`${errorMessage(err, "Import failed.")} Completed batches are safe; choose the same file again to resume without duplicates.`);
     } finally {
       setImporting(false);
