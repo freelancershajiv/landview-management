@@ -11,6 +11,8 @@ function getFinanceSheet(params) {
   const summary = ss.getSheetByName("Summary");
   if (!sheet || !summary) throw new Error("The finance workbook is missing a required worksheet.");
   if (summary.getLastRow() > 10000 || sheet.getLastRow() > 10000) throw new Error("Finance worksheet exceeds the 10,000-row reading limit.");
+
+  // The first 18 Summary columns remain the accounting source used for totals.
   const summaryRows = summary.getRange(1,1,Math.max(1,summary.getLastRow()),18).getValues().slice(1);
   const totals = {gross:0,discount:0,billed:0,paid:0,due:0,projects:0};
   const populatedIds = Object.create(null);
@@ -32,20 +34,31 @@ function getFinanceSheet(params) {
   });
   totals.billed = totals.gross - totals.discount;
   if (Math.abs(totals.billed - totals.paid - totals.due) > 0.01) throw new Error("Summary totals do not reconcile. Check the Google Sheet before using these balances.");
+
   const height = tab === "Invoice" ? Math.min(40,Math.max(1,sheet.getLastRow())) : Math.max(1,sheet.getLastRow());
-  const grid = sheet.getRange(1,1,height,widths[tab]).getDisplayValues();
-  let headers = tab === "Invoice" ? Array.from({length:widths[tab]},function(_,i){return String.fromCharCode(65+i);}) : grid[0];
+  const readWidth = tab === "Summary" ? Math.max(widths[tab], Math.min(30, sheet.getLastColumn())) : widths[tab];
+  const grid = sheet.getRange(1,1,height,readWidth).getDisplayValues();
+  let headers = tab === "Invoice" ? Array.from({length:readWidth},function(_,i){return String.fromCharCode(65+i);}) : grid[0];
   let rows = (tab === "Invoice" ? grid : grid.slice(1)).filter(function(row) {
     if (tab === "Invoice") return row.some(hasValue);
     if (tab === "Summary") return !!populatedIds[String(row[0])];
     if (tab === "File List") return row.slice(1).some(hasValue);
     return row.slice(2).some(hasValue);
   });
-  // Hide the workbook's helper column and empty summary spacer in the web table.
-  const omit = tab === "Summary" ? 16 : !["Invoice","File List"].includes(tab) ? 1 : -1;
-  if (omit >= 0) {
+
+  // Preserve a Status column if it was added where the old helper column lived.
+  let omit = -1;
+  if (tab === "Summary") {
+    const oldHelperIndex = 16;
+    const oldHeader = String(headers[oldHelperIndex] || "").trim();
+    if (!/status/i.test(oldHeader)) omit = oldHelperIndex;
+  } else if (!["Invoice","File List"].includes(tab)) {
+    omit = 1;
+  }
+  if (omit >= 0 && omit < headers.length) {
     headers = headers.filter(function(_,i){return i !== omit;});
     rows = rows.map(function(row){return row.filter(function(_,i){return i !== omit;});});
   }
+
   return {success:true,data:{tab:tab,tabs:Object.keys(widths),headers:headers,rows:rows,totals:totals,url:ss.getUrl()+"#gid="+sheet.getSheetId(),updatedAt:new Date().toISOString()}};
 }
