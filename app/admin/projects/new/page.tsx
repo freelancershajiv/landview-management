@@ -24,7 +24,7 @@ export default function NewProjectPage() {
   function set(key: string, value: string) { setForm(v => ({ ...v, [key]: value })); }
 
   async function submit(e: FormEvent) {
-    e.preventDefault(); if (saving) return; setSaving(true); setError(""); setProgress("Creating project and Drive structure...");
+    e.preventDefault(); if (saving) return; setSaving(true); setError(""); setProgress("Creating project, Drive structure and workflow tasks...");
     try {
       const result = await landViewApi.createProject(form); const id = String(result.Project_ID || form.Project_ID || "").trim();
       if (!id) throw new Error("Project was created without a Project ID.");
@@ -36,7 +36,7 @@ export default function NewProjectPage() {
     } catch(e:any){setError(e?.message||"Unable to create project.");} finally {setSaving(false);setProgress("");}
   }
 
-  return <><PageHeader eyebrow="PROJECT CONTROL" title="Create project" description="Create the project, client record, Drive structure and project-service files in one workflow." action={<Link href="/admin/projects" className="btn btn-light">← Projects</Link>}/>
+  return <><PageHeader eyebrow="PROJECT CONTROL" title="Create project" description="Create the project, client record, Drive structure, service files and nine workflow tasks in one step." action={<Link href="/admin/projects" className="btn btn-light">← Projects</Link>}/>
   <form onSubmit={submit} className="card form-card">
    {error&&<div className="notice error"><strong>Could not save</strong><span>{error}</span></div>}{progress&&<div className="notice"><strong>Working</strong><span>{progress}</span></div>}
    <div className="form-section"><div><span>01</span><h2>Project identity</h2><p>Project ID can be entered manually. If left blank, Code.gs generates an LV- ID.</p></div><div className="form-grid"><Field label="PROJECT ID" hint="Optional"><input value={form.Project_ID} onChange={e=>set("Project_ID",e.target.value)} placeholder="LV-0001"/></Field><Field label="PROJECT NAME"><input value={form.Project_Name} onChange={e=>set("Project_Name",e.target.value)} placeholder="Residence / Commercial Project"/></Field><Field label="PROJECT TYPE"><input value={form.Project_Type} onChange={e=>set("Project_Type",e.target.value)} placeholder="Residential"/></Field><Field label="STATUS"><select value={form.Status} onChange={e=>set("Status",e.target.value)}><option>Active</option><option>Ongoing</option><option>Pending</option><option>Completed</option><option>Inactive</option></select></Field></div></div>

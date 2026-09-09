@@ -310,6 +310,9 @@ function handleAction(
     case "getBillingDashboard":
       return getBillingDashboard(params);
 
+    case "getBillingBook":
+      return getBillingBook(params);
+
     case "getProjectBilling":
       return getProjectBilling(params);
 
@@ -330,6 +333,9 @@ function handleAction(
 
     case "createPayment":
       return createPayment(params);
+
+    case "importLegacyBillingBatch":
+      return importLegacyBillingBatch(params);
 
     case "getInvoices":
       return getInvoices(params);
@@ -1431,10 +1437,17 @@ function createProject(params) {
 
   sheet.appendRow(row);
 
+  const workflowTasks = ensureProjectWorkflowTasks_(project.Project_ID, session);
+
 
   return {
     success: true,
-    data: Object.assign({}, project, { project: project, clientAccount: clientAccount })
+    data: Object.assign({}, project, {
+      project: project,
+      clientAccount: clientAccount,
+      workflowTasksCreated: workflowTasks.created,
+      workflowTaskCount: workflowTasks.total
+    })
   };
 
 }
@@ -3883,7 +3896,7 @@ function getBillingDashboard(params) {
               "Grand_Total"
             ]
           )
-        );
+        ) - toNumber(firstValue(bill, ["Discount", "Discount_Amount"]));
 
     }
   );
@@ -3941,7 +3954,7 @@ function getProjectBilling(params) {
 
   let bills = filterByProject(readSheet(CONFIG.SHEETS.BILLS), projectId);
   let payments = filterByProject(readSheet(CONFIG.SHEETS.PAYMENTS), projectId);
-  const totalBill = sumAmount(bills);
+  const totalBill = sumNetBillAmount_(bills);
   const totalPaid = sumAmount(payments);
 
   if (normalizeRoleName(session.role) === "client") {
@@ -3953,6 +3966,169 @@ function getProjectBilling(params) {
     success: true,
     data: { projectId, bills, payments, totalBill, totalPaid, due: totalBill - totalPaid }
   };
+}
+
+
+function sumNetBillAmount_(records) {
+  return records.reduce(function(total, record) {
+    return total + toNumber(firstValue(record, ["Amount", "Bill_Amount", "Total", "Grand_Total"]))
+      - toNumber(firstValue(record, ["Discount", "Discount_Amount"]));
+  }, 0);
+}
+
+
+function getBillingBook(params) {
+  const session = requireSession(params);
+  if (!isWorkspaceRole(session.role)) throw new Error("Access denied.");
+
+  const projects = readSheet(CONFIG.SHEETS.PROJECTS);
+  const bills = readSheet(CONFIG.SHEETS.BILLS);
+  const payments = readSheet(CONFIG.SHEETS.PAYMENTS);
+  const projectMap = {};
+  const categories = {};
+
+  function categoryName(record) {
+    return String(firstValue(record, ["Category", "Billing_Category"]) || "Uncategorized").trim();
+  }
+  function ensureCategory(name) {
+    if (!categories[name]) categories[name] = { category: name, gross: 0, discount: 0, billed: 0, paid: 0, due: 0 };
+    return categories[name];
+  }
+  function ensureProject(id) {
+    if (!projectMap[id]) projectMap[id] = { projectId: id, projectName: id, clientName: "", gross: 0, discount: 0, billed: 0, paid: 0, due: 0, categories: {} };
+    return projectMap[id];
+  }
+
+  projects.forEach(function(project) {
+    const id = String(firstValue(project, ["Project_ID", "Project ID", "ProjectId"]) || "").trim();
+    if (!id) return;
+    const summary = ensureProject(id);
+    summary.projectName = String(firstValue(project, ["Project_Name", "Project Name", "Name"]) || id);
+    summary.clientName = String(firstValue(project, ["Client_Name", "Client Name"]) || "");
+  });
+
+  bills.forEach(function(bill) {
+    const id = String(firstValue(bill, ["Project_ID", "Project ID", "ProjectId"]) || "").trim();
+    if (!id) return;
+    const name = categoryName(bill);
+    const gross = toNumber(firstValue(bill, ["Amount", "Bill_Amount", "Total", "Grand_Total"]));
+    const discount = toNumber(firstValue(bill, ["Discount", "Discount_Amount"]));
+    const project = ensureProject(id);
+    const category = ensureCategory(name);
+    if (!project.categories[name]) project.categories[name] = { gross: 0, discount: 0, billed: 0, paid: 0, due: 0 };
+    project.gross += gross; project.discount += discount; project.billed += gross - discount;
+    project.categories[name].gross += gross; project.categories[name].discount += discount; project.categories[name].billed += gross - discount;
+    category.gross += gross; category.discount += discount; category.billed += gross - discount;
+  });
+
+  payments.forEach(function(payment) {
+    const id = String(firstValue(payment, ["Project_ID", "Project ID", "ProjectId"]) || "").trim();
+    if (!id) return;
+    const name = categoryName(payment);
+    const paid = toNumber(firstValue(payment, ["Amount", "Payment_Amount"]));
+    const project = ensureProject(id);
+    const category = ensureCategory(name);
+    if (!project.categories[name]) project.categories[name] = { gross: 0, discount: 0, billed: 0, paid: 0, due: 0 };
+    project.paid += paid; project.categories[name].paid += paid; category.paid += paid;
+  });
+
+  Object.keys(projectMap).forEach(function(id) {
+    const project = projectMap[id];
+    project.due = project.billed - project.paid;
+    Object.keys(project.categories).forEach(function(name) {
+      const item = project.categories[name]; item.due = item.billed - item.paid;
+    });
+  });
+  Object.keys(categories).forEach(function(name) { categories[name].due = categories[name].billed - categories[name].paid; });
+
+  const projectRows = Object.keys(projectMap).map(function(id) { return projectMap[id]; });
+  const categoryRows = Object.keys(categories).map(function(name) { return categories[name]; });
+  const totals = categoryRows.reduce(function(total, item) {
+    total.gross += item.gross; total.discount += item.discount; total.billed += item.billed; total.paid += item.paid; total.due += item.due; return total;
+  }, { gross: 0, discount: 0, billed: 0, paid: 0, due: 0 });
+
+  return { success: true, data: { totals: totals, categories: categoryRows, projects: projectRows, billCount: bills.length, paymentCount: payments.length } };
+}
+
+
+function upsertImportedRows_(sheetName, records, idHeader, idPrefix, sourceHeader) {
+  if (!records || !records.length) return { created: 0, updated: 0 };
+  const sheet = getSheet(sheetName);
+  const required = {};
+  required[idHeader] = true;
+  required[sourceHeader] = true;
+  records.forEach(function(record) { Object.keys(record || {}).forEach(function(key) { required[key] = true; }); });
+  const headers = ensureHeaders_(sheet, Object.keys(required));
+  const sourceColumn = findHeaderIndex(headers, [sourceHeader]);
+  const existing = {};
+  if (sheet.getLastRow() > 1) {
+    sheet.getRange(2, sourceColumn + 1, sheet.getLastRow() - 1, 1).getValues().forEach(function(row, index) {
+      const key = String(row[0] || "").trim(); if (key) existing[key] = index + 2;
+    });
+  }
+  let created = 0;
+  let updated = 0;
+  records.forEach(function(input) {
+    const record = Object.assign({}, input);
+    const source = String(record[sourceHeader] || "").trim();
+    if (!source) throw new Error(sourceHeader + " is required.");
+    let rowIndex = existing[source];
+    if (!record[idHeader]) record[idHeader] = generateId(idPrefix, sheet, idHeader);
+    const values = headers.map(function(header) { return record[header] === undefined ? "" : record[header]; });
+    if (rowIndex) { sheet.getRange(rowIndex, 1, 1, headers.length).setValues([values]); updated++; }
+    else { sheet.appendRow(values); existing[source] = sheet.getLastRow(); created++; }
+  });
+  return { created: created, updated: updated };
+}
+
+
+function upsertImportedProjects_(records) {
+  if (!records || !records.length) return { created: 0, updated: 0 };
+  const sheet = getSheet(CONFIG.SHEETS.PROJECTS);
+  const required = { Project_ID: true, Legacy_File_ID: true };
+  records.forEach(function(record) { Object.keys(record || {}).forEach(function(key) { required[key] = true; }); });
+  const headers = ensureHeaders_(sheet, Object.keys(required));
+  const idColumn = findHeaderIndex(headers, ["Project_ID"]);
+  const existing = {};
+  if (sheet.getLastRow() > 1) {
+    sheet.getRange(2, idColumn + 1, sheet.getLastRow() - 1, 1).getValues().forEach(function(row, index) {
+      const key = String(row[0] || "").trim(); if (key) existing[key] = index + 2;
+    });
+  }
+  let created = 0;
+  let updated = 0;
+  records.forEach(function(input) {
+    const record = Object.assign({}, input);
+    const id = String(record.Project_ID || "").trim();
+    if (!id) return;
+    const rowIndex = existing[id];
+    if (rowIndex) {
+      headers.forEach(function(header, index) {
+        if (record[header] !== undefined && record[header] !== "") sheet.getRange(rowIndex, index + 1).setValue(record[header]);
+      });
+      updated++;
+    } else {
+      sheet.appendRow(headers.map(function(header) { return record[header] === undefined ? "" : record[header]; }));
+      existing[id] = sheet.getLastRow(); created++;
+    }
+  });
+  return { created: created, updated: updated };
+}
+
+
+function importLegacyBillingBatch(params) {
+  const session = requireSession(params);
+  if (!isAdminRole(session.role)) throw new Error("Only an administrator can import a billing workbook.");
+  const kind = String(params.kind || "").trim().toLowerCase();
+  const records = Array.isArray(params.records) ? params.records : [];
+  if (records.length > 30) throw new Error("Import batches are limited to 30 records.");
+  let result;
+  if (kind === "projects") result = upsertImportedProjects_(records);
+  else if (kind === "bills") result = upsertImportedRows_(CONFIG.SHEETS.BILLS, records, "Bill_ID", "BILL-", "Legacy_Source_ID");
+  else if (kind === "payments") result = upsertImportedRows_(CONFIG.SHEETS.PAYMENTS, records, "Payment_ID", "PAY-", "Legacy_Source_ID");
+  else throw new Error("Invalid import record type.");
+  auditSecurityEvent_(session, "importLegacyBillingBatch", kind, "success", records.length + " rows");
+  return { success: true, data: { kind: kind, received: records.length, created: result.created, updated: result.updated } };
 }
 
 
@@ -4156,7 +4332,7 @@ function createInvoice(params) {
 
 
   const totalBill =
-    sumAmount(
+    sumNetBillAmount_(
       bills
     );
 
@@ -5512,6 +5688,50 @@ const ERP_MODULES = {
   }
 };
 
+const PROJECT_WORKFLOW_TASKS = [
+  "Measurement / Digital Survey",
+  "Soil Test",
+  "Design Drafting",
+  "Structural Design",
+  "3D Design",
+  "Electrical Design",
+  "Plumbing Design",
+  "Municipality Design",
+  "Estimate & Costing"
+];
+
+function ensureProjectWorkflowTasks_(projectId, session) {
+  const cleanProjectId = String(projectId || "").trim();
+  if (!cleanProjectId) throw new Error("Project ID is required to create workflow tasks.");
+
+  const module = ERP_MODULES.tasks;
+  ensureErpModule_(module);
+  const existing = readSheet(CONFIG.SHEETS[module.sheet]);
+  const existingTitles = {};
+
+  existing.forEach(function(row) {
+    if (String(row.Project_ID || "").trim() === cleanProjectId) {
+      existingTitles[String(row.Task_Title || "").trim().toLowerCase()] = true;
+    }
+  });
+
+  let created = 0;
+  PROJECT_WORKFLOW_TASKS.forEach(function(title) {
+    if (existingTitles[title.toLowerCase()]) return;
+    appendRecord(CONFIG.SHEETS[module.sheet], {
+      Project_ID: cleanProjectId,
+      Task_Title: title,
+      Priority: "Normal",
+      Status: "Pending",
+      Created_At: new Date().toISOString(),
+      Created_By: session.userId || session.username || ""
+    }, module.prefix, module.id);
+    created++;
+  });
+
+  return { created: created, total: PROJECT_WORKFLOW_TASKS.length };
+}
+
 function erpModule_(name) {
   const key = normalizeRoleName(name);
   const module = ERP_MODULES[key];
@@ -5700,7 +5920,7 @@ function getDashboard(params) {
 
 
   const totalBill =
-    sumAmount(
+    sumNetBillAmount_(
       bills
     );
 

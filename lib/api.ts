@@ -116,6 +116,13 @@ export type DashboardData = {
 };
 export type BillingDashboardData = { projectCount: number; billCount: number; paymentCount: number; totalBill: number; totalPaid: number; pending: number };
 export type ProjectBillingData = { projectId: string; bills: Record<string, unknown>[]; payments: Record<string, unknown>[]; totalBill: number; totalPaid: number; due: number };
+export type BillingBookData = {
+  totals: { gross: number; discount: number; billed: number; paid: number; due: number };
+  categories: Array<{ category: string; gross: number; discount: number; billed: number; paid: number; due: number }>;
+  projects: Array<{ projectId: string; projectName: string; clientName: string; gross: number; discount: number; billed: number; paid: number; due: number; categories: Record<string, { gross: number; discount: number; billed: number; paid: number; due: number }> }>;
+  billCount: number;
+  paymentCount: number;
+};
 export type ErpModule = "clients" | "tasks" | "attendance" | "leave" | "expenses" | "quotations" | "drawings" | "approvals";
 
 export const landViewApi = {
@@ -148,6 +155,7 @@ export const landViewApi = {
   getSiteVisits: (projectId?: string) => get<Record<string, unknown>[]>("getSiteVisits", projectId ? { projectId } : {}),
   createSiteVisit: (visit: Record<string, unknown>) => post<unknown>("createSiteVisit", visit),
   getBillingDashboard: () => get<BillingDashboardData>("getBillingDashboard"),
+  getBillingBook: () => get<BillingBookData>("getBillingBook"),
   getProjectBilling: (projectId: string) => get<ProjectBillingData>("getProjectBilling", { projectId }),
   getBillingRecords: (projectId: string, category?: string) => get<Record<string, unknown>[]>("getBillingRecords", { projectId, category }),
   saveBill: (bill: Record<string, unknown>) => post<unknown>("saveBill", bill),
@@ -155,6 +163,8 @@ export const landViewApi = {
   getPayments: (projectId?: string) => get<Record<string, unknown>[]>("getPayments", projectId ? { projectId } : {}),
   savePayment: (payment: Record<string, unknown>) => post<unknown>("savePayment", payment),
   createPayment: (payment: Record<string, unknown>) => post<unknown>("createPayment", payment),
+  importLegacyBillingBatch: (kind: "projects" | "bills" | "payments", records: Record<string, string | number>[]) =>
+    post<{ kind: string; received: number; created: number; updated: number }>("importLegacyBillingBatch", { kind, records }),
   getInvoices: (projectId?: string) => get<Record<string, unknown>[]>("getInvoices", projectId ? { projectId } : {}),
   createInvoice: (projectId: string) => post<InvoiceCreateResult>("createInvoice", { projectId }),
   getPermissions: () => get<Record<string, unknown>[]>("getPermissions"),

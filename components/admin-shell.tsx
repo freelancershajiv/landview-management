@@ -24,6 +24,7 @@ const nav = [
   { href: "/admin/documents", label: "Documents" },
   { href: "/admin/site-supervision", label: "Site Supervision" },
   { href: "/admin/finance", label: "Finance", accounts: true },
+  { href: "/admin/billing-book", label: "Billing Book", accounts: true },
   { href: "/admin/reports", label: "Reports", accounts: true },
   { href: "/admin/users", label: "Users & Access" },
 ];
