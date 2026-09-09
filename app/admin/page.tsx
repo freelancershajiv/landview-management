@@ -186,7 +186,6 @@ export default function DashboardPage() {
             <section className={styles.launcher} aria-labelledby="workspace-heading">
               <div className={styles.panelTop}><h2 id="workspace-heading">Quick actions</h2><span aria-hidden="true">↗</span></div>
               <Link href="/admin/projects"><span className={styles.launchIcon} aria-hidden="true">◇</span><span>Open project register</span><b aria-hidden="true">→</b></Link>
-              {canManage && <Link href="/admin/billing-book"><span className={styles.launchIcon} aria-hidden="true">＋</span><span>Import billing records</span><b aria-hidden="true">→</b></Link>}
               <Link href={canManage ? "/admin/employees" : "/admin/finance"}><span className={styles.launchIcon} aria-hidden="true">◎</span><span>{canManage ? "Manage project team" : "Review billing & payments"}</span><b aria-hidden="true">→</b></Link>
             </section>
           </div>
