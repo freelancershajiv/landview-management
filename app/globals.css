@@ -2225,14 +2225,14 @@ td small {
 ========================================================= */
 
 :root {
-  --lv-black: #1e1e1e;
-  --lv-black-2: #242424;
-  --lv-black-3: #303030;
-  --lv-paper: #f5f5f5;
+  --lv-black: #202020;
+  --lv-black-2: #282828;
+  --lv-black-3: #343434;
+  --lv-paper: #f3f3f1;
   --lv-surface: #ffffff;
   --lv-white: #ffffff;
-  --lv-text: #242424;
-  --lv-muted: #777777;
+  --lv-text: #252525;
+  --lv-muted: #727272;
   --lv-muted-2: #a2a2a2;
   --lv-border: #dddddd;
   --lv-border-strong: #c9c9c9;
@@ -2248,7 +2248,7 @@ td small {
 }
 
 body {
-  background: #f4f4f4;
+  background: var(--lv-paper);
   font-family: Arial, Helvetica, sans-serif;
 }
 
@@ -2256,7 +2256,7 @@ body {
 
 .tmg-shell {
   min-height: 100vh;
-  background: #f4f4f4;
+  background: var(--lv-paper);
 }
 
 .masthead {
@@ -2271,7 +2271,7 @@ body {
   min-height: 82px;
   background:
     linear-gradient(110deg, rgba(255,255,255,.025), transparent 35%),
-    #232323;
+    #1a1a1a;
   border-bottom: 1px solid rgba(255,255,255,.05);
   color: white;
 }
@@ -2392,7 +2392,7 @@ body {
 
 .primary-nav {
   min-height: 45px;
-  background: #171717;
+  background: #242424;
   border-top: 1px solid #303030;
   border-bottom: 1px solid #0f0f0f;
 }
@@ -3060,7 +3060,7 @@ tbody tr:hover td {
 }
 
 .reference-login-header {
-  background: #232323;
+  background: #242424;
   border-bottom: 1px solid #404040;
   color: white;
 }
@@ -5066,12 +5066,12 @@ tbody tr:hover td {
 
 .role-portal-shell {
   min-height: 100vh;
-  background: #f0f0ee;
+  background: var(--lv-paper);
   color: #252525;
 }
 
 .role-portal-header {
-  background: #222;
+  background: #242424;
   color: #fff;
   border-bottom: 5px solid var(--lv-accent);
 }
