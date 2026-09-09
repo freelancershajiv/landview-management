@@ -28,7 +28,7 @@ export default function DashboardPage() {
       <div className="dashboard-showcase-copy">
         <span className="showcase-tag">DESIGNED TO DELIVER</span>
         <h1>Complete Project Management Solutions</h1>
-        <p>Projects, teams, documents, site supervision and finance — managed from one LAND VIEW workspace.</p>
+        <p>Projects, employees and finance — managed from one LAND VIEW workspace.</p>
         <div className="showcase-actions">
           <Link href="/admin/projects/new" className="btn btn-accent">Create a project</Link>
           <Link href="/admin/projects" className="btn btn-outline-light">Browse projects</Link>
@@ -49,7 +49,6 @@ export default function DashboardPage() {
       <div className="dashboard-shortcuts">
         <Link href="/admin/projects">Projects</Link>
         <Link href="/admin/employees">Employees</Link>
-        <Link href="/admin/documents">Documents</Link>
         <Link href="/admin/finance">Finance</Link>
       </div>
     </div>
@@ -77,8 +76,8 @@ export default function DashboardPage() {
         <div className="quick-grid">
           <Link href="/admin/projects/new"><b>+</b><span>New project</span></Link>
           <Link href="/admin/employees"><b>◎</b><span>Add employee</span></Link>
-          <Link href="/admin/documents"><b>▤</b><span>Add document</span></Link>
-          <Link href="/admin/site-supervision"><b>⌁</b><span>Site visit</span></Link>
+          <Link href="/admin/finance"><b>৳</b><span>Open finance</span></Link>
+          <Link href="/admin/billing-book"><b>▤</b><span>Upload Excel workbook</span></Link>
         </div>
       </section>
     </div>
