@@ -55,9 +55,9 @@ function takaWords(input: number) {
 }
 
 function invoiceTitle(name: string) {
-  if (name.toLowerCase() === "design") return "Design & Engineering Invoice";
-  if (name.toLowerCase() === "supervision") return "Supervision Invoice";
-  return "Other Services Invoice";
+  if (name.toLowerCase() === "design") return "Design & Engineering";
+  if (name.toLowerCase() === "supervision") return "Supervision";
+  return "Other Services";
 }
 
 export default function InvoicePage() {
@@ -98,6 +98,8 @@ export default function InvoicePage() {
   }
 
   const invoice = result?.invoices[selected];
+  const numericId = result?.id.replace(/\D/g, "") || "000";
+  const invoiceNo = invoice ? `INV-${numericId}-${String(selected + 1).padStart(2, "0")}` : "";
 
   return (
     <div className={styles.workspace}>
@@ -136,93 +138,93 @@ export default function InvoicePage() {
             <div className={styles.brand}>
               <img src="/land-view-logo.png" alt="LAND VIEW" />
               <div>
-                <h2>LAND VIEW</h2>
+                <h2>LAND <span>VIEW</span></h2>
                 <p>Engineers and Architects</p>
+                <small>Building a safer tomorrow</small>
               </div>
             </div>
-            <div className={styles.invoiceHeading}>
-              <strong>INVOICE</strong>
-              <span>{invoiceTitle(invoice.name)}</span>
+            <div className={styles.contactBlock}>
+              <span>Feni Sadar, Feni, Bangladesh</span>
+              <span>+88 01902 500 400</span>
+              <span>landviewcivil@gmail.com</span>
+              <span>www.landview.com.bd</span>
             </div>
           </header>
 
-          <div className={styles.rule} />
+          <div className={styles.accentRule} />
 
-          <section className={styles.metaGrid}>
-            <div>
-              <small>FILE ID</small>
-              <strong>{result.id}</strong>
-            </div>
-            <div>
-              <small>ISSUE DATE</small>
-              <strong>{issued}</strong>
-            </div>
-            <div>
-              <small>STATUS</small>
-              <strong className={invoice.due > 0 ? styles.due : styles.paid}>{invoice.due > 0 ? "DUE" : "PAID"}</strong>
-            </div>
+          <section className={styles.titleRow}>
+            <div />
+            <h1>INVOICE</h1>
           </section>
 
-          <section className={styles.detailsGrid}>
-            <div className={styles.detailCard}>
-              <small>BILL TO</small>
+          <section className={styles.clientMeta}>
+            <div className={styles.invoiceTo}>
+              <small>Invoice To:</small>
               <h3>{result.client.name || "—"}</h3>
               <p>{result.client.address || "—"}</p>
               <p>{result.client.phone || "—"}</p>
             </div>
-            <div className={styles.detailCard}>
-              <small>PROJECT DETAILS</small>
-              <dl>
-                <div><dt>Floor / Story</dt><dd>{result.client.floor || "—"}</dd></div>
-                <div><dt>Building Type</dt><dd>{result.client.type || "—"}</dd></div>
-                <div><dt>Land Area</dt><dd>{result.client.area || "—"}</dd></div>
-              </dl>
-            </div>
+            <dl className={styles.invoiceMeta}>
+              <div><dt>Invoice No</dt><dd>{invoiceNo}</dd></div>
+              <div><dt>Issue Date</dt><dd>{issued}</dd></div>
+              <div><dt>Project ID</dt><dd>{result.id}</dd></div>
+              <div><dt>Project Type</dt><dd>{result.client.type || "—"}</dd></div>
+              <div><dt>Status</dt><dd><span className={invoice.due > 0 ? styles.statusDue : styles.statusPaid}>{invoice.due > 0 ? "Due" : "Paid"}</span></dd></div>
+            </dl>
           </section>
 
           <table className={styles.serviceTable}>
             <thead>
-              <tr><th>#</th><th>Service Description</th><th>Rate</th><th>Qty</th><th>Amount</th></tr>
+              <tr><th>SL.</th><th>Service Description</th><th>Rate (BDT)</th><th>Qty.</th><th>Total (BDT)</th></tr>
             </thead>
             <tbody>
               {invoice.items.length ? invoice.items.map((item, index) => (
                 <tr key={index}>
                   <td>{index + 1}</td>
                   <td>{item.service || "—"}</td>
-                  <td>{item.price || "—"}</td>
+                  <td>{item.price ? money(Number(item.price) || 0) : "—"}</td>
                   <td>{item.quantity || "—"}</td>
-                  <td>৳ {money(item.amount)}</td>
+                  <td>{money(item.amount)}</td>
                 </tr>
               )) : <tr><td colSpan={5} className={styles.emptyRow}>No service items found.</td></tr>}
             </tbody>
           </table>
 
-          <section className={styles.bottomGrid}>
-            <div className={styles.notes}>
-              <small>AMOUNT IN WORDS</small>
-              <p>{takaWords(invoice.due)}</p>
-              <span>This invoice is electronically generated.</span>
+          <section className={styles.summaryGrid}>
+            <div className={styles.leftSummary}>
+              <div className={styles.words}>
+                <small>Amount In Words:</small>
+                <strong>{takaWords(invoice.due)}</strong>
+              </div>
+              <p className={styles.thanks}>Thank you for your business!</p>
+              <div className={styles.paymentInfo}>
+                <h4>Payment Info:</h4>
+                <p><span>Account Name</span><b>LAND VIEW</b></p>
+                <p><span>Payment Method</span><b>Bank Transfer / Cash / bKash</b></p>
+              </div>
             </div>
 
             <div className={styles.totals}>
-              <div><span>Bill Amount</span><strong>৳ {money(invoice.gross)}</strong></div>
-              <div><span>Discount</span><strong>{invoice.discount ? `− ৳ ${money(invoice.discount)}` : "—"}</strong></div>
-              <div><span>Deposited</span><strong>{invoice.paid ? `− ৳ ${money(invoice.paid)}` : "—"}</strong></div>
+              <div><span>Sub Total</span><strong>৳ {money(invoice.gross)}</strong></div>
+              <div><span>Discount</span><strong>{invoice.discount ? `− ৳ ${money(invoice.discount)}` : "৳ 0"}</strong></div>
+              <div><span>Deposited</span><strong>{invoice.paid ? `− ৳ ${money(invoice.paid)}` : "৳ 0"}</strong></div>
               <div className={styles.grandTotal}><span>{invoice.due > 0 ? "Total Due" : "Balance"}</span><strong>৳ {money(invoice.due)}</strong></div>
             </div>
           </section>
 
           <section className={styles.signatureRow}>
-            <div>
-              <span>Thank you for choosing LAND VIEW.</span>
+            <div />
+            <div className={styles.signatureLine}>
+              <span>Authorized Signature</span>
+              <strong>LAND VIEW</strong>
             </div>
-            <div className={styles.signatureLine}>Authorized Signature</div>
           </section>
 
           <footer className={styles.invoiceFooter}>
-            <strong>LAND VIEW — Engineers and Architects</strong>
-            <span>F. Rahman AC Market (2nd Floor), S.S.K Road, Feni Sadar, Feni-3900, Bangladesh</span>
-            <span>landviewcivil@gmail.com · +88 01902 500 400 · +88 0140 8080 400</span>
+            <div className={styles.footerRule} />
+            <strong>DESIGN&nbsp;&nbsp;|&nbsp;&nbsp;DRAWING&nbsp;&nbsp;|&nbsp;&nbsp;SUPERVISION</strong>
+            <span>A SAFER BUILT ENVIRONMENT FOR A BETTER TOMORROW</span>
           </footer>
         </article>
       )}
