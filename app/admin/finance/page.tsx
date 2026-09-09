@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import {
   FormEvent,
   useEffect,
@@ -191,7 +193,7 @@ export default function FinancePage() {
   }
 
   if (loading) {
-    return <LoadingState label="Loading finance..." />;
+    return <><Link className="btn btn-dark" href="/admin/billing-book">Upload Excel Workbook</Link><LoadingState label="Loading finance..." /></>;
   }
 
   return (
@@ -202,6 +204,9 @@ export default function FinancePage() {
         description="Bills, collections, outstanding balances and generated PDF invoices."
         action={
           <div className="button-row">
+            <Link className="btn btn-light" href="/admin/billing-book">
+              Upload Excel Workbook
+            </Link>
             <button
               className="btn btn-light"
               onClick={() => open("payment")}

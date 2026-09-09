@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 import { EmptyState, LoadingState, Money, PageHeader, StatCard } from "@/components/lv-ui";
@@ -53,7 +52,6 @@ async function importRows(
 }
 
 export default function BillingBookPage() {
-  const router = useRouter();
   const [data, setData] = useState<BillingBookData | null>(null);
   const [preview, setPreview] = useState<LegacyBillingImport | null>(null);
   const [fileName, setFileName] = useState("");
@@ -63,15 +61,18 @@ export default function BillingBookPage() {
   const [progress, setProgress] = useState<ImportProgress | null>(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [backendReady, setBackendReady] = useState(false);
 
   async function load() {
     setLoading(true);
     setError("");
+    setBackendReady(false);
     try {
       setData(await landViewApi.getBillingBook());
+      setBackendReady(true);
     } catch (err: unknown) {
       if (backendNeedsUpdate(err)) {
-        router.replace("/admin/finance");
+        setError("Excel import is not enabled in the deployed backend yet. Save the updated Code.gs, then use Deploy → Manage deployments → Edit → New version → Deploy. Return here and click Check connection.");
         return;
       }
       setError(errorMessage(err, "Could not load the billing book."));
@@ -106,7 +107,7 @@ export default function BillingBookPage() {
   }
 
   async function startImport() {
-    if (!preview || importing) return;
+    if (!preview || importing || !backendReady) return;
     setImporting(true);
     setError("");
     setSuccess("");
@@ -118,7 +119,8 @@ export default function BillingBookPage() {
       await load();
     } catch (err: unknown) {
       if (backendNeedsUpdate(err)) {
-        router.replace("/admin/finance");
+        setBackendReady(false);
+        setError("The deployed backend does not support Excel import yet. Deploy the updated Code.gs as a new version, then click Check connection and retry. Your workbook preview has been kept.");
         return;
       }
       setError(`${errorMessage(err, "Import failed.")} Completed batches are safe; choose the same file again to resume without duplicates.`);
@@ -136,9 +138,9 @@ export default function BillingBookPage() {
     <>
       <PageHeader
         eyebrow="Finance control"
-        title="Billing Book"
+        title="Upload Excel Workbook"
         description="Project bills, discounts, deposits and outstanding balances, migrated from the LAND VIEW Excel billing book."
-        action={<Link href="/admin/finance" className="btn btn-light">Open Finance</Link>}
+        action={<div className="button-row"><button className="btn btn-light" onClick={load} disabled={loading || importing}>{loading ? "Checking…" : "Check connection"}</button><Link href="/admin/finance" className="btn btn-light">Back to Finance</Link></div>}
       />
 
       {error && <div className="notice error"><strong>Unable to continue</strong><span>{error}</span></div>}
@@ -155,7 +157,7 @@ export default function BillingBookPage() {
             <input type="file" accept=".xlsm,.xlsx" onChange={selectFile} disabled={parsing || importing} hidden />
           </label>
           {preview && (
-            <button className="btn btn-accent" onClick={startImport} disabled={importing}>
+            <button className="btn btn-dark" onClick={startImport} disabled={importing || !backendReady || parsing}>
               {importing ? "Importing…" : "Import records"}
             </button>
           )}
