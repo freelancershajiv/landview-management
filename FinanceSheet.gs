@@ -1,0 +1,51 @@
+/* Live, read-only connection to the authorized Google Sheets copy. */
+function getFinanceSheet(params) {
+  const session = requireSession(params);
+  if (!isWorkspaceRole(session.role)) throw new Error("Access denied.");
+  const id = "1__Ykfs5vLyKLG8Vhdbs9IJa5-DvxLxNtZ7ko5k6KRrc";
+  const widths = {"Summary":18,"Invoice":20,"File List":8,"Design Bill":6,"Design Deposit":5,"Supervision Bill":7,"S Deposit":5,"Others Bill":6,"Others Bill Deposit":5};
+  const tab = String(params.tab || "Summary");
+  if (!Object.prototype.hasOwnProperty.call(widths, tab)) throw new Error("Unknown finance worksheet.");
+  const ss = SpreadsheetApp.openById(id);
+  const sheet = ss.getSheetByName(tab);
+  const summary = ss.getSheetByName("Summary");
+  if (!sheet || !summary) throw new Error("The finance workbook is missing a required worksheet.");
+  if (summary.getLastRow() > 10000 || sheet.getLastRow() > 10000) throw new Error("Finance worksheet exceeds the 10,000-row reading limit.");
+  const summaryRows = summary.getRange(1,1,Math.max(1,summary.getLastRow()),18).getValues().slice(1);
+  const totals = {gross:0,discount:0,billed:0,paid:0,due:0,projects:0};
+  const populatedIds = Object.create(null);
+  const number = function(value) {
+    if (value === "" || value === null || value === undefined) return 0;
+    const result = Number(value);
+    if (!Number.isFinite(result)) throw new Error("A Summary amount is invalid. Check formulas in the Google Sheet.");
+    return result;
+  };
+  const hasValue = function(value) {return value !== "" && value !== null && value !== undefined && value !== 0;};
+  summaryRows.forEach(function(row) {
+    if (!row[0] || (!hasValue(row[1]) && !row.slice(3,16).some(hasValue))) return;
+    populatedIds[String(row[0])] = true;
+    totals.projects++;
+    totals.gross += number(row[3]) + number(row[7]) + number(row[11]);
+    totals.discount += number(row[4]) + number(row[8]) + number(row[12]);
+    totals.paid += number(row[5]) + number(row[9]) + number(row[13]);
+    totals.due += number(row[15]);
+  });
+  totals.billed = totals.gross - totals.discount;
+  if (Math.abs(totals.billed - totals.paid - totals.due) > 0.01) throw new Error("Summary totals do not reconcile. Check the Google Sheet before using these balances.");
+  const height = tab === "Invoice" ? Math.min(40,Math.max(1,sheet.getLastRow())) : Math.max(1,sheet.getLastRow());
+  const grid = sheet.getRange(1,1,height,widths[tab]).getDisplayValues();
+  let headers = tab === "Invoice" ? Array.from({length:widths[tab]},function(_,i){return String.fromCharCode(65+i);}) : grid[0];
+  let rows = (tab === "Invoice" ? grid : grid.slice(1)).filter(function(row) {
+    if (tab === "Invoice") return row.some(hasValue);
+    if (tab === "Summary") return !!populatedIds[String(row[0])];
+    if (tab === "File List") return row.slice(1).some(hasValue);
+    return row.slice(2).some(hasValue);
+  });
+  // Hide the workbook's helper column and empty summary spacer in the web table.
+  const omit = tab === "Summary" ? 16 : !["Invoice","File List"].includes(tab) ? 1 : -1;
+  if (omit >= 0) {
+    headers = headers.filter(function(_,i){return i !== omit;});
+    rows = rows.map(function(row){return row.filter(function(_,i){return i !== omit;});});
+  }
+  return {success:true,data:{tab:tab,tabs:Object.keys(widths),headers:headers,rows:rows,totals:totals,url:ss.getUrl()+"#gid="+sheet.getSheetId(),updatedAt:new Date().toISOString()}};
+}

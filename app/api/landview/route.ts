@@ -11,6 +11,7 @@ const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 
 const GET_ACTIONS = new Set([
+  "getFinanceSheet",
   "health",
   "getPublicTeam",
   "getSession",

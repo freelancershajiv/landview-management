@@ -125,7 +125,11 @@ export type BillingBookData = {
 };
 export type ErpModule = "clients" | "tasks" | "attendance" | "leave" | "expenses" | "quotations" | "drawings" | "approvals";
 
+export type FinanceSheetData = {tab: string; tabs: string[]; headers: string[]; rows: string[][]; totals: {gross:number; discount:number; billed:number; paid:number; due:number; projects:number}; url:string; updatedAt:string};
+
 export const landViewApi = {
+  getFinanceSheet: (tab = "Summary") => get<FinanceSheetData>("getFinanceSheet", { tab }),
+
   health: () => get<unknown>("health"),
   login: (userId: string, password: string) => post<{ user: SessionUser }>("login", { userId, password }),
   logout: () => post<{ loggedOut: boolean }>("logout"),

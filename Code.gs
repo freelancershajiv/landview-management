@@ -213,6 +213,7 @@ function handleAction(
   authorizeActionRequest(action, params);
 
   switch (action) {
+    case "getFinanceSheet": return getFinanceSheet(params);
 
     case "health":
       return health();
@@ -431,6 +432,7 @@ const ROLE_ACCESS = {
     "getErpRecords"
   ],
   accounts: [
+    "getFinanceSheet",
     "getDashboard", "getProjects", "getProject", "getEmployees", "getBillingDashboard", "getProjectBilling", "getBillingRecords",
     "saveBill", "createBill", "getPayments", "savePayment", "createPayment", "getInvoices", "createInvoice",
     "getErpRecords", "createErpRecord", "updateErpRecord", "changeOwnPassword"
