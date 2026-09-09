@@ -5,7 +5,7 @@ import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import styles from "./finance.module.css";
 const tabs = ["Summary", "Invoice", "File List", "Design Bill", "Design Deposit", "Supervision Bill", "S Deposit", "Others Bill", "Others Bill Deposit"];
 const money = (value: number) => new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(value);
-type SummaryStatus = "all" | "not-available" | "cheater" | "due" | "full-paid";
+type SummaryStatus = "all" | "due" | "full-paid";
 const normalizeStatus = (value: string | undefined) => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 export default function FinancePage() {
   const [tab, setTab] = useState("Summary");
@@ -33,8 +33,6 @@ export default function FinancePage() {
   const rows = searchedRows.filter(row => {
     if (tab !== "Summary" || status === "all" || statusColumn < 0) return true;
     const value = normalizeStatus(row[statusColumn]);
-    if (status === "not-available") return value === "not available" || value === "not availabe" || value === "n/a" || value === "na";
-    if (status === "cheater") return value === "cheater";
     if (status === "due") return value === "due";
     if (status === "full-paid") return value === "full paid" || value === "fully paid" || value === "paid";
     return true;
@@ -66,15 +64,13 @@ export default function FinancePage() {
         <div><h2>{tab}</h2><span>{data ? `${rows.length} rows · Updated ${new Date(data.updatedAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}` : "Google Sheets"}</span></div>
         <div className={styles.toolbarRight}>
           {tab === "Summary" && <div className={styles.filters} aria-label="Project status filter">
-            <button aria-pressed={status === "not-available"} onClick={() => setSummaryStatus("not-available")}>Not Available</button>
-            <button aria-pressed={status === "cheater"} onClick={() => setSummaryStatus("cheater")}>Cheater</button>
-            <button aria-pressed={status === "due"} onClick={() => setSummaryStatus("due")}>Due</button>
-            <button aria-pressed={status === "full-paid"} onClick={() => setSummaryStatus("full-paid")}>Full Paid</button>
+            <button aria-pressed={status === "due"} onClick={() => setSummaryStatus("due")}>DUE</button>
+            <button aria-pressed={status === "full-paid"} onClick={() => setSummaryStatus("full-paid")}>FULL PAID</button>
           </div>}
           <input aria-label="Search worksheet" type="search" placeholder="Search file, name or amount…" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} />
         </div>
       </div>
-      {tab === "Summary" && data && statusColumn < 0 && <div className={styles.message}>Status column was not found in Summary. Name the column <strong>Status</strong> to enable the four filters.</div>}
+      {tab === "Summary" && data && statusColumn < 0 && <div className={styles.message}>Status column was not found in Summary. Name the column <strong>Status</strong> to enable the payment filters.</div>}
       {error && <div role="alert" className={styles.message}>{error}<button onClick={() => setRevision(value => value + 1)}>Try again</button></div>}
       {busy && <div role="status" className={styles.message}>Loading {tab}…</div>}
       {!busy && data && <>
