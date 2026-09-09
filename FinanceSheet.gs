@@ -13,6 +13,7 @@ function getFinanceSheet(params) {
   if (summary.getLastRow() > 10000 || sheet.getLastRow() > 10000) throw new Error("Finance worksheet exceeds the 10,000-row reading limit.");
 
   // The first 18 Summary columns remain the accounting source used for totals.
+  // Column Q (17th column / index 16) is the project payment Status used by the web filters.
   const summaryRows = summary.getRange(1,1,Math.max(1,summary.getLastRow()),18).getValues().slice(1);
   const totals = {gross:0,discount:0,billed:0,paid:0,due:0,projects:0};
   const populatedIds = Object.create(null);
@@ -36,7 +37,7 @@ function getFinanceSheet(params) {
   if (Math.abs(totals.billed - totals.paid - totals.due) > 0.01) throw new Error("Summary totals do not reconcile. Check the Google Sheet before using these balances.");
 
   const height = tab === "Invoice" ? Math.min(40,Math.max(1,sheet.getLastRow())) : Math.max(1,sheet.getLastRow());
-  const readWidth = tab === "Summary" ? Math.max(widths[tab], Math.min(30, sheet.getLastColumn())) : widths[tab];
+  const readWidth = tab === "Summary" ? Math.max(18, Math.min(30, sheet.getLastColumn())) : widths[tab];
   const grid = sheet.getRange(1,1,height,readWidth).getDisplayValues();
   let headers = tab === "Invoice" ? Array.from({length:readWidth},function(_,i){return String.fromCharCode(65+i);}) : grid[0];
   let rows = (tab === "Invoice" ? grid : grid.slice(1)).filter(function(row) {
@@ -46,16 +47,9 @@ function getFinanceSheet(params) {
     return row.slice(2).some(hasValue);
   });
 
-  // Preserve a Status column if it was added where the old helper column lived.
-  let omit = -1;
-  if (tab === "Summary") {
-    const oldHelperIndex = 16;
-    const oldHeader = String(headers[oldHelperIndex] || "").trim();
-    if (!/status/i.test(oldHeader)) omit = oldHelperIndex;
-  } else if (!["Invoice","File List"].includes(tab)) {
-    omit = 1;
-  }
-  if (omit >= 0 && omit < headers.length) {
+  // Keep every Summary column, especially Q / Status, so the web app can filter from the sheet's status value.
+  if (tab !== "Summary" && !["Invoice","File List"].includes(tab)) {
+    const omit = 1;
     headers = headers.filter(function(_,i){return i !== omit;});
     rows = rows.map(function(row){return row.filter(function(_,i){return i !== omit;});});
   }
