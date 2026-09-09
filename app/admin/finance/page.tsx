@@ -5,20 +5,15 @@ import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import styles from "./finance.module.css";
 const tabs = ["Summary", "Invoice", "File List", "Design Bill", "Design Deposit", "Supervision Bill", "S Deposit", "Others Bill", "Others Bill Deposit"];
 const money = (value: number) => new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(value);
-const amount = (value: string | undefined) => {
-  const text = String(value ?? "").trim();
-  if (!text || text === "-" || text === "—") return 0;
-  const clean = text.replace(/BDT|Tk\.?|৳|,/gi, "").replace(/\s/g, "");
-  const number = Number(/^\(.*\)$/.test(clean) ? `-${clean.slice(1, -1)}` : clean);
-  return Number.isFinite(number) ? number : 0;
-};
+type SummaryStatus = "all" | "not-available" | "cheater" | "due" | "full-paid";
+const normalizeStatus = (value: string | undefined) => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 export default function FinancePage() {
   const [tab, setTab] = useState("Summary");
   const [data, setData] = useState<FinanceSheetData | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
-  const [status, setStatus] = useState<"all" | "paid" | "due">("all");
+  const [status, setStatus] = useState<SummaryStatus>("all");
   const [page, setPage] = useState(0);
   const [revision, setRevision] = useState(0);
   const request = useRef(0);
@@ -32,16 +27,27 @@ export default function FinancePage() {
     }).finally(() => { if (request.current === id) setBusy(false); });
     return () => { request.current++; };
   }, [tab, revision]);
-  const dueColumn = tab === "Summary" ? (data?.headers || []).findIndex(heading => /due|outstanding|balance/i.test(heading)) : -1;
+
+  const statusColumn = tab === "Summary" ? (data?.headers || []).findIndex(heading => /^\s*(status|payment status|project status)\s*$/i.test(heading)) : -1;
   const searchedRows = (data?.rows || []).filter(row => row.some(cell => cell.toLowerCase().includes(query.trim().toLowerCase())));
   const rows = searchedRows.filter(row => {
-    if (tab !== "Summary" || status === "all" || dueColumn < 0) return true;
-    const due = amount(row[dueColumn]);
-    return status === "paid" ? Math.abs(due) < 0.01 : due > 0.01;
+    if (tab !== "Summary" || status === "all" || statusColumn < 0) return true;
+    const value = normalizeStatus(row[statusColumn]);
+    if (status === "not-available") return value === "not available" || value === "not availabe" || value === "n/a" || value === "na";
+    if (status === "cheater") return value === "cheater";
+    if (status === "due") return value === "due";
+    if (status === "full-paid") return value === "full paid" || value === "fully paid" || value === "paid";
+    return true;
   });
+
   const pages = Math.max(1, Math.ceil(rows.length / 50));
   const currentPage = Math.min(page, pages - 1);
   const totals = data?.totals;
+  const setSummaryStatus = (next: Exclude<SummaryStatus,"all">) => {
+    setStatus(current => current === next ? "all" : next);
+    setPage(0);
+  };
+
   return <div className={styles.finance}>
     <header className={styles.header}>
       <div><span className={styles.eyebrow}>LAND VIEW / ACCOUNTS</span><h1>Finance<span>.</span></h1></div>
@@ -56,7 +62,19 @@ export default function FinancePage() {
     </section>
     <section className={styles.book}>
       <nav className={styles.tabs} aria-label="Finance worksheets">{tabs.map(name => name === "Invoice" ? <Link key={name} href="/admin/finance/invoices" style={{padding:"19px 15px",whiteSpace:"nowrap",color:"#e9b620",fontSize:12}}>Invoice ↗</Link> : <button key={name} aria-current={tab === name ? "page" : undefined} onClick={() => { setTab(name); setQuery(""); setStatus("all"); setPage(0); }}>{name === "S Deposit" ? "Supervision Deposit" : name}</button>)}</nav>
-      <div className={styles.toolbar}><div><h2>{tab}</h2><span>{data ? `${rows.length} rows · Updated ${new Date(data.updatedAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}` : "Google Sheets"}</span></div><div className={styles.toolbarRight}>{tab === "Summary" && <div className={styles.filters} aria-label="Payment status filter"><button aria-pressed={status === "paid"} onClick={() => { setStatus(status === "paid" ? "all" : "paid"); setPage(0); }}>Full Paid</button><button aria-pressed={status === "due"} onClick={() => { setStatus(status === "due" ? "all" : "due"); setPage(0); }}>Due</button></div>}<input aria-label="Search worksheet" type="search" placeholder="Search file, name or amount…" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} /></div></div>
+      <div className={styles.toolbar}>
+        <div><h2>{tab}</h2><span>{data ? `${rows.length} rows · Updated ${new Date(data.updatedAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}` : "Google Sheets"}</span></div>
+        <div className={styles.toolbarRight}>
+          {tab === "Summary" && <div className={styles.filters} aria-label="Project status filter">
+            <button aria-pressed={status === "not-available"} onClick={() => setSummaryStatus("not-available")}>Not Available</button>
+            <button aria-pressed={status === "cheater"} onClick={() => setSummaryStatus("cheater")}>Cheater</button>
+            <button aria-pressed={status === "due"} onClick={() => setSummaryStatus("due")}>Due</button>
+            <button aria-pressed={status === "full-paid"} onClick={() => setSummaryStatus("full-paid")}>Full Paid</button>
+          </div>}
+          <input aria-label="Search worksheet" type="search" placeholder="Search file, name or amount…" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} />
+        </div>
+      </div>
+      {tab === "Summary" && data && statusColumn < 0 && <div className={styles.message}>Status column was not found in Summary. Name the column <strong>Status</strong> to enable the four filters.</div>}
       {error && <div role="alert" className={styles.message}>{error}<button onClick={() => setRevision(value => value + 1)}>Try again</button></div>}
       {busy && <div role="status" className={styles.message}>Loading {tab}…</div>}
       {!busy && data && <>
