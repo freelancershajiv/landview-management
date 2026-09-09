@@ -41,7 +41,7 @@ export default function FinancePage() {
       {[["Net billed", totals?.billed], ["Discounts", totals?.discount], ["Collected", totals?.paid], ["Outstanding", totals?.due]].map(([label,value]) => <article key={String(label)}><span>{label}</span><strong>{typeof value === "number" ? money(value) : "—"}</strong></article>)}
     </section>
     <section className={styles.book}>
-      <nav className={styles.tabs} aria-label="Finance worksheets">{tabs.map(name => <button key={name} aria-current={tab === name ? "page" : undefined} onClick={() => { setTab(name); setQuery(""); setPage(0); }}>{name === "S Deposit" ? "Supervision Deposit" : name}</button>)}</nav>
+      <nav className={styles.tabs} aria-label="Finance worksheets">{tabs.map(name => name === "Invoice" ? <Link key={name} href="/admin/finance/invoices" style={{padding:"19px 15px",whiteSpace:"nowrap",color:"#e9b620",fontSize:12}}>Invoice ↗</Link> : <button key={name} aria-current={tab === name ? "page" : undefined} onClick={() => { setTab(name); setQuery(""); setPage(0); }}>{name === "S Deposit" ? "Supervision Deposit" : name}</button>)}</nav>
       <div className={styles.toolbar}><div><h2>{tab}</h2><span>{data ? `${rows.length} rows · Updated ${new Date(data.updatedAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}` : "Google Sheets"}</span></div><input aria-label="Search worksheet" type="search" placeholder="Search file, name or amount…" value={query} onChange={event => { setQuery(event.target.value); setPage(0); }} /></div>
       {error && <div role="alert" className={styles.message}>{error}<button onClick={() => setRevision(value => value + 1)}>Try again</button></div>}
       {busy && <div role="status" className={styles.message}>Loading {tab}…</div>}
