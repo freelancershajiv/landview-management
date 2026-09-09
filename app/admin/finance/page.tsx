@@ -63,7 +63,6 @@ export default function FinancePage() {
     <header className={styles.header}>
       <div><span className={styles.eyebrow}>LAND VIEW / ACCOUNTS</span><h1>Finance<span>.</span></h1></div>
       <div className={styles.actions}>
-        <Link href="/admin/finance/records">App records</Link>
         {data && <a href={data.url} target="_blank" rel="noopener noreferrer">Open Google Sheet ↗</a>}
         <button disabled={busy} onClick={() => setRevision(value => value + 1)}>{busy ? "Loading…" : "↻ Refresh"}</button>
       </div>
