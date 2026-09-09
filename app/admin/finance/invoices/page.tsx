@@ -136,7 +136,6 @@ export default function InvoicePage() {
         <article className={styles.paper}>
           <header className={styles.invoiceHeader}>
             <div className={styles.brand}>
-              <img src="/land-view-logo.png" alt="LAND VIEW" />
               <div>
                 <h2>LAND <span>VIEW</span></h2>
                 <p>Engineers and Architects</p>
