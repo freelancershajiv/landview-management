@@ -2,13 +2,19 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { landViewApi, DashboardData } from "@/lib/api";
+import { landViewApi, DashboardData, FinanceSheetData } from "@/lib/api";
 import { ErrorState, Money, pick, formatDate } from "@/components/lv-ui";
 import styles from "./dashboard.module.css";
 
 function amount(value: unknown) {
   const number = Number(String(value ?? 0).replace(/,/g, ""));
   return Number.isFinite(number) ? number : 0;
+}
+
+function normalizeProjectId(value: unknown) {
+  const text = String(value ?? "").trim().toUpperCase();
+  if (!text) return "";
+  return text.startsWith("LV-") ? text : /^\d+$/.test(text) ? `LV-${text}` : text;
 }
 
 function stateClass(status: string) {
@@ -21,6 +27,7 @@ function stateClass(status: string) {
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [finance, setFinance] = useState<FinanceSheetData | null>(null);
   const [error, setError] = useState("");
   const [refreshing, setRefreshing] = useState(true);
   const [updated, setUpdated] = useState<Date | null>(null);
@@ -32,12 +39,16 @@ export default function DashboardPage() {
     setRefreshing(true);
     setError("");
     try {
-      const result = await landViewApi.getDashboard();
+      const [result, financeSummary] = await Promise.all([
+        landViewApi.getDashboard(),
+        landViewApi.getFinanceSheet("Summary"),
+      ]);
       if (!result?.stats || !Array.isArray(result.recentProjects)) {
         throw new Error("Dashboard data is unavailable. Please retry.");
       }
       if (id !== request.current) return;
       setData(result);
+      setFinance(financeSummary);
       setUpdated(new Date());
     } catch (e: unknown) {
       if (id === request.current) {
@@ -56,9 +67,10 @@ export default function DashboardPage() {
   }, [load]);
 
   const stats = data?.stats;
-  const billed = amount(stats?.totalBill);
-  const paid = amount(stats?.totalPaid);
-  const due = amount(stats?.pendingPayments);
+  const financeTotals = finance?.totals;
+  const billed = finance ? amount(financeTotals?.billed) : amount(stats?.totalBill);
+  const paid = finance ? amount(financeTotals?.paid) : amount(stats?.totalPaid);
+  const due = finance ? amount(financeTotals?.due) : amount(stats?.pendingPayments);
   const totalProjects = amount(stats?.projectCount);
   const activeProjects = amount(stats?.activeProjectCount);
   const employees = amount(stats?.employeeCount);
@@ -80,6 +92,25 @@ export default function DashboardPage() {
   const role = String(data?.user?.role || data?.user?.Role || "").toLowerCase();
   const canManage = role === "admin" || role === "manager";
 
+  const financeByProject = useMemo(() => {
+    const map = new Map<string, { billed: number; paid: number; due: number; status: string }>();
+    (finance?.rows ?? []).forEach((row) => {
+      const id = normalizeProjectId(row[0]);
+      if (!id) return;
+      const gross = amount(row[3]) + amount(row[7]) + amount(row[11]);
+      const discount = amount(row[4]) + amount(row[8]) + amount(row[12]);
+      const paidValue = amount(row[5]) + amount(row[9]) + amount(row[13]);
+      const dueValue = amount(row[15]);
+      map.set(id, {
+        billed: gross - discount,
+        paid: paidValue,
+        due: dueValue,
+        status: String(row[16] || (dueValue > 0 ? "Due" : "Full Paid")).trim(),
+      });
+    });
+    return map;
+  }, [finance]);
+
   const statusSummary = useMemo(() => {
     const summary = { active: 0, complete: 0, paused: 0, other: 0 };
     recent.forEach((project) => {
@@ -95,7 +126,9 @@ export default function DashboardPage() {
   const collectionLabel = percentage === null ? "No billing data" : percentage >= 90 ? "Healthy collection" : percentage >= 60 ? "Collection needs attention" : "Collection priority";
   const activeShare = totalProjects > 0 ? Math.round((activeProjects / totalProjects) * 100) : 0;
   const healthyRecent = recent.length ? Math.round(((statusSummary.active + statusSummary.complete) / recent.length) * 100) : 0;
-  const attentionCount = (due > 0 ? 1 : 0) + statusSummary.paused + statusSummary.other;
+  const dueProjectCount = useMemo(() => Array.from(financeByProject.values()).filter((item) => item.due > 0).length, [financeByProject]);
+  const fullPaidProjectCount = useMemo(() => Array.from(financeByProject.values()).filter((item) => item.due <= 0 && item.billed > 0).length, [financeByProject]);
+  const attentionCount = dueProjectCount + statusSummary.paused + statusSummary.other;
 
   return (
     <div className={styles.root}>
@@ -105,7 +138,7 @@ export default function DashboardPage() {
           <h1>Command center<span aria-hidden="true">.</span></h1>
           <span className={styles.timestamp} role="status">
             {refreshing
-              ? "Updating business data…"
+              ? "Updating project & finance data…"
               : updated
                 ? `Updated ${updated.toLocaleTimeString("en-BD", { hour: "2-digit", minute: "2-digit", timeZone: "Asia/Dhaka" })} · Dhaka`
                 : "Management workspace"}
@@ -143,7 +176,7 @@ export default function DashboardPage() {
             <Link href="/admin/finance" className={`${styles.metric} ${styles.dueMetric}`}>
               <span className={styles.metricTitle}>{due < 0 ? "Credit balance" : "Receivables"} <i aria-hidden="true">↗</i></span>
               <strong><Money value={Math.abs(due)} /></strong>
-              <small>{due > 0 ? "Outstanding client balance" : due < 0 ? "Payments exceed billing" : "No outstanding balance"}</small>
+              <small>{dueProjectCount} project{dueProjectCount === 1 ? "" : "s"} with outstanding balance</small>
             </Link>
             <Link href="/admin/finance" className={styles.metric}>
               <span className={styles.metricTitle}>Collected <i aria-hidden="true">↗</i></span>
@@ -158,7 +191,7 @@ export default function DashboardPage() {
             <Link href="/admin/finance" className={styles.metric}>
               <span className={styles.metricTitle}>Collection rate <i aria-hidden="true">↗</i></span>
               <strong>{percentage === null ? "—" : `${percentage}%`}</strong>
-              <small>{billed > 0 ? <><Money value={billed} /> total billed</> : "No billing data"}</small>
+              <small>{billed > 0 ? <><Money value={billed} /> net billed · {fullPaidProjectCount} full paid</> : "No billing data"}</small>
             </Link>
           </section>
 
@@ -170,7 +203,7 @@ export default function DashboardPage() {
             </Link>
             <Link href="/admin/finance" className={styles.moduleCard}>
               <span className={styles.moduleIcon}>02</span>
-              <div><small>COMMERCIAL</small><strong>Finance & accounts</strong><p>Billing, collections, dues and financial records.</p></div>
+              <div><small>COMMERCIAL</small><strong>Finance & accounts</strong><p>Live billing, collections, dues and project balances.</p></div>
               <b aria-hidden="true">→</b>
             </Link>
             <Link href="/admin/employees" className={styles.moduleCard}>
@@ -188,8 +221,8 @@ export default function DashboardPage() {
                   <div><strong>{percentage === null ? "—" : `${percentage}%`}</strong><span>collected</span></div>
                 </div>
                 <div className={styles.collectionFigures}>
-                  <span>Cash received</span><strong><Money value={paid} /></strong>
-                  <small>{billed > 0 ? <><Money value={billed} /> billed across records</> : "No bills recorded"}</small>
+                  <span>Cash received from Finance Summary</span><strong><Money value={paid} /></strong>
+                  <small>{billed > 0 ? <><Money value={billed} /> net billed · <Money value={due} /> due</> : "No bills recorded"}</small>
                   <div className={styles.track} role="progressbar" aria-label="Bill collection" aria-valuemin={0} aria-valuemax={100} aria-valuenow={meter} aria-valuetext={percentage === null ? "No bills recorded" : `${percentage}% collected`}><span style={{ width: `${meter}%` }} /></div>
                 </div>
               </div>
@@ -198,7 +231,7 @@ export default function DashboardPage() {
             <section className={styles.launcher} aria-labelledby="workspace-heading">
               <div className={styles.panelTop}><h2 id="workspace-heading">Quick actions</h2><span aria-hidden="true">↗</span></div>
               <Link href="/admin/projects"><span className={styles.launchIcon} aria-hidden="true">◇</span><span>Open project register</span><b aria-hidden="true">→</b></Link>
-              <Link href={canManage ? "/admin/employees" : "/admin/finance"}><span className={styles.launchIcon} aria-hidden="true">◎</span><span>{canManage ? "Manage project team" : "Review billing & payments"}</span><b aria-hidden="true">→</b></Link>
+              <Link href="/admin/finance/invoices"><span className={styles.launchIcon} aria-hidden="true">৳</span><span>Open project billing lookup</span><b aria-hidden="true">→</b></Link>
             </section>
           </div>
 
@@ -206,7 +239,7 @@ export default function DashboardPage() {
             <div className={styles.attentionPanel}>
               <div className={styles.panelTop}><div><small className={styles.panelKicker}>NEEDS ATTENTION</small><h2>Management queue</h2></div><strong className={styles.attentionBadge}>{attentionCount}</strong></div>
               <div className={styles.attentionList}>
-                <Link href="/admin/finance"><span className={styles.attentionIcon}>৳</span><div><strong>Outstanding receivables</strong><small>{due > 0 ? <><Money value={due} /> requires collection follow-up</> : "No outstanding client balance"}</small></div><b>→</b></Link>
+                <Link href="/admin/finance"><span className={styles.attentionIcon}>৳</span><div><strong>Outstanding receivables</strong><small>{due > 0 ? <>{dueProjectCount} project{dueProjectCount === 1 ? "" : "s"} · <Money value={due} /> requires collection follow-up</> : "No outstanding client balance"}</small></div><b>→</b></Link>
                 <Link href="/admin/projects"><span className={styles.attentionIcon}>!</span><div><strong>Hold / inactive projects</strong><small>{statusSummary.paused} recent project{statusSummary.paused === 1 ? "" : "s"} need review</small></div><b>→</b></Link>
                 <Link href="/admin/projects"><span className={styles.attentionIcon}>?</span><div><strong>Unclassified status</strong><small>{statusSummary.other} recent project{statusSummary.other === 1 ? "" : "s"} need a clear status</small></div><b>→</b></Link>
               </div>
@@ -218,9 +251,9 @@ export default function DashboardPage() {
               <div className={styles.healthStats}>
                 <div><span>On track</span><strong>{statusSummary.active}</strong></div>
                 <div><span>Completed</span><strong>{statusSummary.complete}</strong></div>
-                <div><span>Attention</span><strong>{statusSummary.paused + statusSummary.other}</strong></div>
+                <div><span>Finance due</span><strong>{dueProjectCount}</strong></div>
               </div>
-              <p>Health is based on the status of the projects currently represented in the recent portfolio feed.</p>
+              <p>Operational health comes from project status; finance due comes directly from the live Finance Summary.</p>
             </div>
           </section>
 
@@ -239,7 +272,7 @@ export default function DashboardPage() {
 
           <section className={styles.projects} aria-labelledby="projects-heading">
             <div className={styles.projectHeader}>
-              <div><span className={styles.panelKicker}>PROJECT REGISTER</span><h2 id="projects-heading">Recent projects <span>{recent.length}</span></h2></div>
+              <div><span className={styles.panelKicker}>PROJECT + FINANCE REGISTER</span><h2 id="projects-heading">Recent projects <span>{recent.length}</span></h2></div>
               <div className={styles.projectTools}>
                 <input type="search" aria-label="Search recent projects" placeholder="Search project, client or status…" value={query} onChange={(event) => setQuery(event.target.value)} />
                 <Link href="/admin/projects">View all ↗</Link>
@@ -248,18 +281,23 @@ export default function DashboardPage() {
             {projects.length ? (
               <div className={styles.tableWrap}>
                 <table>
-                  <thead><tr><th>Project</th><th>Client</th><th>Status</th><th>Start date</th><th><span className={styles.srOnly}>Open project</span></th></tr></thead>
+                  <thead><tr><th>Project</th><th>Client</th><th>Project status</th><th>Finance status</th><th>Received</th><th>Due</th><th><span className={styles.srOnly}>Open project</span></th></tr></thead>
                   <tbody>
                     {projects.map((project, index) => {
                       const id = pick(project, ["Project_ID", "Project ID", "ProjectId"]);
+                      const normalizedId = normalizeProjectId(id);
+                      const projectFinance = financeByProject.get(normalizedId);
                       const name = pick(project, ["Project_Name", "Project Name", "Name", "Location"], id || "Unnamed project");
                       const status = pick(project, ["Status", "status"], "Unspecified");
+                      const financeStatus = projectFinance?.status || "No finance row";
                       return (
                         <tr key={id || index}>
                           <td>{id ? <Link className={styles.projectName} href={`/admin/projects/${encodeURIComponent(id)}`}>{name}</Link> : <strong>{name}</strong>}<small>{id || "No project ID"}</small></td>
                           <td>{pick(project, ["Client_Name", "Client Name", "Client"], "—")}</td>
                           <td><span className={`${styles.status} ${stateClass(status)}`}><i aria-hidden="true" />{status}</span></td>
-                          <td>{formatDate(project.Start_Date || project["Start Date"] || project.Created_Date)}</td>
+                          <td><span className={`${styles.status} ${projectFinance?.due && projectFinance.due > 0 ? styles.paused : projectFinance ? styles.complete : styles.other}`}><i aria-hidden="true" />{financeStatus}</span></td>
+                          <td>{projectFinance ? <Money value={projectFinance.paid} /> : "—"}</td>
+                          <td>{projectFinance ? <Money value={projectFinance.due} /> : "—"}</td>
                           <td>{id && <Link className={styles.open} aria-label={`Open project ${id}`} href={`/admin/projects/${encodeURIComponent(id)}`}>↗</Link>}</td>
                         </tr>
                       );
