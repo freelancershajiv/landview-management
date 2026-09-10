@@ -88,9 +88,16 @@ export type InvoiceCreateResult = {
 export type ProjectServiceFolderInfo = { name: string; id: string; url: string };
 export type ProjectServiceFoldersResult = {
   projectId: string;
+  found?: boolean;
+  category?: "Running" | "Paused" | "Completed" | string;
   projectFolderId: string;
+  projectFolderName?: string;
   projectFolderUrl: string;
   folders: ProjectServiceFolderInfo[];
+};
+export type ProjectDriveIndexResult = {
+  bulk: true;
+  projects: Record<string, ProjectServiceFoldersResult>;
 };
 export type ProjectServiceUploadResult = {
   projectId: string;
@@ -148,6 +155,7 @@ export const landViewApi = {
   updateProjectEmployees: (projectId: string, employeeIds: string[]) => post<unknown>("updateProjectEmployees", { projectId, employeeIds }),
   getProjectDriveFolder: (projectId: string) => get<{ projectId: string; folderId: string; url: string }>("getProjectDriveFolder", { projectId }),
   getProjectServiceFolders: (projectId: string) => get<ProjectServiceFoldersResult>("getProjectServiceFolders", { projectId }),
+  getProjectDriveIndex: () => get<ProjectDriveIndexResult>("getProjectServiceFolders", { bulk: 1 }),
   uploadProjectServiceFile: (projectId: string, folderName: string, file: { fileName: string; mimeType: string; base64: string }) =>
     post<ProjectServiceUploadResult>("uploadProjectServiceFile", { projectId, folderName, ...file }),
   getEmployees: () => get<Record<string, unknown>[]>("getEmployees"),
