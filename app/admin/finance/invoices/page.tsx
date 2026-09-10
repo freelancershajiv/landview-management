@@ -103,7 +103,7 @@ export default function ProjectBillingPage() {
   }
 
   const qrUrl = verificationUrl
-    ? `https://api.qrserver.com/v1/create-qr-code/?size=170x170&margin=8&data=${encodeURIComponent(verificationUrl)}`
+    ? `/api/billing-verification/qr?data=${encodeURIComponent(verificationUrl)}`
     : "";
 
   return (
@@ -160,93 +160,36 @@ export default function ProjectBillingPage() {
           </header>
 
           <section className={styles.projectCard}>
-            <div>
-              <span>FILE ID</span>
-              <strong>{result.id}</strong>
-            </div>
-            <div>
-              <span>CLIENT</span>
-              <strong>{result.client.name || "—"}</strong>
-              <small>{result.client.phone || "—"}</small>
-            </div>
-            <div>
-              <span>PROJECT TYPE</span>
-              <strong>{result.client.type || "—"}</strong>
-              <small>{result.client.floor || "—"}</small>
-            </div>
-            <div className={styles.totalDueCard}>
-              <span>TOTAL DUE</span>
-              <strong>{money(result.totals.due)}</strong>
-            </div>
+            <div><span>FILE ID</span><strong>{result.id}</strong></div>
+            <div><span>CLIENT</span><strong>{result.client.name || "—"}</strong><small>{result.client.phone || "—"}</small></div>
+            <div><span>PROJECT TYPE</span><strong>{result.client.type || "—"}</strong><small>{result.client.floor || "—"}</small></div>
+            <div className={styles.totalDueCard}><span>TOTAL DUE</span><strong>{money(result.totals.due)}</strong></div>
           </section>
 
           <section className={styles.categoryGrid}>
             {result.invoices.map((category) => (
               <article className={styles.category} key={category.name}>
                 <div className={styles.categoryHeader}>
-                  <div>
-                    <span>{category.name.toUpperCase()}</span>
-                    <h2>{category.name} Billing</h2>
-                  </div>
-                  <div className={category.due > 0 ? styles.dueBadge : styles.paidBadge}>
-                    {category.due > 0 ? "DUE" : "PAID"}
-                  </div>
+                  <div><span>{category.name.toUpperCase()}</span><h2>{category.name} Billing</h2></div>
+                  <div className={category.due > 0 ? styles.dueBadge : styles.paidBadge}>{category.due > 0 ? "DUE" : "PAID"}</div>
                 </div>
-
                 <div className={styles.metrics}>
                   <div><span>Bill</span><strong>{money(category.gross)}</strong></div>
                   <div><span>Discount</span><strong>{money(category.discount)}</strong></div>
                   <div><span>Deposited</span><strong>{money(category.paid)}</strong></div>
                   <div><span>Due</span><strong>{money(category.due)}</strong></div>
                 </div>
-
                 <div className={styles.split}>
                   <section>
                     <h3>{category.name} Bill</h3>
-                    {category.items.length ? (
-                      <div className={styles.tableWrap}>
-                        <table>
-                          <thead><tr><th>Service</th><th>Rate</th><th>Qty</th><th>Amount</th></tr></thead>
-                          <tbody>
-                            {category.items.map((item, index) => (
-                              <tr key={index}>
-                                <td>{item.service || "—"}</td>
-                                <td>{item.price || "—"}</td>
-                                <td>{item.quantity || "—"}</td>
-                                <td>{money(item.amount)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : <p className={styles.empty}>No bill records.</p>}
+                    {category.items.length ? <div className={styles.tableWrap}><table><thead><tr><th>Service</th><th>Rate</th><th>Qty</th><th>Amount</th></tr></thead><tbody>{category.items.map((item,index)=><tr key={index}><td>{item.service||"—"}</td><td>{item.price||"—"}</td><td>{item.quantity||"—"}</td><td>{money(item.amount)}</td></tr>)}</tbody></table></div> : <p className={styles.empty}>No bill records.</p>}
                   </section>
-
                   <section>
                     <h3>{category.name} Deposit</h3>
-                    {category.payments.length ? (
-                      <div className={styles.tableWrap}>
-                        <table>
-                          <thead><tr><th>Date</th><th>Details</th><th>Amount</th></tr></thead>
-                          <tbody>
-                            {category.payments.map((payment, index) => (
-                              <tr key={index}>
-                                <td>{payment.date || "—"}</td>
-                                <td>{payment.details || "—"}</td>
-                                <td>{money(payment.amount)}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    ) : <p className={styles.empty}>No deposit records.</p>}
+                    {category.payments.length ? <div className={styles.tableWrap}><table><thead><tr><th>Date</th><th>Details</th><th>Amount</th></tr></thead><tbody>{category.payments.map((payment,index)=><tr key={index}><td>{payment.date||"—"}</td><td>{payment.details||"—"}</td><td>{money(payment.amount)}</td></tr>)}</tbody></table></div> : <p className={styles.empty}>No deposit records.</p>}
                   </section>
                 </div>
-
-                <div className={styles.formula}>
-                  <span>{money(category.gross)} − {money(category.discount)} − {money(category.paid)}</span>
-                  <strong>= {money(category.due)}</strong>
-                </div>
+                <div className={styles.formula}><span>{money(category.gross)} − {money(category.discount)} − {money(category.paid)}</span><strong>= {money(category.due)}</strong></div>
               </article>
             ))}
           </section>
@@ -265,27 +208,12 @@ export default function ProjectBillingPage() {
               <p>{verificationUrl ? "The QR opens a signed LAND VIEW verification page showing this statement's billing snapshot." : verificationError || "A secure verification link is being generated."}</p>
               {verificationUrl && <a href={verificationUrl} target="_blank" rel="noreferrer">Open verification page ↗</a>}
             </div>
-            {qrUrl && (
-              <img
-                className={styles.qrCode}
-                src={qrUrl}
-                alt={`QR code to verify ${result.id} billing statement`}
-                width={132}
-                height={132}
-                loading="eager"
-              />
-            )}
+            {qrUrl && <img className={styles.qrCode} src={qrUrl} alt={`QR code to verify ${result.id} billing statement`} width={132} height={132} />}
           </section>
 
           <footer className={styles.printFooter}>
-            <div>
-              <strong>LAND VIEW — Engineers and Architects</strong>
-              <span>Feni Sadar, Feni, Bangladesh</span>
-            </div>
-            <div>
-              <span>landviewcivil@gmail.com</span>
-              <span>www.landview.com.bd</span>
-            </div>
+            <div><strong>LAND VIEW — Engineers and Architects</strong><span>Feni Sadar, Feni, Bangladesh</span></div>
+            <div><span>landviewcivil@gmail.com</span><span>www.landview.com.bd</span></div>
           </footer>
         </main>
       )}
