@@ -30,6 +30,40 @@ function normalizeDriveProjectId_(value) {
   return digits ? "LV-" + Number(digits) : "";
 }
 
+function buildExistingDriveProjectIndex_() {
+  var index = {};
+
+  for (var i = 0; i < LAND_VIEW_PROJECT_CATEGORY_FOLDERS.length; i++) {
+    var source = LAND_VIEW_PROJECT_CATEGORY_FOLDERS[i];
+    var parent;
+
+    try {
+      parent = DriveApp.getFolderById(source.id);
+    } catch (error) {
+      continue;
+    }
+
+    var folders = parent.getFolders();
+    while (folders.hasNext()) {
+      var folder = folders.next();
+      var projectId = normalizeDriveProjectId_(folder.getName());
+      if (!projectId) continue;
+
+      index[projectId] = {
+        projectId: projectId,
+        found: true,
+        category: source.category,
+        projectFolderId: folder.getId(),
+        projectFolderName: folder.getName(),
+        projectFolderUrl: folder.getUrl(),
+        folders: []
+      };
+    }
+  }
+
+  return index;
+}
+
 function findExistingDriveProjectFolder_(projectId) {
   var target = normalizeDriveProjectId_(projectId);
   if (!target) return null;
@@ -100,10 +134,23 @@ function ensureProjectServiceFolders_(projectId) {
 
 /*
  * Read-only folder lookup used by the Projects page.
+ * bulk=1 scans Running, Paused and Completed once and returns one index.
  * This NEVER creates a project folder or service folder.
  */
 function getProjectServiceFolders(params) {
   var session = requireSession(params);
+
+  if (String(params.bulk || "") === "1" || String(params.bulk || "").toLowerCase() === "true") {
+    if (!isWorkspaceRole(session.role)) throw new Error("Access denied.");
+    return {
+      success: true,
+      data: {
+        bulk: true,
+        projects: buildExistingDriveProjectIndex_()
+      }
+    };
+  }
+
   var projectId = String(params.projectId || params.Project_ID || "").trim();
   assertProjectAccess(session, projectId);
 
