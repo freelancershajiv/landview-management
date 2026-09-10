@@ -94,6 +94,8 @@ export default function DashboardPage() {
 
   const collectionLabel = percentage === null ? "No billing data" : percentage >= 90 ? "Healthy collection" : percentage >= 60 ? "Collection needs attention" : "Collection priority";
   const activeShare = totalProjects > 0 ? Math.round((activeProjects / totalProjects) * 100) : 0;
+  const healthyRecent = recent.length ? Math.round(((statusSummary.active + statusSummary.complete) / recent.length) * 100) : 0;
+  const attentionCount = (due > 0 ? 1 : 0) + statusSummary.paused + statusSummary.other;
 
   return (
     <div className={styles.root}>
@@ -124,14 +126,29 @@ export default function DashboardPage() {
       )}
 
       {!data ? (
-        refreshing && <div className={styles.skeleton} role="status" aria-label="Loading dashboard"><span /><span /><span /><span /></div>
+        refreshing && <div className={styles.skeleton} role="status" aria-label="Loading dashboard"><span /><span /><span /><span /><span /><span /></div>
       ) : (
         <>
           <section className={styles.metrics} aria-label="Business totals">
             <Link href="/admin/projects" className={styles.metric}>
-              <span className={styles.metricTitle}>Projects <i aria-hidden="true">↗</i></span>
+              <span className={styles.metricTitle}>Total projects <i aria-hidden="true">↗</i></span>
               <strong>{totalProjects}</strong>
-              <small><em className={styles.dot} />{activeProjects} active · {activeShare}% portfolio</small>
+              <small>Complete project portfolio</small>
+            </Link>
+            <Link href="/admin/projects" className={styles.metric}>
+              <span className={styles.metricTitle}>Ongoing <i aria-hidden="true">↗</i></span>
+              <strong>{activeProjects}</strong>
+              <small><em className={styles.dot} />{activeShare}% of portfolio</small>
+            </Link>
+            <Link href="/admin/finance" className={`${styles.metric} ${styles.dueMetric}`}>
+              <span className={styles.metricTitle}>{due < 0 ? "Credit balance" : "Receivables"} <i aria-hidden="true">↗</i></span>
+              <strong><Money value={Math.abs(due)} /></strong>
+              <small>{due > 0 ? "Outstanding client balance" : due < 0 ? "Payments exceed billing" : "No outstanding balance"}</small>
+            </Link>
+            <Link href="/admin/finance" className={styles.metric}>
+              <span className={styles.metricTitle}>Collected <i aria-hidden="true">↗</i></span>
+              <strong><Money value={paid} /></strong>
+              <small>{collectionLabel}</small>
             </Link>
             <Link href="/admin/employees" className={styles.metric}>
               <span className={styles.metricTitle}>People <i aria-hidden="true">↗</i></span>
@@ -139,14 +156,9 @@ export default function DashboardPage() {
               <small>Employees in workspace</small>
             </Link>
             <Link href="/admin/finance" className={styles.metric}>
-              <span className={styles.metricTitle}>Total billed <i aria-hidden="true">↗</i></span>
-              <strong><Money value={billed} /></strong>
-              <small>{collectionLabel}</small>
-            </Link>
-            <Link href="/admin/finance" className={`${styles.metric} ${styles.dueMetric}`}>
-              <span className={styles.metricTitle}>{due < 0 ? "Credit balance" : "Receivables"} <i aria-hidden="true">↗</i></span>
-              <strong><Money value={Math.abs(due)} /></strong>
-              <small>{due > 0 ? "Outstanding client balance" : due < 0 ? "Payments exceed billing" : "No outstanding balance"}</small>
+              <span className={styles.metricTitle}>Collection rate <i aria-hidden="true">↗</i></span>
+              <strong>{percentage === null ? "—" : `${percentage}%`}</strong>
+              <small>{billed > 0 ? <><Money value={billed} /> total billed</> : "No billing data"}</small>
             </Link>
           </section>
 
@@ -189,6 +201,28 @@ export default function DashboardPage() {
               <Link href={canManage ? "/admin/employees" : "/admin/finance"}><span className={styles.launchIcon} aria-hidden="true">◎</span><span>{canManage ? "Manage project team" : "Review billing & payments"}</span><b aria-hidden="true">→</b></Link>
             </section>
           </div>
+
+          <section className={styles.focusGrid} aria-label="Management attention">
+            <div className={styles.attentionPanel}>
+              <div className={styles.panelTop}><div><small className={styles.panelKicker}>NEEDS ATTENTION</small><h2>Management queue</h2></div><strong className={styles.attentionBadge}>{attentionCount}</strong></div>
+              <div className={styles.attentionList}>
+                <Link href="/admin/finance"><span className={styles.attentionIcon}>৳</span><div><strong>Outstanding receivables</strong><small>{due > 0 ? <><Money value={due} /> requires collection follow-up</> : "No outstanding client balance"}</small></div><b>→</b></Link>
+                <Link href="/admin/projects"><span className={styles.attentionIcon}>!</span><div><strong>Hold / inactive projects</strong><small>{statusSummary.paused} recent project{statusSummary.paused === 1 ? "" : "s"} need review</small></div><b>→</b></Link>
+                <Link href="/admin/projects"><span className={styles.attentionIcon}>?</span><div><strong>Unclassified status</strong><small>{statusSummary.other} recent project{statusSummary.other === 1 ? "" : "s"} need a clear status</small></div><b>→</b></Link>
+              </div>
+            </div>
+
+            <div className={styles.healthPanel}>
+              <div className={styles.panelTop}><div><small className={styles.panelKicker}>PROJECT HEALTH</small><h2>Portfolio condition</h2></div><strong>{healthyRecent}%</strong></div>
+              <div className={styles.healthBar}><span style={{ width: `${healthyRecent}%` }} /></div>
+              <div className={styles.healthStats}>
+                <div><span>On track</span><strong>{statusSummary.active}</strong></div>
+                <div><span>Completed</span><strong>{statusSummary.complete}</strong></div>
+                <div><span>Attention</span><strong>{statusSummary.paused + statusSummary.other}</strong></div>
+              </div>
+              <p>Health is based on the status of the projects currently represented in the recent portfolio feed.</p>
+            </div>
+          </section>
 
           <section className={styles.portfolioPanel} aria-labelledby="portfolio-heading">
             <div className={styles.panelTop}>
