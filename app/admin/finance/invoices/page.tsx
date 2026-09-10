@@ -18,11 +18,21 @@ const money = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value);
 
+function statementDate() {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Dhaka",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date());
+}
+
 export default function ProjectBillingPage() {
   const [fileId, setFileId] = useState("");
   const [result, setResult] = useState<SheetInvoices | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [generated, setGenerated] = useState("");
   const request = useRef(0);
 
   async function load(event: FormEvent) {
@@ -43,7 +53,10 @@ export default function ProjectBillingPage() {
         invoiceTabs.map((tab) => landViewApi.getFinanceSheet(tab))
       );
       const billing = buildSheetInvoices(sheets, id);
-      if (version === request.current) setResult(billing);
+      if (version === request.current) {
+        setResult(billing);
+        setGenerated(statementDate());
+      }
     } catch (err) {
       if (version === request.current) {
         setError(err instanceof Error ? err.message : "Could not load project billing.");
@@ -62,6 +75,11 @@ export default function ProjectBillingPage() {
           <h1>Project Billing Lookup</h1>
           <p>Enter a File ID to pull every bill and deposit and calculate the live balance.</p>
         </div>
+        {result && (
+          <button className={styles.printButton} type="button" onClick={() => window.print()}>
+            Print / Save PDF
+          </button>
+        )}
       </div>
 
       <form className={styles.lookup} onSubmit={load}>
@@ -87,7 +105,18 @@ export default function ProjectBillingPage() {
       {busy && <div className={styles.loading} role="status">Pulling bill and deposit records…</div>}
 
       {result && (
-        <>
+        <main className={styles.report}>
+          <header className={styles.printHeader}>
+            <div>
+              <strong>LAND <span>VIEW</span></strong>
+              <small>Engineers and Architects</small>
+            </div>
+            <div>
+              <h2>PROJECT BILLING STATEMENT</h2>
+              <p>Generated {generated}</p>
+            </div>
+          </header>
+
           <section className={styles.projectCard}>
             <div>
               <span>FILE ID</span>
@@ -130,7 +159,7 @@ export default function ProjectBillingPage() {
                 </div>
 
                 <div className={styles.split}>
-                  <div>
+                  <section>
                     <h3>{category.name} Bill</h3>
                     {category.items.length ? (
                       <div className={styles.tableWrap}>
@@ -149,9 +178,9 @@ export default function ProjectBillingPage() {
                         </table>
                       </div>
                     ) : <p className={styles.empty}>No bill records.</p>}
-                  </div>
+                  </section>
 
-                  <div>
+                  <section>
                     <h3>{category.name} Deposit</h3>
                     {category.payments.length ? (
                       <div className={styles.tableWrap}>
@@ -169,7 +198,7 @@ export default function ProjectBillingPage() {
                         </table>
                       </div>
                     ) : <p className={styles.empty}>No deposit records.</p>}
-                  </div>
+                  </section>
                 </div>
 
                 <div className={styles.formula}>
@@ -186,7 +215,18 @@ export default function ProjectBillingPage() {
             <div><span>Total Deposited</span><strong>{money(result.totals.paid)}</strong></div>
             <div className={styles.grandDue}><span>Grand Total Due</span><strong>{money(result.totals.due)}</strong></div>
           </section>
-        </>
+
+          <footer className={styles.printFooter}>
+            <div>
+              <strong>LAND VIEW — Engineers and Architects</strong>
+              <span>Feni Sadar, Feni, Bangladesh</span>
+            </div>
+            <div>
+              <span>landviewcivil@gmail.com</span>
+              <span>www.landview.com.bd</span>
+            </div>
+          </footer>
+        </main>
       )}
     </div>
   );
