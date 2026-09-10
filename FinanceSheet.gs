@@ -71,56 +71,152 @@ function getFinanceSheet(params) {
     rows = rows.map(function(row) { return row.filter(function(_, i) { return i !== omit; }); });
   }
 
-  return { success: true, data: { tab: tab, tabs: Object.keys(widths), headers: headers, rows: rows, totals: totals, url: ss.getUrl() + "#gid=" + sheet.getSheetId(), updatedAt: new Date().toISOString() } };
+  return {
+    success: true,
+    data: {
+      tab: tab,
+      tabs: Object.keys(widths),
+      headers: headers,
+      rows: rows,
+      totals: totals,
+      url: ss.getUrl() + "#gid=" + sheet.getSheetId(),
+      updatedAt: new Date().toISOString()
+    }
+  };
 }
 
-/* Public through the protected Next.js gateway only. Returns the CURRENT Summary row
- * for one project so a permanent QR always shows the latest balances. */
+/*
+ * Permanent QR verification source.
+ *
+ * Every project QR contains only its File ID. When that QR is scanned, the
+ * public verification route calls this function and receives the CURRENT
+ * Summary values. Therefore the QR never changes when bills, deposits,
+ * discounts or status change.
+ *
+ * Summary layout used here:
+ * A  File ID
+ * B  Client Name
+ * C  Contact No.
+ * D  Design / Engineering Bill
+ * E  DB Discount
+ * F  DB Deposit
+ * G  DB Due
+ * H  Supervision Bill
+ * I  SB Discount
+ * J  SB Deposit
+ * K  SB Due
+ * L  Others Bill
+ * M  OB Discount
+ * N  OB Deposit
+ * O  OB Due
+ * P  Total Due
+ * Q  Status
+ */
 function getPublicBillingVerification(params) {
   const raw = String((params && params.fileId) || "").trim().toUpperCase();
-  const fileId = raw.indexOf("LV-") === 0 ? raw : "LV-" + raw.replace(/\D/g, "");
+  const digits = raw.replace(/\D/g, "");
+  const fileId = raw.indexOf("LV-") === 0 ? raw : (digits ? "LV-" + digits : "");
+
   if (!/^LV-\d+$/.test(fileId)) throw new Error("Invalid File ID.");
 
   const ss = SpreadsheetApp.openById("1-JoPQqqntxP7NMVNHSYN-RYkHLWMQf4K");
   const summary = ss.getSheetByName("Summary");
   if (!summary) throw new Error('Finance worksheet "Summary" was not found.');
-  if (summary.getLastRow() > 10000) throw new Error("Finance worksheet exceeds the 10,000-row reading limit.");
 
-  const values = summary.getRange(2, 1, Math.max(1, summary.getLastRow() - 1), 18).getValues();
-  const number = function(value) {
-    if (value === "" || value === null || value === undefined) return 0;
-    const n = Number(value);
-    return Number.isFinite(n) ? n : 0;
-  };
+  const lastRow = summary.getLastRow();
+  if (lastRow < 2) throw new Error("Project billing record was not found.");
+  if (lastRow > 10000) throw new Error("Finance worksheet exceeds the 10,000-row reading limit.");
+
+  const values = summary.getRange(2, 1, lastRow - 1, 18).getValues();
+
   const normalizeId = function(value) {
     const text = String(value || "").trim().toUpperCase();
-    return text.indexOf("LV-") === 0 ? text : "LV-" + text.replace(/\D/g, "");
+    const idDigits = text.replace(/\D/g, "");
+    return text.indexOf("LV-") === 0 ? text : (idDigits ? "LV-" + idDigits : "");
+  };
+
+  const amount = function(value, label) {
+    if (value === "" || value === null || value === undefined) return 0;
+    const result = Number(value);
+    if (!Number.isFinite(result)) throw new Error(label + " is invalid in the Summary sheet.");
+    return Math.round(result * 100) / 100;
   };
 
   let row = null;
   for (let i = 0; i < values.length; i++) {
-    if (normalizeId(values[i][0]) === fileId) { row = values[i]; break; }
+    if (normalizeId(values[i][0]) === fileId) {
+      row = values[i];
+      break;
+    }
   }
+
   if (!row) throw new Error("Project billing record was not found.");
 
   const categories = [
-    { name: "Engineering", gross: number(row[3]), discount: number(row[4]), paid: number(row[5]), due: number(row[6]) },
-    { name: "Supervision", gross: number(row[7]), discount: number(row[8]), paid: number(row[9]), due: number(row[10]) },
-    { name: "Others", gross: number(row[11]), discount: number(row[12]), paid: number(row[13]), due: number(row[14]) }
+    {
+      name: "Engineering",
+      gross: amount(row[3], "Engineering Bill"),
+      discount: amount(row[4], "Engineering Discount"),
+      paid: amount(row[5], "Engineering Deposit"),
+      due: amount(row[6], "Engineering Due")
+    },
+    {
+      name: "Supervision",
+      gross: amount(row[7], "Supervision Bill"),
+      discount: amount(row[8], "Supervision Discount"),
+      paid: amount(row[9], "Supervision Deposit"),
+      due: amount(row[10], "Supervision Due")
+    },
+    {
+      name: "Others",
+      gross: amount(row[11], "Others Bill"),
+      discount: amount(row[12], "Others Discount"),
+      paid: amount(row[13], "Others Deposit"),
+      due: amount(row[14], "Others Due")
+    }
   ];
+
   const totals = categories.reduce(function(acc, item) {
-    acc.gross += item.gross; acc.discount += item.discount; acc.paid += item.paid; acc.due += item.due; return acc;
+    acc.gross += item.gross;
+    acc.discount += item.discount;
+    acc.paid += item.paid;
+    acc.due += item.due;
+    return acc;
   }, { gross: 0, discount: 0, paid: 0, due: 0 });
+
+  totals.gross = Math.round(totals.gross * 100) / 100;
+  totals.discount = Math.round(totals.discount * 100) / 100;
+  totals.paid = Math.round(totals.paid * 100) / 100;
+  totals.due = Math.round(totals.due * 100) / 100;
+
+  const summaryTotalDue = amount(row[15], "Total Due");
+  if (Math.abs(summaryTotalDue - totals.due) > 0.01) {
+    throw new Error("Project due amounts do not reconcile with Total Due in the Summary sheet.");
+  }
+
+  categories.forEach(function(item) {
+    const calculatedDue = Math.round((item.gross - item.discount - item.paid) * 100) / 100;
+    if (Math.abs(calculatedDue - item.due) > 0.01) {
+      throw new Error(item.name + " billing does not reconcile in the Summary sheet.");
+    }
+  });
+
+  const status = String(row[16] || "").trim() || (totals.due > 0 ? "Due" : totals.due < 0 ? "Credit" : "Full Paid");
 
   return {
     success: true,
     data: {
       fileId: fileId,
-      clientName: String(row[1] || ""),
-      contact: String(row[2] || ""),
-      status: String(row[16] || (totals.due > 0 ? "Due" : "Full Paid")),
+      clientName: String(row[1] || "").trim(),
+      contact: String(row[2] || "").trim(),
+      status: status,
       categories: categories,
-      totals: totals,
+      totals: {
+        gross: totals.gross,
+        discount: totals.discount,
+        paid: totals.paid,
+        due: summaryTotalDue
+      },
       updatedAt: new Date().toISOString()
     }
   };
