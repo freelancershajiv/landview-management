@@ -38,9 +38,11 @@ export function verifyProjectVerification(token: string): ProjectVerificationPay
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
 
   try {
-    const payload = JSON.parse(decode(body)) as ProjectVerificationPayload;
-    if (payload?.version !== 2 || !/^LV-\d+$/i.test(String(payload.fileId || ""))) return null;
-    return { version: 2, fileId: String(payload.fileId).toUpperCase() };
+    const payload = JSON.parse(decode(body)) as { version?: number; fileId?: string };
+    const fileId = String(payload?.fileId || "").trim().toUpperCase();
+    // Accept previously issued v1 snapshot links, but resolve them to the same live project record.
+    if (![1, 2].includes(Number(payload?.version)) || !/^LV-\d+$/.test(fileId)) return null;
+    return { version: 2, fileId };
   } catch {
     return null;
   }
