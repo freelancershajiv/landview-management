@@ -95,14 +95,25 @@ export default function ProjectBillingPage() {
         <div className={styles.sheetTitle}><small>Page {page} of 3</small><b>Project Billing Statement</b><strong>{title}</strong></div>
       </header>
       <section className={styles.sheetClient}>
-        <div><span>Client Name</span><strong>{result?.client.name || "—"}</strong><span>Address</span><strong>{result?.client.address || "—"}</strong><span>Phone</span><strong>{result?.client.phone || "—"}</strong></div>
-        <div><span>File ID</span><strong>{result?.id || "—"}</strong><span>Project Type</span><strong>{result?.client.type || "—"}</strong><span>Floor / Story</span><strong>{result?.client.floor || "—"}</strong></div>
-        <div><span>Issue Date</span><strong>{generated || "—"}</strong><span>Status</span><strong>{result && result.totals.due > 0 ? "Partial / Due" : "Full Paid"}</strong></div>
+        <div>
+          <span>Invoice ID</span><strong>{result?.id ? `INV-${result.id.replace("LV-", "")}` : "—"}</strong>
+          <span>File ID</span><strong>{result?.id || "—"}</strong>
+          <span>Client Name</span><strong>{result?.client.name || "—"}</strong>
+          <span>Address</span><strong>{result?.client.address || "—"}</strong>
+          <span>Phone</span><strong>{result?.client.phone || "—"}</strong>
+        </div>
+        <div>
+          <span>Date</span><strong>{generated || "—"}</strong>
+          <span>Project Type</span><strong>{result?.client.type || "—"}</strong>
+          <span>Story</span><strong>{result?.client.floor || "—"}</strong>
+          <span>Area</span><strong>{result?.client.area || "—"}</strong>
+          <span>Status</span><strong>{result && result.totals.due > 0 ? "Partial / Due" : "Full Paid"}</strong>
+        </div>
       </section>
     </>
   );
 
-  const engineering = result?.invoices.find((c) => c.name === "Design") || result?.invoices[0];
+  const engineering = result?.invoices.find((c) => c.name === "Engineering") || result?.invoices[0];
   const supervision = result?.invoices.find((c) => c.name === "Supervision") || result?.invoices[1];
   const others = result?.invoices.find((c) => c.name === "Others") || result?.invoices[2];
 
@@ -130,7 +141,7 @@ export default function ProjectBillingPage() {
 
           {supervision && <article className={styles.printPage}><PrintHeader page={2} title="Supervision Bill"/><section className={styles.portraitSection}><div className={styles.sheetMain}><h2>SUPERVISION <span>BILL</span></h2>{renderTable(supervision,"bill")}<h2 className={styles.depositHeading}>SUPERVISION <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(supervision,"deposit")}</div><aside className={styles.sheetSummary}><h3>SUPERVISION SUMMARY</h3><div><span>Total Bill</span><strong>{money(supervision.gross)}</strong></div><div><span>Discount</span><strong>{money(supervision.discount)}</strong></div><div><span>Total Deposit</span><strong>{money(supervision.paid)}</strong></div><div className={styles.sheetDue}><span>Due</span><strong>{money(supervision.due)}</strong></div></aside></section><footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>A SAFER BUILT ENVIRONMENT FOR A BETTER TOMORROW</span></footer></article>}
 
-          {others && <article className={styles.printPage}><PrintHeader page={3} title="Others Bill & Summary"/><section className={styles.portraitSection}><div className={styles.sheetMain}><h2>OTHERS <span>BILL</span></h2>{renderTable(others,"bill")}<h2 className={styles.depositHeading}>OTHERS <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(others,"deposit")}</div><aside className={styles.sheetSummary}><h3>OTHERS SUMMARY</h3><div><span>Total Bill</span><strong>{money(others.gross)}</strong></div><div><span>Discount</span><strong>{money(others.discount)}</strong></div><div><span>Total Deposit</span><strong>{money(others.paid)}</strong></div><div className={styles.sheetDue}><span>Others Due</span><strong>{money(others.due)}</strong></div><h3 className={styles.grandHeading}>GRAND SUMMARY</h3>{result.invoices.map(c=><div key={c.name}><span>{c.name === "Design" ? "Engineering" : c.name} Due</span><strong>{money(c.due)}</strong></div>)}<div className={styles.sheetGrandDue}><span>GRAND TOTAL DUE</span><strong>{money(result.totals.due)}</strong></div></aside></section><div className={styles.sheetBottom}><div className={styles.sheetThanks}>Thank you for your trust in LAND VIEW.<br/>For any query, please contact us.</div><div className={styles.sheetSignature}>Authorized Signature<br/><strong>LAND VIEW</strong></div><div className={styles.sheetQr}>{qrUrl?<img src={qrUrl} alt={`Permanent QR code for ${result.id}`} width={220} height={220}/>:<div className={styles.qrPlaceholder}>{verificationError||"Preparing QR…"}</div>}<div><strong>Scan for live billing</strong><span>Permanent project QR</span><b>{result.id}</b></div></div></div><footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>A SAFER BUILT ENVIRONMENT FOR A BETTER TOMORROW</span></footer></article>}
+          {others && <article className={styles.printPage}><PrintHeader page={3} title="Others Bill & Summary"/><section className={styles.portraitSection}><div className={styles.sheetMain}><h2>OTHERS <span>BILL</span></h2>{renderTable(others,"bill")}<h2 className={styles.depositHeading}>OTHERS <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(others,"deposit")}</div><aside className={styles.sheetSummary}><h3>OTHERS SUMMARY</h3><div><span>Total Bill</span><strong>{money(others.gross)}</strong></div><div><span>Discount</span><strong>{money(others.discount)}</strong></div><div><span>Total Deposit</span><strong>{money(others.paid)}</strong></div><div className={styles.sheetDue}><span>Others Due</span><strong>{money(others.due)}</strong></div><h3 className={styles.grandHeading}>GRAND SUMMARY</h3>{result.invoices.map(c=><div key={c.name}><span>{c.name === "Engineering" ? "Engineering" : c.name} Due</span><strong>{money(c.due)}</strong></div>)}<div className={styles.sheetGrandDue}><span>GRAND TOTAL DUE</span><strong>{money(result.totals.due)}</strong></div></aside></section><div className={styles.sheetBottom}><div className={styles.sheetThanks}>Thank you for your trust in LAND VIEW.<br/>For any query, please contact us.</div><div className={styles.sheetSignature}>Authorized Signature<br/><strong>LAND VIEW</strong></div><div className={styles.sheetQr}>{qrUrl?<img src={qrUrl} alt={`Permanent QR code for ${result.id}`} width={220} height={220}/>:<div className={styles.qrPlaceholder}>{verificationError||"Preparing QR…"}</div>}<div><strong>Scan for live billing</strong><span>Permanent project QR</span><b>{result.id}</b></div></div></div><footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>A SAFER BUILT ENVIRONMENT FOR A BETTER TOMORROW</span></footer></article>}
         </section>
       </>}
     </div>
