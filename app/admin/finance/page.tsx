@@ -8,6 +8,10 @@ const tabs = ["Summary", "Project Billing", "File List", "Design Bill", "Design 
 const money = (value: number) => new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(value);
 type SummaryStatus = "all" | "due" | "full-paid";
 const normalizeStatus = (value: string | undefined) => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+const amount = (value: unknown) => {
+  const n = Number(String(value ?? 0).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
 
 const summaryGroups = [
   { label: "Project Details", span: 3 },
@@ -17,9 +21,37 @@ const summaryGroups = [
   { label: "Account Status", span: 2 },
 ];
 
+type CategoryTotals = { bill: number; discount: number; collected: number; due: number };
+
+function buildCategoryTotals(rows: string[][]) {
+  const engineering: CategoryTotals = { bill: 0, discount: 0, collected: 0, due: 0 };
+  const supervision: CategoryTotals = { bill: 0, discount: 0, collected: 0, due: 0 };
+  const others: CategoryTotals = { bill: 0, discount: 0, collected: 0, due: 0 };
+
+  rows.forEach(row => {
+    engineering.bill += amount(row[3]);
+    engineering.discount += amount(row[4]);
+    engineering.collected += amount(row[5]);
+    engineering.due += amount(row[6]);
+
+    supervision.bill += amount(row[7]);
+    supervision.discount += amount(row[8]);
+    supervision.collected += amount(row[9]);
+    supervision.due += amount(row[10]);
+
+    others.bill += amount(row[11]);
+    others.discount += amount(row[12]);
+    others.collected += amount(row[13]);
+    others.due += amount(row[14]);
+  });
+
+  return { engineering, supervision, others };
+}
+
 export default function FinancePage() {
   const [tab, setTab] = useState("Summary");
   const [data, setData] = useState<FinanceSheetData | null>(null);
+  const [summaryData, setSummaryData] = useState<FinanceSheetData | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -31,11 +63,18 @@ export default function FinancePage() {
   useEffect(() => {
     const id = ++request.current;
     setBusy(true); setError(""); setData(null);
-    landViewApi.getFinanceSheet(tab).then(result => {
-      if (request.current === id) setData(result);
+
+    const currentRequest = landViewApi.getFinanceSheet(tab);
+    const summaryRequest = tab === "Summary" ? currentRequest : landViewApi.getFinanceSheet("Summary");
+
+    Promise.all([currentRequest, summaryRequest]).then(([result, summary]) => {
+      if (request.current !== id) return;
+      setData(result);
+      setSummaryData(summary);
     }).catch(err => {
       if (request.current === id) setError(err instanceof Error ? err.message : "Could not load Finance.");
     }).finally(() => { if (request.current === id) setBusy(false); });
+
     return () => { request.current++; };
   }, [tab, revision]);
 
@@ -51,12 +90,18 @@ export default function FinancePage() {
 
   const pages = Math.max(1, Math.ceil(rows.length / 50));
   const currentPage = Math.min(page, pages - 1);
-  const totals = data?.totals;
+  const categoryTotals = buildCategoryTotals(summaryData?.rows || []);
 
   const setSummaryStatus = (next: Exclude<SummaryStatus,"all">) => {
     setStatus(current => current === next ? "all" : next);
     setPage(0);
   };
+
+  const categoryCards = [
+    { title: "Engineering Bill", data: categoryTotals.engineering },
+    { title: "Supervision Bill", data: categoryTotals.supervision },
+    { title: "Other Services Bill", data: categoryTotals.others },
+  ];
 
   return <div className={styles.finance}>
     <header className={styles.header}>
@@ -67,8 +112,16 @@ export default function FinancePage() {
       </div>
     </header>
 
-    <section className={styles.metrics} aria-label="Workbook balances">
-      {[["Net billed", totals?.billed], ["Discounts", totals?.discount], ["Collected", totals?.paid], ["Outstanding", totals?.due]].map(([label,value]) => <article key={String(label)}><span>{label}</span><strong>{typeof value === "number" ? money(value) : "—"}</strong></article>)}
+    <section className={styles.metrics} aria-label="Finance categories" style={{gridTemplateColumns:"repeat(3,minmax(0,1fr))"}}>
+      {categoryCards.map(category => <article key={category.title} style={{display:"grid",gap:10}}>
+        <span style={{color:"#ef493b",fontWeight:800}}>{category.title}</span>
+        <strong>{money(category.data.due)}</strong>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8,fontSize:10,color:"#8f9aa3"}}>
+          <div><span style={{display:"block",fontSize:8}}>BILL</span><b style={{color:"#e8ecef"}}>{money(category.data.bill)}</b></div>
+          <div><span style={{display:"block",fontSize:8}}>COLLECTED</span><b style={{color:"#e8ecef"}}>{money(category.data.collected)}</b></div>
+          <div><span style={{display:"block",fontSize:8}}>DUE</span><b style={{color:category.data.due>0?"#ff8c83":"#a7dfba"}}>{money(category.data.due)}</b></div>
+        </div>
+      </article>)}
     </section>
 
     <section className={styles.book}>
