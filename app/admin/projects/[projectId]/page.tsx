@@ -31,8 +31,25 @@ const css = `
 
 function idOf(row:any, keys:string[]){ return pick(row, keys, ""); }
 function statusClass(value:string){ const s=String(value||"").toLowerCase(); return s==="completed"?"done":s==="blocked"?"blocked":""; }
-function normalizeFinanceId(value:unknown){ const raw=String(value||"").trim().toUpperCase(); if(!raw)return ""; return raw.startsWith("LV-")?raw:`LV-${raw.replace(/\D/g,"")}`; }
+function normalizeFinanceId(value:unknown){ const raw=String(value||"").trim().toUpperCase(); if(!raw)return ""; const digits=raw.replace(/\D/g,""); return digits?`LV-${Number(digits)}`:raw; }
 function moneyNumber(value:unknown){ const n=Number(String(value??0).replace(/,/g,"").replace(/[^0-9.-]/g,"")); return Number.isFinite(n)?n:0; }
+function projectFromFileList(rows:string[][],projectId:string){
+  const target=normalizeFinanceId(projectId);
+  const row=rows.find(r=>normalizeFinanceId(r[0])===target && String(r[1]||"").trim());
+  if(!row)return null;
+  return {
+    Project_ID:target,
+    Project_Name:String(row[1]||"").trim(),
+    Client_Name:String(row[1]||"").trim(),
+    Phone_Number:String(row[3]||"").trim(),
+    Location:String(row[2]||"").trim(),
+    Floors:String(row[4]||"").trim(),
+    Project_Type:String(row[5]||"").trim(),
+    Plot_Area:String(row[6]||"").trim(),
+    Status:"Running",
+    __source:"File List",
+  };
+}
 function financeFromSummary(rows:string[][],projectId:string,updatedAt?:string):LiveFinance|null{
   const target=normalizeFinanceId(projectId);
   const row=rows.find(r=>normalizeFinanceId(r[0])===target);
@@ -77,17 +94,28 @@ export default function ProjectDetailPage(){
   async function load(){
     setLoading(true); setError("");
     try{
-      const [p,allEmp,assignedEmp,bill,folder,services,sv,docs,allTasks,summary]=await Promise.all([
-        landViewApi.getProject(projectId), landViewApi.getEmployees(), landViewApi.getProjectEmployees(projectId),
-        landViewApi.getProjectBilling(projectId).catch(()=>null), landViewApi.getProjectDriveFolder(projectId), landViewApi.getProjectServiceFolders(projectId),
-        landViewApi.getSiteVisits(projectId), landViewApi.getDocuments(projectId), landViewApi.getErpRecords("tasks").catch(()=>[]),
+      const [fileList,legacyProject,allEmp,assignedEmp,bill,folder,services,sv,docs,allTasks,summary]=await Promise.all([
+        landViewApi.getFinanceSheet("File List"),
+        landViewApi.getProject(projectId).catch(()=>null),
+        landViewApi.getEmployees().catch(()=>[]),
+        landViewApi.getProjectEmployees(projectId).catch(()=>[]),
+        landViewApi.getProjectBilling(projectId).catch(()=>null),
+        landViewApi.getProjectDriveFolder(projectId).catch(()=>null),
+        landViewApi.getProjectServiceFolders(projectId).catch(()=>null),
+        landViewApi.getSiteVisits(projectId).catch(()=>[]),
+        landViewApi.getDocuments(projectId).catch(()=>[]),
+        landViewApi.getErpRecords("tasks").catch(()=>[]),
         landViewApi.getFinanceSheet("Summary").catch(()=>null),
       ]);
+      const fileListProject=projectFromFileList(fileList.rows,projectId);
+      const p=legacyProject||fileListProject;
+      if(!p)throw new Error("Project not found in LV Auto Invoice File List.");
+      if(services?.category)p.Status=services.category;
       setProject(p); setDraft(p); setEmployees(allEmp);
       setAssigned(assignedEmp.map((e:any)=>idOf(e,["Employee_ID","Employee ID","EmployeeId"])).filter(Boolean));
       setBilling(bill); setLiveFinance(summary?financeFromSummary(summary.rows,projectId,summary.updatedAt):null);
-      setDrive(folder); setServiceFolders(services.folders||[]); setVisits(sv); setDocuments(docs);
-      setTasks((allTasks||[]).filter((t:any)=>String(idOf(t,["Project_ID","Project ID","ProjectId"]))===projectId));
+      setDrive(folder||services||null); setServiceFolders(services?.folders||[]); setVisits(sv); setDocuments(docs);
+      setTasks((allTasks||[]).filter((t:any)=>normalizeFinanceId(idOf(t,["Project_ID","Project ID","ProjectId"]))===normalizeFinanceId(projectId)));
     }catch(e:any){ setError(e?.message||"Could not load project."); }
     finally{ setLoading(false); }
   }
@@ -116,8 +144,7 @@ export default function ProjectDetailPage(){
   const tabs:Array<[Tab,string]>=[["overview","Overview"],["workflow","Workflow"],["team","Team"],["finance","Finance"],["visits","Site Visits"],["documents","Documents"],["activity","Activity"]];
 
   return <><style dangerouslySetInnerHTML={{__html:css}}/><div className="pc">
-    <PageHeader eyebrow={`PROJECT COMMAND CENTER · ${projectId}`} title={title} description={`${idOf(project,["Client_Name","Client Name","Client"])||"No client"} · ${idOf(project,["Location","Address"])||"Location not set"}`} action={<div className="pc-actions"><button className="btn btn-light" onClick={()=>setEditing(v=>!v)}>{editing?"Close edit":"Edit project"}</button>{drive?.url&&<a className="btn btn-dark" href={drive.url} target="_blank" rel="noreferrer">Drive folder ↗</a>}<Link className="btn btn-dark" href="/admin/projects">All projects</Link></div>}/>
-    {error&&<div className="notice error"><strong>Notice</strong><span>{error}</span></div>}
+    <PageHeader eyebrow={`PROJECT COMMAND CENTER · ${projectId}`} title={title} description={`${idOf(project,["Client_Name","Client Name","Client"])||"No client"} · ${idOf(project,["Location","Address"])||"Location not set"}`} action={<div className="pc-actions"><Link className="btn" href="/admin/projects">← Projects</Link><button className="btn btn-dark" onClick={()=>setEditing(v=>!v)}>{editing?"Close editor":"Edit project"}</button></div>}/>
 
     <div className="pc-tabs" role="tablist">{tabs.map(([key,label])=><button key={key} className={tab===key?"active":""} onClick={()=>setTab(key)}>{label}{key==="workflow"?` · ${progress}%`:key==="documents"?` · ${documents.length}`:key==="visits"?` · ${visits.length}`:key==="finance"&&liveFinance?` · ${liveFinance.status}`:""}</button>)}</div>
 
