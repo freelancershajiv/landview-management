@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRef, useState, type FormEvent } from "react";
-import { landViewApi } from "@/lib/api";
+import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import {
   buildSheetInvoices,
   invoiceTabs,
@@ -25,6 +25,23 @@ function statementDate() {
     month: "short",
     year: "numeric",
   }).format(new Date());
+}
+
+async function loadFinanceTabs() {
+  const results: FinanceSheetData[] = new Array(invoiceTabs.length);
+  const concurrency = 3;
+  let cursor = 0;
+
+  async function worker() {
+    while (cursor < invoiceTabs.length) {
+      const index = cursor++;
+      const tab = invoiceTabs[index];
+      results[index] = await landViewApi.getFinanceSheet(tab);
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()));
+  return results;
 }
 
 export default function ProjectBillingPage() {
@@ -84,9 +101,7 @@ export default function ProjectBillingPage() {
     setVerificationError("");
 
     try {
-      const sheets = await Promise.all(
-        invoiceTabs.map((tab) => landViewApi.getFinanceSheet(tab))
-      );
+      const sheets = await loadFinanceTabs();
       const billing = buildSheetInvoices(sheets, id);
       if (version === request.current) {
         setResult(billing);
@@ -124,22 +139,7 @@ export default function ProjectBillingPage() {
 
       <form className={styles.lookup} onSubmit={load}>
         <label htmlFor="billing-file">File ID</label>
-        <input
-          id="billing-file"
-          placeholder="209 or LV-209"
-          value={fileId}
-          onChange={(event) => {
-            setFileId(event.target.value);
-            setResult(null);
-            setError("");
-            setVerificationUrl("");
-            setVerificationError("");
-            request.current++;
-            setBusy(false);
-          }}
-          required
-          autoComplete="off"
-        />
+        <input id="billing-file" placeholder="209 or LV-209" value={fileId} onChange={(event) => { setFileId(event.target.value); setResult(null); setError(""); setVerificationUrl(""); setVerificationError(""); request.current++; setBusy(false); }} required autoComplete="off" />
         <button disabled={busy}>{busy ? "Loading…" : "View billing"}</button>
       </form>
 
@@ -149,14 +149,8 @@ export default function ProjectBillingPage() {
       {result && (
         <main className={styles.report}>
           <header className={styles.printHeader}>
-            <div>
-              <strong>LAND <span>VIEW</span></strong>
-              <small>Engineers and Architects</small>
-            </div>
-            <div>
-              <h2>PROJECT BILLING STATEMENT</h2>
-              <p>Generated {generated}</p>
-            </div>
+            <div><strong>LAND <span>VIEW</span></strong><small>Engineers and Architects</small></div>
+            <div><h2>PROJECT BILLING STATEMENT</h2><p>Generated {generated}</p></div>
           </header>
 
           <section className={styles.projectCard}>
