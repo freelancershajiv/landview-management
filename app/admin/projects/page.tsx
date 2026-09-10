@@ -21,21 +21,27 @@ function buildStatusMap(rows:any[]){const map:Record<string,ProjectCategory>={};
 function buildProjectsFromFileList(rows:string[][],statusMap:Record<string,ProjectCategory>):InvoiceProject[]{return rows.map(row=>{const id=normalizeFinanceId(row[0]);if(!id)return null;return{Project_ID:id,Project_Name:String(row[1]||"").trim()||id,Client_Name:String(row[1]||"").trim(),Phone_Number:String(row[3]||"").trim(),Location:String(row[2]||"").trim(),Floors:String(row[4]||"").trim(),Project_Type:String(row[5]||"").trim(),Plot_Area:String(row[6]||"").trim(),Status:statusMap[id]||"Running"};}).filter((project):project is InvoiceProject=>Boolean(project)).sort((a,b)=>Number(b.Project_ID.replace("LV-",""))-Number(a.Project_ID.replace("LV-","")));}
 
 async function matchDriveFolders(projects:InvoiceProject[]){
-  const map:Record<string,DriveProjectInfo>={};
-  let cursor=0;
-  async function worker(){
-    while(cursor<projects.length){
-      const project=projects[cursor++];
-      try{
-        const result=await landViewApi.getProjectServiceFolders(project.Project_ID) as unknown as DriveProjectInfo;
-        map[project.Project_ID]=result;
-      }catch{
-        map[project.Project_ID]={found:false};
-      }
-    }
+  try{
+    const bulk=await landViewApi.getProjectDriveIndex();
+    const source=bulk?.projects||{};
+    const map:Record<string,DriveProjectInfo>={};
+    projects.forEach(project=>{
+      const item=source[project.Project_ID];
+      map[project.Project_ID]=item?{
+        found:true,
+        category:item.category as ProjectCategory|undefined,
+        projectFolderId:item.projectFolderId,
+        projectFolderName:item.projectFolderName,
+        projectFolderUrl:item.projectFolderUrl,
+        folders:item.folders||[],
+      }:{found:false};
+    });
+    return map;
+  }catch{
+    const map:Record<string,DriveProjectInfo>={};
+    projects.forEach(project=>{map[project.Project_ID]={found:false};});
+    return map;
   }
-  await Promise.all(Array.from({length:Math.min(6,projects.length)},()=>worker()));
-  return map;
 }
 
 export default function ProjectsPage(){
@@ -90,6 +96,6 @@ export default function ProjectsPage(){
     <div className="invoice-source-note">Projects: <strong>LV Auto Invoice → File List</strong> · Drive match: <strong>1 - LAND VIEW → LV - Project Files → Running / Paused / Completed</strong> · {linkedCount}/{projects.length} folders matched.</div>
     <div className="project-status-filters" role="group" aria-label="Filter projects by status">{(["All","Running","Paused","Completed"] as const).map(item=><button key={item} type="button" className={category===item?"active":""} onClick={()=>setCategory(item)}>{item}<b>{counts[item]}</b></button>)}</div>
     <div className="toolbar"><div className="search-box"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search File ID, client, Drive folder..."/></div><div className="toolbar-count">{filtered.length} records</div></div>
-    {loading?<LoadingState label="Matching Invoice projects with Google Drive folders..."/>:error?<ErrorState message={error} onRetry={load}/>:!projects.length?<EmptyState title="No projects in File List" text="Add projects to the Invoice Google Sheet File List." href="/admin/finance" action="Open finance"/>:!filtered.length?<EmptyState title={`No ${category === "All" ? "matching" : category} projects`} text="Try another project status or search term."/>:<div className="project-grid">{filtered.map((p,i)=>{const id=p.Project_ID;const cover=previews[id];const account=finance[id];const driveInfo=drive[id];return <Link href={`/admin/projects/${encodeURIComponent(id)}`} className="project-card admin-project-card" key={id}>{cover&&<div className="admin-project-preview"><img src={cover} alt={`${p.Project_Name} preview`}/><span className="admin-project-preview-badge">3D EXTERIOR</span></div>}<div className="admin-project-body"><div className="project-card-top"><span className="project-index">{String(i+1).padStart(2,"0")}</span><StatusBadge value={p.Status}/></div><h3>{p.Project_Name}</h3><p>{p.Location||"Address not set"}</p><div className="project-meta"><div><span>FILE ID</span><strong>{id}</strong></div><div><span>PROJECT TYPE</span><strong>{p.Project_Type||"—"}</strong></div></div><div className="project-meta"><div><span>STORY</span><strong>{p.Floors||"—"}</strong></div><div><span>AREA</span><strong>{p.Plot_Area||"—"}</strong></div></div>{driveInfo?.found?<span className="drive-match">◆ Drive linked · {driveInfo.projectFolderName||p.Status}</span>:<span className="drive-match missing">Drive folder not matched</span>}{account&&<><div className="project-finance-strip"><div><span>Billed</span><strong><Money value={account.billed}/></strong></div><div><span>Received</span><strong><Money value={account.paid}/></strong></div><div className="project-due"><span>Due</span><strong><Money value={account.due}/></strong></div></div><span className={`project-finance-status ${account.due>0?"due":"paid"}`}>{account.status}</span></>}<div className="project-card-foot"><span>{p.Phone_Number||"No contact"}</span><b>{driveInfo?.found?"Drive linked · ":""}Open project →</b></div></div></Link>;})}</div>}
+    {loading?<LoadingState label="Loading projects and matching Drive folders..."/>:error?<ErrorState message={error} onRetry={load}/>:!projects.length?<EmptyState title="No projects in File List" text="Add projects to the Invoice Google Sheet File List." href="/admin/finance" action="Open finance"/>:!filtered.length?<EmptyState title={`No ${category === "All" ? "matching" : category} projects`} text="Try another project status or search term."/>:<div className="project-grid">{filtered.map((p,i)=>{const id=p.Project_ID;const cover=previews[id];const account=finance[id];const driveInfo=drive[id];return <Link href={`/admin/projects/${encodeURIComponent(id)}`} className="project-card admin-project-card" key={id}>{cover&&<div className="admin-project-preview"><img src={cover} alt={`${p.Project_Name} preview`}/><span className="admin-project-preview-badge">3D EXTERIOR</span></div>}<div className="admin-project-body"><div className="project-card-top"><span className="project-index">{String(i+1).padStart(2,"0")}</span><StatusBadge value={p.Status}/></div><h3>{p.Project_Name}</h3><p>{p.Location||"Address not set"}</p><div className="project-meta"><div><span>FILE ID</span><strong>{id}</strong></div><div><span>PROJECT TYPE</span><strong>{p.Project_Type||"—"}</strong></div></div><div className="project-meta"><div><span>STORY</span><strong>{p.Floors||"—"}</strong></div><div><span>AREA</span><strong>{p.Plot_Area||"—"}</strong></div></div>{driveInfo?.found?<span className="drive-match">◆ Drive linked · {driveInfo.projectFolderName||p.Status}</span>:<span className="drive-match missing">Drive folder not matched</span>}{account&&<><div className="project-finance-strip"><div><span>Billed</span><strong><Money value={account.billed}/></strong></div><div><span>Received</span><strong><Money value={account.paid}/></strong></div><div className="project-due"><span>Due</span><strong><Money value={account.due}/></strong></div></div><span className={`project-finance-status ${account.due>0?"due":"paid"}`}>{account.status}</span></>}<div className="project-card-foot"><span>{p.Phone_Number||"No contact"}</span><b>{driveInfo?.found?"Drive linked · ":""}Open project →</b></div></div></Link>;})}</div>}
   </>;
 }
