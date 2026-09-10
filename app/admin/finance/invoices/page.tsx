@@ -33,7 +33,40 @@ export default function ProjectBillingPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [generated, setGenerated] = useState("");
+  const [verificationUrl, setVerificationUrl] = useState("");
+  const [verificationError, setVerificationError] = useState("");
   const request = useRef(0);
+
+  async function createVerification(billing: SheetInvoices, version: number) {
+    try {
+      const response = await fetch("/api/billing-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fileId: billing.id,
+          clientName: billing.client.name,
+          projectType: billing.client.type,
+          totals: billing.totals,
+          categories: billing.invoices.map((category) => ({
+            name: category.name,
+            gross: category.gross,
+            discount: category.discount,
+            paid: category.paid,
+            due: category.due,
+          })),
+        }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json?.success || !json?.url) {
+        throw new Error(json?.error || "Could not create verification link.");
+      }
+      if (request.current === version) setVerificationUrl(String(json.url));
+    } catch (err) {
+      if (request.current === version) {
+        setVerificationError(err instanceof Error ? err.message : "Could not create verification link.");
+      }
+    }
+  }
 
   async function load(event: FormEvent) {
     event.preventDefault();
@@ -47,6 +80,8 @@ export default function ProjectBillingPage() {
     setBusy(true);
     setError("");
     setResult(null);
+    setVerificationUrl("");
+    setVerificationError("");
 
     try {
       const sheets = await Promise.all(
@@ -56,6 +91,7 @@ export default function ProjectBillingPage() {
       if (version === request.current) {
         setResult(billing);
         setGenerated(statementDate());
+        void createVerification(billing, version);
       }
     } catch (err) {
       if (version === request.current) {
@@ -65,6 +101,10 @@ export default function ProjectBillingPage() {
       if (version === request.current) setBusy(false);
     }
   }
+
+  const qrUrl = verificationUrl
+    ? `https://api.qrserver.com/v1/create-qr-code/?size=170x170&margin=8&data=${encodeURIComponent(verificationUrl)}`
+    : "";
 
   return (
     <div className={styles.workspace}>
@@ -92,6 +132,8 @@ export default function ProjectBillingPage() {
             setFileId(event.target.value);
             setResult(null);
             setError("");
+            setVerificationUrl("");
+            setVerificationError("");
             request.current++;
             setBusy(false);
           }}
@@ -214,6 +256,25 @@ export default function ProjectBillingPage() {
             <div><span>Total Discount</span><strong>{money(result.totals.discount)}</strong></div>
             <div><span>Total Deposited</span><strong>{money(result.totals.paid)}</strong></div>
             <div className={styles.grandDue}><span>Grand Total Due</span><strong>{money(result.totals.due)}</strong></div>
+          </section>
+
+          <section className={styles.verificationBlock}>
+            <div>
+              <span className={styles.verificationLabel}>DOCUMENT VERIFICATION</span>
+              <strong>{verificationUrl ? "Scan to verify this billing statement" : "Preparing verification link…"}</strong>
+              <p>{verificationUrl ? "The QR opens a signed LAND VIEW verification page showing this statement's billing snapshot." : verificationError || "A secure verification link is being generated."}</p>
+              {verificationUrl && <a href={verificationUrl} target="_blank" rel="noreferrer">Open verification page ↗</a>}
+            </div>
+            {qrUrl && (
+              <img
+                className={styles.qrCode}
+                src={qrUrl}
+                alt={`QR code to verify ${result.id} billing statement`}
+                width={132}
+                height={132}
+                loading="eager"
+              />
+            )}
           </section>
 
           <footer className={styles.printFooter}>
