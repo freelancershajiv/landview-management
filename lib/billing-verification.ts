@@ -1,24 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export type BillingVerificationPayload = {
-  version: 1;
+export type ProjectVerificationPayload = {
+  version: 2;
   fileId: string;
-  clientName: string;
-  projectType: string;
-  issuedAt: string;
-  totals: {
-    gross: number;
-    discount: number;
-    paid: number;
-    due: number;
-  };
-  categories: Array<{
-    name: string;
-    gross: number;
-    discount: number;
-    paid: number;
-    due: number;
-  }>;
 };
 
 function secret() {
@@ -35,13 +19,16 @@ function decode(value: string) {
   return Buffer.from(value, "base64url").toString("utf8");
 }
 
-export function signBillingVerification(payload: BillingVerificationPayload) {
+export function signProjectVerification(fileId: string) {
+  const normalized = String(fileId || "").trim().toUpperCase();
+  if (!/^LV-\d+$/.test(normalized)) throw new Error("Invalid File ID.");
+  const payload: ProjectVerificationPayload = { version: 2, fileId: normalized };
   const body = encode(JSON.stringify(payload));
   const signature = createHmac("sha256", secret()).update(body).digest("base64url");
   return `${body}.${signature}`;
 }
 
-export function verifyBillingVerification(token: string): BillingVerificationPayload | null {
+export function verifyProjectVerification(token: string): ProjectVerificationPayload | null {
   const [body, signature, extra] = String(token || "").split(".");
   if (!body || !signature || extra) return null;
 
@@ -51,15 +38,9 @@ export function verifyBillingVerification(token: string): BillingVerificationPay
   if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
 
   try {
-    const payload = JSON.parse(decode(body)) as BillingVerificationPayload;
-    if (
-      payload?.version !== 1 ||
-      !/^LV-\d+$/i.test(String(payload.fileId || "")) ||
-      !Array.isArray(payload.categories) ||
-      !payload.totals ||
-      !Number.isFinite(payload.totals.due)
-    ) return null;
-    return payload;
+    const payload = JSON.parse(decode(body)) as ProjectVerificationPayload;
+    if (payload?.version !== 2 || !/^LV-\d+$/i.test(String(payload.fileId || ""))) return null;
+    return { version: 2, fileId: String(payload.fileId).toUpperCase() };
   } catch {
     return null;
   }
