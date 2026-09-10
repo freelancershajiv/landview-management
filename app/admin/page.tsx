@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { landViewApi, DashboardData, FinanceSheetData } from "@/lib/api";
-import { ErrorState, Money, pick, formatDate } from "@/components/lv-ui";
+import { ErrorState, Money, pick } from "@/components/lv-ui";
 import styles from "./dashboard.module.css";
 
 function amount(value: unknown) {
@@ -75,7 +75,6 @@ export default function DashboardPage() {
   const activeProjects = amount(stats?.activeProjectCount);
   const employees = amount(stats?.employeeCount);
   const percentage = billed > 0 ? Math.max(0, Math.round((paid / billed) * 100)) : null;
-  const meter = Math.min(100, percentage ?? 0);
   const term = query.trim().toLowerCase();
   const recent = data?.recentProjects ?? [];
   const projects = recent.filter((project) =>
@@ -109,6 +108,18 @@ export default function DashboardPage() {
       });
     });
     return map;
+  }, [finance]);
+
+  const commercialDues = useMemo(() => {
+    return (finance?.rows ?? []).reduce(
+      (totals, row) => {
+        totals.engineering += amount(row[6]);
+        totals.supervision += amount(row[10]);
+        totals.others += amount(row[14]);
+        return totals;
+      },
+      { engineering: 0, supervision: 0, others: 0 }
+    );
   }, [finance]);
 
   const statusSummary = useMemo(() => {
@@ -216,15 +227,26 @@ export default function DashboardPage() {
           <div className={styles.middle}>
             <section className={styles.collection} aria-labelledby="collection-heading">
               <div className={styles.panelTop}><h2 id="collection-heading">Commercial health</h2><Link href="/admin/finance">Open finance ↗</Link></div>
-              <div className={styles.collectionBody}>
-                <div className={styles.ring} style={{ background: `conic-gradient(#ef493b ${meter}%, #424242 0)` }} aria-hidden="true">
-                  <div><strong>{percentage === null ? "—" : `${percentage}%`}</strong><span>collected</span></div>
-                </div>
-                <div className={styles.collectionFigures}>
-                  <span>Cash received from Finance Summary</span><strong><Money value={paid} /></strong>
-                  <small>{billed > 0 ? <><Money value={billed} /> net billed · <Money value={due} /> due</> : "No bills recorded"}</small>
-                  <div className={styles.track} role="progressbar" aria-label="Bill collection" aria-valuemin={0} aria-valuemax={100} aria-valuenow={meter} aria-valuetext={percentage === null ? "No bills recorded" : `${percentage}% collected`}><span style={{ width: `${meter}%` }} /></div>
-                </div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,marginTop:20}}>
+                <Link href="/admin/finance" style={{display:"flex",flexDirection:"column",gap:8,padding:16,border:"1px solid #4a3d3b",borderRadius:10,background:"linear-gradient(145deg,#302827,#272727)",color:"#f4f4f4"}}>
+                  <span style={{fontSize:10,color:"#b7b7b7",textTransform:"uppercase",letterSpacing:".08em"}}>Engineering Bill</span>
+                  <strong style={{fontSize:24,fontWeight:650,color:"#ff9187"}}><Money value={commercialDues.engineering} /></strong>
+                  <small style={{fontSize:10,color:"#9f9f9f"}}>Engineering / design due</small>
+                </Link>
+                <Link href="/admin/finance" style={{display:"flex",flexDirection:"column",gap:8,padding:16,border:"1px solid #4a3d3b",borderRadius:10,background:"linear-gradient(145deg,#302827,#272727)",color:"#f4f4f4"}}>
+                  <span style={{fontSize:10,color:"#b7b7b7",textTransform:"uppercase",letterSpacing:".08em"}}>Supervision Bill</span>
+                  <strong style={{fontSize:24,fontWeight:650,color:"#ff9187"}}><Money value={commercialDues.supervision} /></strong>
+                  <small style={{fontSize:10,color:"#9f9f9f"}}>Site supervision due</small>
+                </Link>
+                <Link href="/admin/finance" style={{display:"flex",flexDirection:"column",gap:8,padding:16,border:"1px solid #4a3d3b",borderRadius:10,background:"linear-gradient(145deg,#302827,#272727)",color:"#f4f4f4"}}>
+                  <span style={{fontSize:10,color:"#b7b7b7",textTransform:"uppercase",letterSpacing:".08em"}}>Other Services Bill</span>
+                  <strong style={{fontSize:24,fontWeight:650,color:"#ff9187"}}><Money value={commercialDues.others} /></strong>
+                  <small style={{fontSize:10,color:"#9f9f9f"}}>Other services due</small>
+                </Link>
+              </div>
+              <div style={{display:"flex",justifyContent:"space-between",gap:16,flexWrap:"wrap",marginTop:14,paddingTop:14,borderTop:"1px solid #3d3d3d",fontSize:11,color:"#aaa"}}>
+                <span>Total outstanding <strong style={{color:"#f4f4f4",marginLeft:6}}><Money value={due} /></strong></span>
+                <span>Collected <strong style={{color:"#f4f4f4",marginLeft:6}}><Money value={paid} /></strong> · {percentage === null ? "—" : `${percentage}%`}</span>
               </div>
             </section>
 
