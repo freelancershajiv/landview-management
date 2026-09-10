@@ -2,10 +2,22 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
-import { EmptyState, ErrorState, LoadingState, Money, PageHeader, StatusBadge, pick, formatDate } from "@/components/lv-ui";
+import { EmptyState, ErrorState, LoadingState, Money, PageHeader, StatusBadge, pick } from "@/components/lv-ui";
 
 type PublicProjectPreview={projectId?:string;coverImageUrl?:string};
 type ProjectFinance={billed:number;paid:number;due:number;status:string};
+
+type InvoiceProject={
+  Project_ID:string;
+  Project_Name:string;
+  Client_Name:string;
+  Phone_Number:string;
+  Location:string;
+  Floors:string;
+  Project_Type:string;
+  Plot_Area:string;
+  Status:string;
+};
 
 function imageUrl(url?:string){
   const value=String(url||"").trim();
@@ -31,7 +43,7 @@ function isExteriorDocument(document:any){
 function buildDocumentPreviewMap(documents:any[]){
   const grouped:Record<string,any[]>={};
   documents.filter(isExteriorDocument).forEach(document=>{
-    const projectId=String(pick(document,["Project_ID","Project ID","ProjectId"],"")).trim();
+    const projectId=normalizeFinanceId(pick(document,["Project_ID","Project ID","ProjectId"],""));
     if(!projectId)return;
     (grouped[projectId] ||= []).push(document);
   });
@@ -55,12 +67,16 @@ function buildDocumentPreviewMap(documents:any[]){
 function normalizeFinanceId(value:unknown){
   const raw=String(value||"").trim().toUpperCase();
   if(!raw)return "";
-  return raw.startsWith("LV-")?raw:`LV-${raw.replace(/\D/g,"")}`;
+  const digits=raw.replace(/\D/g,"");
+  if(!digits)return raw;
+  return `LV-${Number(digits)}`;
 }
+
 function moneyNumber(value:unknown){
   const n=Number(String(value??0).replace(/,/g,"").replace(/[^0-9.-]/g,""));
   return Number.isFinite(n)?n:0;
 }
+
 function buildFinanceMap(rows:string[][]){
   const map:Record<string,ProjectFinance>={};
   rows.forEach(row=>{
@@ -75,8 +91,30 @@ function buildFinanceMap(rows:string[][]){
   return map;
 }
 
+function buildProjectsFromFileList(rows:string[][],finance:Record<string,ProjectFinance>):InvoiceProject[]{
+  return rows
+    .map(row=>{
+      const id=normalizeFinanceId(row[0]);
+      if(!id)return null;
+      const account=finance[id];
+      return {
+        Project_ID:id,
+        Project_Name:String(row[1]||"").trim() || id,
+        Client_Name:String(row[1]||"").trim(),
+        Phone_Number:String(row[3]||"").trim(),
+        Location:String(row[2]||"").trim(),
+        Floors:String(row[4]||"").trim(),
+        Project_Type:String(row[5]||"").trim(),
+        Plot_Area:String(row[6]||"").trim(),
+        Status:account?.status || "Project",
+      };
+    })
+    .filter((project):project is InvoiceProject=>Boolean(project))
+    .sort((a,b)=>Number(b.Project_ID.replace("LV-",""))-Number(a.Project_ID.replace("LV-","")));
+}
+
 export default function ProjectsPage(){
-  const [projects,setProjects]=useState<any[]>([]);
+  const [projects,setProjects]=useState<InvoiceProject[]>([]);
   const [previews,setPreviews]=useState<Record<string,string>>({});
   const [finance,setFinance]=useState<Record<string,ProjectFinance>>({});
   const [loading,setLoading]=useState(true);
@@ -86,37 +124,52 @@ export default function ProjectsPage(){
   async function load(){
     setLoading(true);setError("");
     try{
-      const [rows,documents,summary]=await Promise.all([
-        landViewApi.getProjects(),
-        landViewApi.getDocuments().catch(()=>[]),
+      const [fileList,summary,documents]=await Promise.all([
+        landViewApi.getFinanceSheet("File List"),
         landViewApi.getFinanceSheet("Summary").catch(()=>null),
+        landViewApi.getDocuments().catch(()=>[]),
       ]);
-      setProjects(rows);
-      setFinance(summary?buildFinanceMap(summary.rows):{});
+
+      const financeMap=summary?buildFinanceMap(summary.rows):{};
+      setFinance(financeMap);
+      setProjects(buildProjectsFromFileList(fileList.rows,financeMap));
 
       const map=buildDocumentPreviewMap(documents);
-
       try{
         const response=await fetch("/api/public/projects",{cache:"no-store"});
         const json=await response.json();
         const publicRows:PublicProjectPreview[]=Array.isArray(json?.data)?json.data:Array.isArray(json)?json:[];
         publicRows.forEach(p=>{
-          const id=String(p.projectId||"").trim();
+          const id=normalizeFinanceId(p.projectId);
           const cover=imageUrl(p.coverImageUrl);
           if(id&&cover&&!map[id])map[id]=cover;
         });
       }catch{}
-
       setPreviews(map);
     }catch(e:any){
-      setError(e?.message||"Could not load projects.");
+      setError(e?.message||"Could not load projects from Invoice File List.");
     }finally{
       setLoading(false);
     }
   }
 
-  useEffect(()=>{load()},[]);
-  const filtered=useMemo(()=>projects.filter(p=>JSON.stringify(p).toLowerCase().includes(query.toLowerCase())),[projects,query]);
+  useEffect(()=>{void load()},[]);
+
+  const filtered=useMemo(()=>{
+    const term=query.trim().toLowerCase();
+    if(!term)return projects;
+    return projects.filter(project=>[
+      project.Project_ID,
+      project.Project_Name,
+      project.Client_Name,
+      project.Phone_Number,
+      project.Location,
+      project.Project_Type,
+      project.Floors,
+      project.Plot_Area,
+      project.Status,
+    ].join(" ").toLowerCase().includes(term));
+  },[projects,query]);
 
   return <>
     <style>{`
@@ -137,25 +190,28 @@ export default function ProjectsPage(){
       .project-finance-strip .project-due strong{color:#ff8c83}
       .project-finance-status{display:inline-flex;margin-top:10px;padding:5px 8px;border-radius:5px;background:#333;color:#bbb;font-size:8px;font-weight:700}
       .project-finance-status.paid{background:#223b2c;color:#a7dfba}.project-finance-status.due{background:#472824;color:#ff9a91}
+      .invoice-source-note{margin:-8px 0 18px;color:#8f9aa3;font-size:10px}.invoice-source-note strong{color:#d6a62c}
     `}</style>
 
-    <PageHeader eyebrow="PROJECT CONTROL" title="Projects" description="Manage every LAND VIEW project from one workspace with live finance status." action={<Link className="btn btn-dark" href="/admin/projects/new">+ New project</Link>}/>
-    <div className="toolbar"><div className="search-box"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search project, client, location..."/></div><div className="toolbar-count">{filtered.length} records</div></div>
+    <PageHeader eyebrow="PROJECT CONTROL" title="Projects" description="Project register pulled directly from the Invoice Google Sheet File List with live finance status." action={<Link className="btn btn-dark" href="/admin/finance/invoices">LV-Auto Invoice</Link>}/>
+    <div className="invoice-source-note">Source: <strong>Finance / Invoice Google Sheet → File List</strong>. Refresh this page after changing the sheet.</div>
+    <div className="toolbar"><div className="search-box"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search File ID, client, address, type..."/></div><div className="toolbar-count">{filtered.length} records</div></div>
 
-    {loading?<LoadingState label="Loading projects..."/>:error?<ErrorState message={error} onRetry={load}/>:!projects.length?<EmptyState title="No projects yet" text="Create the first LAND VIEW project." href="/admin/projects/new" action="Create project"/>:<div className="project-grid">
+    {loading?<LoadingState label="Loading projects from Invoice File List..."/>:error?<ErrorState message={error} onRetry={load}/>:!projects.length?<EmptyState title="No projects in File List" text="Add projects to the Invoice Google Sheet File List." href="/admin/finance" action="Open finance"/>:<div className="project-grid">
       {filtered.map((p,i)=>{
-        const id=pick(p,["Project_ID","Project ID","ProjectId"],`Project-${i+1}`);
+        const id=p.Project_ID;
         const cover=previews[id];
-        const account=finance[normalizeFinanceId(id)];
+        const account=finance[id];
         return <Link href={`/admin/projects/${encodeURIComponent(id)}`} className="project-card admin-project-card" key={id}>
-          {cover&&<div className="admin-project-preview"><img src={cover} alt={`${pick(p,["Project_Name","Project Name","Name"],id)} preview`}/><span className="admin-project-preview-badge">3D EXTERIOR</span></div>}
+          {cover&&<div className="admin-project-preview"><img src={cover} alt={`${p.Project_Name} preview`}/><span className="admin-project-preview-badge">3D EXTERIOR</span></div>}
           <div className="admin-project-body">
-            <div className="project-card-top"><span className="project-index">{String(i+1).padStart(2,"0")}</span><StatusBadge value={pick(p,["Status","status","Active"],"Active")}/></div>
-            <h3>{pick(p,["Project_Name","Project Name","Name","Project_Type","Project Type"],id)}</h3>
-            <p>{pick(p,["Location","Address","Project_Location"],"Location not set")}</p>
-            <div className="project-meta"><div><span>PROJECT ID</span><strong>{id}</strong></div><div><span>CLIENT</span><strong>{pick(p,["Client_Name","Client Name","Client"],"—")}</strong></div></div>
+            <div className="project-card-top"><span className="project-index">{String(i+1).padStart(2,"0")}</span><StatusBadge value={p.Status}/></div>
+            <h3>{p.Project_Name}</h3>
+            <p>{p.Location||"Address not set"}</p>
+            <div className="project-meta"><div><span>FILE ID</span><strong>{id}</strong></div><div><span>PROJECT TYPE</span><strong>{p.Project_Type||"—"}</strong></div></div>
+            <div className="project-meta"><div><span>STORY</span><strong>{p.Floors||"—"}</strong></div><div><span>AREA</span><strong>{p.Plot_Area||"—"}</strong></div></div>
             {account&&<><div className="project-finance-strip"><div><span>Billed</span><strong><Money value={account.billed}/></strong></div><div><span>Received</span><strong><Money value={account.paid}/></strong></div><div className="project-due"><span>Due</span><strong><Money value={account.due}/></strong></div></div><span className={`project-finance-status ${account.due>0?"due":"paid"}`}>{account.status}</span></>}
-            <div className="project-card-foot"><span>{formatDate(p.Start_Date||p["Start Date"]||p.Created_Date)}</span><b>Open project →</b></div>
+            <div className="project-card-foot"><span>{p.Phone_Number||"No contact"}</span><b>Open project →</b></div>
           </div>
         </Link>;
       })}
