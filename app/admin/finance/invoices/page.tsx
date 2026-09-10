@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import {
   buildSheetInvoices,
@@ -31,6 +31,13 @@ async function loadFinanceTabs() {
   return results;
 }
 
+type FileListProject = {
+  id: string;
+  name: string;
+  type: string;
+  floor: string;
+};
+
 export default function ProjectBillingPage() {
   const [fileId, setFileId] = useState("");
   const [result, setResult] = useState<SheetInvoices | null>(null);
@@ -39,7 +46,48 @@ export default function ProjectBillingPage() {
   const [generated, setGenerated] = useState("");
   const [verificationUrl, setVerificationUrl] = useState("");
   const [verificationError, setVerificationError] = useState("");
+  const [fileListProjects, setFileListProjects] = useState<FileListProject[]>([]);
+  const [fileListLoading, setFileListLoading] = useState(true);
+  const [fileListError, setFileListError] = useState("");
   const request = useRef(0);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProjects() {
+      setFileListLoading(true);
+      setFileListError("");
+      try {
+        const sheet = await landViewApi.getFinanceSheet("File List");
+        if (!active) return;
+
+        const projects = (sheet.rows || [])
+          .map((row): FileListProject | null => {
+            const normalized = normalizeFileId(String(row[0] || ""));
+            if (!normalized) return null;
+            return {
+              id: `LV-${normalized}`,
+              name: String(row[1] || "").trim(),
+              floor: String(row[4] || "").trim(),
+              type: String(row[5] || "").trim(),
+            };
+          })
+          .filter((item): item is FileListProject => Boolean(item))
+          .sort((a, b) => Number(b.id.replace("LV-", "")) - Number(a.id.replace("LV-", "")));
+
+        setFileListProjects(projects);
+      } catch (err) {
+        if (active) setFileListError(err instanceof Error ? err.message : "Could not load projects from File List.");
+      } finally {
+        if (active) setFileListLoading(false);
+      }
+    }
+
+    void loadProjects();
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function createVerification(billing: SheetInvoices, version: number) {
     try {
@@ -59,7 +107,7 @@ export default function ProjectBillingPage() {
   async function load(event: FormEvent) {
     event.preventDefault();
     const id = normalizeFileId(fileId);
-    if (!id) return setError("Enter a File ID such as 209 or LV-209.");
+    if (!id) return setError("Select a project from File List or enter a File ID such as LV-209.");
     const version = ++request.current;
     setBusy(true); setError(""); setResult(null); setVerificationUrl(""); setVerificationError("");
     try {
@@ -132,11 +180,29 @@ export default function ProjectBillingPage() {
   return (
     <div className={styles.workspace}>
       <div className={styles.header}>
-        <div><Link href="/admin/finance">← Finance</Link><span className={styles.eyebrow}>LAND VIEW / ACCOUNTS</span><h1>Project Billing Lookup</h1><p>Enter a File ID to pull every bill and deposit and calculate the live balance.</p></div>
+        <div><Link href="/admin/finance">← Finance</Link><span className={styles.eyebrow}>LAND VIEW / ACCOUNTS</span><h1>LV-Auto Invoice</h1><p>Select a project pulled directly from Finance → File List, then load its live billing statement.</p></div>
         {result && <button className={styles.printButton} type="button" onClick={() => window.print()}>Print / Save PDF</button>}
       </div>
 
-      <form className={styles.lookup} onSubmit={load}><label htmlFor="billing-file">File ID</label><input id="billing-file" placeholder="209 or LV-209" value={fileId} onChange={(event)=>{setFileId(event.target.value);setResult(null);setError("");setVerificationUrl("");setVerificationError("");request.current++;setBusy(false);}} required autoComplete="off"/><button disabled={busy}>{busy?"Loading…":"View billing"}</button></form>
+      <form className={styles.lookup} onSubmit={load}>
+        <label htmlFor="billing-file">Project / File ID</label>
+        <input
+          id="billing-file"
+          list="billing-project-list"
+          placeholder={fileListLoading ? "Loading projects from File List…" : "Search LV-209 or choose a project"}
+          value={fileId}
+          onChange={(event)=>{setFileId(event.target.value);setResult(null);setError("");setVerificationUrl("");setVerificationError("");request.current++;setBusy(false);}}
+          required
+          autoComplete="off"
+        />
+        <datalist id="billing-project-list">
+          {fileListProjects.map((project)=><option key={project.id} value={project.id}>{[project.name,project.type,project.floor].filter(Boolean).join(" · ")}</option>)}
+        </datalist>
+        <button disabled={busy}>{busy?"Loading…":"View billing"}</button>
+        <span style={{width:"100%",fontSize:10,color:fileListError?"#ffb4aa":"#94a3ad"}}>
+          {fileListError ? `File List unavailable: ${fileListError}` : fileListLoading ? "Loading project register…" : `${fileListProjects.length} projects pulled from Finance → File List`}
+        </span>
+      </form>
       {error && <div className={styles.error} role="alert">{error}</div>}{busy && <div className={styles.loading} role="status">Pulling bill and deposit records…</div>}
 
       {result && <>
