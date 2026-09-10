@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import styles from "./finance.module.css";
 
-const tabs = ["Summary", "Invoice", "File List", "Design Bill", "Design Deposit", "Supervision Bill", "S Deposit", "Others Bill", "Others Bill Deposit"];
+const tabs = ["Summary", "Project Billing", "File List", "Design Bill", "Design Deposit", "Supervision Bill", "S Deposit", "Others Bill", "Others Bill Deposit"];
 const money = (value: number) => new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(value);
 type SummaryStatus = "all" | "due" | "full-paid";
 const normalizeStatus = (value: string | undefined) => String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
@@ -39,7 +39,6 @@ export default function FinancePage() {
     return () => { request.current++; };
   }, [tab, revision]);
 
-  // Summary column Q is the Status source in Google Sheets.
   const statusColumn = tab === "Summary" ? 16 : -1;
   const searchedRows = (data?.rows || []).filter(row => row.some(cell => cell.toLowerCase().includes(query.trim().toLowerCase())));
   const rows = searchedRows.filter(row => {
@@ -73,7 +72,7 @@ export default function FinancePage() {
     </section>
 
     <section className={styles.book}>
-      <nav className={styles.tabs} aria-label="Finance worksheets">{tabs.map(name => name === "Invoice" ? <Link key={name} href="/admin/finance/invoices" style={{padding:"19px 15px",whiteSpace:"nowrap",color:"#e9b620",fontSize:12}}>Invoice ↗</Link> : <button key={name} aria-current={tab === name ? "page" : undefined} onClick={() => { setTab(name); setQuery(""); setStatus("all"); setPage(0); }}>{name === "S Deposit" ? "Supervision Deposit" : name}</button>)}</nav>
+      <nav className={styles.tabs} aria-label="Finance worksheets">{tabs.map(name => name === "Project Billing" ? <Link key={name} href="/admin/finance/invoices" style={{padding:"19px 15px",whiteSpace:"nowrap",color:"#e9b620",fontSize:12}}>Project Billing ↗</Link> : <button key={name} aria-current={tab === name ? "page" : undefined} onClick={() => { setTab(name); setQuery(""); setStatus("all"); setPage(0); }}>{name === "S Deposit" ? "Supervision Deposit" : name}</button>)}</nav>
 
       <div className={styles.toolbar}>
         <div><h2>{tab}</h2><span>{data ? `${rows.length} rows · Updated ${new Date(data.updatedAt).toLocaleTimeString([], {hour:"2-digit",minute:"2-digit"})}` : "Google Sheets"}</span></div>
