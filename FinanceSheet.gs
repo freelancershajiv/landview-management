@@ -61,7 +61,7 @@ function getFinanceSheet(params) {
   let rows = (tab === "Invoice" ? grid : grid.slice(1)).filter(function(row) {
     if (tab === "Invoice") return row.some(hasValue);
     if (tab === "Summary") return !!populatedIds[String(row[0])];
-    if (tab === "File List") return row.slice(1).some(hasValue);
+    if (tab === "File List") return hasValue(row[0]);
     return row.slice(2).some(hasValue);
   });
 
