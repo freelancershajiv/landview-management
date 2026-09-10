@@ -16,6 +16,63 @@ var PROJECT_SERVICE_FOLDERS = [
   "Others"
 ];
 
+var LAND_VIEW_PROJECT_CATEGORY_FOLDERS = [
+  { category: "Running", id: "1CdNKErfF37bAZCZvU499pwLfMapUVwEk" },
+  { category: "Paused", id: "1-9snSTay0Jrv9lnjhpOvPCw-hxxQhp5d" },
+  { category: "Completed", id: "1K8k8uYM1Ra3sfJYGmmIm5gaH2bEE0DD5" }
+];
+
+function normalizeDriveProjectId_(value) {
+  var text = String(value || "").trim().toUpperCase();
+  var match = text.match(/LV[\s_-]*0*(\d+)/i);
+  if (match && match[1]) return "LV-" + Number(match[1]);
+  var digits = text.replace(/\D/g, "");
+  return digits ? "LV-" + Number(digits) : "";
+}
+
+function findExistingDriveProjectFolder_(projectId) {
+  var target = normalizeDriveProjectId_(projectId);
+  if (!target) return null;
+
+  for (var i = 0; i < LAND_VIEW_PROJECT_CATEGORY_FOLDERS.length; i++) {
+    var source = LAND_VIEW_PROJECT_CATEGORY_FOLDERS[i];
+    var parent;
+    try {
+      parent = DriveApp.getFolderById(source.id);
+    } catch (error) {
+      continue;
+    }
+
+    var folders = parent.getFolders();
+    while (folders.hasNext()) {
+      var folder = folders.next();
+      if (normalizeDriveProjectId_(folder.getName()) === target) {
+        return {
+          projectId: target,
+          category: source.category,
+          folder: folder,
+          folderId: folder.getId(),
+          folderName: folder.getName(),
+          folderUrl: folder.getUrl()
+        };
+      }
+    }
+  }
+
+  return null;
+}
+
+function listExistingProjectChildFolders_(projectFolder) {
+  var result = [];
+  var folders = projectFolder.getFolders();
+  while (folders.hasNext()) {
+    var folder = folders.next();
+    result.push({ name: folder.getName(), id: folder.getId(), url: folder.getUrl() });
+  }
+  result.sort(function(a, b) { return a.name.localeCompare(b.name); });
+  return result;
+}
+
 function isAllowedProjectServiceFolder_(name) {
   var target = String(name || "").trim();
   return PROJECT_SERVICE_FOLDERS.indexOf(target) >= 0;
@@ -25,36 +82,57 @@ function ensureProjectServiceFolders_(projectId) {
   var id = String(projectId || "").trim();
   if (!id) throw new Error("Project ID is required.");
 
-  var drive = ensureProjectDriveStructure(id);
-  var projectFolder = drive.projectFolder;
+  var existing = findExistingDriveProjectFolder_(id);
+  var projectFolder = existing ? existing.folder : ensureProjectDriveStructure(id).projectFolder;
   var folders = PROJECT_SERVICE_FOLDERS.map(function(name) {
     var folder = getOrCreateChildFolder(projectFolder, name);
     return { name: name, id: folder.getId(), url: folder.getUrl(), folder: folder };
   });
 
   return {
-    projectId: id,
+    projectId: normalizeDriveProjectId_(id) || id,
     projectFolderId: projectFolder.getId(),
     projectFolderUrl: projectFolder.getUrl(),
+    category: existing ? existing.category : "Running",
     folders: folders
   };
 }
 
+/*
+ * Read-only folder lookup used by the Projects page.
+ * This NEVER creates a project folder or service folder.
+ */
 function getProjectServiceFolders(params) {
   var session = requireSession(params);
   var projectId = String(params.projectId || params.Project_ID || "").trim();
   assertProjectAccess(session, projectId);
 
-  var result = ensureProjectServiceFolders_(projectId);
+  var existing = findExistingDriveProjectFolder_(projectId);
+  if (!existing) {
+    return {
+      success: true,
+      data: {
+        projectId: normalizeDriveProjectId_(projectId) || projectId,
+        found: false,
+        category: "",
+        projectFolderId: "",
+        projectFolderName: "",
+        projectFolderUrl: "",
+        folders: []
+      }
+    };
+  }
+
   return {
     success: true,
     data: {
-      projectId: result.projectId,
-      projectFolderId: result.projectFolderId,
-      projectFolderUrl: result.projectFolderUrl,
-      folders: result.folders.map(function(item) {
-        return { name: item.name, id: item.id, url: item.url };
-      })
+      projectId: existing.projectId,
+      found: true,
+      category: existing.category,
+      projectFolderId: existing.folderId,
+      projectFolderName: existing.folderName,
+      projectFolderUrl: existing.folderUrl,
+      folders: listExistingProjectChildFolders_(existing.folder)
     }
   };
 }
@@ -98,13 +176,10 @@ function uploadProjectServiceFile(params) {
   var blob = Utilities.newBlob(bytes, mimeType || "application/octet-stream", safeName);
   var file = target.folder.createFile(blob);
 
-  /* Exterior render images are intended for the public portfolio. */
   if (isPortfolioExteriorImage_(folderName, safeName, mimeType)) {
     try {
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-    } catch (error) {
-      /* Workspace policies may prevent link sharing. */
-    }
+    } catch (error) {}
   }
 
   try {
