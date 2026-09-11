@@ -16,6 +16,7 @@ const nav = [
   { href: "/admin/projects", label: "Projects", accounts: true },
   { href: "/admin/workflow", label: "Workflow" },
   { href: "/admin/employees", label: "Employees" },
+  { href: "/admin/certificate-requests", label: "Certificate Requests" },
   { href: "/admin/certificates", label: "Certificates" },
   { href: "/admin/finance", label: "Finance", accounts: true },
 ];
