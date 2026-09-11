@@ -29,6 +29,19 @@ function isAdminWorkspaceRole(role: string) {
   return role === "admin" || role === "manager" || role === "accounts";
 }
 
+async function quickPost(action: string, body: Record<string, unknown> = {}) {
+  const response = await fetch("/api/landview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
+    cache: "no-store",
+    body: JSON.stringify({ action, ...body }),
+  });
+  const json = await response.json();
+  if (!response.ok || !json?.success) throw new Error(String(json?.error || json?.message || "Quick access request failed."));
+  return json.data || {};
+}
+
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -36,6 +49,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const [ready, setReady] = useState(false);
   const [sessionError, setSessionError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [quickConfigured, setQuickConfigured] = useState(false);
+  const [quickBusy, setQuickBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -51,36 +66,26 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     const watchdog = window.setTimeout(() => {
       if (cancelled || hasUsableCache) return;
       clearStoredSession();
-      setSessionError(
-        "The backend did not validate the session. Check your Apps Script /exec deployment URL."
-      );
+      setSessionError("The backend did not validate the session. Check your Apps Script /exec deployment URL.");
     }, SESSION_WATCHDOG_MS);
 
     async function verify() {
       try {
         const session = await landViewApi.getSession();
-
-        if (!session?.authenticated) {
-          throw new Error("Session expired");
-        }
+        if (!session?.authenticated) throw new Error("Session expired");
 
         const sessionRole = roleOf(session.user);
-
         if (sessionRole === "employee") {
           window.clearTimeout(watchdog);
           router.replace("/employee");
           return;
         }
-
         if (sessionRole === "client") {
           window.clearTimeout(watchdog);
           router.replace("/client");
           return;
         }
-
-        if (!isAdminWorkspaceRole(sessionRole)) {
-          throw new Error("This account does not have administrator access.");
-        }
+        if (!isAdminWorkspaceRole(sessionRole)) throw new Error("This account does not have administrator access.");
 
         if (!cancelled) {
           window.clearTimeout(watchdog);
@@ -93,32 +98,80 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         window.clearTimeout(watchdog);
         clearStoredSession();
         console.error("LAND VIEW workspace session check failed:", err);
-
         if (!cancelled) {
           if (hasUsableCache) {
             router.replace("/login");
             return;
           }
-          setSessionError(
-            err?.message || "Unable to validate the LAND VIEW session."
-          );
+          setSessionError(err?.message || "Unable to validate the LAND VIEW session.");
         }
       }
     }
 
     void verify();
-
     return () => {
       cancelled = true;
       window.clearTimeout(watchdog);
     };
   }, [router]);
 
+  useEffect(() => {
+    if (!ready) return;
+    void quickPost("quickPinStatus")
+      .then((data) => setQuickConfigured(Boolean(data?.configured)))
+      .catch(() => {});
+  }, [ready]);
+
+  async function setupOrLockQuickPin() {
+    if (quickBusy) return;
+    const role = roleOf(user);
+    if (role !== "admin" && role !== "manager") {
+      window.alert("Quick PIN is available only to Admin or Manager accounts.");
+      return;
+    }
+
+    if (quickConfigured) {
+      setQuickBusy(true);
+      try {
+        await quickPost("quickLock");
+        clearStoredSession();
+        router.replace("/login");
+      } catch (err: any) {
+        window.alert(err?.message || "Could not lock with Quick PIN.");
+      } finally {
+        setQuickBusy(false);
+      }
+      return;
+    }
+
+    const first = window.prompt("Create a 6-digit Quick PIN for this trusted browser:", "");
+    if (first === null) return;
+    if (!/^\d{6}$/.test(first)) {
+      window.alert("Quick PIN must be exactly 6 digits.");
+      return;
+    }
+    const second = window.prompt("Confirm the same 6-digit Quick PIN:", "");
+    if (second !== first) {
+      window.alert("PINs did not match.");
+      return;
+    }
+
+    setQuickBusy(true);
+    try {
+      await quickPost("setQuickPin", { pin: first });
+      setQuickConfigured(true);
+      window.alert("Quick PIN is ready on this browser. Use PIN LOCK when leaving the admin panel.");
+    } catch (err: any) {
+      window.alert(err?.message || "Could not set Quick PIN.");
+    } finally {
+      setQuickBusy(false);
+    }
+  }
+
   async function logout() {
     try {
       await landViewApi.logout();
     } catch {}
-
     clearStoredSession();
     router.replace("/login");
   }
@@ -127,19 +180,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     return (
       <main className="login-loading">
         <div className="loading-panel" style={{ maxWidth: 520, padding: 24 }}>
-          <img
-            className="loading-brand-image"
-            src="/land-view-logo.svg"
-            alt="LAND VIEW"
-          />
+          <img className="loading-brand-image" src="/land-view-logo.svg" alt="LAND VIEW" />
           <p style={{ marginBottom: 16 }}>{sessionError}</p>
-          <button
-            className="btn btn-accent"
-            onClick={() => {
-              clearStoredSession();
-              router.replace("/login");
-            }}
-          >
+          <button className="btn btn-accent" onClick={() => { clearStoredSession(); router.replace("/login"); }}>
             Return to sign in
           </button>
         </div>
@@ -151,11 +194,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     return (
       <main className="login-loading">
         <div className="loading-panel">
-          <img
-            className="loading-brand-image"
-            src="/land-view-logo.svg"
-            alt="LAND VIEW"
-          />
+          <img className="loading-brand-image" src="/land-view-logo.svg" alt="LAND VIEW" />
           <div className="loading-spinner" />
           <p>Verifying workspace</p>
         </div>
@@ -163,13 +202,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     );
   }
 
-  const name =
-    user?.name ||
-    user?.Name ||
-    user?.username ||
-    user?.Username ||
-    "LAND VIEW User";
-
+  const name = user?.name || user?.Name || user?.username || user?.Username || "LAND VIEW User";
   const role = user?.role || user?.Role || "User";
   const visibleNav = String(role).toLowerCase() === "accounts" ? nav.filter((item) => item.accounts) : nav;
 
@@ -180,68 +213,39 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           <div className="utility-inner">
             <Link href="/admin" className="masthead-brand">
               <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
-              <div>
-                <strong>LAND VIEW</strong>
-                <span>ENGINEERS &amp; ARCHITECTS</span>
-              </div>
+              <div><strong>LAND VIEW</strong><span>ENGINEERS &amp; ARCHITECTS</span></div>
             </Link>
 
             <div className="utility-items">
-              <div className="utility-item">
-                <b>●</b>
-                <span><small>SYSTEM STATUS</small>Online</span>
-              </div>
-              <div className="utility-item">
-                <b>◆</b>
-                <span><small>WORKSPACE</small>Management System</span>
-              </div>
+              <div className="utility-item"><b>●</b><span><small>SYSTEM STATUS</small>Online</span></div>
+              <div className="utility-item"><b>◆</b><span><small>WORKSPACE</small>Management System</span></div>
               <div className="utility-item user-utility">
-                <div className="utility-avatar">
-                  {String(name).slice(0, 1).toUpperCase()}
-                </div>
+                <div className="utility-avatar">{String(name).slice(0, 1).toUpperCase()}</div>
                 <span><small>{role}</small>{name}</span>
               </div>
-              <button className="utility-logout" onClick={logout}>
-                Sign out
-              </button>
+              {(roleOf(user)==="admin"||roleOf(user)==="manager") && (
+                <button className="utility-logout" onClick={setupOrLockQuickPin} disabled={quickBusy} title={quickConfigured?"Lock workspace and return with Quick PIN":"Set up Quick PIN"}>
+                  {quickBusy ? "PLEASE WAIT" : quickConfigured ? "PIN LOCK" : "SET PIN"}
+                </button>
+              )}
+              <button className="utility-logout" onClick={logout}>Sign out</button>
             </div>
 
-            <button
-              className="mobile-menu tmg-mobile-menu"
-              aria-label="Open navigation"
-              onClick={() => setMobileOpen((v) => !v)}
-            >
-              ☰
-            </button>
+            <button className="mobile-menu tmg-mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen((v) => !v)}>☰</button>
           </div>
         </div>
 
         <nav className={`primary-nav ${mobileOpen ? "open" : ""}`}>
           <div className="primary-nav-inner">
             {visibleNav.map((item) => {
-              const active =
-                item.href === "/admin"
-                  ? pathname === "/admin"
-                  : pathname.startsWith(item.href);
-
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className={active ? "active" : ""}
-                  onClick={() => setMobileOpen(false)}
-                >
-                  {item.label}
-                </Link>
-              );
+              const active = item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
+              return <Link key={item.href} href={item.href} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}>{item.label}</Link>;
             })}
           </div>
         </nav>
       </header>
 
-      <div className="admin-main tmg-admin-main">
-        <main className="content-wrap tmg-content-wrap">{children}</main>
-      </div>
+      <div className="admin-main tmg-admin-main"><main className="content-wrap tmg-content-wrap">{children}</main></div>
     </div>
   );
 }
