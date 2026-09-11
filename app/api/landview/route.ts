@@ -7,8 +7,10 @@ export const dynamic = "force-dynamic";
 const COOKIE_NAME = "landview_session";
 const QUICK_USER_COOKIE = "landview_quick_user";
 const QUICK_LOCK_COOKIE = "landview_quick_locked";
+const TRUSTED_DEVICE_COOKIE = "landview_trusted_device";
 const COOKIE_MAX_AGE_SECONDS = 12 * 60 * 60;
 const QUICK_META_MAX_AGE_SECONDS = 3650 * 24 * 60 * 60;
+const TRUSTED_DEVICE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const QUICK_PIN_PREFIX = "QPIN_V1";
 
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
@@ -46,6 +48,8 @@ const POST_ACTIONS = new Set([
   "quickPinStatus",
   "quickPinLogin",
   "quickLock",
+  "trustDevice",
+  "untrustDevice",
   "createUser",
   "resetUserPassword",
   "changeOwnPassword",
@@ -71,7 +75,7 @@ const POST_ACTIONS = new Set([
   "updateErpRecord",
 ]);
 
-const QUICK_ACTIONS = new Set(["setQuickPin", "quickPinStatus", "quickPinLogin", "quickLock"]);
+const QUICK_ACTIONS = new Set(["setQuickPin", "quickPinStatus", "quickPinLogin", "quickLock", "trustDevice", "untrustDevice"]);
 const PUBLIC_GET_ACTIONS = new Set(["health", "getPublicTeam"]);
 
 function requiredEnv() {
@@ -184,6 +188,10 @@ function clearQuickMetaCookies(response: NextResponse) {
   response.cookies.set(QUICK_LOCK_COOKIE, "", cookieOptions(0));
 }
 
+function clearTrustedDeviceCookie(response: NextResponse) {
+  response.cookies.set(TRUSTED_DEVICE_COOKIE, "", cookieOptions(0));
+}
+
 function hmac(value: string) {
   return createHmac("sha256", PROXY_SECRET).update(value).digest("hex");
 }
@@ -248,6 +256,35 @@ function parsePermanentPinId(value: unknown) {
   }
 }
 
+type TrustedDevicePayload = {
+  user: Record<string, unknown>;
+  pin: { userId: string; salt: string; verifier: string };
+  expiresAt: number;
+};
+
+function signTrustedDevice(payload: TrustedDevicePayload) {
+  const encoded = Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
+  return `${encoded}.${hmac(`trusted-device-v1|${encoded}`)}`;
+}
+
+function readTrustedDevice(value: string | undefined): TrustedDevicePayload | null {
+  const text = String(value || "");
+  const dot = text.lastIndexOf(".");
+  if (dot < 1) return null;
+  const payload = text.slice(0, dot);
+  const signature = text.slice(dot + 1);
+  if (!secureEqual(signature, hmac(`trusted-device-v1|${payload}`))) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as TrustedDevicePayload;
+    if (!parsed?.user || !parsed?.pin || !parsed?.expiresAt || Date.now() >= Number(parsed.expiresAt)) return null;
+    if (userIdOf(parsed.user) !== parsed.pin.userId) return null;
+    if (roleOf(parsed.user) !== "admin" && roleOf(parsed.user) !== "manager") return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 async function backendForSession(request: NextRequest, action: string, extra: Record<string, unknown> = {}) {
   const token = request.cookies.get(COOKIE_NAME)?.value || "";
   if (!token) return { success: false, error: "Session expired." } as any;
@@ -283,20 +320,43 @@ async function permanentPinRecord(request: NextRequest, userId: string) {
   return null;
 }
 
+async function mintTrustedBackendSession(request: NextRequest, userId: string) {
+  const { json } = await callBackend({
+    action: "getPublicProjects",
+    _trustedPinSessionUserId: userId,
+    proxySecret: PROXY_SECRET,
+    _clientKey: clientKey(request),
+  });
+  return json;
+}
+
 async function handleQuickAction(request: NextRequest, action: string, input: Record<string, unknown>) {
   const sessionToken = request.cookies.get(COOKIE_NAME)?.value || "";
+  const trusted = readTrustedDevice(request.cookies.get(TRUSTED_DEVICE_COOKIE)?.value);
 
   if (action === "quickPinStatus") {
+    if (trusted) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          configured: true,
+          trusted: true,
+          expiresAt: trusted.expiresAt,
+          locked: request.cookies.get(QUICK_LOCK_COOKIE)?.value === "1",
+        },
+      });
+    }
+
     if (!sessionToken) {
-      return NextResponse.json({ success: true, data: { configured: false, locked: false } });
+      return NextResponse.json({ success: true, data: { configured: false, trusted: false, locked: false } });
     }
     const user = await currentAdminUser(request);
-    if (!user) return NextResponse.json({ success: true, data: { configured: false, locked: false } });
+    if (!user) return NextResponse.json({ success: true, data: { configured: false, trusted: false, locked: false } });
     const userId = userIdOf(user);
     const record = await permanentPinRecord(request, userId);
     const response = NextResponse.json({
       success: true,
-      data: { configured: Boolean(record), locked: request.cookies.get(QUICK_LOCK_COOKIE)?.value === "1" },
+      data: { configured: Boolean(record), trusted: false, locked: request.cookies.get(QUICK_LOCK_COOKIE)?.value === "1" },
     });
     response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user), cookieOptions(QUICK_META_MAX_AGE_SECONDS));
     return response;
@@ -337,16 +397,42 @@ async function handleQuickAction(request: NextRequest, action: string, input: Re
     return response;
   }
 
+  if (action === "trustDevice") {
+    if (!sessionToken) return NextResponse.json({ success: false, error: "Sign in normally before trusting this device." }, { status: 401 });
+    const user = await currentAdminUser(request);
+    if (!user) return NextResponse.json({ success: false, error: "Trusted-device PIN login is available only to Admin or Manager accounts." }, { status: 403 });
+    const userId = userIdOf(user);
+    const record = await permanentPinRecord(request, userId);
+    if (!record) return NextResponse.json({ success: false, error: "Create your permanent Admin PIN first." }, { status: 400 });
+
+    const expiresAt = Date.now() + TRUSTED_DEVICE_MAX_AGE_SECONDS * 1000;
+    const payload: TrustedDevicePayload = { user, pin: record, expiresAt };
+    const response = NextResponse.json({ success: true, data: { trusted: true, expiresAt } });
+    response.cookies.set(TRUSTED_DEVICE_COOKIE, signTrustedDevice(payload), cookieOptions(TRUSTED_DEVICE_MAX_AGE_SECONDS));
+    response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user), cookieOptions(TRUSTED_DEVICE_MAX_AGE_SECONDS));
+    return response;
+  }
+
+  if (action === "untrustDevice") {
+    const response = NextResponse.json({ success: true, data: { trusted: false } });
+    clearTrustedDeviceCookie(response);
+    clearLockCookie(response);
+    return response;
+  }
+
   if (action === "quickLock") {
     if (!sessionToken) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     const user = await currentAdminUser(request);
     if (!user) return NextResponse.json({ success: false, error: "Admin access required." }, { status: 403 });
     const record = await permanentPinRecord(request, userIdOf(user));
     if (!record) return NextResponse.json({ success: false, error: "Set your permanent Admin PIN first." }, { status: 400 });
+    if (!trusted || userIdOf(trusted.user) !== userIdOf(user)) {
+      return NextResponse.json({ success: false, error: "Trust this device first. Trusted-device PIN access lasts 7 days." }, { status: 400 });
+    }
 
     const response = NextResponse.json({ success: true, data: { locked: true } });
-    response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user), cookieOptions(QUICK_META_MAX_AGE_SECONDS));
-    response.cookies.set(QUICK_LOCK_COOKIE, "1", cookieOptions(COOKIE_MAX_AGE_SECONDS));
+    response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user), cookieOptions(TRUSTED_DEVICE_MAX_AGE_SECONDS));
+    response.cookies.set(QUICK_LOCK_COOKIE, "1", cookieOptions(TRUSTED_DEVICE_MAX_AGE_SECONDS));
     return response;
   }
 
@@ -355,23 +441,26 @@ async function handleQuickAction(request: NextRequest, action: string, input: Re
     if (!/^\d{6}$/.test(pin)) {
       return NextResponse.json({ success: false, error: "Enter your 6-digit Admin PIN." }, { status: 400 });
     }
-    if (!sessionToken) {
-      return NextResponse.json({ success: false, error: "Your secure session expired. Sign in normally once, then use PIN Lock again." }, { status: 401 });
+    if (!trusted) {
+      return NextResponse.json({ success: false, error: "This device is not trusted or its 7-day trust has expired. Sign in normally and trust it again." }, { status: 401 });
     }
 
-    const user = await currentAdminUser(request);
-    if (!user) return NextResponse.json({ success: false, error: "Quick access is unavailable. Use your normal login." }, { status: 401 });
-    const userId = userIdOf(user);
-    const record = await permanentPinRecord(request, userId);
-    if (!record) return NextResponse.json({ success: false, error: "No permanent Admin PIN is configured." }, { status: 404 });
-
-    const expected = permanentPinVerifier(userId, pin, record.salt);
-    if (!secureEqual(expected, record.verifier)) {
+    const userId = userIdOf(trusted.user);
+    const expected = permanentPinVerifier(userId, pin, trusted.pin.salt);
+    if (!secureEqual(expected, trusted.pin.verifier)) {
       return NextResponse.json({ success: false, error: "Incorrect Admin PIN." }, { status: 401 });
     }
 
-    const response = NextResponse.json({ success: true, data: { user, permanent: true } });
-    response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user), cookieOptions(QUICK_META_MAX_AGE_SECONDS));
+    const json = await mintTrustedBackendSession(request, userId);
+    const token = String(json?.data?.token || "");
+    const user = json?.data?.user || trusted.user;
+    if (!json?.success || !token || !user) {
+      return NextResponse.json({ success: false, error: String(json?.error || json?.message || "Could not create a secure Admin session.") }, { status: 401 });
+    }
+
+    const response = NextResponse.json({ success: true, data: { user, trusted: true, expiresAt: trusted.expiresAt } });
+    setSessionCookie(response, token);
+    response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user), cookieOptions(Math.max(1, Math.floor((trusted.expiresAt - Date.now()) / 1000))));
     clearLockCookie(response);
     return response;
   }
@@ -423,6 +512,7 @@ async function handle(request: NextRequest, method: "GET" | "POST") {
     delete input.token;
     delete input.proxySecret;
     delete input._clientKey;
+    delete input._trustedPinSessionUserId;
 
     const token = request.cookies.get(COOKIE_NAME)?.value || "";
     const payload: Record<string, unknown> = {
