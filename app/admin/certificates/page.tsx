@@ -4,7 +4,9 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
 
 type CertificateType = "project" | "employee" | "building";
+type ProjectCategory = "Running" | "Paused" | "Completed";
 type Row = Record<string, any>;
+type DriveIndexResponse = { bulk: true; category?: string; projects: Record<string, any> };
 
 type IssuedCertificate = {
   certificateId: string;
@@ -52,6 +54,13 @@ function pick(row: Row, keys: string[]) {
   return "";
 }
 
+function normalizeProjectId(value: unknown) {
+  const raw = text(value).toUpperCase();
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
+  return digits ? `LV-${Number(digits)}` : raw;
+}
+
 function recordsFromFinance(data: FinanceSheetData): Row[] {
   return (data.rows || []).map((row) => {
     const record: Row = {};
@@ -64,11 +73,16 @@ function recordsFromFinance(data: FinanceSheetData): Row[] {
 }
 
 function projectId(row: Row) {
-  return text(pick(row, ["FILE ID", "File ID", "File_ID", "Project_ID", "Project ID", "ProjectId"]));
+  return normalizeProjectId(pick(row, ["FILE ID", "File ID", "File_ID", "Project_ID", "Project ID", "ProjectId"]));
 }
 
 function employeeId(row: Row) {
   return text(pick(row, ["Employee_ID", "Employee ID", "EmployeeId"]));
+}
+
+function folderDisplayName(folderName: string, id: string) {
+  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text(folderName).replace(new RegExp(`^${escaped.replace("-", "[- _]?")}\\s*[-–—:]?\\s*`, "i"), "").trim() || id;
 }
 
 function projectLabel(row: Row) {
@@ -77,6 +91,53 @@ function projectLabel(row: Row) {
   const project = text(pick(row, ["Project Name", "Project_Name", "PROJECT NAME", "Project", "Project Type", "Project_Type"]));
   const location = text(pick(row, ["Location", "Project Location", "Project_Location", "Address"]));
   return [id, client || project, location].filter(Boolean).join(" · ") || id || "Unnamed project";
+}
+
+async function getDriveIndex(category: ProjectCategory): Promise<DriveIndexResponse> {
+  const url = new URL("/api/landview", window.location.origin);
+  url.searchParams.set("action", "getProjectServiceFolders");
+  url.searchParams.set("bulk", "1");
+  url.searchParams.set("category", category);
+  const response = await fetch(url.toString(), { method: "GET", cache: "no-store", credentials: "same-origin" });
+  const json = await response.json();
+  if (!response.ok || !json?.success) throw new Error(String(json?.error || `Could not load ${category} projects.`));
+  return json.data as DriveIndexResponse;
+}
+
+function buildVisibleProjects(fileList: FinanceSheetData, indexes: DriveIndexResponse[]) {
+  const fileRecords = recordsFromFinance(fileList);
+  const fileMap = new Map<string, Row>();
+  fileRecords.forEach((row) => {
+    const id = projectId(row);
+    if (id) fileMap.set(id, row);
+  });
+
+  const visible = new Map<string, Row>();
+  for (const index of indexes) {
+    for (const [rawId, item] of Object.entries(index?.projects || {})) {
+      const id = normalizeProjectId(rawId || item?.projectId);
+      if (!id) continue;
+      const fileRow = fileMap.get(id) || {};
+      const folderName = text(item?.projectFolderName);
+      const fallbackName = folderDisplayName(folderName, id);
+      visible.set(id, {
+        ...fileRow,
+        "FILE ID": id,
+        Project_ID: id,
+        Project_Name: text(pick(fileRow, ["Project Name", "Project_Name", "Project Type", "Project_Type"])) || fallbackName,
+        "Project Name": text(pick(fileRow, ["Project Name", "Project_Name", "Project Type", "Project_Type"])) || fallbackName,
+        "Client Name": text(pick(fileRow, ["Client Name", "Client_Name", "Name", "Client"])) || text(fileRow["Project Name"]) || fallbackName,
+        Status: text(index.category || item?.category),
+        Drive_Folder_Name: folderName,
+      });
+    }
+  }
+
+  return Array.from(visible.values()).sort((a, b) => {
+    const aNum = Number(projectId(a).replace(/\D/g, "")) || 0;
+    const bNum = Number(projectId(b).replace(/\D/g, "")) || 0;
+    return bNum - aNum;
+  });
 }
 
 function dateInputToday() {
@@ -124,45 +185,39 @@ export default function CertificatesPage() {
       setLoadingSources(true);
       setSourceError("");
 
-      const [fileListResult, legacyProjectsResult, employeeResult] = await Promise.allSettled([
+      const [fileListResult, runningResult, pausedResult, completedResult, employeeResult] = await Promise.allSettled([
         landViewApi.getFinanceSheet("File List"),
-        landViewApi.getProjects(),
+        getDriveIndex("Running"),
+        getDriveIndex("Paused"),
+        getDriveIndex("Completed"),
         landViewApi.getEmployees(),
       ]);
 
       if (cancelled) return;
 
-      let nextProjects: Row[] = [];
-      if (fileListResult.status === "fulfilled") {
-        nextProjects = recordsFromFinance(fileListResult.value).filter((row) => Boolean(projectId(row)));
-      }
-
-      // Keep the older Projects source only as a fallback / supplement.
-      if (legacyProjectsResult.status === "fulfilled") {
-        const seen = new Set(nextProjects.map((row) => projectId(row).toUpperCase()));
-        for (const row of legacyProjectsResult.value || []) {
-          const id = projectId(row);
-          if (!id || seen.has(id.toUpperCase())) continue;
-          seen.add(id.toUpperCase());
-          nextProjects.push(row);
-        }
-      }
-
-      nextProjects.sort((a, b) => {
-        const aNum = Number(projectId(a).replace(/\D/g, "")) || 0;
-        const bNum = Number(projectId(b).replace(/\D/g, "")) || 0;
-        return bNum - aNum;
-      });
-
-      setProjects(nextProjects);
       if (employeeResult.status === "fulfilled") setEmployees(employeeResult.value || []);
 
-      if (!nextProjects.length) {
-        const message = fileListResult.status === "rejected"
-          ? `Could not load File List: ${String((fileListResult.reason as any)?.message || fileListResult.reason || "unknown error")}`
-          : "No project rows with a File ID were found in File List.";
-        setSourceError(message);
+      if (fileListResult.status !== "fulfilled") {
+        setProjects([]);
+        setSourceError(`Could not load File List: ${String((fileListResult.reason as any)?.message || fileListResult.reason || "unknown error")}`);
+        setLoadingSources(false);
+        return;
       }
+
+      const indexes = [runningResult, pausedResult, completedResult]
+        .filter((result): result is PromiseFulfilledResult<DriveIndexResponse> => result.status === "fulfilled")
+        .map((result) => result.value);
+
+      if (!indexes.length) {
+        setProjects([]);
+        setSourceError("Could not load the projects currently visible in Projects.");
+        setLoadingSources(false);
+        return;
+      }
+
+      const nextProjects = buildVisibleProjects(fileListResult.value, indexes);
+      setProjects(nextProjects);
+      if (!nextProjects.length) setSourceError("No projects currently visible in Projects were found.");
       setLoadingSources(false);
     }
 
@@ -184,16 +239,17 @@ export default function CertificatesPage() {
   }
 
   function selectProject(id: string) {
-    const row = projects.find((item) => projectId(item) === id);
+    const normalized = normalizeProjectId(id);
+    const row = projects.find((item) => projectId(item) === normalized);
     if (!row) return;
 
     const clientName = text(pick(row, ["Client Name", "Client_Name", "CLIENT NAME", "Name", "Client"]));
-    const projectName = text(pick(row, ["Project Name", "Project_Name", "PROJECT NAME", "Project", "Project Type", "Project_Type"]));
+    const projectName = text(pick(row, ["Project Name", "Project_Name", "PROJECT NAME", "Project", "Project Type", "Project_Type", "Drive_Folder_Name"]));
     const location = text(pick(row, ["Location", "Project Location", "Project_Location", "Address", "Site Location"]));
 
-    setReference(id);
-    setName(clientName || projectName || id);
-    setSubject(projectName || `Project ${id}`);
+    setReference(normalized);
+    setName(clientName || projectName || normalized);
+    setSubject(projectName || `Project ${normalized}`);
     setAddress(location);
     setPosition("Project / Client");
     setError("");
@@ -326,7 +382,7 @@ export default function CertificatesPage() {
                 <label className="cert-field full">
                   <span>SELECT PROJECT ({projects.length})</span>
                   <select value={reference} onChange={(e) => selectProject(e.target.value)} disabled={loadingSources}>
-                    <option value="">{loadingSources ? "Loading projects from File List…" : projects.length ? "Choose project / File ID" : "No projects found"}</option>
+                    <option value="">{loadingSources ? "Loading visible projects…" : projects.length ? "Choose a project shown in Projects" : "No visible projects found"}</option>
                     {projects.map((row) => {
                       const id = projectId(row);
                       return <option key={id} value={id}>{projectLabel(row)}</option>;
@@ -366,7 +422,7 @@ export default function CertificatesPage() {
         <aside className="cert-panel">
           <div className="cert-panel-head"><small>HOW IT WORKS</small><h2>Verification control</h2></div>
           <div className="cert-help">
-            <article><strong>1. Select the source record</strong><p>Project certificates now load directly from Finance → File List, the same project source used elsewhere in LAND VIEW.</p></article>
+            <article><strong>1. Select the source record</strong><p>Project certificates use the same Running, Paused and Completed Drive project folders as the Projects page. File List only enriches those visible projects.</p></article>
             <article><strong>2. Review certificate details</strong><p>Edit the name, address, position, subject and statement before issuing.</p></article>
             <article><strong>3. Issue & print</strong><p>The certificate receives its own signed ID and QR code. Print it or save it as PDF.</p></article>
             <article><strong>4. Public verification</strong><p>Scanning the QR opens a public LAND VIEW authenticity page. Altered signed data fails verification.</p></article>
