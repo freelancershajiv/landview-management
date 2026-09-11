@@ -9,45 +9,37 @@ const SESSION_COOKIE = "landview_session";
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 
-function clean(value: unknown, max = 240) {
-  return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, max);
-}
-
+function clean(value: unknown, max = 240) { return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, max); }
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
   if (!origin) return process.env.NODE_ENV !== "production";
   try { return new URL(origin).host === request.nextUrl.host; } catch { return false; }
 }
-
-function prefix(type: CertificateType) {
-  if (type === "employee") return "EMP";
-  if (type === "building") return "BLD";
-  return "PRJ";
-}
-
+function prefix(type: CertificateType) { if (type === "employee") return "EMP"; if (type === "building") return "BLD"; return "PRJ"; }
 function dateKey(date: string) { return date.replace(/\D/g, "").slice(0, 8); }
+function requireGatewayConfig() { if (!APPS_SCRIPT_URL || !PROXY_SECRET) throw new Error("Certificate registry backend is not configured."); }
 
-function requireGatewayConfig() {
-  if (!APPS_SCRIPT_URL || !PROXY_SECRET) throw new Error("Certificate registry backend is not configured.");
-}
-
-async function registryRequest(request: NextRequest, payload: Record<string, unknown>) {
+async function gatewayRequest(request: NextRequest, flags: Record<string, unknown>, payload: Record<string, unknown>) {
   requireGatewayConfig();
   const token = request.cookies.get(SESSION_COOKIE)?.value || "";
   if (!token) throw new Error("Session expired.");
   const backend = await fetch(APPS_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    cache: "no-store",
-    redirect: "follow",
-    body: JSON.stringify({ action: "getPublicProjects", _certificateRegistry: "1", token, proxySecret: PROXY_SECRET, ...payload }),
+    method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, cache: "no-store", redirect: "follow",
+    body: JSON.stringify({ action: "getPublicProjects", token, proxySecret: PROXY_SECRET, ...flags, ...payload }),
   });
   const raw = await backend.text();
   let json: any;
   try { json = JSON.parse(raw); }
-  catch { throw new Error(/^\s*</.test(raw) ? "Apps Script returned HTML instead of JSON." : "Certificate registry returned invalid JSON."); }
-  if (!json?.success) throw new Error(String(json?.error || json?.message || "Certificate registry request failed."));
+  catch { throw new Error(/^\s*</.test(raw) ? "Apps Script returned HTML instead of JSON." : "Certificate backend returned invalid JSON."); }
+  if (!json?.success) throw new Error(String(json?.error || json?.message || "Certificate request failed."));
   return json.data || {};
+}
+
+function registryRequest(request: NextRequest, payload: Record<string, unknown>) {
+  return gatewayRequest(request, { _certificateRegistry: "1" }, payload);
+}
+function portalRequest(request: NextRequest, payload: Record<string, unknown>) {
+  return gatewayRequest(request, { _certificatePortal: "1" }, payload);
 }
 
 function certificateUrls(request: NextRequest, token: string) {
@@ -57,7 +49,6 @@ function certificateUrls(request: NextRequest, token: string) {
   const qrUrl = `${origin}/api/billing-verification/qr?data=${encodeURIComponent(verificationUrl)}`;
   return { verificationUrl, qrUrl };
 }
-
 function validateType(value: unknown) {
   const type = clean(value, 20).toLowerCase() as CertificateType;
   if (!["project", "employee", "building"].includes(type)) throw new Error("Invalid certificate type.");
@@ -68,11 +59,7 @@ export async function GET(request: NextRequest) {
   try {
     if (!request.cookies.get(SESSION_COOKIE)?.value) return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
     const data = await registryRequest(request, { registryOp: "list" });
-    const certificates = (Array.isArray(data?.certificates) ? data.certificates : []).map((item: any) => ({
-      ...item,
-      ...certificateUrls(request, clean(item?.token, 5000)),
-      token: undefined,
-    }));
+    const certificates = (Array.isArray(data?.certificates) ? data.certificates : []).map((item: any) => ({ ...item, ...certificateUrls(request, clean(item?.token, 5000)), token: undefined }));
     return NextResponse.json({ success: true, data: { ...data, certificates } }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message || "Could not load certificate registry." }, { status: 502 });
@@ -96,6 +83,8 @@ export async function POST(request: NextRequest) {
     const reference = clean(input?.reference, 80);
     const description = clean(input?.description, 900);
     const expiresAt = clean(input?.expiresAt, 40);
+    const category = clean(input?.category, 40).toLowerCase();
+    const requestId = clean(input?.requestId, 80);
     if (!name) throw new Error("Certificate name is required.");
 
     let revision = 1;
@@ -112,13 +101,14 @@ export async function POST(request: NextRequest) {
     const signedToken = signCertificate({ id: certificateId, t: type, n: name, a: address, p: position, s: subject, r: reference, d: description, i: issuedAt, x: expiresAt || undefined });
     const urls = certificateUrls(request, signedToken);
     await registryRequest(request, {
-      registryOp: "create", Certificate_ID: certificateId, Type: type, Name: name, Address: address,
-      Position: position, Subject: subject, Reference: reference, Description: description,
+      registryOp: "create", Certificate_ID: certificateId, Type: type, Category: category, Request_ID: requestId,
+      Name: name, Address: address, Position: position, Subject: subject, Reference: reference, Description: description,
       Issued_At: issuedAt, Expires_At: expiresAt, Revision: revision, Parent_ID: parentId, Token: signedToken,
     });
     if (reissueOf) await registryRequest(request, { registryOp: "supersede", certificateId: reissueOf, supersededBy: certificateId });
+    if (requestId) await portalRequest(request, { certificatePortalOp: "linkIssued", requestId, certificateId });
 
-    return NextResponse.json({ success: true, data: { certificateId, ...urls, issuedAt, type, name, address, position, subject, reference, description, expiresAt: expiresAt || undefined, status: "Active", revision, parentId } }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    return NextResponse.json({ success: true, data: { certificateId, ...urls, issuedAt, type, category, requestId, name, address, position, subject, reference, description, expiresAt: expiresAt || undefined, status: "Active", revision, parentId } }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message || "Could not issue certificate." }, { status: 500 });
   }
