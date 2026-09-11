@@ -220,6 +220,138 @@ function financeRowsToRecords(data: FinanceSheetData): Record<string, unknown>[]
   });
 }
 
+const BILLING_WORKFLOW_SERVICES = [
+  { title: "Architectural Design", category: "Engineering", aliases: ["architectural design", "architectural", "architect design", "architecture design"] },
+  { title: "Structural Design", category: "Engineering", aliases: ["structural design", "structural"] },
+  { title: "3D Design Exterior", category: "Engineering", aliases: ["3d design exterior", "3d design - exterior", "3d exterior", "exterior 3d", "3d design"] },
+  { title: "Electrical Design", category: "Engineering", aliases: ["electrical design", "electrical"] },
+  { title: "Plumbing Design", category: "Engineering", aliases: ["plumbing design", "plumbing"] },
+  { title: "Estimate & Costing", category: "Engineering", aliases: ["estimate & costing", "estimate and costing", "estimate costing", "cost estimate", "estimation and costing", "estimation & costing"] },
+  { title: "Plan Approval Design", category: "Engineering", aliases: ["plan approval design", "plan approval", "approval design", "municipality design"] },
+  { title: "Soil Test", category: "Others", aliases: ["soil test", "soil testing", "soil investigation", "soil test bill"] },
+  { title: "Digital Survey", category: "Others", aliases: ["digital survey", "measurement / digital survey", "measurement digital survey", "land survey", "survey"] },
+  { title: "Municipality File Pass", category: "Others", aliases: ["municipality file pass", "municipality pass", "municipality contract", "file pass", "municipality file", "plan pass", "municipality approval"] },
+  { title: "Site Supervision", category: "Supervision", aliases: ["site supervision", "supervision", "supervision bill"] },
+] as const;
+
+function normalizeWorkflowText(value: unknown) {
+  return String(value || "").trim().toLowerCase().replace(/[–—_-]+/g, " ").replace(/&/g, " and ").replace(/\s+/g, " ");
+}
+
+function normalizeWorkflowProjectId(value: unknown) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
+  return digits ? `LV-${Number(digits)}` : raw;
+}
+
+function canonicalBillingService(value: unknown, category?: "Engineering" | "Others" | "Supervision") {
+  const text = normalizeWorkflowText(value);
+  if (!text) return "";
+  for (const service of BILLING_WORKFLOW_SERVICES) {
+    if (category && service.category !== category) continue;
+    for (const candidate of [service.title, ...service.aliases]) {
+      const alias = normalizeWorkflowText(candidate);
+      if (text === alias || text.includes(alias) || alias.includes(text)) return service.title;
+    }
+  }
+  return "";
+}
+
+function recordValue(record: Record<string, unknown>, keys: string[]) {
+  for (const key of keys) {
+    if (record[key] !== undefined && record[key] !== null && String(record[key]).trim() !== "") return record[key];
+  }
+  return "";
+}
+
+function billingRequirementMap(data: FinanceSheetData, category: "Engineering" | "Others" | "Supervision") {
+  const map = new Map<string, Set<string>>();
+  for (const record of financeRowsToRecords(data)) {
+    const projectId = normalizeWorkflowProjectId(recordValue(record, ["FILE ID", "File ID", "File_ID", "Project_ID", "Project ID"]));
+    if (!projectId) continue;
+    const rawService = recordValue(record, ["Service Name", "Services", "Service", "Description", "Item"]);
+    if (!rawService) continue;
+    const service = category === "Supervision" ? "Site Supervision" : canonicalBillingService(rawService, category);
+    if (!service) continue;
+    if (!map.has(projectId)) map.set(projectId, new Set());
+    map.get(projectId)!.add(service);
+  }
+  return map;
+}
+
+function mergeRequirements(target: Map<string, Set<string>>, source: Map<string, Set<string>>) {
+  for (const [projectId, services] of source) {
+    if (!target.has(projectId)) target.set(projectId, new Set());
+    const bucket = target.get(projectId)!;
+    for (const service of services) bucket.add(service);
+  }
+}
+
+function makeAutoTaskId(projectId: string, title: string) {
+  return `AUTO::${encodeURIComponent(projectId)}::${encodeURIComponent(title)}`;
+}
+
+function parseAutoTaskId(id: string) {
+  if (!id.startsWith("AUTO::")) return null;
+  const parts = id.split("::");
+  if (parts.length !== 3) return null;
+  try {
+    return { projectId: decodeURIComponent(parts[1]), title: decodeURIComponent(parts[2]) };
+  } catch {
+    return null;
+  }
+}
+
+async function getBillingDrivenWorkflowTasks() {
+  const [workflow, designBill, othersBill, supervisionBill] = await Promise.all([
+    get<FinanceSheetData>("getFinanceSheet", { tab: "Workflow" }),
+    get<FinanceSheetData>("getFinanceSheet", { tab: "Design Bill" }),
+    get<FinanceSheetData>("getFinanceSheet", { tab: "Others Bill" }),
+    get<FinanceSheetData>("getFinanceSheet", { tab: "Supervision Bill" }),
+  ]);
+
+  const requirements = new Map<string, Set<string>>();
+  mergeRequirements(requirements, billingRequirementMap(designBill, "Engineering"));
+  mergeRequirements(requirements, billingRequirementMap(othersBill, "Others"));
+  mergeRequirements(requirements, billingRequirementMap(supervisionBill, "Supervision"));
+
+  const existing = financeRowsToRecords(workflow);
+  const byKey = new Map<string, Record<string, unknown>>();
+  for (const task of existing) {
+    const projectId = normalizeWorkflowProjectId(recordValue(task, ["Project_ID", "Project ID", "FILE ID", "File ID"]));
+    const rawTitle = recordValue(task, ["Task_Title", "Task Title", "Title"]);
+    const canonical = canonicalBillingService(rawTitle);
+    if (!projectId || !canonical) continue;
+    const required = requirements.get(projectId);
+    if (!required || !required.has(canonical)) continue;
+    byKey.set(`${projectId}\n${canonical}`, { ...task, Project_ID: projectId, Task_Title: canonical });
+  }
+
+  const result: Record<string, unknown>[] = [];
+  for (const [projectId, services] of requirements) {
+    for (const title of services) {
+      const key = `${projectId}\n${title}`;
+      const saved = byKey.get(key);
+      result.push(saved || {
+        Task_ID: makeAutoTaskId(projectId, title),
+        Project_ID: projectId,
+        Project_Name: "",
+        Task_Title: title,
+        Assigned_Employee_ID: "",
+        Priority: "Normal",
+        Start_Date: "",
+        Due_Date: "",
+        Status: "Pending",
+        Progress: 0,
+        Description: "Auto-created from billing service",
+        Completed_At: "",
+      });
+    }
+  }
+  return result;
+}
+
 export const landViewApi = {
   getFinanceSheet: (tab = "Summary") => get<FinanceSheetData>("getFinanceSheet", { tab }),
 
@@ -270,10 +402,7 @@ export const landViewApi = {
   initializeErpSheets: () => post<{ initialized: boolean; modules: string[] }>("initializeErpSheets"),
 
   getErpRecords: async (module: ErpModule) => {
-    if (module === "tasks") {
-      const data = await get<FinanceSheetData>("getFinanceSheet", { tab: "Workflow" });
-      return financeRowsToRecords(data);
-    }
+    if (module === "tasks") return getBillingDrivenWorkflowTasks();
     return get<Record<string, unknown>[]>("getErpRecords", { module });
   },
 
@@ -286,6 +415,16 @@ export const landViewApi = {
 
   updateErpRecord: (module: ErpModule, id: string, changes: Record<string, unknown>) => {
     if (module === "tasks") {
+      const auto = parseAutoTaskId(id);
+      if (auto) {
+        return post<Record<string, unknown>>("getFinanceSheet", {
+          tab: "Workflow",
+          workflowOp: "create",
+          Project_ID: auto.projectId,
+          Task_Title: auto.title,
+          ...changes,
+        });
+      }
       return post<Record<string, unknown>>("getFinanceSheet", { tab: "Workflow", workflowOp: "update", id, ...changes });
     }
     return post<unknown>("updateErpRecord", { module, id, ...changes });
