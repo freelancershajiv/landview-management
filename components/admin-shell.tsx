@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import {
   clearStoredSession,
   landViewApi,
+  readSessionCache,
+  saveSessionCache,
   SessionUser,
 } from "@/lib/api";
 
@@ -19,6 +21,14 @@ const nav = [
 
 const SESSION_WATCHDOG_MS = 15000;
 
+function roleOf(user?: SessionUser | null) {
+  return String(user?.role || user?.Role || "").trim().toLowerCase();
+}
+
+function isAdminWorkspaceRole(role: string) {
+  return role === "admin" || role === "manager" || role === "accounts";
+}
+
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -29,9 +39,17 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     let cancelled = false;
+    const cached = readSessionCache();
+    const cachedRole = roleOf(cached?.user);
+    const hasUsableCache = Boolean(cached?.authenticated && cached?.user && isAdminWorkspaceRole(cachedRole));
+
+    if (hasUsableCache) {
+      setUser(cached!.user);
+      setReady(true);
+    }
 
     const watchdog = window.setTimeout(() => {
-      if (cancelled) return;
+      if (cancelled || hasUsableCache) return;
       clearStoredSession();
       setSessionError(
         "The backend did not validate the session. Check your Apps Script /exec deployment URL."
@@ -46,9 +64,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           throw new Error("Session expired");
         }
 
-        const sessionRole = String(
-          session.user?.role || session.user?.Role || ""
-        ).trim().toLowerCase();
+        const sessionRole = roleOf(session.user);
 
         if (sessionRole === "employee") {
           window.clearTimeout(watchdog);
@@ -62,14 +78,16 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
           return;
         }
 
-        if (sessionRole !== "admin" && sessionRole !== "manager" && sessionRole !== "accounts") {
+        if (!isAdminWorkspaceRole(sessionRole)) {
           throw new Error("This account does not have administrator access.");
         }
 
         if (!cancelled) {
           window.clearTimeout(watchdog);
+          saveSessionCache(session);
           setUser(session.user);
           setReady(true);
+          setSessionError("");
         }
       } catch (err: any) {
         window.clearTimeout(watchdog);
@@ -77,6 +95,10 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
         console.error("LAND VIEW workspace session check failed:", err);
 
         if (!cancelled) {
+          if (hasUsableCache) {
+            router.replace("/login");
+            return;
+          }
           setSessionError(
             err?.message || "Unable to validate the LAND VIEW session."
           );
@@ -84,7 +106,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       }
     }
 
-    verify();
+    void verify();
 
     return () => {
       cancelled = true;
