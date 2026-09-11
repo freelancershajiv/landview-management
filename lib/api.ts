@@ -9,10 +9,45 @@ type RawResponse<T = unknown> = {
 const API_URL = "/api/landview";
 const API_TIMEOUT_MS = 60000;
 const LEGACY_TOKEN_KEYS = ["land_view_session_token", "land_view_token", "landview_token"];
+const SESSION_CACHE_KEY = "land_view_session_cache_v1";
+const SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
+
+export type SessionUser = {
+  userId?: string; username?: string; name?: string; role?: string;
+  User_ID?: string; Username?: string; Name?: string; Role?: string;
+  employeeId?: string; projectIds?: string; Employee_ID?: string; Project_IDs?: string;
+};
+export type SessionData = { authenticated: boolean; user: SessionUser };
+
+export function saveSessionCache(session: SessionData | { authenticated?: boolean; user?: SessionUser }) {
+  if (typeof window === "undefined" || !session?.authenticated || !session.user) return;
+  try {
+    localStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ session, savedAt: Date.now() }));
+  } catch {}
+}
+
+export function readSessionCache(): SessionData | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = localStorage.getItem(SESSION_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { session?: SessionData; savedAt?: number };
+    if (!parsed?.session?.authenticated || !parsed.session.user || !parsed.savedAt) return null;
+    if (Date.now() - parsed.savedAt > SESSION_CACHE_TTL_MS) {
+      localStorage.removeItem(SESSION_CACHE_KEY);
+      return null;
+    }
+    return parsed.session;
+  } catch {
+    try { localStorage.removeItem(SESSION_CACHE_KEY); } catch {}
+    return null;
+  }
+}
 
 export function clearStoredSession() {
   if (typeof window === "undefined") return;
   for (const key of LEGACY_TOKEN_KEYS) localStorage.removeItem(key);
+  localStorage.removeItem(SESSION_CACHE_KEY);
 }
 
 async function parseResponse<T>(response: Response): Promise<T> {
@@ -110,12 +145,6 @@ export type ProjectServiceUploadResult = {
   size: number;
 };
 
-export type SessionUser = {
-  userId?: string; username?: string; name?: string; role?: string;
-  User_ID?: string; Username?: string; Name?: string; Role?: string;
-  employeeId?: string; projectIds?: string; Employee_ID?: string; Project_IDs?: string;
-};
-export type SessionData = { authenticated: boolean; user: SessionUser };
 export type DashboardData = {
   user: SessionUser;
   stats: { projectCount: number; activeProjectCount: number; employeeCount: number; documentCount: number; totalBill: number; totalPaid: number; pendingPayments: number };
