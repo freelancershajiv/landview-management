@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   clearStoredSession,
   landViewApi,
+  saveSessionCache,
 } from "@/lib/api";
 
 type PortalType = "admin" | "employee" | "client";
@@ -93,6 +94,7 @@ export default function LoginPage() {
         );
       }
 
+      saveSessionCache({ authenticated: true, user: result.user });
       localStorage.setItem(PORTAL_KEY, portal);
       router.replace(portalPath(portal));
     } catch (err: any) {
