@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   clearStoredSession,
@@ -46,9 +46,7 @@ function roleMatchesPortal(role: string, portal: PortalType) {
   if (portal === "admin") {
     return role === "admin" || role === "manager" || role === "accounts";
   }
-  if (portal === "employee") {
-    return role === "employee";
-  }
+  if (portal === "employee") return role === "employee";
   return role === "client";
 }
 
@@ -58,6 +56,19 @@ function portalPath(portal: PortalType) {
   return "/client";
 }
 
+async function quickPost(action: string, body: Record<string, unknown> = {}) {
+  const response = await fetch("/api/landview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    credentials: "same-origin",
+    body: JSON.stringify({ action, ...body }),
+  });
+  const json = await response.json();
+  if (!response.ok || !json?.success) throw new Error(String(json?.error || json?.message || "Quick access failed."));
+  return json.data || {};
+}
+
 export default function LoginPage() {
   const router = useRouter();
   const [portal, setPortal] = useState<PortalType>("admin");
@@ -65,13 +76,29 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [quickConfigured, setQuickConfigured] = useState(false);
+  const [quickMode, setQuickMode] = useState(false);
+  const [pin, setPin] = useState("");
+  const [quickBusy, setQuickBusy] = useState(false);
+
+  useEffect(() => {
+    void quickPost("quickPinStatus")
+      .then((data) => {
+        const configured = Boolean(data?.configured);
+        setQuickConfigured(configured);
+        if (configured) {
+          setPortal("admin");
+          setQuickMode(true);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   async function submit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (loading) return;
 
     const id = userId.trim();
-
     if (!id || !password) {
       setError(`Please enter ${portal === "employee" ? "Employee ID" : portal === "client" ? "phone number" : "username"} and password.`);
       return;
@@ -83,15 +110,9 @@ export default function LoginPage() {
 
     try {
       const result = await landViewApi.login(id, password);
-
-      const role = normalizeRole(
-        result?.user?.role || result?.user?.Role
-      );
-
+      const role = normalizeRole(result?.user?.role || result?.user?.Role);
       if (!roleMatchesPortal(role, portal)) {
-        throw new Error(
-          `This account is registered as ${role || "another role"}. Please use the correct login type.`
-        );
+        throw new Error(`This account is registered as ${role || "another role"}. Please use the correct login type.`);
       }
 
       saveSessionCache({ authenticated: true, user: result.user });
@@ -105,131 +126,103 @@ export default function LoginPage() {
     }
   }
 
+  async function unlockQuickPin(value: string) {
+    if (quickBusy || value.length !== 6) return;
+    setQuickBusy(true);
+    setError("");
+    try {
+      const data = await quickPost("quickPinLogin", { pin: value });
+      if (!data?.user) throw new Error("Quick access session is unavailable.");
+      saveSessionCache({ authenticated: true, user: data.user });
+      localStorage.setItem(PORTAL_KEY, "admin");
+      router.replace("/admin");
+    } catch (err: any) {
+      clearStoredSession();
+      setPin("");
+      setError(err?.message || "Incorrect Quick PIN.");
+    } finally {
+      setQuickBusy(false);
+    }
+  }
+
+  function addPinDigit(digit: string) {
+    if (quickBusy) return;
+    const next = (pin + digit).slice(0, 6);
+    setPin(next);
+    setError("");
+    if (next.length === 6) void unlockQuickPin(next);
+  }
+
   const selected = portalOptions.find((item) => item.id === portal)!;
   const identifierLabel = portal === "employee" ? "EMPLOYEE ID" : portal === "client" ? "PHONE NUMBER" : "USERNAME";
   const identifierPlaceholder = portal === "employee" ? "EMP-0001" : portal === "client" ? "01XXXXXXXXX" : "admin";
 
   return (
     <main className="reference-login role-login-page">
+      <style>{`
+        .quick-pin-card{display:grid;gap:16px}.quick-pin-dots{display:flex;justify-content:center;gap:10px;margin:8px 0}.quick-pin-dot{width:13px;height:13px;border-radius:50%;border:1px solid #5d6871;background:transparent}.quick-pin-dot.filled{background:#ef493b;border-color:#ef493b;box-shadow:0 0 0 4px rgba(239,73,59,.1)}.quick-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.quick-keypad button{min-height:48px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:#161f27;color:#fff;font-size:15px;font-weight:800;cursor:pointer}.quick-keypad button:hover{border-color:#ef493b;background:#202a32}.quick-keypad .quick-action{font-size:10px;color:#ef766c}.quick-pin-note{text-align:center;color:#8f9aa3;font-size:9px;line-height:1.6}.quick-switch{border:0;background:transparent;color:#ef766c;font-size:10px;font-weight:800;cursor:pointer;text-decoration:underline}.quick-pin-label{text-align:center;color:#fff;font-size:12px;font-weight:800;letter-spacing:.08em}.quick-badge{display:inline-flex;justify-self:center;padding:5px 8px;border-radius:999px;background:#1c3026;color:#9ed8b3;font-size:8px;font-weight:800;letter-spacing:.08em}
+      `}</style>
+
       <header className="reference-login-header">
         <div className="reference-login-inner">
-          <button
-            type="button"
-            className="reference-login-brand login-brand-button"
-            onClick={() => router.push("/")}
-          >
+          <button type="button" className="reference-login-brand login-brand-button" onClick={() => router.push("/")}>
             <img src="/land-view-logo.png" alt="LAND VIEW" />
-            <div>
-              <strong>LAND VIEW</strong>
-              <span>ARCHITECTS & ENGINEERS</span>
-            </div>
+            <div><strong>LAND VIEW</strong><span>ARCHITECTS & ENGINEERS</span></div>
           </button>
-
-          <div className="reference-login-meta">
-            <span><b>●</b> SECURE ACCESS</span>
-            <span><b>◆</b> ROLE BASED PORTAL</span>
-          </div>
+          <div className="reference-login-meta"><span><b>●</b> SECURE ACCESS</span><span><b>◆</b> ROLE BASED PORTAL</span></div>
         </div>
       </header>
 
       <section className="reference-login-hero role-login-hero">
         <div className="reference-login-blueprint" />
-
         <div className="reference-login-copy">
           <span className="showcase-tag">ONE LAND VIEW</span>
-          <h1>Choose Your Workspace</h1>
-          <p>
-            One secure sign-in page for administrators, employees and clients.
-            Select your access type and continue with your LAND VIEW account.
-          </p>
-
+          <h1>{quickMode ? "Admin Quick Access" : "Choose Your Workspace"}</h1>
+          <p>{quickMode ? "Enter your trusted-device 6-digit PIN to unlock the LAND VIEW admin panel instantly." : "One secure sign-in page for administrators, employees and clients. Select your access type and continue with your LAND VIEW account."}</p>
           <div className="role-login-explainer">
             <span className="role-login-explainer-label">SELECTED PORTAL</span>
-            <strong>{selected.label}</strong>
-            <p>{selected.description}</p>
+            <strong>{quickMode ? "Quick PIN · Admin" : selected.label}</strong>
+            <p>{quickMode ? "This PIN works only on this trusted browser and does not replace your normal password." : selected.description}</p>
           </div>
         </div>
 
-        <form className="reference-login-card role-login-card" onSubmit={submit}>
-          <div className="reference-card-title">
-            <span>SECURE LOGIN</span>
-            <h2>Sign in to LAND VIEW</h2>
-          </div>
-
-          <div className="portal-selector" role="tablist" aria-label="Choose login type">
-            {portalOptions.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                role="tab"
-                aria-selected={portal === item.id}
-                className={`portal-option ${portal === item.id ? "active" : ""}`}
-                onClick={() => {
-                  setPortal(item.id);
-                  setError("");
-                }}
-              >
-                <span className="portal-option-icon">{item.short}</span>
-                <span>{item.label.replace(" Login", "")}</span>
-              </button>
-            ))}
-          </div>
-
-          {error && (
-            <div className="login-error role-login-error">
-              <div className="error-icon">!</div>
-              <div>
-                <strong>Sign in failed</strong>
-                <p>{error}</p>
-              </div>
+        {quickMode && quickConfigured ? (
+          <section className="reference-login-card role-login-card quick-pin-card">
+            <div className="reference-card-title"><span>TRUSTED DEVICE</span><h2>Enter Quick PIN</h2></div>
+            <span className="quick-badge">QUICK ACCESS READY</span>
+            {error && <div className="login-error role-login-error"><div className="error-icon">!</div><div><strong>Unlock failed</strong><p>{error}</p></div></div>}
+            <div className="quick-pin-label">6-DIGIT ADMIN PIN</div>
+            <div className="quick-pin-dots" aria-label={`${pin.length} of 6 digits entered`}>{Array.from({length:6}).map((_,i)=><span key={i} className={`quick-pin-dot ${i<pin.length?"filled":""}`}/>)}</div>
+            <div className="quick-keypad">
+              {["1","2","3","4","5","6","7","8","9"].map(d=><button key={d} type="button" disabled={quickBusy} onClick={()=>addPinDigit(d)}>{d}</button>)}
+              <button type="button" className="quick-action" disabled={quickBusy} onClick={()=>setPin("")}>CLEAR</button>
+              <button type="button" disabled={quickBusy} onClick={()=>addPinDigit("0")}>0</button>
+              <button type="button" className="quick-action" disabled={quickBusy||!pin} onClick={()=>setPin(v=>v.slice(0,-1))}>⌫</button>
             </div>
-          )}
-
-          <label className="form-field">
-            <span>{identifierLabel}</span>
-            <input
-              value={userId}
-              onChange={(e) => setUserId(e.target.value)}
-              placeholder={identifierPlaceholder}
-              autoComplete="username"
-              disabled={loading}
-            />
-          </label>
-
-          <label className="form-field">
-            <span>PASSWORD</span>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter your password"
-              autoComplete="current-password"
-              disabled={loading}
-            />
-          </label>
-
-          <button
-            type="submit"
-            className="login-submit reference-login-submit"
-            disabled={loading}
-          >
-            <span>
-              {loading ? "AUTHENTICATING..." : `CONTINUE AS ${portal.toUpperCase()}`}
-            </span>
-            <span>→</span>
-          </button>
-
-          <div className="login-security">
-            <span className="security-dot" />
-            Your account role must match the selected portal
-          </div>
-        </form>
+            <div className="quick-pin-note">{quickBusy?"Unlocking admin panel…":"The sixth digit unlocks automatically."}</div>
+            <button className="quick-switch" type="button" onClick={()=>{setQuickMode(false);setError("");setPin("");}}>Use username & password instead</button>
+          </section>
+        ) : (
+          <form className="reference-login-card role-login-card" onSubmit={submit}>
+            <div className="reference-card-title"><span>SECURE LOGIN</span><h2>Sign in to LAND VIEW</h2></div>
+            <div className="portal-selector" role="tablist" aria-label="Choose login type">
+              {portalOptions.map((item) => (
+                <button key={item.id} type="button" role="tab" aria-selected={portal === item.id} className={`portal-option ${portal === item.id ? "active" : ""}`} onClick={() => { setPortal(item.id); setError(""); }}>
+                  <span className="portal-option-icon">{item.short}</span><span>{item.label.replace(" Login", "")}</span>
+                </button>
+              ))}
+            </div>
+            {error && <div className="login-error role-login-error"><div className="error-icon">!</div><div><strong>Sign in failed</strong><p>{error}</p></div></div>}
+            <label className="form-field"><span>{identifierLabel}</span><input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder={identifierPlaceholder} autoComplete="username" disabled={loading}/></label>
+            <label className="form-field"><span>PASSWORD</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" disabled={loading}/></label>
+            <button type="submit" className="login-submit reference-login-submit" disabled={loading}><span>{loading ? "AUTHENTICATING..." : `CONTINUE AS ${portal.toUpperCase()}`}</span><span>→</span></button>
+            {quickConfigured && portal==="admin" && <button className="quick-switch" type="button" onClick={()=>{setQuickMode(true);setError("");}}>Use Quick PIN</button>}
+            <div className="login-security"><span className="security-dot" />Your account role must match the selected portal</div>
+          </form>
+        )}
       </section>
 
-      <footer className="reference-login-footer">
-        <strong>LAND VIEW</strong>
-        <span>Admin • Employee • Client Access</span>
-      </footer>
+      <footer className="reference-login-footer"><strong>LAND VIEW</strong><span>Admin • Employee • Client Access</span></footer>
     </main>
   );
 }
