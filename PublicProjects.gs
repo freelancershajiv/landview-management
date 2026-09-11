@@ -112,6 +112,9 @@ function getPublicProjects(params) {
     if (result) return result;
   }
   if (typeof certificatePortalFromGateway_ === "function") {
+    if (typeof migrateCertificateRequestSheet_ === "function") {
+      try { migrateCertificateRequestSheet_(); } catch (error) {}
+    }
     const result = certificatePortalFromGateway_(params);
     if (result) return result;
   }
