@@ -7,6 +7,27 @@
  *   all other JPG/JPEG/PNG/WEBP files => gallery images
  */
 
+function trustedPinSessionFromGateway_(params) {
+  const userId = String((params && params._trustedPinSessionUserId) || "").trim();
+  if (!userId) return null;
+
+  const users = readSheet(CONFIG.SHEETS.USERS);
+  const foundUser = users.find(function(user) {
+    const rowUserId = String(firstValue(user, ["User_ID", "User ID", "UserId", "userId"]) || "").trim();
+    const role = normalizeRoleName(firstValue(user, ["Role", "role"]));
+    return rowUserId === userId && isActiveUser(user) && isAdminRole(role);
+  }) || null;
+
+  if (!foundUser) {
+    return { success: false, message: "Trusted Admin account is unavailable." };
+  }
+
+  const token = createSession(foundUser);
+  const safeUser = sanitizeUser(foundUser);
+  auditSecurityEvent_({ userId: safeUser.userId, role: safeUser.role }, "TRUSTED_PIN_LOGIN", "", "SUCCESS", "7-day trusted device");
+  return { success: true, data: { token: token, user: safeUser } };
+}
+
 function ensureProjectPublicHeaders_() {
   return ensureHeaders_(getSheet(CONFIG.SHEETS.PROJECTS), [
     "Public_Display",
@@ -90,6 +111,9 @@ function getExteriorPublicImages_(project) {
 }
 
 function getPublicProjects(params) {
+  const trustedSession = trustedPinSessionFromGateway_(params);
+  if (trustedSession) return trustedSession;
+
   ensureProjectPublicHeaders_();
   const rows = readSheet(CONFIG.SHEETS.PROJECTS);
 
