@@ -135,11 +135,11 @@ export default function LoginPage() {
       if (!data?.user) throw new Error("Quick access session is unavailable.");
       saveSessionCache({ authenticated: true, user: data.user });
       localStorage.setItem(PORTAL_KEY, "admin");
-      router.replace("/admin");
+      window.location.replace("/admin");
     } catch (err: any) {
       clearStoredSession();
       setPin("");
-      setError(err?.message || "Incorrect Quick PIN.");
+      setError(err?.message || "Incorrect Admin PIN.");
     } finally {
       setQuickBusy(false);
     }
@@ -177,19 +177,19 @@ export default function LoginPage() {
         <div className="reference-login-blueprint" />
         <div className="reference-login-copy">
           <span className="showcase-tag">ONE LAND VIEW</span>
-          <h1>{quickMode ? "Admin Quick Access" : "Choose Your Workspace"}</h1>
-          <p>{quickMode ? "Enter your trusted-device 6-digit PIN to unlock the LAND VIEW admin panel instantly." : "One secure sign-in page for administrators, employees and clients. Select your access type and continue with your LAND VIEW account."}</p>
+          <h1>{quickMode ? "Admin PIN Lock" : "Choose Your Workspace"}</h1>
+          <p>{quickMode ? "LAND VIEW is locked. Enter the permanent 6-digit PIN for this Admin account to unlock the management system." : "One secure sign-in page for administrators, employees and clients. Select your access type and continue with your LAND VIEW account."}</p>
           <div className="role-login-explainer">
             <span className="role-login-explainer-label">SELECTED PORTAL</span>
-            <strong>{quickMode ? "Quick PIN · Admin" : selected.label}</strong>
-            <p>{quickMode ? "This PIN works only on this trusted browser and does not replace your normal password." : selected.description}</p>
+            <strong>{quickMode ? "Permanent PIN · Admin" : selected.label}</strong>
+            <p>{quickMode ? "This is the same PIN created once for this Admin account and reused every time PIN LOCK is pressed." : selected.description}</p>
           </div>
         </div>
 
         {quickMode && quickConfigured ? (
           <section className="reference-login-card role-login-card quick-pin-card">
-            <div className="reference-card-title"><span>TRUSTED DEVICE</span><h2>Enter Quick PIN</h2></div>
-            <span className="quick-badge">QUICK ACCESS READY</span>
+            <div className="reference-card-title"><span>WORKSPACE LOCKED</span><h2>Enter Admin PIN</h2></div>
+            <span className="quick-badge">PERMANENT PIN READY</span>
             {error && <div className="login-error role-login-error"><div className="error-icon">!</div><div><strong>Unlock failed</strong><p>{error}</p></div></div>}
             <label className="quick-pin-label" htmlFor="quick-pin">6-DIGIT ADMIN PIN</label>
             <input
@@ -205,9 +205,9 @@ export default function LoginPage() {
               autoFocus
               disabled={quickBusy}
               placeholder="ENTER PIN"
-              aria-label="6-digit admin Quick PIN"
+              aria-label="6-digit permanent Admin PIN"
             />
-            <div className="quick-pin-note">{quickBusy ? "Unlocking admin panel…" : "Enter all 6 digits to unlock automatically."}</div>
+            <div className="quick-pin-note">{quickBusy ? "Unlocking LAND VIEW…" : "Enter all 6 digits to unlock automatically."}</div>
             <button className="quick-switch" type="button" onClick={()=>{setQuickMode(false);setError("");setPin("");}}>Use username & password instead</button>
           </section>
         ) : (
@@ -224,7 +224,7 @@ export default function LoginPage() {
             <label className="form-field"><span>{identifierLabel}</span><input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder={identifierPlaceholder} autoComplete="username" disabled={loading}/></label>
             <label className="form-field"><span>PASSWORD</span><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" autoComplete="current-password" disabled={loading}/></label>
             <button type="submit" className="login-submit reference-login-submit" disabled={loading}><span>{loading ? "AUTHENTICATING..." : `CONTINUE AS ${portal.toUpperCase()}`}</span><span>→</span></button>
-            {quickConfigured && portal==="admin" && <button className="quick-switch" type="button" onClick={()=>{setQuickMode(true);setError("");}}>Use Quick PIN</button>}
+            {quickConfigured && portal==="admin" && <button className="quick-switch" type="button" onClick={()=>{setQuickMode(true);setError("");}}>Use permanent Admin PIN</button>}
             <div className="login-security"><span className="security-dot" />Your account role must match the selected portal</div>
           </form>
         )}
