@@ -50,6 +50,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const [sessionError, setSessionError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
   const [quickConfigured, setQuickConfigured] = useState(false);
+  const [trustedDevice, setTrustedDevice] = useState(false);
+  const [trustedUntil, setTrustedUntil] = useState<number | null>(null);
   const [quickBusy, setQuickBusy] = useState(false);
 
   useEffect(() => {
@@ -118,7 +120,11 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     if (!ready) return;
     void quickPost("quickPinStatus")
-      .then((data) => setQuickConfigured(Boolean(data?.configured)))
+      .then((data) => {
+        setQuickConfigured(Boolean(data?.configured));
+        setTrustedDevice(Boolean(data?.trusted));
+        setTrustedUntil(data?.expiresAt ? Number(data.expiresAt) : null);
+      })
       .catch(() => {});
   }, [ready]);
 
@@ -131,11 +137,14 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     }
 
     if (quickConfigured) {
+      if (!trustedDevice) {
+        window.alert("Trust this device for 7 days before using PIN LOCK.");
+        return;
+      }
       setQuickBusy(true);
       try {
         await quickPost("quickLock");
         clearStoredSession();
-        // Hard navigation unloads the entire admin application from memory.
         window.location.replace("/login");
       } catch (err: any) {
         window.alert(err?.message || "Could not PIN-lock the workspace.");
@@ -144,7 +153,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       return;
     }
 
-    const first = window.prompt("Create your permanent 6-digit Admin PIN. You will use this same PIN every time you PIN Lock LAND VIEW:", "");
+    const first = window.prompt("Create your permanent 6-digit Admin PIN. You will use this same PIN on trusted devices:", "");
     if (first === null) return;
     if (!/^\d{6}$/.test(first)) {
       window.alert("Admin PIN must be exactly 6 digits.");
@@ -160,9 +169,38 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     try {
       await quickPost("setQuickPin", { pin: first });
       setQuickConfigured(true);
-      window.alert("Permanent Admin PIN created. From now on, PIN LOCK will unload the admin panel and the same PIN will unlock it.");
+      window.alert("Permanent Admin PIN created. Now click TRUST DEVICE to enable PIN login on this browser for 7 days.");
     } catch (err: any) {
       window.alert(err?.message || "Could not create the permanent Admin PIN.");
+    } finally {
+      setQuickBusy(false);
+    }
+  }
+
+  async function toggleTrustedDevice() {
+    if (quickBusy) return;
+    if (!quickConfigured) {
+      window.alert("Create your permanent Admin PIN first.");
+      return;
+    }
+
+    setQuickBusy(true);
+    try {
+      if (trustedDevice) {
+        const confirmed = window.confirm("Remove this browser from trusted devices? PIN Login will stop working here until you trust it again.");
+        if (!confirmed) return;
+        await quickPost("untrustDevice");
+        setTrustedDevice(false);
+        setTrustedUntil(null);
+        window.alert("This browser is no longer trusted.");
+      } else {
+        const data = await quickPost("trustDevice");
+        setTrustedDevice(true);
+        setTrustedUntil(data?.expiresAt ? Number(data.expiresAt) : Date.now() + 7 * 24 * 60 * 60 * 1000);
+        window.alert("This device is trusted for 7 days. You can now use PIN LOGIN from the login screen without your password.");
+      }
+    } catch (err: any) {
+      window.alert(err?.message || "Could not update trusted-device access.");
     } finally {
       setQuickBusy(false);
     }
@@ -205,6 +243,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const name = user?.name || user?.Name || user?.username || user?.Username || "LAND VIEW User";
   const role = user?.role || user?.Role || "User";
   const visibleNav = String(role).toLowerCase() === "accounts" ? nav.filter((item) => item.accounts) : nav;
+  const daysLeft = trustedUntil ? Math.max(1, Math.ceil((trustedUntil - Date.now()) / (24 * 60 * 60 * 1000))) : 0;
 
   return (
     <div className="admin-shell tmg-shell">
@@ -223,6 +262,11 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 <div className="utility-avatar">{String(name).slice(0, 1).toUpperCase()}</div>
                 <span><small>{role}</small>{name}</span>
               </div>
+              {(roleOf(user)==="admin"||roleOf(user)==="manager") && quickConfigured && (
+                <button className="utility-logout" onClick={toggleTrustedDevice} disabled={quickBusy} title={trustedDevice ? `Trusted for about ${daysLeft} more day${daysLeft===1?"":"s"}. Click to remove trust.` : "Trust this browser for 7-day PIN login"}>
+                  {quickBusy ? "PLEASE WAIT" : trustedDevice ? `TRUSTED ${daysLeft}D` : "TRUST DEVICE"}
+                </button>
+              )}
               {(roleOf(user)==="admin"||roleOf(user)==="manager") && (
                 <button className="utility-logout" onClick={setupOrLockQuickPin} disabled={quickBusy} title={quickConfigured?"Unload and lock the workspace with your permanent PIN":"Create your permanent Admin PIN"}>
                   {quickBusy ? "PLEASE WAIT" : quickConfigured ? "PIN LOCK" : "SET PIN"}
