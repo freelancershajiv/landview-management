@@ -8,6 +8,7 @@ export function stageProgress(task: Row) {
   return Number.isFinite(value)?Math.max(0,Math.min(99,value)):0;
 }
 function dateValue(value:unknown){const text=String(value||"");return /^\d{4}-\d{2}-\d{2}/.test(text)?text.slice(0,10):"";}
+function realWorkflowId(value:unknown){const id=String(value||"").trim();return id&& !id.startsWith("AUTO::")?id:"";}
 async function saveWorkflowRecord(payload:Record<string,unknown>){
   const response=await fetch("/api/workflow",{
     method:"POST",
@@ -23,7 +24,7 @@ async function saveWorkflowRecord(payload:Record<string,unknown>){
   return (json.data||{}) as Row;
 }
 export default function WorkflowStage({task,title,index,employees,onSaved}:{task:Row;title:string;index:number;employees:Row[];onSaved:(record:Row)=>void}) {
-  const [recordId,setRecordId]=useState(String(task.Task_ID||""));
+  const [recordId,setRecordId]=useState(realWorkflowId(task.Task_ID));
   const [draft,setDraft]=useState({Assigned_Employee_ID:String(task.Assigned_Employee_ID||""),Start_Date:dateValue(task.Start_Date),Due_Date:dateValue(task.Due_Date),Status:String(task.Status||"Pending"),Progress:stageProgress(task),Description:String(task.Description||"")});
   const [busy,setBusy]=useState(false),[error,setError]=useState(""),[saved,setSaved]=useState(false);
   function change(changes:Partial<typeof draft>){setDraft(v=>({...v,...changes}));setSaved(false);setError("");}
@@ -40,8 +41,10 @@ export default function WorkflowStage({task,title,index,employees,onSaved}:{task
       const record=recordId
         ? await saveWorkflowRecord({workflowOp:"update",id:recordId,...base})
         : await saveWorkflowRecord({workflowOp:"create",...base});
-      const nextId=String(record.Task_ID||recordId||"");
+      const nextId=realWorkflowId(record.Task_ID)||recordId;
       if(nextId)setRecordId(nextId);
+      // Replace the synthetic AUTO:: task with the real saved Workflow row immediately.
+      Object.assign(task, record);
       onSaved(record);
       setDraft({
         Assigned_Employee_ID:String(record.Assigned_Employee_ID||changes.Assigned_Employee_ID||""),
