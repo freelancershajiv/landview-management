@@ -5662,7 +5662,7 @@ const ERP_MODULES = {
   },
   tasks: {
     sheet: "TASKS", id: "Task_ID", prefix: "TASK-",
-    headers: ["Task_ID", "Project_ID", "Task_Title", "Description", "Assigned_Employee_ID", "Priority", "Status", "Start_Date", "Due_Date", "Completed_At", "Created_At", "Created_By"]
+    headers: ["Task_ID", "Project_ID", "Task_Title", "Description", "Assigned_Employee_ID", "Priority", "Status", "Start_Date", "Due_Date", "Completed_At", "Created_At", "Created_By", "Progress"]
   },
   attendance: {
     sheet: "ATTENDANCE", id: "Attendance_ID", prefix: "ATT-",

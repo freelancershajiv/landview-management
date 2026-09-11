@@ -7,6 +7,8 @@ import { landViewApi, ProjectServiceFolderInfo } from "@/lib/api";
 import { ErrorState, Field, LoadingState, Money, PageHeader, formatDate, pick } from "@/components/lv-ui";
 import { PROJECT_SERVICE_FOLDERS, uploadProjectFile } from "@/lib/project-service-folders";
 
+import WorkflowStage, { stageProgress } from "@/components/workflow-stage";
+
 const WORKFLOW_STAGES = [
   "Measurement / Digital Survey",
   "Soil Test",
@@ -104,7 +106,7 @@ export default function ProjectDetailPage(){
         landViewApi.getProjectServiceFolders(projectId).catch(()=>null),
         landViewApi.getSiteVisits(projectId).catch(()=>[]),
         landViewApi.getDocuments(projectId).catch(()=>[]),
-        landViewApi.getErpRecords("tasks").catch(()=>[]),
+        landViewApi.getErpRecords("tasks"),
         landViewApi.getFinanceSheet("Summary").catch(()=>null),
       ]);
       const fileListProject=projectFromFileList(fileList.rows,projectId);
@@ -123,7 +125,7 @@ export default function ProjectDetailPage(){
 
   const taskMap=useMemo(()=>new Map(tasks.map((t:any)=>[String(idOf(t,["Task_Title","Task Title","Title"])),t])),[tasks]);
   const completed=WORKFLOW_STAGES.filter(stage=>String(idOf(taskMap.get(stage)||{},["Status","status"])).toLowerCase()==="completed").length;
-  const progress=Math.round(completed/WORKFLOW_STAGES.length*100);
+  const progress=Math.round(WORKFLOW_STAGES.reduce((sum,stage)=>sum+stageProgress(taskMap.get(stage)||{}),0)/WORKFLOW_STAGES.length);
   const assignedPeople=employees.filter((e:any)=>assigned.includes(idOf(e,["Employee_ID","Employee ID","EmployeeId"])));
   const folderMap=new Map(serviceFolders.map(f=>[f.name,f]));
 
@@ -161,7 +163,7 @@ export default function ProjectDetailPage(){
       <section className="pc-panel"><div className="pc-panel-head"><div><span>COMMERCIAL</span><h2>Project finance</h2></div><button className="btn btn-small" onClick={()=>setTab("finance")}>Details →</button></div><div className="pc-list"><div className="pc-row"><strong>Net billed</strong><strong><Money value={billed}/></strong></div><div className="pc-row"><strong>Total received</strong><strong><Money value={paid}/></strong></div><div className="pc-row"><strong>Outstanding</strong><strong><Money value={due}/></strong></div><div className="pc-row"><strong>Account status</strong><span className={`pc-badge ${due>0?"red":"green"}`}>{liveFinance?.status||(due>0?"Due":"Full Paid")}</span></div></div></section></div>
     </>}
 
-    {tab==="workflow"&&<section className="pc-panel"><div className="pc-panel-head"><div><span>DELIVERY PIPELINE</span><h2>LAND VIEW project workflow</h2></div>{tasks.length<WORKFLOW_STAGES.length&&<button className="btn btn-small" disabled={initializing} onClick={initializeWorkflow}>{initializing?"Initializing...":"Initialize workflow"}</button>}</div><div className="pc-progress"><span style={{width:`${progress}%`}}/></div><div className="pc-progress-copy"><span>{completed} completed</span><span>{progress}% overall</span></div><div className="pc-workflow" style={{marginTop:16}}>{WORKFLOW_STAGES.map((stage,index)=>{const t=taskMap.get(stage);const status=idOf(t||{},["Status","status"])||"Not started";const taskId=idOf(t||{},["Task_ID","Task ID","TaskId"]);return <div className={`pc-stage ${statusClass(status)}`} key={stage}><span className="pc-num">{String(index+1).padStart(2,"0")}</span><div className="pc-stage-name"><strong>{stage}</strong><small>{taskId||"Workflow record not initialized"}</small></div>{t?<><select disabled={updatingTask===taskId} value={status} onChange={e=>updateTask(t,{Status:e.target.value})}>{STATUSES.map(s=><option key={s}>{s}</option>)}</select><select disabled={updatingTask===taskId} value={idOf(t,["Assigned_Employee_ID","Assigned Employee ID"])} onChange={e=>updateTask(t,{Assigned_Employee_ID:e.target.value})}><option value="">Unassigned</option>{employees.map((emp:any)=>{const id=idOf(emp,["Employee_ID","Employee ID","EmployeeId"]);return <option value={id} key={id}>{id} · {idOf(emp,["Employee_Name","Employee Name","Name"])}</option>})}</select></>:<><span className="pc-badge">Not initialized</span><span/></>}</div>})}</div><p className="pc-note" style={{marginTop:14}}>Stage status and employee assignment are stored in the existing ERP Tasks records; the standalone Tasks page is not required.</p></section>}
+    {tab==="workflow"&&<section className="pc-panel"><div className="pc-panel-head"><div><h2>Project workflow</h2></div><div className="pc-actions"><button className="btn btn-small" onClick={load}>Refresh</button>{WORKFLOW_STAGES.some(stage=>!taskMap.has(stage))&&<button className="btn btn-small" disabled={initializing} onClick={initializeWorkflow}>{initializing?"Initializing…":"Initialize missing stages"}</button>}</div></div><div className="pc-progress"><span style={{width:`${progress}%`}}/></div><div className="pc-progress-copy"><span>{completed} of 9 completed</span><span>{progress}% overall</span></div><div className="pc-workflow" style={{marginTop:16}}>{WORKFLOW_STAGES.map((stage,index)=>{const task=taskMap.get(stage);return task?<WorkflowStage key={String(task.Task_ID)} task={task} title={stage} index={index} employees={employees} onSaved={record=>setTasks(rows=>rows.map(row=>String(row.Task_ID)===String(record.Task_ID)?record:row))}/>:<div className="pc-row" key={stage}><strong>{index+1}. {stage}</strong><span className="pc-badge">Not initialized</span></div>})}</div></section>}
 
     {tab==="team"&&<section className="pc-panel"><div className="pc-panel-head"><div><span>PEOPLE & ASSIGNMENTS</span><h2>Project team</h2></div><button className="btn btn-small" disabled={savingTeam} onClick={saveTeam}>{savingTeam?"Saving...":"Save team"}</button></div><div className="check-list">{employees.length?employees.map((e:any)=>{const id=idOf(e,["Employee_ID","Employee ID","EmployeeId"]);return <label key={id}><input type="checkbox" checked={assigned.includes(id)} onChange={ev=>setAssigned(v=>ev.target.checked?[...v,id]:v.filter(x=>x!==id))}/><span><strong>{idOf(e,["Employee_Name","Employee Name","Name"])||id}</strong><small>{id} · {idOf(e,["Position","Department"])||"Team member"}</small></span></label>}):<p className="pc-empty">No employees available.</p>}</div></section>}
 
@@ -174,3 +176,4 @@ export default function ProjectDetailPage(){
     {tab==="activity"&&<section className="pc-panel"><div className="pc-panel-head"><div><span>PROJECT RECORDS</span><h2>Activity summary</h2></div></div><div className="pc-list"><div className="pc-row"><div><strong>Workflow</strong><small>Delivery stages connected to ERP task records</small></div><span className="pc-badge">{tasks.length} records</span></div><div className="pc-row"><div><strong>Documents</strong><small>Registered project files and uploads</small></div><span className="pc-badge">{documents.length}</span></div><div className="pc-row"><div><strong>Site visits</strong><small>Supervision and field records</small></div><span className="pc-badge">{visits.length}</span></div><div className="pc-row"><div><strong>Finance source</strong><small>{liveFinance?"Finance Summary worksheet linked":"Legacy billing fallback"}</small></div><span className={`pc-badge ${due>0?"red":"green"}`}>{liveFinance?.status||(due>0?"Due":"Full Paid")}</span></div><div className="pc-row"><div><strong>Assigned employees</strong><small>Current project team</small></div><span className="pc-badge">{assignedPeople.length}</span></div></div></section>}
   </div></>;
 }
+
