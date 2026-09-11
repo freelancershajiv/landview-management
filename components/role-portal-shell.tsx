@@ -24,6 +24,14 @@ const employeeNav = [
   { href: "/employee#attendance", label: "Attendance" },
 ];
 
+const clientNav = [
+  { href: "/client#dashboard", label: "Dashboard" },
+  { href: "/client#project", label: "Project" },
+  { href: "/client#workflow", label: "Workflow" },
+  { href: "/client#finance", label: "Finance" },
+  { href: "/client#certificates", label: "Certificates" },
+];
+
 export default function RolePortalShell({ portal, children }: { portal: PortalType; children: ReactNode }) {
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -110,8 +118,21 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
     </div>;
   }
 
-  return <div className="role-portal-shell">
-    <header className="role-portal-header"><div className="role-portal-header-inner"><Link href="/client" className="role-portal-brand"><img src="/land-view-logo.png" alt="LAND VIEW" /><div><strong>LAND VIEW</strong><span>CLIENT PORTAL</span></div></Link><div className="role-portal-user"><div><small>Signed in as</small><strong>{name}</strong></div><Link href="/" className="role-portal-home">Public Website</Link><button type="button" onClick={() => { setPasswordOpen(true); setPasswordMessage(""); }}>Change Password</button><button type="button" onClick={logout}>Sign Out</button></div></div></header>
-    <main className="role-portal-main">{children}</main>{passwordModal}
+  return <div className="admin-shell tmg-shell">
+    <header className="masthead">
+      <div className="utility-bar"><div className="utility-inner">
+        <Link href="/client" className="masthead-brand"><img src="/land-view-logo.svg" alt="LAND VIEW logo" /><div><strong>LAND VIEW</strong><span>ENGINEERS &amp; ARCHITECTS</span></div></Link>
+        <div className="utility-items">
+          <div className="utility-item"><b>●</b><span><small>SYSTEM STATUS</small>Online</span></div>
+          <div className="utility-item"><b>◆</b><span><small>WORKSPACE</small>Client System</span></div>
+          <div className="utility-item user-utility"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><span><small>CLIENT ACCESS</small>{name}</span></div>
+          <Link href="/" className="utility-logout">Website</Link>
+          <button className="utility-logout" onClick={logout}>Sign out</button>
+        </div>
+        <button className="mobile-menu tmg-mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(v => !v)}>☰</button>
+      </div></div>
+      <nav className={`primary-nav ${mobileOpen ? "open" : ""}`}><div className="primary-nav-inner">{clientNav.map(item => <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>{item.label}</Link>)}</div></nav>
+    </header>
+    <div className="admin-main tmg-admin-main"><main className="content-wrap tmg-content-wrap">{children}</main></div>
   </div>;
 }
