@@ -14,7 +14,7 @@ function sameOrigin(request: NextRequest) {
   try { return new URL(origin).host === request.nextUrl.host; } catch { return false; }
 }
 
-async function backend(request: NextRequest, certificatePortalOp: string, payload: Record<string, unknown> = {}) {
+async function callAppsScript(request: NextRequest, body: Record<string, unknown>) {
   if (!APPS_SCRIPT_URL || !PROXY_SECRET) throw new Error("Certificate portal backend is not configured.");
   const token = request.cookies.get(COOKIE_NAME)?.value || "";
   if (!token) throw new Error("Session expired.");
@@ -23,7 +23,7 @@ async function backend(request: NextRequest, certificatePortalOp: string, payloa
     headers: { "Content-Type": "text/plain;charset=utf-8" },
     cache: "no-store",
     redirect: "follow",
-    body: JSON.stringify({ action: "getPublicProjects", _certificatePortal: "1", certificatePortalOp, proxySecret: PROXY_SECRET, token, ...payload }),
+    body: JSON.stringify({ action: "getPublicProjects", proxySecret: PROXY_SECRET, token, ...body }),
   });
   const raw = await response.text();
   let json: any;
@@ -33,10 +33,29 @@ async function backend(request: NextRequest, certificatePortalOp: string, payloa
   return json.data || {};
 }
 
+async function backend(request: NextRequest, certificatePortalOp: string, payload: Record<string, unknown> = {}) {
+  return callAppsScript(request, { _certificatePortal: "1", certificatePortalOp, ...payload });
+}
+
+async function legacyClientBackend(request: NextRequest, clientOp: string, payload: Record<string, unknown> = {}) {
+  return callAppsScript(request, { _clientPortal: "1", clientOp, ...payload });
+}
+
 export async function GET(request: NextRequest) {
+  const mode = clean(request.nextUrl.searchParams.get("mode"), 30).toLowerCase();
   try {
-    const mode = clean(request.nextUrl.searchParams.get("mode"), 30).toLowerCase();
-    const data = await backend(request, mode === "admin" ? "adminList" : "mine");
+    if (mode === "admin") {
+      try {
+        const data = await backend(request, "adminList");
+        const requests = Array.isArray(data?.requests) ? data.requests : [];
+        if (requests.length) return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+      } catch {}
+
+      const legacy = await legacyClientBackend(request, "adminRequests");
+      return NextResponse.json({ success: true, data: legacy }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    }
+
+    const data = await backend(request, "mine");
     return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error: any) {
     const message = error?.message || "Could not load certificate portal.";
@@ -49,6 +68,7 @@ export async function POST(request: NextRequest) {
     if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
     const input = await request.json();
     const action = clean(input?.action, 30).toLowerCase();
+
     if (action === "request") {
       const data = await backend(request, "request", {
         category: clean(input?.category, 40), projectId: clean(input?.projectId, 60).toUpperCase(),
@@ -56,18 +76,27 @@ export async function POST(request: NextRequest) {
       });
       return NextResponse.json({ success: true, data });
     }
+
     if (action === "review") {
-      const data = await backend(request, "review", {
+      const payload = {
         requestId: clean(input?.requestId, 80), decision: clean(input?.decision, 20), note: clean(input?.note, 400),
-      });
-      return NextResponse.json({ success: true, data });
+      };
+      try {
+        const data = await backend(request, "review", payload);
+        return NextResponse.json({ success: true, data });
+      } catch {
+        const data = await legacyClientBackend(request, "reviewRequest", payload);
+        return NextResponse.json({ success: true, data });
+      }
     }
+
     if (action === "link-issued") {
       const data = await backend(request, "linkIssued", {
         requestId: clean(input?.requestId, 80), certificateId: clean(input?.certificateId, 80).toUpperCase(),
       });
       return NextResponse.json({ success: true, data });
     }
+
     return NextResponse.json({ success: false, error: "Unknown certificate portal action." }, { status: 400 });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message || "Certificate portal request failed." }, { status: 500 });
