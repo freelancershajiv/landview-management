@@ -28,6 +28,60 @@ function trustedPinSessionFromGateway_(params) {
   return { success: true, data: { token: token, user: safeUser } };
 }
 
+/*
+ * Internal employee workspace bridge.
+ * This deliberately reuses the public getPublicProjects action so Code.gs does
+ * not need another router case. It is still protected by the Vercel proxy
+ * secret and, unlike the public portfolio branch, requires a valid Employee
+ * session. Only workflow rows belonging to projects the employee is allowed to
+ * access are returned.
+ */
+function employeeWorkspaceFromGateway_(params) {
+  const requested = String((params && params._employeeWorkspace) || "").trim();
+  if (requested !== "1") return null;
+
+  const session = requireSession(params);
+  if (normalizeRoleName(session.role) !== "employee") {
+    return { success: false, error: "Employee access required." };
+  }
+
+  const allowedIds = getAllowedProjectIds(session) || [];
+  const allowed = {};
+  allowedIds.forEach(function(value) {
+    const id = normalizeFinanceWorkflowProjectId_(value);
+    if (id) allowed[id] = true;
+  });
+
+  const ss = getFinanceWorkbook_();
+  const workflowSheet = ensureFinanceWorkflowSheet_(ss);
+  syncBillingWorkflow_(ss, workflowSheet);
+
+  const workflow = financeWorkflowRows_(workflowSheet).filter(function(row) {
+    return !!allowed[normalizeFinanceWorkflowProjectId_(row.Project_ID)];
+  });
+
+  const employeeId = String(session.employeeId || "").trim();
+  const assigned = workflow.filter(function(row) {
+    return employeeId && String(row.Assigned_Employee_ID || "").trim() === employeeId;
+  });
+  const unassigned = workflow.filter(function(row) {
+    return !String(row.Assigned_Employee_ID || "").trim();
+  });
+
+  return {
+    success: true,
+    data: {
+      workflow: workflow,
+      assignedWorkflow: assigned,
+      unassignedWorkflow: unassigned,
+      allowedProjectIds: Object.keys(allowed),
+      employeeId: employeeId,
+      source: "LV - Auto Invoice / Workflow",
+      updatedAt: new Date().toISOString()
+    }
+  };
+}
+
 function ensureProjectPublicHeaders_() {
   return ensureHeaders_(getSheet(CONFIG.SHEETS.PROJECTS), [
     "Public_Display",
@@ -113,6 +167,9 @@ function getExteriorPublicImages_(project) {
 function getPublicProjects(params) {
   const trustedSession = trustedPinSessionFromGateway_(params);
   if (trustedSession) return trustedSession;
+
+  const employeeWorkspace = employeeWorkspaceFromGateway_(params);
+  if (employeeWorkspace) return employeeWorkspace;
 
   ensureProjectPublicHeaders_();
   const rows = readSheet(CONFIG.SHEETS.PROJECTS);
