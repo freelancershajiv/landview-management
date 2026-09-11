@@ -1,6 +1,5 @@
 "use client";
 import { useState, type FormEvent } from "react";
-import { landViewApi } from "@/lib/api";
 import styles from "./workflow-stage.module.css";
 type Row = Record<string, unknown>;
 export function stageProgress(task: Row) {
@@ -9,7 +8,22 @@ export function stageProgress(task: Row) {
   return Number.isFinite(value)?Math.max(0,Math.min(99,value)):0;
 }
 function dateValue(value:unknown){const text=String(value||"");return /^\d{4}-\d{2}-\d{2}/.test(text)?text.slice(0,10):"";}
+async function saveWorkflowRecord(payload:Record<string,unknown>){
+  const response=await fetch("/api/workflow",{
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    credentials:"same-origin",
+    cache:"no-store",
+    body:JSON.stringify(payload),
+  });
+  const text=await response.text();
+  let json:any;
+  try{json=JSON.parse(text);}catch{throw new Error(/^\s*</.test(text)?"Apps Script returned HTML instead of JSON.":"Workflow save returned an invalid response.");}
+  if(!response.ok||!json?.success)throw new Error(String(json?.error||json?.message||"Could not save workflow stage."));
+  return (json.data||{}) as Row;
+}
 export default function WorkflowStage({task,title,index,employees,onSaved}:{task:Row;title:string;index:number;employees:Row[];onSaved:(record:Row)=>void}) {
+  const [recordId,setRecordId]=useState(String(task.Task_ID||""));
   const [draft,setDraft]=useState({Assigned_Employee_ID:String(task.Assigned_Employee_ID||""),Start_Date:dateValue(task.Start_Date),Due_Date:dateValue(task.Due_Date),Status:String(task.Status||"Pending"),Progress:stageProgress(task),Description:String(task.Description||"")});
   const [busy,setBusy]=useState(false),[error,setError]=useState(""),[saved,setSaved]=useState(false);
   function change(changes:Partial<typeof draft>){setDraft(v=>({...v,...changes}));setSaved(false);setError("");}
@@ -17,14 +31,24 @@ export default function WorkflowStage({task,title,index,employees,onSaved}:{task
   async function persist(changes:Record<string,unknown>){
     setBusy(true);setError("");setSaved(false);
     try{
-      const record=await landViewApi.updateErpRecord("tasks",String(task.Task_ID),changes) as Row;
+      const base={
+        Project_ID:String(task.Project_ID||task["Project ID"]||""),
+        Project_Name:String(task.Project_Name||task["Project Name"]||""),
+        Task_Title:String(task.Task_Title||task["Task Title"]||title),
+        ...changes,
+      };
+      const record=recordId
+        ? await saveWorkflowRecord({workflowOp:"update",id:recordId,...base})
+        : await saveWorkflowRecord({workflowOp:"create",...base});
+      const nextId=String(record.Task_ID||recordId||"");
+      if(nextId)setRecordId(nextId);
       onSaved(record);
       setDraft({
         Assigned_Employee_ID:String(record.Assigned_Employee_ID||changes.Assigned_Employee_ID||""),
         Start_Date:dateValue(record.Start_Date||changes.Start_Date),
         Due_Date:dateValue(record.Due_Date||changes.Due_Date),
         Status:String(record.Status||changes.Status||"Pending"),
-        Progress:stageProgress(record),
+        Progress:stageProgress({...record,...changes}),
         Description:String(record.Description||changes.Description||"")
       });
       setSaved(true);
@@ -39,6 +63,7 @@ export default function WorkflowStage({task,title,index,employees,onSaved}:{task
   async function toggleComplete(){
     if(busy)return;
     const completing=draft.Status!=="Completed";
+    const previous={Status:draft.Status,Progress:draft.Progress};
     const next={
       ...draft,
       Status:completing?"Completed":"In Progress",
@@ -47,7 +72,7 @@ export default function WorkflowStage({task,title,index,employees,onSaved}:{task
     };
     setDraft(v=>({...v,Status:next.Status,Progress:next.Progress}));
     try{await persist(next);}catch{
-      setDraft(v=>({...v,Status:draft.Status,Progress:draft.Progress}));
+      setDraft(v=>({...v,Status:previous.Status,Progress:previous.Progress}));
     }
   }
   const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dhaka",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
