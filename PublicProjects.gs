@@ -180,6 +180,16 @@ function getPublicProjects(params) {
     return clientPortalLoginV2_(params);
   }
 
+  // Client workspace gets the billing V2 reader first so it uses the exact
+  // LV - Auto Invoice Summary/File List headers and live billing tabs.
+  if (
+    String((params && params._clientPortal) || "").trim() === "1" &&
+    String((params && params.clientOp) || "workspace").trim().toLowerCase() === "workspace" &&
+    typeof clientPortalWorkspaceV2_ === "function"
+  ) {
+    return clientPortalWorkspaceV2_(params);
+  }
+
   if (typeof clientPortalGateway_ === "function") {
     const clientPortal = clientPortalGateway_(params);
     if (clientPortal) return clientPortal;
