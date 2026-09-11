@@ -168,6 +168,12 @@ function getPublicProjects(params) {
   const trustedSession = trustedPinSessionFromGateway_(params);
   if (trustedSession) return trustedSession;
 
+  const certificateVerification = certificateVerificationFromGateway_(params);
+  if (certificateVerification) return certificateVerification;
+
+  const certificateRegistry = certificateRegistryFromGateway_(params);
+  if (certificateRegistry) return certificateRegistry;
+
   const employeeWorkspace = employeeWorkspaceFromGateway_(params);
   if (employeeWorkspace) return employeeWorkspace;
 
