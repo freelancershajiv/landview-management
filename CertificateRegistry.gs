@@ -140,7 +140,12 @@ function certificateRegistryFromGateway_(params) {
 
   if (op === "list") {
     const rows = certificateRegistryRows_(sheet)
-      .map(certificateRegistryPublicRecord_)
+      .map(function(record) {
+        const item = certificateRegistryPublicRecord_(record);
+        item.token = String(record.Token || "");
+        item.createdBy = String(record.Created_By || "");
+        return item;
+      })
       .sort(function(a, b) {
         return String(b.createdAt || b.issuedAt || "").localeCompare(String(a.createdAt || a.issuedAt || ""));
       });
