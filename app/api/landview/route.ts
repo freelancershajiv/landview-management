@@ -1,11 +1,16 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "landview_session";
+const QUICK_PIN_COOKIE = "landview_quick_pin";
+const QUICK_DEVICE_COOKIE = "landview_quick_device";
+const QUICK_USER_COOKIE = "landview_quick_user";
+const QUICK_LOCK_COOKIE = "landview_quick_locked";
 const COOKIE_MAX_AGE_SECONDS = 12 * 60 * 60;
+const QUICK_PIN_MAX_AGE_SECONDS = 90 * 24 * 60 * 60;
 
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
@@ -38,6 +43,11 @@ const GET_ACTIONS = new Set([
 const POST_ACTIONS = new Set([
   "login",
   "logout",
+  "setQuickPin",
+  "quickPinStatus",
+  "quickPinLogin",
+  "quickLock",
+  "disableQuickPin",
   "createUser",
   "resetUserPassword",
   "changeOwnPassword",
@@ -63,6 +73,7 @@ const POST_ACTIONS = new Set([
   "updateErpRecord",
 ]);
 
+const QUICK_ACTIONS = new Set(["setQuickPin", "quickPinStatus", "quickPinLogin", "quickLock", "disableQuickPin"]);
 const PUBLIC_GET_ACTIONS = new Set(["health", "getPublicTeam"]);
 
 function requiredEnv() {
@@ -147,25 +158,164 @@ function backendResponse(status: number, json: any) {
   });
 }
 
-function setSessionCookie(response: NextResponse, token: string) {
-  response.cookies.set(COOKIE_NAME, token, {
+function cookieOptions(maxAge: number) {
+  return {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "lax" as const,
     path: "/",
-    maxAge: COOKIE_MAX_AGE_SECONDS,
-    priority: "high",
-  });
+    maxAge,
+    priority: "high" as const,
+  };
+}
+
+function setSessionCookie(response: NextResponse, token: string) {
+  response.cookies.set(COOKIE_NAME, token, cookieOptions(COOKIE_MAX_AGE_SECONDS));
 }
 
 function clearSessionCookie(response: NextResponse) {
-  response.cookies.set(COOKIE_NAME, "", {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
-    path: "/",
-    maxAge: 0,
-  });
+  response.cookies.set(COOKIE_NAME, "", cookieOptions(0));
+}
+
+function clearLockCookie(response: NextResponse) {
+  response.cookies.set(QUICK_LOCK_COOKIE, "", cookieOptions(0));
+}
+
+function clearQuickPinCookies(response: NextResponse) {
+  response.cookies.set(QUICK_PIN_COOKIE, "", cookieOptions(0));
+  response.cookies.set(QUICK_DEVICE_COOKIE, "", cookieOptions(0));
+  response.cookies.set(QUICK_USER_COOKIE, "", cookieOptions(0));
+  response.cookies.set(QUICK_LOCK_COOKIE, "", cookieOptions(0));
+}
+
+function hmac(value: string) {
+  return createHmac("sha256", PROXY_SECRET).update(value).digest("hex");
+}
+
+function pinVerifier(pin: string, deviceId: string) {
+  return hmac(`landview-quick-pin-v1|${deviceId}|${pin}`);
+}
+
+function secureEqual(a: string, b: string) {
+  const aa = Buffer.from(String(a || ""), "utf8");
+  const bb = Buffer.from(String(b || ""), "utf8");
+  return aa.length === bb.length && timingSafeEqual(aa, bb);
+}
+
+function signQuickUser(user: Record<string, unknown>) {
+  const payload = Buffer.from(JSON.stringify(user), "utf8").toString("base64url");
+  return `${payload}.${hmac(`quick-user|${payload}`)}`;
+}
+
+function readQuickUser(value: string | undefined) {
+  const text = String(value || "");
+  const dot = text.lastIndexOf(".");
+  if (dot < 1) return null;
+  const payload = text.slice(0, dot);
+  const signature = text.slice(dot + 1);
+  if (!secureEqual(signature, hmac(`quick-user|${payload}`))) return null;
+  try {
+    return JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
+  } catch {
+    return null;
+  }
+}
+
+function quickConfigured(request: NextRequest) {
+  return Boolean(
+    request.cookies.get(QUICK_PIN_COOKIE)?.value &&
+    request.cookies.get(QUICK_DEVICE_COOKIE)?.value &&
+    request.cookies.get(QUICK_USER_COOKIE)?.value
+  );
+}
+
+async function handleQuickAction(request: NextRequest, action: string, input: Record<string, unknown>) {
+  const sessionToken = request.cookies.get(COOKIE_NAME)?.value || "";
+
+  if (action === "quickPinStatus") {
+    return NextResponse.json({
+      success: true,
+      data: {
+        configured: quickConfigured(request),
+        locked: request.cookies.get(QUICK_LOCK_COOKIE)?.value === "1",
+      },
+    });
+  }
+
+  if (action === "setQuickPin") {
+    const pin = String(input.pin || "").trim();
+    if (!/^\d{6}$/.test(pin)) {
+      return NextResponse.json({ success: false, error: "Quick PIN must be exactly 6 digits." }, { status: 400 });
+    }
+    if (!sessionToken) {
+      return NextResponse.json({ success: false, error: "Sign in normally before setting a Quick PIN." }, { status: 401 });
+    }
+
+    const { json } = await callBackend({
+      action: "getSession",
+      token: sessionToken,
+      proxySecret: PROXY_SECRET,
+      _clientKey: clientKey(request),
+    });
+    const user = json?.data?.user;
+    const role = String(user?.role || user?.Role || "").trim().toLowerCase();
+    if (!json?.success || !user || (role !== "admin" && role !== "manager")) {
+      return NextResponse.json({ success: false, error: "Quick PIN is available only to an administrator." }, { status: 403 });
+    }
+
+    const deviceId = randomBytes(32).toString("hex");
+    const verifier = pinVerifier(pin, deviceId);
+    const response = NextResponse.json({ success: true, data: { configured: true } });
+    response.cookies.set(QUICK_DEVICE_COOKIE, deviceId, cookieOptions(QUICK_PIN_MAX_AGE_SECONDS));
+    response.cookies.set(QUICK_PIN_COOKIE, verifier, cookieOptions(QUICK_PIN_MAX_AGE_SECONDS));
+    response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user), cookieOptions(QUICK_PIN_MAX_AGE_SECONDS));
+    clearLockCookie(response);
+    return response;
+  }
+
+  if (action === "quickLock") {
+    if (!quickConfigured(request) || !sessionToken) {
+      return NextResponse.json({ success: false, error: "Set up Quick PIN first." }, { status: 400 });
+    }
+    const response = NextResponse.json({ success: true, data: { locked: true } });
+    response.cookies.set(QUICK_LOCK_COOKIE, "1", cookieOptions(QUICK_PIN_MAX_AGE_SECONDS));
+    return response;
+  }
+
+  if (action === "quickPinLogin") {
+    const pin = String(input.pin || "").trim();
+    const deviceId = request.cookies.get(QUICK_DEVICE_COOKIE)?.value || "";
+    const storedVerifier = request.cookies.get(QUICK_PIN_COOKIE)?.value || "";
+    const quickUser = readQuickUser(request.cookies.get(QUICK_USER_COOKIE)?.value);
+    if (!/^\d{6}$/.test(pin) || !deviceId || !storedVerifier || !quickUser || !sessionToken) {
+      return NextResponse.json({ success: false, error: "Quick access is unavailable. Use your normal login." }, { status: 401 });
+    }
+
+    const expected = pinVerifier(pin, deviceId);
+    if (!secureEqual(expected, storedVerifier)) {
+      return NextResponse.json({ success: false, error: "Incorrect Quick PIN." }, { status: 401 });
+    }
+
+    const role = String(quickUser.role || quickUser.Role || "").trim().toLowerCase();
+    if (role !== "admin" && role !== "manager") {
+      return NextResponse.json({ success: false, error: "Quick PIN is restricted to administrators." }, { status: 403 });
+    }
+
+    const response = NextResponse.json({ success: true, data: { user: quickUser } });
+    clearLockCookie(response);
+    return response;
+  }
+
+  if (action === "disableQuickPin") {
+    if (!sessionToken) {
+      return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
+    }
+    const response = NextResponse.json({ success: true, data: { configured: false } });
+    clearQuickPinCookies(response);
+    return response;
+  }
+
+  return NextResponse.json({ success: false, error: "Unsupported quick access action." }, { status: 400 });
 }
 
 async function handle(request: NextRequest, method: "GET" | "POST") {
@@ -201,6 +351,14 @@ async function handle(request: NextRequest, method: "GET" | "POST") {
       return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
     }
 
+    if (method === "POST" && QUICK_ACTIONS.has(action)) {
+      return handleQuickAction(request, action, input);
+    }
+
+    if (request.cookies.get(QUICK_LOCK_COOKIE)?.value === "1" && action !== "login") {
+      return NextResponse.json({ success: false, error: "Workspace locked. Enter your Quick PIN." }, { status: 423 });
+    }
+
     delete input.token;
     delete input.proxySecret;
     delete input._clientKey;
@@ -220,9 +378,11 @@ async function handle(request: NextRequest, method: "GET" | "POST") {
 
     if (json?.success && returnedToken && (action === "login" || action === "changeOwnPassword")) {
       setSessionCookie(out, returnedToken);
+      clearLockCookie(out);
     }
     if (action === "logout" || (!json?.success && /unauthorized|session expired/i.test(String(json?.error || json?.message || "")))) {
       clearSessionCookie(out);
+      if (action === "logout") clearQuickPinCookies(out);
     }
     return out;
   } catch (error: any) {
