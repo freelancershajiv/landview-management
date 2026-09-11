@@ -22,6 +22,8 @@ var LAND_VIEW_PROJECT_CATEGORY_FOLDERS = [
   { category: "Completed", id: "1K8k8uYM1Ra3sfJYGmmIm5gaH2bEE0DD5" }
 ];
 
+var PROJECT_INDEX_CACHE_SECONDS = 180;
+
 function normalizeDriveProjectId_(value) {
   var text = String(value || "").trim().toUpperCase();
   var match = text.match(/LV[\s_-]*0*(\d+)/i);
@@ -36,6 +38,21 @@ function normalizeDriveProjectCategory_(value) {
   if (text === "paused") return "Paused";
   if (text === "completed") return "Completed";
   return "";
+}
+
+function projectIndexCacheKey_(category) {
+  return "LV_PROJECT_INDEX_" + (normalizeDriveProjectCategory_(category) || "ALL").toUpperCase();
+}
+
+function clearProjectIndexCache_() {
+  try {
+    CacheService.getScriptCache().removeAll([
+      projectIndexCacheKey_("Running"),
+      projectIndexCacheKey_("Paused"),
+      projectIndexCacheKey_("Completed"),
+      projectIndexCacheKey_("")
+    ]);
+  } catch (error) {}
 }
 
 function buildExistingDriveProjectIndex_(category) {
@@ -71,6 +88,26 @@ function buildExistingDriveProjectIndex_(category) {
     }
   }
 
+  return index;
+}
+
+function getCachedDriveProjectIndex_(category, forceRefresh) {
+  var normalized = normalizeDriveProjectCategory_(category);
+  var key = projectIndexCacheKey_(normalized);
+  var cache = CacheService.getScriptCache();
+
+  if (!forceRefresh) {
+    try {
+      var cached = cache.get(key);
+      if (cached) return JSON.parse(cached);
+    } catch (error) {}
+  }
+
+  var index = buildExistingDriveProjectIndex_(normalized);
+  try {
+    var payload = JSON.stringify(index);
+    if (payload.length < 95000) cache.put(key, payload, PROJECT_INDEX_CACHE_SECONDS);
+  } catch (error) {}
   return index;
 }
 
@@ -133,6 +170,8 @@ function ensureProjectServiceFolders_(projectId) {
     return { name: name, id: folder.getId(), url: folder.getUrl(), folder: folder };
   });
 
+  clearProjectIndexCache_();
+
   return {
     projectId: normalizeDriveProjectId_(id) || id,
     projectFolderId: projectFolder.getId(),
@@ -144,10 +183,8 @@ function ensureProjectServiceFolders_(projectId) {
 
 /*
  * Read-only folder lookup used by the Projects page.
- * bulk=1 scans project category folders and returns one index.
- * Optional category=Running|Paused|Completed restricts the scan to one parent
- * folder so the Projects page can render Running projects first, then load the
- * slower categories in the background.
+ * bulk=1 returns a cached project index. Optional category restricts the scan.
+ * refresh=1 bypasses the cache when a manual hard refresh is needed.
  * This NEVER creates a project folder or service folder.
  */
 function getProjectServiceFolders(params) {
@@ -156,12 +193,13 @@ function getProjectServiceFolders(params) {
   if (String(params.bulk || "") === "1" || String(params.bulk || "").toLowerCase() === "true") {
     if (!isWorkspaceRole(session.role)) throw new Error("Access denied.");
     var category = normalizeDriveProjectCategory_(params.category);
+    var forceRefresh = String(params.refresh || "") === "1";
     return {
       success: true,
       data: {
         bulk: true,
         category: category,
-        projects: buildExistingDriveProjectIndex_(category)
+        projects: getCachedDriveProjectIndex_(category, forceRefresh)
       }
     };
   }
@@ -285,5 +323,6 @@ function initializeProjectServiceFolders() {
       results.push({ projectId: projectId, success: false, error: error.message || String(error) });
     }
   });
+  clearProjectIndexCache_();
   return results;
 }
