@@ -126,7 +126,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     if (quickBusy) return;
     const role = roleOf(user);
     if (role !== "admin" && role !== "manager") {
-      window.alert("Quick PIN is available only to Admin or Manager accounts.");
+      window.alert("Permanent PIN is available only to Admin or Manager accounts.");
       return;
     }
 
@@ -135,22 +135,22 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
       try {
         await quickPost("quickLock");
         clearStoredSession();
-        router.replace("/login");
+        // Hard navigation unloads the entire admin application from memory.
+        window.location.replace("/login");
       } catch (err: any) {
-        window.alert(err?.message || "Could not lock with Quick PIN.");
-      } finally {
+        window.alert(err?.message || "Could not PIN-lock the workspace.");
         setQuickBusy(false);
       }
       return;
     }
 
-    const first = window.prompt("Create a 6-digit Quick PIN for this trusted browser:", "");
+    const first = window.prompt("Create your permanent 6-digit Admin PIN. You will use this same PIN every time you PIN Lock LAND VIEW:", "");
     if (first === null) return;
     if (!/^\d{6}$/.test(first)) {
-      window.alert("Quick PIN must be exactly 6 digits.");
+      window.alert("Admin PIN must be exactly 6 digits.");
       return;
     }
-    const second = window.prompt("Confirm the same 6-digit Quick PIN:", "");
+    const second = window.prompt("Confirm your permanent 6-digit Admin PIN:", "");
     if (second !== first) {
       window.alert("PINs did not match.");
       return;
@@ -160,9 +160,9 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
     try {
       await quickPost("setQuickPin", { pin: first });
       setQuickConfigured(true);
-      window.alert("Quick PIN is ready on this browser. Use PIN LOCK when leaving the admin panel.");
+      window.alert("Permanent Admin PIN created. From now on, PIN LOCK will unload the admin panel and the same PIN will unlock it.");
     } catch (err: any) {
-      window.alert(err?.message || "Could not set Quick PIN.");
+      window.alert(err?.message || "Could not create the permanent Admin PIN.");
     } finally {
       setQuickBusy(false);
     }
@@ -224,7 +224,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
                 <span><small>{role}</small>{name}</span>
               </div>
               {(roleOf(user)==="admin"||roleOf(user)==="manager") && (
-                <button className="utility-logout" onClick={setupOrLockQuickPin} disabled={quickBusy} title={quickConfigured?"Lock workspace and return with Quick PIN":"Set up Quick PIN"}>
+                <button className="utility-logout" onClick={setupOrLockQuickPin} disabled={quickBusy} title={quickConfigured?"Unload and lock the workspace with your permanent PIN":"Create your permanent Admin PIN"}>
                   {quickBusy ? "PLEASE WAIT" : quickConfigured ? "PIN LOCK" : "SET PIN"}
                 </button>
               )}
