@@ -8,9 +8,33 @@ type RawResponse<T = unknown> = {
 
 const API_URL = "/api/landview";
 const API_TIMEOUT_MS = 60000;
+const API_MAX_CONCURRENCY = 4;
+const API_RETRY_DELAYS_MS = [300, 900];
 const LEGACY_TOKEN_KEYS = ["land_view_session_token", "land_view_token", "landview_token"];
 const SESSION_CACHE_KEY = "land_view_session_cache_v1";
 const SESSION_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let activeApiRequests = 0;
+const apiRequestWaiters: Array<() => void> = [];
+
+async function acquireApiSlot() {
+  if (activeApiRequests < API_MAX_CONCURRENCY) {
+    activeApiRequests += 1;
+    return;
+  }
+  await new Promise<void>((resolve) => apiRequestWaiters.push(resolve));
+  activeApiRequests += 1;
+}
+
+function releaseApiSlot() {
+  activeApiRequests = Math.max(0, activeApiRequests - 1);
+  const next = apiRequestWaiters.shift();
+  if (next) next();
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => globalThis.setTimeout(resolve, ms));
+}
 
 export type SessionUser = {
   userId?: string; username?: string; name?: string; role?: string;
@@ -70,17 +94,39 @@ async function parseResponse<T>(response: Response): Promise<T> {
 }
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}) {
-  const controller = new AbortController();
-  const timer = globalThis.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+  await acquireApiSlot();
   try {
-    return await fetch(input, { ...init, signal: controller.signal, credentials: "same-origin" });
-  } catch (error: unknown) {
-    if (error instanceof DOMException && error.name === "AbortError") {
-      throw new Error("LAND VIEW server did not respond in time.");
+    for (let attempt = 0; ; attempt += 1) {
+      const controller = new AbortController();
+      const timer = globalThis.setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+      try {
+        const response = await fetch(input, { ...init, signal: controller.signal, credentials: "same-origin" });
+        const retryable = response.status === 502 || response.status === 503 || response.status === 504;
+        if (retryable && attempt < API_RETRY_DELAYS_MS.length) {
+          globalThis.clearTimeout(timer);
+          await wait(API_RETRY_DELAYS_MS[attempt]);
+          continue;
+        }
+        return response;
+      } catch (error: unknown) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          if (attempt < API_RETRY_DELAYS_MS.length) {
+            await wait(API_RETRY_DELAYS_MS[attempt]);
+            continue;
+          }
+          throw new Error("LAND VIEW server did not respond in time.");
+        }
+        if (attempt < API_RETRY_DELAYS_MS.length) {
+          await wait(API_RETRY_DELAYS_MS[attempt]);
+          continue;
+        }
+        throw error;
+      } finally {
+        globalThis.clearTimeout(timer);
+      }
     }
-    throw error;
   } finally {
-    globalThis.clearTimeout(timer);
+    releaseApiSlot();
   }
 }
 
