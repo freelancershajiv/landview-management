@@ -30,13 +30,23 @@ function normalizeDriveProjectId_(value) {
   return digits ? "LV-" + Number(digits) : "";
 }
 
-function buildExistingDriveProjectIndex_() {
+function normalizeDriveProjectCategory_(value) {
+  var text = String(value || "").trim().toLowerCase();
+  if (text === "running") return "Running";
+  if (text === "paused") return "Paused";
+  if (text === "completed") return "Completed";
+  return "";
+}
+
+function buildExistingDriveProjectIndex_(category) {
+  var requestedCategory = normalizeDriveProjectCategory_(category);
   var index = {};
 
   for (var i = 0; i < LAND_VIEW_PROJECT_CATEGORY_FOLDERS.length; i++) {
     var source = LAND_VIEW_PROJECT_CATEGORY_FOLDERS[i];
-    var parent;
+    if (requestedCategory && source.category !== requestedCategory) continue;
 
+    var parent;
     try {
       parent = DriveApp.getFolderById(source.id);
     } catch (error) {
@@ -134,7 +144,10 @@ function ensureProjectServiceFolders_(projectId) {
 
 /*
  * Read-only folder lookup used by the Projects page.
- * bulk=1 scans Running, Paused and Completed once and returns one index.
+ * bulk=1 scans project category folders and returns one index.
+ * Optional category=Running|Paused|Completed restricts the scan to one parent
+ * folder so the Projects page can render Running projects first, then load the
+ * slower categories in the background.
  * This NEVER creates a project folder or service folder.
  */
 function getProjectServiceFolders(params) {
@@ -142,11 +155,13 @@ function getProjectServiceFolders(params) {
 
   if (String(params.bulk || "") === "1" || String(params.bulk || "").toLowerCase() === "true") {
     if (!isWorkspaceRole(session.role)) throw new Error("Access denied.");
+    var category = normalizeDriveProjectCategory_(params.category);
     return {
       success: true,
       data: {
         bulk: true,
-        projects: buildExistingDriveProjectIndex_()
+        category: category,
+        projects: buildExistingDriveProjectIndex_(category)
       }
     };
   }
