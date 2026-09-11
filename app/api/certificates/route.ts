@@ -18,6 +18,16 @@ function sameOrigin(request: NextRequest) {
 function prefix(type: CertificateType) { if (type === "employee") return "EMP"; if (type === "building") return "BLD"; return "PRJ"; }
 function dateKey(date: string) { return date.replace(/\D/g, "").slice(0, 8); }
 function requireGatewayConfig() { if (!APPS_SCRIPT_URL || !PROXY_SECRET) throw new Error("Certificate registry backend is not configured."); }
+function inferCategory(type: CertificateType, subject: string, explicit: unknown) {
+  const value = clean(explicit, 40).toLowerCase();
+  if (value) return value;
+  if (type === "employee") return "employee";
+  if (type === "building") return "building";
+  const s = subject.toLowerCase();
+  if (s.includes("structural")) return "structural_design";
+  if (s.includes("supervision")) return "supervision";
+  return "project";
+}
 
 async function gatewayRequest(request: NextRequest, flags: Record<string, unknown>, payload: Record<string, unknown>) {
   requireGatewayConfig();
@@ -35,12 +45,8 @@ async function gatewayRequest(request: NextRequest, flags: Record<string, unknow
   return json.data || {};
 }
 
-function registryRequest(request: NextRequest, payload: Record<string, unknown>) {
-  return gatewayRequest(request, { _certificateRegistry: "1" }, payload);
-}
-function portalRequest(request: NextRequest, payload: Record<string, unknown>) {
-  return gatewayRequest(request, { _certificatePortal: "1" }, payload);
-}
+function registryRequest(request: NextRequest, payload: Record<string, unknown>) { return gatewayRequest(request, { _certificateRegistry: "1" }, payload); }
+function portalRequest(request: NextRequest, payload: Record<string, unknown>) { return gatewayRequest(request, { _certificatePortal: "1" }, payload); }
 
 function certificateUrls(request: NextRequest, token: string) {
   if (!token) return { verificationUrl: "", qrUrl: "" };
@@ -83,9 +89,20 @@ export async function POST(request: NextRequest) {
     const reference = clean(input?.reference, 80);
     const description = clean(input?.description, 900);
     const expiresAt = clean(input?.expiresAt, 40);
-    const category = clean(input?.category, 40).toLowerCase();
-    const requestId = clean(input?.requestId, 80);
+    const category = inferCategory(type, subject, input?.category);
+    let requestId = clean(input?.requestId, 80);
     if (!name) throw new Error("Certificate name is required.");
+
+    if (!requestId && reference) {
+      try {
+        const pending = await portalRequest(request, { certificatePortalOp: "adminList" });
+        const matched = (Array.isArray(pending?.requests) ? pending.requests : []).find((item: any) => {
+          const requester = clean(item?.requesterId || item?.projectId || item?.employeeId, 80).toUpperCase();
+          return String(item?.status || "").toLowerCase() === "approved" && requester === reference.toUpperCase() && clean(item?.category, 40).toLowerCase() === category;
+        });
+        if (matched?.requestId) requestId = clean(matched.requestId, 80);
+      } catch {}
+    }
 
     let revision = 1;
     let parentId = "";
