@@ -1,9 +1,177 @@
-/* Live, read-only connection to the authorized Google Sheets copy. */
+/* LAND VIEW — Auto Invoice workbook connection + workflow storage. */
+
+const FINANCE_WORKBOOK_ID_ = "1-JoPQqqntxP7NMVNHSYN-RYkHLWMQf4K";
+
+const FINANCE_WORKFLOW_HEADERS_ = [
+  "Task_ID",
+  "Project_ID",
+  "Project_Name",
+  "Task_Title",
+  "Assigned_Employee_ID",
+  "Priority",
+  "Start_Date",
+  "Due_Date",
+  "Status",
+  "Progress",
+  "Description",
+  "Completed_At",
+  "Created_At",
+  "Updated_At"
+];
+
+function normalizeFinanceWorkflowProjectId_(value) {
+  const raw = String(value || "").trim().toUpperCase();
+  const digits = raw.replace(/\D/g, "");
+  return digits ? "LV-" + Number(digits) : raw;
+}
+
+function getFinanceWorkbook_() {
+  return SpreadsheetApp.openById(FINANCE_WORKBOOK_ID_);
+}
+
+function ensureFinanceWorkflowSheet_(ss) {
+  const sheet = ss.getSheetByName("Workflow");
+  if (!sheet) throw new Error('Finance worksheet "Workflow" was not found.');
+
+  const lastColumn = Math.max(1, sheet.getLastColumn());
+  const existing = sheet.getRange(1, 1, 1, lastColumn).getDisplayValues()[0].map(function(value) {
+    return String(value || "").trim();
+  });
+
+  const hasAnyHeader = existing.some(function(value) { return !!value; });
+  if (!hasAnyHeader) {
+    sheet.getRange(1, 1, 1, FINANCE_WORKFLOW_HEADERS_.length).setValues([FINANCE_WORKFLOW_HEADERS_]);
+    return sheet;
+  }
+
+  let headers = existing.slice();
+  FINANCE_WORKFLOW_HEADERS_.forEach(function(header) {
+    if (headers.indexOf(header) < 0) {
+      headers.push(header);
+      sheet.getRange(1, headers.length).setValue(header);
+    }
+  });
+
+  return sheet;
+}
+
+function financeWorkflowProjectName_(ss, projectId) {
+  const sheet = ss.getSheetByName("File List");
+  if (!sheet || sheet.getLastRow() < 2) return "";
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.min(2, Math.max(2, sheet.getLastColumn()))).getDisplayValues();
+  const target = normalizeFinanceWorkflowProjectId_(projectId);
+  for (let i = 0; i < rows.length; i++) {
+    if (normalizeFinanceWorkflowProjectId_(rows[i][0]) === target) return String(rows[i][1] || "").trim();
+  }
+  return "";
+}
+
+function financeWorkflowRecordFromParams_(params, ss, current) {
+  const record = Object.assign({}, current || {});
+  const allowed = [
+    "Task_ID", "Project_ID", "Project_Name", "Task_Title", "Assigned_Employee_ID",
+    "Priority", "Start_Date", "Due_Date", "Status", "Progress", "Description",
+    "Completed_At", "Created_At", "Updated_At"
+  ];
+
+  allowed.forEach(function(key) {
+    if (Object.prototype.hasOwnProperty.call(params, key)) record[key] = params[key];
+  });
+
+  if (params.projectId && !record.Project_ID) record.Project_ID = params.projectId;
+  if (params.id && !record.Task_ID) record.Task_ID = params.id;
+
+  record.Project_ID = normalizeFinanceWorkflowProjectId_(record.Project_ID);
+  if (!record.Project_Name && record.Project_ID) record.Project_Name = financeWorkflowProjectName_(ss, record.Project_ID);
+  if (!record.Priority) record.Priority = "Normal";
+  if (!record.Status) record.Status = "Pending";
+
+  const progress = Number(record.Progress || 0);
+  record.Progress = Number.isFinite(progress) ? Math.max(0, Math.min(100, progress)) : 0;
+  if (String(record.Status).toLowerCase() === "completed") record.Progress = 100;
+
+  return record;
+}
+
+function financeWorkflowRows_(sheet) {
+  if (sheet.getLastRow() < 2) return [];
+  const width = Math.max(FINANCE_WORKFLOW_HEADERS_.length, sheet.getLastColumn());
+  const headers = sheet.getRange(1, 1, 1, width).getDisplayValues()[0];
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getDisplayValues();
+  return values.map(function(row) {
+    const record = {};
+    headers.forEach(function(header, index) {
+      if (header) record[header] = row[index] === undefined ? "" : row[index];
+    });
+    return record;
+  }).filter(function(record) {
+    return String(record.Task_ID || record.Project_ID || "").trim();
+  });
+}
+
+function handleFinanceWorkflowOperation_(params, session, ss, sheet) {
+  const op = String(params.workflowOp || "").trim().toLowerCase();
+  if (!op) return null;
+  if (!isAdminRole(session.role)) throw new Error("Access denied.");
+
+  const headers = sheet.getRange(1, 1, 1, Math.max(FINANCE_WORKFLOW_HEADERS_.length, sheet.getLastColumn())).getDisplayValues()[0];
+
+  if (op === "create") {
+    const record = financeWorkflowRecordFromParams_(params, ss, {});
+    if (!record.Project_ID) throw new Error("Project ID is required.");
+    if (!String(record.Task_Title || "").trim()) throw new Error("Workflow stage is required.");
+
+    const existing = financeWorkflowRows_(sheet).find(function(row) {
+      return normalizeFinanceWorkflowProjectId_(row.Project_ID) === record.Project_ID && String(row.Task_Title || "").trim() === String(record.Task_Title || "").trim();
+    });
+    if (existing) return { success: true, data: existing };
+
+    record.Task_ID = String(record.Task_ID || ("WF-" + Utilities.getUuid().split("-")[0].toUpperCase()));
+    record.Created_At = String(record.Created_At || new Date().toISOString());
+    record.Updated_At = new Date().toISOString();
+
+    sheet.appendRow(headers.map(function(header) { return record[header] === undefined ? "" : record[header]; }));
+    return { success: true, data: record };
+  }
+
+  if (op === "update") {
+    const taskId = String(params.id || params.Task_ID || "").trim();
+    if (!taskId) throw new Error("Workflow Task ID is required.");
+    if (sheet.getLastRow() < 2) throw new Error("Workflow record not found.");
+
+    const idIndex = headers.indexOf("Task_ID");
+    if (idIndex < 0) throw new Error("Workflow Task_ID column was not found.");
+    const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+    let rowIndex = -1;
+    let current = {};
+
+    for (let i = 0; i < values.length; i++) {
+      if (String(values[i][idIndex] || "").trim() === taskId) {
+        rowIndex = i + 2;
+        headers.forEach(function(header, index) { if (header) current[header] = values[i][index]; });
+        break;
+      }
+    }
+
+    if (rowIndex < 0) throw new Error("Workflow record not found.");
+    const record = financeWorkflowRecordFromParams_(params, ss, current);
+    record.Task_ID = taskId;
+    record.Created_At = current.Created_At || new Date().toISOString();
+    record.Updated_At = new Date().toISOString();
+
+    sheet.getRange(rowIndex, 1, 1, headers.length).setValues([headers.map(function(header) {
+      return record[header] === undefined ? "" : record[header];
+    })]);
+
+    return { success: true, data: record };
+  }
+
+  throw new Error("Unknown Workflow operation.");
+}
+
 function getFinanceSheet(params) {
   const session = requireSession(params);
   if (!isWorkspaceRole(session.role)) throw new Error("Access denied.");
-
-  const id = "1-JoPQqqntxP7NMVNHSYN-RYkHLWMQf4K";
 
   const widths = {
     "Summary": 18,
@@ -14,19 +182,27 @@ function getFinanceSheet(params) {
     "Supervision Bill": 7,
     "S Deposit": 5,
     "Others Bill": 6,
-    "Others Bill Deposit": 5
+    "Others Bill Deposit": 5,
+    "Workflow": 14
   };
 
   const tab = String(params.tab || "Summary");
   if (!Object.prototype.hasOwnProperty.call(widths, tab)) throw new Error("Unknown finance worksheet.");
 
-  const ss = SpreadsheetApp.openById(id);
+  const ss = getFinanceWorkbook_();
   let sheet = null;
   if (tab === "S Deposit") sheet = ss.getSheetByName("Supervision Deposit") || ss.getSheetByName("S Deposit");
+  else if (tab === "Workflow") sheet = ensureFinanceWorkflowSheet_(ss);
   else sheet = ss.getSheetByName(tab);
 
-  const summary = ss.getSheetByName("Summary");
   if (!sheet) throw new Error(tab === "S Deposit" ? 'Supervision Deposit worksheet was not found. Name the tab either "Supervision Deposit" or "S Deposit".' : 'Finance worksheet "' + tab + '" was not found.');
+
+  if (tab === "Workflow") {
+    const workflowResult = handleFinanceWorkflowOperation_(params, session, ss, sheet);
+    if (workflowResult) return workflowResult;
+  }
+
+  const summary = ss.getSheetByName("Summary");
   if (!summary) throw new Error('Finance worksheet "Summary" was not found.');
   if (summary.getLastRow() > 10000 || sheet.getLastRow() > 10000) throw new Error("Finance worksheet exceeds the 10,000-row reading limit.");
 
@@ -62,10 +238,11 @@ function getFinanceSheet(params) {
     if (tab === "Invoice") return row.some(hasValue);
     if (tab === "Summary") return !!populatedIds[String(row[0])];
     if (tab === "File List") return hasValue(row[0]);
+    if (tab === "Workflow") return hasValue(row[0]) || hasValue(row[1]);
     return row.slice(2).some(hasValue);
   });
 
-  if (tab !== "Summary" && !["Invoice", "File List"].includes(tab)) {
+  if (tab !== "Summary" && !["Invoice", "File List", "Workflow"].includes(tab)) {
     const omit = 1;
     headers = headers.filter(function(_, i) { return i !== omit; });
     rows = rows.map(function(row) { return row.filter(function(_, i) { return i !== omit; }); });
@@ -119,7 +296,7 @@ function getPublicBillingVerification(params) {
 
   if (!/^LV-\d+$/.test(fileId)) throw new Error("Invalid File ID.");
 
-  const ss = SpreadsheetApp.openById("1-JoPQqqntxP7NMVNHSYN-RYkHLWMQf4K");
+  const ss = getFinanceWorkbook_();
   const summary = ss.getSheetByName("Summary");
   if (!summary) throw new Error('Finance worksheet "Summary" was not found.');
 
