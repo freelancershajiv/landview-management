@@ -18,6 +18,33 @@ function allowedOrigin(request: NextRequest) {
   }
 }
 
+function unwrapRecord(json: any) {
+  return json?.data?.data ?? json?.data ?? null;
+}
+
+async function callWorkflow(payload: Record<string, unknown>) {
+  const backend = await fetch(APPS_SCRIPT_URL, {
+    method: "POST",
+    headers: { "Content-Type": "text/plain;charset=utf-8" },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+    redirect: "follow",
+  });
+
+  const text = await backend.text();
+  let json: any;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    return {
+      backend,
+      json: { success: false, error: /^\s*</.test(text) ? "Apps Script returned HTML instead of JSON." : "Apps Script returned invalid JSON." },
+      parseFailed: true,
+    };
+  }
+  return { backend, json, parseFailed: false };
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!APPS_SCRIPT_URL || !PROXY_SECRET) {
@@ -44,36 +71,38 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Unsupported workflow operation." }, { status: 400 });
     }
 
-    const payload = {
+    const common = {
       ...body,
       action: "getFinanceSheet",
       tab: "Workflow",
-      workflowOp,
       token,
       proxySecret: PROXY_SECRET,
     };
 
-    const backend = await fetch(APPS_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-      redirect: "follow",
-    });
-
-    const text = await backend.text();
-    let json: any;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      return NextResponse.json(
-        { success: false, error: /^\s*</.test(text) ? "Apps Script returned HTML instead of JSON." : "Apps Script returned invalid JSON." },
-        { status: 502 }
-      );
+    let result = await callWorkflow({ ...common, workflowOp });
+    if (result.parseFailed) {
+      return NextResponse.json(result.json, { status: 502, headers: { "Cache-Control": "no-store, max-age=0" } });
     }
 
-    return NextResponse.json(json, {
-      status: backend.ok ? 200 : backend.status,
+    // Apps Script's "create" operation returns an already-existing row unchanged
+    // when the same Project_ID + Task_Title already exists. Billing-driven services
+    // are often synthetic AUTO::* rows while a real pending WF-* row already exists.
+    // Treat create as UPSERT here: once Apps Script gives us the real Task_ID,
+    // immediately apply the requested fields through update.
+    if (workflowOp === "create" && result.json?.success) {
+      const created = unwrapRecord(result.json);
+      const realId = String(created?.Task_ID || "").trim();
+      if (realId && !realId.startsWith("AUTO::")) {
+        const updated = await callWorkflow({ ...common, workflowOp: "update", id: realId, Task_ID: realId });
+        if (updated.parseFailed) {
+          return NextResponse.json(updated.json, { status: 502, headers: { "Cache-Control": "no-store, max-age=0" } });
+        }
+        result = updated;
+      }
+    }
+
+    return NextResponse.json(result.json, {
+      status: result.backend.ok ? 200 : result.backend.status,
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
   } catch (error: any) {
