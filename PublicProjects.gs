@@ -168,14 +168,23 @@ function getPublicProjects(params) {
   const trustedSession = trustedPinSessionFromGateway_(params);
   if (trustedSession) return trustedSession;
 
-  const certificateVerification = certificateVerificationFromGateway_(params);
-  if (certificateVerification) return certificateVerification;
+  // Optional gateway modules are guarded so a staged Apps Script deployment
+  // cannot break login/public project access when one companion .gs file has
+  // not yet been added to the deployed script version.
+  if (typeof certificateVerificationFromGateway_ === "function") {
+    const certificateVerification = certificateVerificationFromGateway_(params);
+    if (certificateVerification) return certificateVerification;
+  }
 
-  const certificateRegistry = certificateRegistryFromGateway_(params);
-  if (certificateRegistry) return certificateRegistry;
+  if (typeof certificateRegistryFromGateway_ === "function") {
+    const certificateRegistry = certificateRegistryFromGateway_(params);
+    if (certificateRegistry) return certificateRegistry;
+  }
 
-  const clientPortal = clientPortalGateway_(params);
-  if (clientPortal) return clientPortal;
+  if (typeof clientPortalGateway_ === "function") {
+    const clientPortal = clientPortalGateway_(params);
+    if (clientPortal) return clientPortal;
+  }
 
   const employeeWorkspace = employeeWorkspaceFromGateway_(params);
   if (employeeWorkspace) return employeeWorkspace;
