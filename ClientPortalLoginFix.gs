@@ -16,7 +16,8 @@ function clientPortalLoginPhoneEqual_(a, b) {
 
 function clientPortalLoginPhonesFromRow_(row) {
   const keys = [
-    "Contact", "CONTACT", "Contact Number", "Contact_Number", "Contact No", "Contact_No",
+    // LV - Auto Invoice / File List uses the exact header "Contact No."
+    "Contact No.", "CONTACT NO.", "Contact", "CONTACT", "Contact Number", "Contact_Number", "Contact No", "Contact_No",
     "Mobile", "MOBILE", "Mobile Number", "Mobile_Number", "Mobile No", "Mobile_No",
     "Phone", "PHONE", "Phone Number", "Phone_Number", "Phone No", "Phone_No",
     "Client Phone", "Client_Phone", "Client Mobile", "Client_Mobile", "Client Contact", "Client_Contact",
