@@ -14,15 +14,42 @@ export default function WorkflowStage({task,title,index,employees,onSaved}:{task
   const [busy,setBusy]=useState(false),[error,setError]=useState(""),[saved,setSaved]=useState(false);
   function change(changes:Partial<typeof draft>){setDraft(v=>({...v,...changes}));setSaved(false);setError("");}
   function status(value:string){change({Status:value,Progress:value==="Completed"?100:value==="Pending"||value==="Draft"?0:Math.min(draft.Progress,99)});}
+  async function persist(changes:Record<string,unknown>){
+    setBusy(true);setError("");setSaved(false);
+    try{
+      const record=await landViewApi.updateErpRecord("tasks",String(task.Task_ID),changes) as Row;
+      onSaved(record);
+      setDraft({
+        Assigned_Employee_ID:String(record.Assigned_Employee_ID||changes.Assigned_Employee_ID||""),
+        Start_Date:dateValue(record.Start_Date||changes.Start_Date),
+        Due_Date:dateValue(record.Due_Date||changes.Due_Date),
+        Status:String(record.Status||changes.Status||"Pending"),
+        Progress:stageProgress(record),
+        Description:String(record.Description||changes.Description||"")
+      });
+      setSaved(true);
+      return record;
+    }catch(e){setError(e instanceof Error?e.message:"Could not save stage.");throw e;}finally{setBusy(false);}
+  }
   async function save(event:FormEvent){event.preventDefault();if(busy)return;
     if(draft.Start_Date&&draft.Due_Date&&draft.Due_Date<draft.Start_Date){setError("Deadline must be on or after the start date.");return;}
-    setBusy(true);setError("");
     const changes={...draft,Completed_At:draft.Status==="Completed"?String(task.Completed_At||new Date().toISOString()):""};
-    try{await landViewApi.updateErpRecord("tasks",String(task.Task_ID),changes);
-      const records=await landViewApi.getErpRecords("tasks");const record=records.find(row=>String(row.Task_ID)===String(task.Task_ID));
-      if(!record||Number(record.Progress)!==changes.Progress||String(record.Status)!==changes.Status||dateValue(record.Due_Date)!==changes.Due_Date||String(record.Assigned_Employee_ID||"")!==changes.Assigned_Employee_ID)throw new Error("The saved stage could not be verified. Refresh before retrying; the backend may need its workflow update.");
-      onSaved(record);setSaved(true);
-    }catch(e){setError(e instanceof Error?e.message:"Could not save stage.");}finally{setBusy(false);}}
+    try{await persist(changes);}catch{}
+  }
+  async function toggleComplete(){
+    if(busy)return;
+    const completing=draft.Status!=="Completed";
+    const next={
+      ...draft,
+      Status:completing?"Completed":"In Progress",
+      Progress:completing?100:Math.min(99,Math.max(1,draft.Progress||1)),
+      Completed_At:completing?new Date().toISOString():""
+    };
+    setDraft(v=>({...v,Status:next.Status,Progress:next.Progress}));
+    try{await persist(next);}catch{
+      setDraft(v=>({...v,Status:draft.Status,Progress:draft.Progress}));
+    }
+  }
   const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Asia/Dhaka",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
   const overdue=draft.Due_Date&&draft.Due_Date<today&&draft.Status!=="Completed";
   return <form className={styles.stage} onSubmit={save}>
@@ -35,7 +62,7 @@ export default function WorkflowStage({task,title,index,employees,onSaved}:{task
       <label>Deadline<input type="date" min={draft.Start_Date||undefined} value={draft.Due_Date} onChange={e=>change({Due_Date:e.target.value})}/></label>
       <label>Progress (%)<input type="number" min={0} max={100} step={1} required value={draft.Progress} onChange={e=>{const value=Number(e.target.value);change({Progress:value,Status:value===100?"Completed":draft.Status==="Blocked"?"Blocked":value>0?"In Progress":"Pending"});}}/></label>
       <label className={styles.notes}>Stage notes<textarea rows={2} value={draft.Description} onChange={e=>change({Description:e.target.value})}/></label>
-    </div><footer><span>{task.Completed_At?`Completed ${dateValue(task.Completed_At)}`:""}</span><button type="button" onClick={()=>status(draft.Status==="Completed"?"In Progress":"Completed")}>{draft.Status==="Completed"?"Reopen stage":"Mark complete"}</button><button type="submit">{busy?"Saving…":"Save stage"}</button></footer></fieldset>
+    </div><footer><span>{draft.Status==="Completed"?"Completed":""}</span><button type="button" onClick={toggleComplete}>{busy?"Saving…":draft.Status==="Completed"?"Reopen stage":"Mark complete"}</button><button type="submit">{busy?"Saving…":"Save stage"}</button></footer></fieldset>
     {error&&<p role="alert">{error}</p>}{saved&&<p role="status">Saved</p>}
   </form>;
 }
