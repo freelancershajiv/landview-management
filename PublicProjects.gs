@@ -174,6 +174,9 @@ function getPublicProjects(params) {
   const certificateRegistry = certificateRegistryFromGateway_(params);
   if (certificateRegistry) return certificateRegistry;
 
+  const clientPortal = clientPortalGateway_(params);
+  if (clientPortal) return clientPortal;
+
   const employeeWorkspace = employeeWorkspaceFromGateway_(params);
   if (employeeWorkspace) return employeeWorkspace;
 
