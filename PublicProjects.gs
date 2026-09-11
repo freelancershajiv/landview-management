@@ -28,14 +28,6 @@ function trustedPinSessionFromGateway_(params) {
   return { success: true, data: { token: token, user: safeUser } };
 }
 
-/*
- * Internal employee workspace bridge.
- * This deliberately reuses the public getPublicProjects action so Code.gs does
- * not need another router case. It is still protected by the Vercel proxy
- * secret and, unlike the public portfolio branch, requires a valid Employee
- * session. Only workflow rows belonging to projects the employee is allowed to
- * access are returned.
- */
 function employeeWorkspaceFromGateway_(params) {
   const requested = String((params && params._employeeWorkspace) || "").trim();
   if (requested !== "1") return null;
@@ -168,9 +160,6 @@ function getPublicProjects(params) {
   const trustedSession = trustedPinSessionFromGateway_(params);
   if (trustedSession) return trustedSession;
 
-  // Optional gateway modules are guarded so a staged Apps Script deployment
-  // cannot break login/public project access when one companion .gs file has
-  // not yet been added to the deployed script version.
   if (typeof certificateVerificationFromGateway_ === "function") {
     const certificateVerification = certificateVerificationFromGateway_(params);
     if (certificateVerification) return certificateVerification;
@@ -179,6 +168,16 @@ function getPublicProjects(params) {
   if (typeof certificateRegistryFromGateway_ === "function") {
     const certificateRegistry = certificateRegistryFromGateway_(params);
     if (certificateRegistry) return certificateRegistry;
+  }
+
+  // Client login gets the V2 matcher first. It checks Finance File List,
+  // Finance Summary and Management Projects, including common phone headers.
+  if (
+    String((params && params._clientPortal) || "").trim() === "1" &&
+    String((params && params.clientOp) || "").trim().toLowerCase() === "login" &&
+    typeof clientPortalLoginV2_ === "function"
+  ) {
+    return clientPortalLoginV2_(params);
   }
 
   if (typeof clientPortalGateway_ === "function") {
