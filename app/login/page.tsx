@@ -145,9 +145,9 @@ export default function LoginPage() {
     }
   }
 
-  function addPinDigit(digit: string) {
+  function handlePinChange(value: string) {
     if (quickBusy) return;
-    const next = (pin + digit).slice(0, 6);
+    const next = value.replace(/\D/g, "").slice(0, 6);
     setPin(next);
     setError("");
     if (next.length === 6) void unlockQuickPin(next);
@@ -160,7 +160,7 @@ export default function LoginPage() {
   return (
     <main className="reference-login role-login-page">
       <style>{`
-        .quick-pin-card{display:grid;gap:16px}.quick-pin-dots{display:flex;justify-content:center;gap:10px;margin:8px 0}.quick-pin-dot{width:13px;height:13px;border-radius:50%;border:1px solid #5d6871;background:transparent}.quick-pin-dot.filled{background:#ef493b;border-color:#ef493b;box-shadow:0 0 0 4px rgba(239,73,59,.1)}.quick-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.quick-keypad button{min-height:48px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:#161f27;color:#fff;font-size:15px;font-weight:800;cursor:pointer}.quick-keypad button:hover{border-color:#ef493b;background:#202a32}.quick-keypad .quick-action{font-size:10px;color:#ef766c}.quick-pin-note{text-align:center;color:#8f9aa3;font-size:9px;line-height:1.6}.quick-switch{border:0;background:transparent;color:#ef766c;font-size:10px;font-weight:800;cursor:pointer;text-decoration:underline}.quick-pin-label{text-align:center;color:#fff;font-size:12px;font-weight:800;letter-spacing:.08em}.quick-badge{display:inline-flex;justify-self:center;padding:5px 8px;border-radius:999px;background:#1c3026;color:#9ed8b3;font-size:8px;font-weight:800;letter-spacing:.08em}
+        .quick-pin-card{display:grid;gap:16px}.quick-pin-field{width:100%;height:58px;border:1px solid rgba(255,255,255,.16);border-radius:8px;background:#111920;color:#fff;text-align:center;font-size:24px;font-weight:800;letter-spacing:.5em;padding-left:.5em;outline:none}.quick-pin-field:focus{border-color:#ef493b;box-shadow:0 0 0 3px rgba(239,73,59,.12)}.quick-pin-field::placeholder{letter-spacing:.18em;font-size:11px;color:#75808a}.quick-pin-note{text-align:center;color:#8f9aa3;font-size:9px;line-height:1.6}.quick-switch{border:0;background:transparent;color:#ef766c;font-size:10px;font-weight:800;cursor:pointer;text-decoration:underline}.quick-pin-label{text-align:center;color:#fff;font-size:12px;font-weight:800;letter-spacing:.08em}.quick-badge{display:inline-flex;justify-self:center;padding:5px 8px;border-radius:999px;background:#1c3026;color:#9ed8b3;font-size:8px;font-weight:800;letter-spacing:.08em}
       `}</style>
 
       <header className="reference-login-header">
@@ -191,15 +191,23 @@ export default function LoginPage() {
             <div className="reference-card-title"><span>TRUSTED DEVICE</span><h2>Enter Quick PIN</h2></div>
             <span className="quick-badge">QUICK ACCESS READY</span>
             {error && <div className="login-error role-login-error"><div className="error-icon">!</div><div><strong>Unlock failed</strong><p>{error}</p></div></div>}
-            <div className="quick-pin-label">6-DIGIT ADMIN PIN</div>
-            <div className="quick-pin-dots" aria-label={`${pin.length} of 6 digits entered`}>{Array.from({length:6}).map((_,i)=><span key={i} className={`quick-pin-dot ${i<pin.length?"filled":""}`}/>)}</div>
-            <div className="quick-keypad">
-              {["1","2","3","4","5","6","7","8","9"].map(d=><button key={d} type="button" disabled={quickBusy} onClick={()=>addPinDigit(d)}>{d}</button>)}
-              <button type="button" className="quick-action" disabled={quickBusy} onClick={()=>setPin("")}>CLEAR</button>
-              <button type="button" disabled={quickBusy} onClick={()=>addPinDigit("0")}>0</button>
-              <button type="button" className="quick-action" disabled={quickBusy||!pin} onClick={()=>setPin(v=>v.slice(0,-1))}>⌫</button>
-            </div>
-            <div className="quick-pin-note">{quickBusy?"Unlocking admin panel…":"The sixth digit unlocks automatically."}</div>
+            <label className="quick-pin-label" htmlFor="quick-pin">6-DIGIT ADMIN PIN</label>
+            <input
+              id="quick-pin"
+              className="quick-pin-field"
+              type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={6}
+              value={pin}
+              onChange={(e) => handlePinChange(e.target.value)}
+              autoComplete="off"
+              autoFocus
+              disabled={quickBusy}
+              placeholder="ENTER PIN"
+              aria-label="6-digit admin Quick PIN"
+            />
+            <div className="quick-pin-note">{quickBusy ? "Unlocking admin panel…" : "Enter all 6 digits to unlock automatically."}</div>
             <button className="quick-switch" type="button" onClick={()=>{setQuickMode(false);setError("");setPin("");}}>Use username & password instead</button>
           </section>
         ) : (
