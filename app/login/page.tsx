@@ -2,397 +2,160 @@
 
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  clearStoredSession,
-  landViewApi,
-  saveSessionCache,
-} from "@/lib/api";
+import { clearStoredSession, landViewApi, saveSessionCache } from "@/lib/api";
 
 type PortalType = "admin" | "employee" | "client";
-
 const PORTAL_KEY = "land_view_portal_type";
 
-const portalOptions: Array<{
-  id: PortalType;
-  label: string;
-  short: string;
-  eyebrow: string;
-  description: string;
-  identifierLabel: string;
-  identifierPlaceholder: string;
-}> = [
-  {
-    id: "admin",
-    label: "Management",
-    short: "A",
-    eyebrow: "ADMIN / MANAGER / ACCOUNTS",
-    description: "Projects, finance, employees, workflow and company administration.",
-    identifierLabel: "USERNAME",
-    identifierPlaceholder: "Enter username",
-  },
-  {
-    id: "employee",
-    label: "Employee",
-    short: "E",
-    eyebrow: "EMPLOYEE WORKSPACE",
-    description: "Assigned projects, workflow, site records, files and attendance.",
-    identifierLabel: "EMPLOYEE ID",
-    identifierPlaceholder: "EMP-0001",
-  },
-  {
-    id: "client",
-    label: "Client",
-    short: "C",
-    eyebrow: "CLIENT PORTAL",
-    description: "Project information, documents, billing visibility and communication.",
-    identifierLabel: "PHONE NUMBER",
-    identifierPlaceholder: "01XXXXXXXXX",
-  },
+const portals = [
+  { id:"admin" as PortalType, label:"Management", short:"A", eyebrow:"ADMIN / MANAGER / ACCOUNTS", description:"Projects, finance, employees, workflow and company administration.", identifier:"USERNAME", placeholder:"Enter username" },
+  { id:"employee" as PortalType, label:"Employee", short:"E", eyebrow:"EMPLOYEE WORKSPACE", description:"Assigned projects, workflow, site records, files and attendance.", identifier:"EMPLOYEE ID", placeholder:"EMP-0001" },
+  { id:"client" as PortalType, label:"Client", short:"C", eyebrow:"CLIENT PORTAL", description:"Project information, documents, billing visibility and communication.", identifier:"PHONE NUMBER", placeholder:"01XXXXXXXXX" },
 ];
 
-function normalizeRole(value: unknown) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function roleMatchesPortal(role: string, portal: PortalType) {
-  if (portal === "admin") return role === "admin" || role === "manager" || role === "accounts";
-  if (portal === "employee") return role === "employee";
-  return role === "client";
-}
-
-function portalForRole(role: string): PortalType | null {
-  if (role === "admin" || role === "manager" || role === "accounts") return "admin";
-  if (role === "employee") return "employee";
-  if (role === "client") return "client";
+function normalizeRole(value: unknown){ return String(value || "").trim().toLowerCase(); }
+function portalForRole(role:string):PortalType|null{
+  if(["admin","manager","accounts"].includes(role)) return "admin";
+  if(role === "employee") return "employee";
+  if(role === "client") return "client";
   return null;
 }
+function roleMatchesPortal(role:string, portal:PortalType){ return portalForRole(role) === portal; }
+function portalPath(portal:PortalType){ return portal === "admin" ? "/admin" : portal === "employee" ? "/employee" : "/client"; }
 
-function portalPath(portal: PortalType) {
-  if (portal === "admin") return "/admin";
-  if (portal === "employee") return "/employee";
-  return "/client";
-}
-
-async function quickPost(action: string, body: Record<string, unknown> = {}) {
+async function quickPost(action:string, body:Record<string,unknown> = {}){
   const response = await fetch("/api/landview", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-    credentials: "same-origin",
-    body: JSON.stringify({ action, ...body }),
+    method:"POST", headers:{"Content-Type":"application/json"}, cache:"no-store", credentials:"same-origin",
+    body:JSON.stringify({action,...body}),
   });
-
-  let json: any = null;
-  try {
-    json = await response.json();
-  } catch {
-    throw new Error("The login service returned an invalid response. Please try again.");
-  }
-
-  if (!response.ok || !json?.success) {
-    throw new Error(String(json?.error || json?.message || "Quick access failed."));
-  }
+  let json:any;
+  try { json = await response.json(); } catch { throw new Error("The login service returned an invalid response."); }
+  if(!response.ok || !json?.success) throw new Error(String(json?.error || json?.message || "Quick access failed."));
   return json.data || {};
 }
 
-export default function LoginPage() {
+export default function LoginPage(){
   const router = useRouter();
-  const [portal, setPortal] = useState<PortalType>("admin");
-  const [userId, setUserId] = useState("");
-  const [password, setPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
-  const [capsLock, setCapsLock] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [quickConfigured, setQuickConfigured] = useState(false);
-  const [trustedDevice, setTrustedDevice] = useState(false);
-  const [trustedUntil, setTrustedUntil] = useState<number | null>(null);
-  const [quickMode, setQuickMode] = useState(false);
-  const [pin, setPin] = useState("");
-  const [quickBusy, setQuickBusy] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(true);
+  const [portal,setPortal] = useState<PortalType>("admin");
+  const [userId,setUserId] = useState("");
+  const [password,setPassword] = useState("");
+  const [showPassword,setShowPassword] = useState(false);
+  const [capsLock,setCapsLock] = useState(false);
+  const [loading,setLoading] = useState(false);
+  const [error,setError] = useState("");
+  const [trustedDevice,setTrustedDevice] = useState(false);
+  const [quickConfigured,setQuickConfigured] = useState(false);
+  const [trustedUntil,setTrustedUntil] = useState<number|null>(null);
+  const [quickMode,setQuickMode] = useState(false);
+  const [pin,setPin] = useState("");
+  const [quickBusy,setQuickBusy] = useState(false);
+  const [sessionChecking,setSessionChecking] = useState(false);
 
-  useEffect(() => {
-    try {
+  useEffect(()=>{
+    try{
       const stored = localStorage.getItem(PORTAL_KEY) as PortalType | null;
-      if (stored && portalOptions.some((item) => item.id === stored)) setPortal(stored);
-    } catch {}
+      if(stored && portals.some(p=>p.id===stored)) setPortal(stored);
+    }catch{}
 
-    void Promise.allSettled([
-      quickPost("quickPinStatus").then((data) => {
-        setQuickConfigured(Boolean(data?.configured));
-        setTrustedDevice(Boolean(data?.trusted));
-        setTrustedUntil(data?.expiresAt ? Number(data.expiresAt) : null);
-      }),
-      landViewApi
-        .getSession()
-        .then((session) => {
-          const role = normalizeRole(session?.user?.role || session?.user?.Role);
-          const matchedPortal = portalForRole(role);
-          if (session?.authenticated && session?.user && matchedPortal) {
-            saveSessionCache({ authenticated: true, user: session.user });
-            try { localStorage.setItem(PORTAL_KEY, matchedPortal); } catch {}
-            router.replace(portalPath(matchedPortal));
-          }
-        })
-        .catch(() => null),
-    ]).finally(() => setCheckingSession(false));
-  }, [router]);
+    // Never block the login screen. Both checks run quietly in the background.
+    void quickPost("quickPinStatus").then(data=>{
+      setQuickConfigured(Boolean(data?.configured));
+      setTrustedDevice(Boolean(data?.trusted));
+      setTrustedUntil(data?.expiresAt ? Number(data.expiresAt) : null);
+    }).catch(()=>{});
 
-  const selected = useMemo(
-    () => portalOptions.find((item) => item.id === portal) || portalOptions[0],
-    [portal]
-  );
-
-  const daysLeft = trustedUntil
-    ? Math.max(0, Math.ceil((trustedUntil - Date.now()) / (24 * 60 * 60 * 1000)))
-    : 0;
-
-  function choosePortal(next: PortalType) {
-    if (loading || quickBusy) return;
-    setPortal(next);
-    setError("");
-    setPassword("");
-    setCapsLock(false);
-    try { localStorage.setItem(PORTAL_KEY, next); } catch {}
-  }
-
-  async function submit(e: FormEvent<HTMLFormElement>) {
-    e.preventDefault();
-    if (loading || checkingSession) return;
-
-    let id = userId.trim();
-    if (portal === "employee") id = id.toUpperCase();
-
-    if (!id || !password) {
-      setError(`Enter your ${selected.identifierLabel.toLowerCase()} and password to continue.`);
-      return;
-    }
-
-    setLoading(true);
-    setError("");
-    clearStoredSession();
-
-    try {
-      const result = await landViewApi.login(id, password);
-      const role = normalizeRole(result?.user?.role || result?.user?.Role);
-
-      if (!roleMatchesPortal(role, portal)) {
-        const correctPortal = portalForRole(role);
-        throw new Error(
-          correctPortal
-            ? `This account belongs to the ${portalOptions.find((item) => item.id === correctPortal)?.label || correctPortal} portal.`
-            : "This account does not have access to this portal."
-        );
+    setSessionChecking(true);
+    void landViewApi.getSession().then(session=>{
+      const role = normalizeRole(session?.user?.role || session?.user?.Role);
+      const target = portalForRole(role);
+      if(session?.authenticated && session?.user && target){
+        saveSessionCache({authenticated:true,user:session.user});
+        try{ localStorage.setItem(PORTAL_KEY,target); }catch{}
+        router.replace(portalPath(target));
       }
+    }).catch(()=>{}).finally(()=>setSessionChecking(false));
+  },[router]);
 
-      saveSessionCache({ authenticated: true, user: result.user });
-      try { localStorage.setItem(PORTAL_KEY, portal); } catch {}
+  const selected = useMemo(()=>portals.find(p=>p.id===portal) || portals[0],[portal]);
+  const daysLeft = trustedUntil ? Math.max(0,Math.ceil((trustedUntil-Date.now())/86400000)) : 0;
+
+  function choosePortal(next:PortalType){
+    if(loading || quickBusy) return;
+    setPortal(next); setPassword(""); setError(""); setCapsLock(false);
+    try{ localStorage.setItem(PORTAL_KEY,next); }catch{}
+  }
+
+  async function submit(e:FormEvent<HTMLFormElement>){
+    e.preventDefault();
+    if(loading) return;
+    let id = userId.trim();
+    if(portal === "employee") id = id.toUpperCase();
+    if(!id || !password){ setError(`Enter your ${selected.identifier.toLowerCase()} and password to continue.`); return; }
+
+    setLoading(true); setError(""); clearStoredSession();
+    try{
+      const result = await landViewApi.login(id,password);
+      const role = normalizeRole(result?.user?.role || result?.user?.Role);
+      if(!roleMatchesPortal(role,portal)){
+        const correct = portalForRole(role);
+        throw new Error(correct ? `This account belongs to the ${portals.find(p=>p.id===correct)?.label || correct} portal.` : "This account cannot access this portal.");
+      }
+      saveSessionCache({authenticated:true,user:result.user});
+      try{ localStorage.setItem(PORTAL_KEY,portal); }catch{}
       router.replace(portalPath(portal));
-    } catch (err: any) {
-      clearStoredSession();
-      setError(err?.message || "Sign in failed. Check your credentials and try again.");
-    } finally {
-      setLoading(false);
-    }
+    }catch(err:any){ clearStoredSession(); setError(err?.message || "Sign in failed. Check your credentials and try again."); }
+    finally{ setLoading(false); }
   }
 
-  async function unlockQuickPin(value: string) {
-    if (quickBusy || value.length !== 6) return;
-    setQuickBusy(true);
-    setError("");
-
-    try {
-      const data = await quickPost("quickPinLogin", { pin: value });
-      if (!data?.user) throw new Error("PIN login session is unavailable.");
-      saveSessionCache({ authenticated: true, user: data.user });
-      try { localStorage.setItem(PORTAL_KEY, "admin"); } catch {}
+  async function unlockPin(value:string){
+    if(quickBusy || value.length!==6) return;
+    setQuickBusy(true); setError("");
+    try{
+      const data = await quickPost("quickPinLogin",{pin:value});
+      if(!data?.user) throw new Error("PIN login session is unavailable.");
+      saveSessionCache({authenticated:true,user:data.user});
+      try{localStorage.setItem(PORTAL_KEY,"admin");}catch{}
       window.location.replace("/admin");
-    } catch (err: any) {
-      clearStoredSession();
-      setPin("");
-      setError(err?.message || "Incorrect Admin PIN.");
-    } finally {
-      setQuickBusy(false);
-    }
+    }catch(err:any){ clearStoredSession(); setPin(""); setError(err?.message || "Incorrect Admin PIN."); }
+    finally{ setQuickBusy(false); }
   }
 
-  function handlePinChange(value: string) {
-    if (quickBusy) return;
-    const next = value.replace(/\D/g, "").slice(0, 6);
-    setPin(next);
-    setError("");
-    if (next.length === 6) void unlockQuickPin(next);
+  function handlePin(value:string){
+    const next = value.replace(/\D/g,"").slice(0,6);
+    setPin(next); setError("");
+    if(next.length===6) void unlockPin(next);
   }
+  function keyState(e:KeyboardEvent<HTMLInputElement>){ setCapsLock(Boolean(e.getModifierState?.("CapsLock"))); }
 
-  function passwordKeyState(e: KeyboardEvent<HTMLInputElement>) {
-    setCapsLock(Boolean(e.getModifierState?.("CapsLock")));
-  }
+  return <main className="lv-login">
+    <style>{`
+      *{box-sizing:border-box}.lv-login{min-height:100vh;background:#0c0d0f;color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;display:grid;grid-template-rows:auto 1fr auto}.lv-head{height:76px;border-bottom:1px solid #26282b;background:#0e1012;display:flex;align-items:center}.lv-headin,.lv-main{width:min(1220px,calc(100% - 44px));margin:auto}.lv-headin{display:flex;justify-content:space-between;align-items:center}.brand{display:flex;gap:12px;align-items:center;background:none;border:0;color:#fff;cursor:pointer;text-align:left}.brand img{width:43px;height:43px;object-fit:contain}.brand strong{display:block;font-size:14px;letter-spacing:.12em}.brand span{display:block;color:#7e858c;font-size:8px;letter-spacing:.15em;margin-top:3px}.meta{display:flex;gap:18px;color:#777f86;font-size:8px;font-weight:900;letter-spacing:.1em}.green{display:inline-block;width:7px;height:7px;border-radius:50%;background:#57bd7b;margin-right:6px}.lv-main{padding:50px 0 58px;display:grid;grid-template-columns:minmax(0,1.08fr) minmax(390px,.78fr);gap:68px;align-items:center}.kicker{display:inline-flex;align-items:center;gap:8px;color:#ef766c;font-size:9px;font-weight:900;letter-spacing:.18em}.kicker:before{content:"";width:24px;height:1px;background:#ef493b}.copy h1{font-size:clamp(42px,5vw,70px);line-height:.95;letter-spacing:-.055em;margin:17px 0 20px}.copy h1 span{color:#ef493b}.copy>p{max-width:640px;color:#92989f;font-size:14px;line-height:1.75}.info{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:30px;max-width:700px}.info div{border:1px solid #292d31;background:#121416;border-radius:11px;padding:15px}.info small{display:block;color:#687078;font-size:8px;font-weight:900;letter-spacing:.1em}.info strong{display:block;margin-top:8px;font-size:10px}.summary{margin-top:25px;border-left:2px solid #ef493b;padding:16px 18px;background:linear-gradient(90deg,rgba(239,73,59,.08),transparent);max-width:700px}.summary small{color:#ef776e;font-size:8px;font-weight:900;letter-spacing:.12em}.summary strong{display:block;margin-top:6px;font-size:14px}.summary p{margin:6px 0 0;color:#828990;font-size:10px;line-height:1.5}.card{border:1px solid #2c3034;background:#151719;border-radius:15px;overflow:hidden;box-shadow:0 24px 70px rgba(0,0,0,.35)}.cardhead{padding:21px 22px 17px;border-bottom:1px solid #292d31;display:flex;justify-content:space-between;align-items:center}.cardhead small{display:block;color:#727a81;font-size:8px;font-weight:900;letter-spacing:.13em}.cardhead h2{font-size:19px;margin:6px 0 0}.session{font-size:7px;color:#7e858c}.session.active{color:#a0d7b0}.tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;padding:14px 14px 0}.tab{min-height:68px;border:1px solid #2d3135;border-radius:9px;background:#101214;color:#92999f;display:grid;place-items:center;align-content:center;gap:6px;cursor:pointer}.tab.active{border-color:#ef493b;background:rgba(239,73,59,.09);color:#fff}.tab b{display:grid;place-items:center;width:26px;height:26px;border-radius:7px;background:#25292d;font-size:9px}.tab.active b{background:#ef493b}.tab span{font-size:9px;font-weight:900}.form{padding:18px 22px 23px}.error{display:grid;grid-template-columns:28px 1fr;gap:9px;padding:11px;margin-bottom:13px;border:1px solid rgba(239,73,59,.28);border-radius:8px;background:rgba(239,73,59,.08)}.error i{width:27px;height:27px;display:grid;place-items:center;border-radius:50%;background:#ef493b;font-style:normal;font-weight:900}.error strong{font-size:10px}.error p{margin:3px 0 0;color:#d3a19c;font-size:9px;line-height:1.4}.pinbtn{width:100%;height:43px;border:1px solid #33513d;border-radius:8px;background:#15211a;color:#a8dbb7;font-size:8px;font-weight:900;letter-spacing:.09em;cursor:pointer}.trust{text-align:center;color:#7da98a;font-size:8px;margin:7px 0 12px}.field{display:block;margin-top:13px}.fieldrow{display:flex;justify-content:space-between;margin-bottom:7px}.fieldrow span{color:#899097;font-size:8px;font-weight:900;letter-spacing:.11em}.caps{color:#d8ad68!important}.wrap{position:relative}.field input{width:100%;height:49px;border:1px solid #303438;border-radius:8px;background:#0d0f11;color:#fff;padding:0 13px;outline:none}.field input:focus{border-color:#ef493b;box-shadow:0 0 0 3px rgba(239,73,59,.1)}.password{padding-right:62px!important}.show{position:absolute;right:7px;top:50%;transform:translateY(-50%);height:33px;border:0;border-radius:6px;background:#1b1e21;color:#9ba1a7;font-size:8px;font-weight:900;cursor:pointer}.submit{width:100%;height:51px;margin-top:17px;border:0;border-radius:8px;background:#ef493b;color:white;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:9px;font-weight:900;letter-spacing:.09em;cursor:pointer}.submit:disabled{opacity:.55}.note{text-align:center;color:#687078;font-size:8px;margin-top:12px}.pinpanel{padding:23px}.pintitle{text-align:center}.pintitle small{color:#747c83;font-size:8px;font-weight:900;letter-spacing:.12em}.pintitle h2{margin:7px 0 14px}.pinfield{width:100%;height:61px;border:1px solid #34383c;border-radius:9px;background:#0c0e10;color:#fff;text-align:center;font-size:24px;font-weight:900;letter-spacing:.45em;padding-left:.45em;outline:none}.pinfield:focus{border-color:#ef493b}.pinhelp{text-align:center;color:#777e85;font-size:8px;margin:10px 0 14px}.switch{width:100%;height:41px;border:1px solid #303438;border-radius:8px;background:#111315;color:#c5c9cc;font-size:8px;font-weight:900;cursor:pointer}.footer{height:54px;border-top:1px solid #24272a;display:flex;align-items:center;justify-content:center;color:#626970;font-size:8px;letter-spacing:.08em}@media(max-width:900px){.lv-main{grid-template-columns:1fr;gap:34px}.meta{display:none}.card{max-width:560px}.info{max-width:560px}}@media(max-width:600px){.lv-headin,.lv-main{width:calc(100% - 28px)}.lv-main{padding:28px 0 40px}.copy h1{font-size:38px}.copy>p{font-size:12px}.info{grid-template-columns:1fr}.tabs{gap:5px;padding:11px 11px 0}.form,.pinpanel{padding:16px 17px 20px}.cardhead{padding:18px 17px 15px}}
+    `}</style>
 
-  return (
-    <main className="lv-login-shell">
-      <style>{`
-        *{box-sizing:border-box}.lv-login-shell{min-height:100vh;background:#0c0d0f;color:#f4f4f4;font-family:Arial,Helvetica,sans-serif;display:grid;grid-template-rows:auto 1fr auto;overflow:hidden}.lv-login-header{height:78px;border-bottom:1px solid #25272a;background:rgba(13,14,16,.94);backdrop-filter:blur(14px);display:flex;align-items:center;position:relative;z-index:10}.lv-login-header-inner{width:min(1240px,calc(100% - 48px));margin:auto;display:flex;align-items:center;justify-content:space-between;gap:24px}.lv-brand{display:flex;align-items:center;gap:13px;background:transparent;border:0;color:#fff;cursor:pointer;text-align:left;padding:0}.lv-brand img{width:44px;height:44px;object-fit:contain}.lv-brand strong{display:block;font-size:15px;letter-spacing:.13em}.lv-brand span{display:block;margin-top:3px;color:#838990;font-size:8px;letter-spacing:.16em;font-weight:700}.lv-header-meta{display:flex;align-items:center;gap:18px;color:#828890;font-size:8px;font-weight:800;letter-spacing:.1em}.lv-header-meta span{display:flex;align-items:center;gap:7px}.lv-live{width:7px;height:7px;border-radius:50%;background:#58bd7b;box-shadow:0 0 0 4px rgba(88,189,123,.09)}.lv-login-main{width:min(1240px,calc(100% - 48px));margin:auto;padding:52px 0 58px;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(390px,.78fr);gap:72px;align-items:center}.lv-left{position:relative}.lv-kicker{display:inline-flex;align-items:center;gap:8px;color:#f17067;font-size:9px;font-weight:900;letter-spacing:.18em}.lv-kicker:before{content:"";width:26px;height:1px;background:#ef493b}.lv-left h1{font-size:clamp(42px,5.3vw,72px);line-height:.94;letter-spacing:-.055em;margin:18px 0 22px;max-width:760px}.lv-left h1 span{color:#ef493b}.lv-sub{max-width:650px;color:#979ca3;font-size:14px;line-height:1.8}.lv-system-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:34px;max-width:720px}.lv-system-card{padding:16px;border:1px solid #292c30;background:#121416;border-radius:12px}.lv-system-card small{display:block;color:#6f757c;font-size:8px;font-weight:900;letter-spacing:.12em}.lv-system-card strong{display:block;margin-top:8px;font-size:11px;color:#e9eaec}.lv-role-summary{margin-top:28px;padding:18px 20px;border-left:2px solid #ef493b;background:linear-gradient(90deg,rgba(239,73,59,.08),transparent);max-width:700px}.lv-role-summary small{display:block;color:#ef776e;font-size:8px;font-weight:900;letter-spacing:.13em}.lv-role-summary strong{display:block;margin-top:7px;font-size:15px}.lv-role-summary p{margin:7px 0 0;color:#868c93;font-size:11px;line-height:1.55}.lv-card{border:1px solid #2b2e32;background:#151719;border-radius:16px;box-shadow:0 24px 70px rgba(0,0,0,.35);overflow:hidden}.lv-card-head{padding:23px 24px 18px;border-bottom:1px solid #282b2f;display:flex;justify-content:space-between;gap:18px;align-items:flex-start}.lv-card-head small{display:block;color:#727980;font-size:8px;font-weight:900;letter-spacing:.14em}.lv-card-head h2{margin:7px 0 0;font-size:20px;letter-spacing:-.025em}.lv-secure-badge{display:inline-flex;align-items:center;gap:7px;padding:7px 9px;border:1px solid #294533;border-radius:999px;background:#142019;color:#8fd0a4;font-size:7px;font-weight:900;letter-spacing:.09em;white-space:nowrap}.lv-role-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:16px 16px 0}.lv-role-tab{min-height:72px;border:1px solid #2d3034;border-radius:10px;background:#111315;color:#9ba0a5;display:grid;place-items:center;align-content:center;gap:7px;cursor:pointer;transition:.18s ease;padding:8px}.lv-role-tab:hover{border-color:#45494e;color:#fff}.lv-role-tab.active{border-color:#ef493b;background:rgba(239,73,59,.09);color:#fff;box-shadow:inset 0 0 0 1px rgba(239,73,59,.16)}.lv-role-icon{width:27px;height:27px;border-radius:7px;display:grid;place-items:center;background:#24272a;color:#c7cbcf;font-size:9px;font-weight:900}.lv-role-tab.active .lv-role-icon{background:#ef493b;color:#fff}.lv-role-tab span:last-child{font-size:9px;font-weight:900;letter-spacing:.04em}.lv-form{padding:18px 24px 24px}.lv-error{display:grid;grid-template-columns:30px 1fr;gap:10px;padding:12px;margin-bottom:15px;border:1px solid rgba(239,73,59,.28);border-radius:9px;background:rgba(239,73,59,.08)}.lv-error-icon{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#ef493b;color:#fff;font-size:12px;font-weight:900}.lv-error strong{display:block;font-size:10px}.lv-error p{margin:4px 0 0;color:#d6a29d;font-size:9px;line-height:1.45}.lv-pin-button{width:100%;height:44px;margin-bottom:8px;border:1px solid #34513e;border-radius:9px;background:#15211a;color:#a9ddb9;font-size:9px;font-weight:900;letter-spacing:.1em;cursor:pointer}.lv-pin-button:hover{background:#1a2a20}.lv-trust-note{text-align:center;color:#7fac8c;font-size:8px;margin-bottom:16px}.lv-field{display:block;margin-top:14px}.lv-field-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:7px}.lv-field-row span{color:#8e949a;font-size:8px;font-weight:900;letter-spacing:.12em}.lv-caps{color:#d9ad67!important;letter-spacing:.04em!important}.lv-input-wrap{position:relative}.lv-field input{width:100%;height:50px;border:1px solid #303338;border-radius:9px;background:#0e1012;color:#fff;outline:none;padding:0 14px;font-size:12px;transition:.18s ease}.lv-field input:focus{border-color:#ef493b;box-shadow:0 0 0 3px rgba(239,73,59,.1)}.lv-field input::placeholder{color:#555c63}.lv-field input:disabled{opacity:.55}.lv-password-input{padding-right:66px!important}.lv-show-password{position:absolute;right:8px;top:50%;transform:translateY(-50%);height:34px;padding:0 9px;border:0;border-radius:7px;background:#1a1d20;color:#9da3a9;font-size:8px;font-weight:900;cursor:pointer}.lv-show-password:hover{color:#fff;background:#23272b}.lv-submit{width:100%;height:52px;margin-top:18px;border:0;border-radius:9px;background:#ef493b;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 17px;font-size:9px;font-weight:900;letter-spacing:.1em;cursor:pointer;transition:.18s ease}.lv-submit:hover:not(:disabled){background:#ff594a;transform:translateY(-1px)}.lv-submit:disabled{opacity:.55;cursor:not-allowed}.lv-submit-arrow{font-size:18px;font-weight:400}.lv-login-note{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:14px;color:#666d74;font-size:8px;text-align:center}.lv-login-note i{width:6px;height:6px;border-radius:50%;background:#58bd7b}.lv-pin-panel{padding:24px}.lv-pin-panel .lv-error{margin:0 0 18px}.lv-pin-title{text-align:center}.lv-pin-title small{display:block;color:#727980;font-size:8px;font-weight:900;letter-spacing:.14em}.lv-pin-title h2{margin:7px 0 0;font-size:21px}.lv-pin-badge{display:flex;width:max-content;margin:15px auto 20px;padding:6px 9px;border-radius:999px;background:#142019;color:#8fd0a4;font-size:7px;font-weight:900;letter-spacing:.1em}.lv-pin-field{width:100%;height:62px;border:1px solid #383c40;border-radius:10px;background:#0d0f11;color:#fff;text-align:center;font-size:25px;font-weight:900;letter-spacing:.45em;padding-left:.45em;outline:none}.lv-pin-field:focus{border-color:#ef493b;box-shadow:0 0 0 3px rgba(239,73,59,.1)}.lv-pin-help{text-align:center;margin:11px 0 16px;color:#777e85;font-size:8px;line-height:1.5}.lv-switch{width:100%;height:42px;border:1px solid #303338;border-radius:9px;background:#111315;color:#c6c9cc;font-size:8px;font-weight:900;letter-spacing:.08em;cursor:pointer}.lv-switch:hover{border-color:#4b4f54;color:#fff}.lv-footer{height:56px;border-top:1px solid #222529;display:flex;align-items:center;justify-content:center;gap:10px;color:#62686f;font-size:8px;letter-spacing:.09em}.lv-footer strong{color:#8b9197}.lv-checking{position:fixed;inset:0;background:#0c0d0f;display:grid;place-items:center;z-index:50}.lv-checking div{display:grid;place-items:center;gap:13px;color:#848a90;font-size:9px;font-weight:800;letter-spacing:.1em}.lv-spinner{width:28px;height:28px;border:2px solid #2e3135;border-top-color:#ef493b;border-radius:50%;animation:lvspin .8s linear infinite}@keyframes lvspin{to{transform:rotate(360deg)}}@media(max-width:900px){.lv-login-main{grid-template-columns:1fr;gap:35px;padding:34px 0 42px}.lv-left h1{font-size:46px;max-width:620px}.lv-card{max-width:560px;width:100%}.lv-system-grid{max-width:560px}.lv-header-meta{display:none}}@media(max-width:600px){.lv-login-header{height:68px}.lv-login-header-inner,.lv-login-main{width:min(100% - 28px,1240px)}.lv-login-main{padding-top:28px}.lv-left h1{font-size:38px}.lv-sub{font-size:12px}.lv-system-grid{grid-template-columns:1fr}.lv-system-card{padding:12px 14px}.lv-card-head{padding:20px 18px 16px}.lv-role-tabs{padding:12px 12px 0;gap:6px}.lv-role-tab{min-height:65px}.lv-form,.lv-pin-panel{padding:16px 18px 20px}.lv-secure-badge{display:none}.lv-footer{font-size:7px}.lv-brand img{width:38px;height:38px}}
-      `}</style>
+    <header className="lv-head"><div className="lv-headin">
+      <button className="brand" type="button" onClick={()=>router.push("/")}><img src="/land-view-logo.png" alt="LAND VIEW"/><div><strong>LAND VIEW</strong><span>ARCHITECTS & ENGINEERS</span></div></button>
+      <div className="meta"><span><i className="green"/>SYSTEM ONLINE</span><span>SECURE ROLE-BASED ACCESS</span></div>
+    </div></header>
 
-      {checkingSession && (
-        <div className="lv-checking" aria-live="polite">
-          <div><span className="lv-spinner" />CHECKING SECURE SESSION</div>
-        </div>
-      )}
+    <section className="lv-main">
+      <div className="copy"><span className="kicker">LAND VIEW ERP</span><h1>{quickMode ? <>Trusted device<br/><span>PIN access.</span></> : <>One system.<br/><span>Three workspaces.</span></>}</h1><p>{quickMode ? "Use your permanent six-digit Admin PIN on this trusted browser to create a fresh secure session." : "A single controlled gateway for management, employees and clients. Choose the workspace that matches your LAND VIEW account."}</p>
+        <div className="info"><div><small>ACCESS CONTROL</small><strong>Role verified after sign-in</strong></div><div><small>LOGIN SCREEN</small><strong>Available immediately</strong></div><div><small>TRUSTED DEVICE</small><strong>{trustedDevice&&quickConfigured?`${daysLeft||1} day${daysLeft===1?"":"s"} remaining`:"Available to Admin"}</strong></div></div>
+        <div className="summary"><small>{quickMode?"TRUSTED ADMIN ACCESS":selected.eyebrow}</small><strong>{quickMode?"PIN Login":selected.label}</strong><p>{quickMode?"PIN access is available only while this browser remains trusted.":selected.description}</p></div>
+      </div>
 
-      <header className="lv-login-header">
-        <div className="lv-login-header-inner">
-          <button type="button" className="lv-brand" onClick={() => router.push("/")} aria-label="Return to LAND VIEW home">
-            <img src="/land-view-logo.png" alt="LAND VIEW" />
-            <div><strong>LAND VIEW</strong><span>ARCHITECTS & ENGINEERS</span></div>
-          </button>
-          <div className="lv-header-meta" aria-label="Security status">
-            <span><i className="lv-live" /> SYSTEM ONLINE</span>
-            <span>SECURE ROLE-BASED ACCESS</span>
-          </div>
-        </div>
-      </header>
-
-      <section className="lv-login-main">
-        <div className="lv-left">
-          <span className="lv-kicker">LAND VIEW ERP</span>
-          <h1>{quickMode ? <>Trusted device<br/><span>PIN access.</span></> : <>One system.<br/><span>Three workspaces.</span></>}</h1>
-          <p className="lv-sub">
-            {quickMode
-              ? "Use your permanent six-digit Admin PIN on this trusted browser to create a fresh authenticated session."
-              : "A single controlled gateway for management, employees and clients. Choose the workspace that matches your LAND VIEW account."}
-          </p>
-
-          <div className="lv-system-grid">
-            <div className="lv-system-card"><small>ACCESS CONTROL</small><strong>Role verified after sign-in</strong></div>
-            <div className="lv-system-card"><small>SESSION SECURITY</small><strong>Protected server-side session</strong></div>
-            <div className="lv-system-card"><small>TRUSTED DEVICE</small><strong>{trustedDevice && quickConfigured ? `${daysLeft || 1} day${daysLeft === 1 ? "" : "s"} remaining` : "Available to Admin"}</strong></div>
-          </div>
-
-          <div className="lv-role-summary">
-            <small>{quickMode ? "TRUSTED ADMIN ACCESS" : selected.eyebrow}</small>
-            <strong>{quickMode ? "PIN Login" : selected.label}</strong>
-            <p>{quickMode ? "PIN access is available only while this browser remains trusted." : selected.description}</p>
-          </div>
-        </div>
-
-        <section className="lv-card" aria-label="LAND VIEW secure login">
-          {quickMode && trustedDevice && quickConfigured ? (
-            <div className="lv-pin-panel">
-              <div className="lv-pin-title"><small>TRUSTED DEVICE</small><h2>Admin PIN Login</h2></div>
-              <div className="lv-pin-badge">7-DAY DEVICE TRUST ACTIVE</div>
-
-              {error && (
-                <div className="lv-error" role="alert">
-                  <div className="lv-error-icon">!</div>
-                  <div><strong>PIN login failed</strong><p>{error}</p></div>
-                </div>
-              )}
-
-              <input
-                className="lv-pin-field"
-                type="password"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                maxLength={6}
-                value={pin}
-                onChange={(e) => handlePinChange(e.target.value)}
-                autoComplete="off"
-                autoFocus
-                disabled={quickBusy}
-                placeholder="••••••"
-                aria-label="6-digit Admin PIN"
-              />
-              <div className="lv-pin-help">{quickBusy ? "Creating a fresh secure session…" : "Sign-in starts automatically after all 6 digits are entered."}</div>
-              <button type="button" className="lv-switch" onClick={() => { setQuickMode(false); setPin(""); setError(""); }} disabled={quickBusy}>USE USERNAME & PASSWORD</button>
-            </div>
-          ) : (
-            <>
-              <div className="lv-card-head">
-                <div><small>SECURE LOGIN</small><h2>Sign in to LAND VIEW</h2></div>
-                <span className="lv-secure-badge"><i className="lv-live" /> PROTECTED</span>
-              </div>
-
-              <div className="lv-role-tabs" role="tablist" aria-label="Choose login workspace">
-                {portalOptions.map((item) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    role="tab"
-                    aria-selected={portal === item.id}
-                    className={`lv-role-tab ${portal === item.id ? "active" : ""}`}
-                    onClick={() => choosePortal(item.id)}
-                    disabled={loading}
-                  >
-                    <span className="lv-role-icon">{item.short}</span>
-                    <span>{item.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              <form className="lv-form" onSubmit={submit}>
-                {error && (
-                  <div className="lv-error" role="alert">
-                    <div className="lv-error-icon">!</div>
-                    <div><strong>Sign in failed</strong><p>{error}</p></div>
-                  </div>
-                )}
-
-                {trustedDevice && quickConfigured && portal === "admin" && (
-                  <>
-                    <button className="lv-pin-button" type="button" onClick={() => { setQuickMode(true); setError(""); setPin(""); }}>PIN LOGIN ON THIS TRUSTED DEVICE</button>
-                    <div className="lv-trust-note">Trusted access expires in about {daysLeft || 1} day{daysLeft === 1 ? "" : "s"}</div>
-                  </>
-                )}
-
-                <label className="lv-field">
-                  <span className="lv-field-row"><span>{selected.identifierLabel}</span></span>
-                  <span className="lv-input-wrap">
-                    <input
-                      value={userId}
-                      onChange={(e) => { setUserId(portal === "employee" ? e.target.value.toUpperCase() : e.target.value); setError(""); }}
-                      placeholder={selected.identifierPlaceholder}
-                      autoComplete="username"
-                      autoCapitalize="none"
-                      spellCheck={false}
-                      disabled={loading}
-                      autoFocus
-                    />
-                  </span>
-                </label>
-
-                <label className="lv-field">
-                  <span className="lv-field-row"><span>PASSWORD</span>{capsLock && <span className="lv-caps">CAPS LOCK IS ON</span>}</span>
-                  <span className="lv-input-wrap">
-                    <input
-                      className="lv-password-input"
-                      type={showPassword ? "text" : "password"}
-                      value={password}
-                      onChange={(e) => { setPassword(e.target.value); setError(""); }}
-                      onKeyDown={passwordKeyState}
-                      onKeyUp={passwordKeyState}
-                      placeholder="Enter your password"
-                      autoComplete="current-password"
-                      disabled={loading}
-                    />
-                    <button type="button" className="lv-show-password" onClick={() => setShowPassword((value) => !value)} tabIndex={-1}>{showPassword ? "HIDE" : "SHOW"}</button>
-                  </span>
-                </label>
-
-                <button type="submit" className="lv-submit" disabled={loading || checkingSession}>
-                  <span>{loading ? "AUTHENTICATING…" : `CONTINUE TO ${selected.label.toUpperCase()}`}</span>
-                  <span className="lv-submit-arrow">→</span>
-                </button>
-
-                <div className="lv-login-note"><i />Your account role is verified before workspace access is granted.</div>
-              </form>
-            </>
-          )}
-        </section>
+      <section className="card">
+        {quickMode&&trustedDevice&&quickConfigured ? <div className="pinpanel"><div className="pintitle"><small>TRUSTED DEVICE</small><h2>Admin PIN Login</h2></div>{error&&<div className="error"><i>!</i><div><strong>PIN login failed</strong><p>{error}</p></div></div>}<input className="pinfield" type="password" inputMode="numeric" maxLength={6} value={pin} onChange={e=>handlePin(e.target.value)} autoFocus disabled={quickBusy} placeholder="••••••"/><div className="pinhelp">{quickBusy?"Creating secure Admin session…":"Enter all 6 digits to sign in automatically."}</div><button className="switch" type="button" onClick={()=>{setQuickMode(false);setPin("");setError("");}}>USE USERNAME & PASSWORD</button></div> : <>
+          <div className="cardhead"><div><small>SECURE LOGIN</small><h2>Sign in to LAND VIEW</h2></div><span className={`session ${sessionChecking?"active":""}`}>{sessionChecking?"SESSION CHECKING IN BACKGROUND":"READY"}</span></div>
+          <div className="tabs">{portals.map(p=><button key={p.id} className={`tab ${portal===p.id?"active":""}`} type="button" onClick={()=>choosePortal(p.id)} disabled={loading}><b>{p.short}</b><span>{p.label}</span></button>)}</div>
+          <form className="form" onSubmit={submit}>{error&&<div className="error"><i>!</i><div><strong>Sign in failed</strong><p>{error}</p></div></div>}{trustedDevice&&quickConfigured&&portal==="admin"&&<><button className="pinbtn" type="button" onClick={()=>{setQuickMode(true);setError("");setPin("");}}>PIN LOGIN ON THIS TRUSTED DEVICE</button><div className="trust">Trusted access expires in about {daysLeft||1} day{daysLeft===1?"":"s"}</div></>}
+            <label className="field"><span className="fieldrow"><span>{selected.identifier}</span></span><span className="wrap"><input value={userId} onChange={e=>{setUserId(portal==="employee"?e.target.value.toUpperCase():e.target.value);setError("");}} placeholder={selected.placeholder} autoComplete="username" disabled={loading} autoFocus/></span></label>
+            <label className="field"><span className="fieldrow"><span>PASSWORD</span>{capsLock&&<span className="caps">CAPS LOCK IS ON</span>}</span><span className="wrap"><input className="password" type={showPassword?"text":"password"} value={password} onChange={e=>{setPassword(e.target.value);setError("");}} onKeyDown={keyState} onKeyUp={keyState} placeholder="Enter your password" autoComplete="current-password" disabled={loading}/><button className="show" type="button" onClick={()=>setShowPassword(v=>!v)} tabIndex={-1}>{showPassword?"HIDE":"SHOW"}</button></span></label>
+            <button className="submit" type="submit" disabled={loading}><span>{loading?"AUTHENTICATING…":`CONTINUE TO ${selected.label.toUpperCase()}`}</span><span>→</span></button><div className="note">Your account role is verified before workspace access is granted.</div>
+          </form>
+        </>}
       </section>
+    </section>
 
-      <footer className="lv-footer"><strong>LAND VIEW</strong><span>ENGINEERS & ARCHITECTS · SECURE ERP ACCESS</span></footer>
-    </main>
-  );
+    <footer className="footer">LAND VIEW · ENGINEERS & ARCHITECTS · SECURE ERP ACCESS</footer>
+  </main>;
 }
