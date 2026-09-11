@@ -9,17 +9,17 @@ const FINANCE_WORKFLOW_HEADERS_ = [
 ];
 
 const BILLING_WORKFLOW_SERVICES_ = [
-  { title: "Architectural Design", category: "Engineering", aliases: ["architectural design", "architectural", "architect design"] },
+  { title: "Architectural Design", category: "Engineering", aliases: ["architectural design", "architectural", "architect design", "architecture design"] },
   { title: "Structural Design", category: "Engineering", aliases: ["structural design", "structural"] },
-  { title: "3D Design Exterior", category: "Engineering", aliases: ["3d design exterior", "3d exterior", "exterior 3d", "3d design - exterior"] },
+  { title: "3D Design Exterior", category: "Engineering", aliases: ["3d design exterior", "3d exterior", "exterior 3d", "3d design - exterior", "3d design"] },
   { title: "Electrical Design", category: "Engineering", aliases: ["electrical design", "electrical"] },
   { title: "Plumbing Design", category: "Engineering", aliases: ["plumbing design", "plumbing"] },
-  { title: "Estimate & Costing", category: "Engineering", aliases: ["estimate & costing", "estimate and costing", "estimate costing", "cost estimate"] },
-  { title: "Plan Approval Design", category: "Engineering", aliases: ["plan approval design", "plan approval"] },
-  { title: "Soil Test", category: "Others", aliases: ["soil test", "soil testing"] },
-  { title: "Digital Survey", category: "Others", aliases: ["digital survey", "measurement / digital survey", "measurement digital survey"] },
-  { title: "Municipality File Pass", category: "Others", aliases: ["municipality file pass", "municipality pass", "file pass", "municipality file"] },
-  { title: "Site Supervision", category: "Supervision", aliases: ["site supervision", "supervision"] }
+  { title: "Estimate & Costing", category: "Engineering", aliases: ["estimate & costing", "estimate and costing", "estimate costing", "cost estimate", "estimation and costing", "estimation & costing"] },
+  { title: "Plan Approval Design", category: "Engineering", aliases: ["plan approval design", "plan approval", "approval design", "municipality design"] },
+  { title: "Soil Test", category: "Others", aliases: ["soil test", "soil testing", "soil investigation"] },
+  { title: "Digital Survey", category: "Others", aliases: ["digital survey", "measurement / digital survey", "measurement digital survey", "land survey", "survey"] },
+  { title: "Municipality File Pass", category: "Others", aliases: ["municipality file pass", "municipality pass", "file pass", "municipality file", "plan pass", "municipality approval"] },
+  { title: "Site Supervision", category: "Supervision", aliases: ["site supervision", "supervision", "supervision bill"] }
 ];
 
 function normalizeFinanceWorkflowProjectId_(value) {
@@ -121,19 +121,48 @@ function addWorkflowRequirement_(requirements, projectId, serviceTitle) {
   requirements[id][serviceTitle] = true;
 }
 
+function projectIdFromBillingRow_(row) {
+  for (let i = 0; i < Math.min(3, row.length); i++) {
+    const raw = String(row[i] || "").trim();
+    if (/^\s*(?:LV[\s_-]*)?\d+\s*$/i.test(raw)) {
+      const id = normalizeFinanceWorkflowProjectId_(raw);
+      if (id) return id;
+    }
+  }
+  return "";
+}
+
+function serviceFromBillingRow_(row, category) {
+  for (let i = 1; i < row.length; i++) {
+    const service = canonicalWorkflowService_(row[i], category);
+    if (service) return service;
+  }
+  return "";
+}
+
+function rowHasBillingValue_(row) {
+  return row.some(function(value, index) {
+    if (index < 2) return false;
+    const text = String(value == null ? "" : value).trim();
+    if (!text) return false;
+    if (/^-?\d+(?:[.,]\d+)?$/.test(text.replace(/,/g, ""))) return Number(text.replace(/,/g, "")) !== 0;
+    return true;
+  });
+}
+
 function collectWorkflowRequirementsFromBillSheet_(ss, sheetName, category, requirements) {
   const sheet = ss.getSheetByName(sheetName);
   if (!sheet || sheet.getLastRow() < 2) return;
-  const width = sheetName === "Supervision Bill" ? 7 : 6;
-  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, Math.min(width, Math.max(width, sheet.getLastColumn()))).getDisplayValues();
+  const width = Math.max(sheetName === "Supervision Bill" ? 7 : 6, sheet.getLastColumn());
+  const rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, width).getDisplayValues();
   rows.forEach(function(row) {
-    const projectId = normalizeFinanceWorkflowProjectId_(row[0]);
-    if (!projectId) return;
+    const projectId = projectIdFromBillingRow_(row);
+    if (!projectId || !rowHasBillingValue_(row)) return;
     if (category === "Supervision") {
-      if (row.slice(2).some(function(value) { return String(value || "").trim(); })) addWorkflowRequirement_(requirements, projectId, "Site Supervision");
+      addWorkflowRequirement_(requirements, projectId, "Site Supervision");
       return;
     }
-    const serviceTitle = canonicalWorkflowService_(row[2], category);
+    const serviceTitle = serviceFromBillingRow_(row, category);
     if (serviceTitle) addWorkflowRequirement_(requirements, projectId, serviceTitle);
   });
 }
@@ -287,7 +316,6 @@ function getFinanceSheet(params) {
     totals.paid += number(row[5]) + number(row[9]) + number(row[13]);
     totals.due += number(row[15]);
   });
-
   totals.billed = totals.gross - totals.discount;
   if (Math.abs(totals.billed - totals.paid - totals.due) > 0.01) throw new Error("Summary totals do not reconcile. Check the Google Sheet before using these balances.");
 
@@ -311,16 +339,32 @@ function getFinanceSheet(params) {
 
   return {
     success: true,
-    data: { tab: tab, tabs: Object.keys(widths), headers: headers, rows: rows, totals: totals, url: ss.getUrl() + "#gid=" + sheet.getSheetId(), updatedAt: new Date().toISOString() }
+    data: {
+      tab: tab,
+      tabs: Object.keys(widths),
+      headers: headers,
+      rows: rows,
+      totals: totals,
+      url: ss.getUrl() + "#gid=" + sheet.getSheetId(),
+      updatedAt: new Date().toISOString()
+    }
   };
 }
 
-/* Permanent QR verification source. */
+/*
+ * Permanent QR verification source.
+ *
+ * Every project QR contains only its File ID. When that QR is scanned, the
+ * public verification route calls this function and receives the CURRENT
+ * Summary values. Therefore the QR never changes when bills, deposits,
+ * discounts or status change.
+ */
 function getPublicBillingVerification(params) {
   const raw = String((params && params.fileId) || "").trim().toUpperCase();
   const digits = raw.replace(/\D/g, "");
   const fileId = raw.indexOf("LV-") === 0 ? raw : (digits ? "LV-" + digits : "");
   if (!/^LV-\d+$/.test(fileId)) throw new Error("Invalid File ID.");
+
   const ss = getFinanceWorkbook_();
   const summary = ss.getSheetByName("Summary");
   if (!summary) throw new Error('Finance worksheet "Summary" was not found.');
@@ -328,6 +372,7 @@ function getPublicBillingVerification(params) {
   if (lastRow < 2) throw new Error("Project billing record was not found.");
   if (lastRow > 10000) throw new Error("Finance worksheet exceeds the 10,000-row reading limit.");
   const values = summary.getRange(2, 1, lastRow - 1, 18).getValues();
+
   const normalizeId = function(value) {
     const text = String(value || "").trim().toUpperCase();
     const idDigits = text.replace(/\D/g, "");
@@ -339,9 +384,13 @@ function getPublicBillingVerification(params) {
     if (!Number.isFinite(result)) throw new Error(label + " is invalid in the Summary sheet.");
     return Math.round(result * 100) / 100;
   };
+
   let row = null;
-  for (let i = 0; i < values.length; i++) { if (normalizeId(values[i][0]) === fileId) { row = values[i]; break; } }
+  for (let i = 0; i < values.length; i++) {
+    if (normalizeId(values[i][0]) === fileId) { row = values[i]; break; }
+  }
   if (!row) throw new Error("Project billing record was not found.");
+
   const categories = [
     { name: "Engineering", gross: amount(row[3], "Engineering Bill"), discount: amount(row[4], "Engineering Discount"), paid: amount(row[5], "Engineering Deposit"), due: amount(row[6], "Engineering Due") },
     { name: "Supervision", gross: amount(row[7], "Supervision Bill"), discount: amount(row[8], "Supervision Discount"), paid: amount(row[9], "Supervision Deposit"), due: amount(row[10], "Supervision Due") },
@@ -362,7 +411,10 @@ function getPublicBillingVerification(params) {
   return {
     success: true,
     data: {
-      fileId: fileId, clientName: String(row[1] || "").trim(), contact: String(row[2] || "").trim(), status: status,
+      fileId: fileId,
+      clientName: String(row[1] || "").trim(),
+      contact: String(row[2] || "").trim(),
+      status: status,
       categories: categories,
       totals: { gross: totals.gross, discount: totals.discount, paid: totals.paid, due: summaryTotalDue },
       updatedAt: new Date().toISOString()
