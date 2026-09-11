@@ -134,6 +134,17 @@ export type ErpModule = "clients" | "tasks" | "attendance" | "leave" | "expenses
 
 export type FinanceSheetData = {tab: string; tabs: string[]; headers: string[]; rows: string[][]; totals: {gross:number; discount:number; billed:number; paid:number; due:number; projects:number}; url:string; updatedAt:string};
 
+function financeRowsToRecords(data: FinanceSheetData): Record<string, unknown>[] {
+  return (data.rows || []).map(row => {
+    const record: Record<string, unknown> = {};
+    (data.headers || []).forEach((header, index) => {
+      const key = String(header || "").trim();
+      if (key) record[key] = row[index] ?? "";
+    });
+    return record;
+  });
+}
+
 export const landViewApi = {
   getFinanceSheet: (tab = "Summary") => get<FinanceSheetData>("getFinanceSheet", { tab }),
 
@@ -182,7 +193,26 @@ export const landViewApi = {
   getPermissions: () => get<Record<string, unknown>[]>("getPermissions"),
   createPermission: (permission: Record<string, unknown>) => post<unknown>("createPermission", permission),
   initializeErpSheets: () => post<{ initialized: boolean; modules: string[] }>("initializeErpSheets"),
-  getErpRecords: (module: ErpModule) => get<Record<string, unknown>[]>("getErpRecords", { module }),
-  createErpRecord: (module: ErpModule, record: Record<string, unknown>) => post<unknown>("createErpRecord", { module, ...record }),
-  updateErpRecord: (module: ErpModule, id: string, changes: Record<string, unknown>) => post<unknown>("updateErpRecord", { module, id, ...changes }),
+
+  getErpRecords: async (module: ErpModule) => {
+    if (module === "tasks") {
+      const data = await get<FinanceSheetData>("getFinanceSheet", { tab: "Workflow" });
+      return financeRowsToRecords(data);
+    }
+    return get<Record<string, unknown>[]>("getErpRecords", { module });
+  },
+
+  createErpRecord: (module: ErpModule, record: Record<string, unknown>) => {
+    if (module === "tasks") {
+      return post<Record<string, unknown>>("getFinanceSheet", { tab: "Workflow", workflowOp: "create", ...record });
+    }
+    return post<unknown>("createErpRecord", { module, ...record });
+  },
+
+  updateErpRecord: (module: ErpModule, id: string, changes: Record<string, unknown>) => {
+    if (module === "tasks") {
+      return post<Record<string, unknown>>("getFinanceSheet", { tab: "Workflow", workflowOp: "update", id, ...changes });
+    }
+    return post<unknown>("updateErpRecord", { module, id, ...changes });
+  },
 };
