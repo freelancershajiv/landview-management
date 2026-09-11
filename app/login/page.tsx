@@ -10,7 +10,7 @@ const PORTAL_KEY = "land_view_portal_type";
 const portals = [
   { id:"admin" as PortalType, label:"Management", short:"A", eyebrow:"ADMIN / MANAGER / ACCOUNTS", description:"Projects, finance, employees, workflow and company administration.", identifier:"USERNAME", placeholder:"Enter username" },
   { id:"employee" as PortalType, label:"Employee", short:"E", eyebrow:"EMPLOYEE WORKSPACE", description:"Assigned projects, workflow, site records, files and attendance.", identifier:"EMPLOYEE ID", placeholder:"EMP-0001" },
-  { id:"client" as PortalType, label:"Client", short:"C", eyebrow:"CLIENT PORTAL", description:"Project information, documents, billing visibility and communication.", identifier:"PHONE NUMBER", placeholder:"01XXXXXXXXX" },
+  { id:"client" as PortalType, label:"Client", short:"C", eyebrow:"CLIENT PORTAL", description:"Sign in with your LAND VIEW project ID and the mobile number registered with that project.", identifier:"PROJECT ID", placeholder:"LV-1" },
 ];
 
 function normalizeRole(value: unknown){ return String(value || "").trim().toLowerCase(); }
@@ -34,11 +34,23 @@ async function quickPost(action:string, body:Record<string,unknown> = {}){
   return json.data || {};
 }
 
+async function clientLogin(projectId:string,mobile:string){
+  const response = await fetch("/api/client-access", {
+    method:"POST", headers:{"Content-Type":"application/json"}, cache:"no-store", credentials:"same-origin",
+    body:JSON.stringify({action:"login",projectId,mobile}),
+  });
+  let json:any;
+  try { json=await response.json(); } catch { throw new Error("The client login service returned an invalid response."); }
+  if(!response.ok || !json?.success) throw new Error(String(json?.error || "Project ID or mobile number did not match our records."));
+  return json.data || {};
+}
+
 export default function LoginPage(){
   const router = useRouter();
   const [portal,setPortal] = useState<PortalType>("admin");
   const [userId,setUserId] = useState("");
   const [password,setPassword] = useState("");
+  const [clientMobile,setClientMobile] = useState("");
   const [showPassword,setShowPassword] = useState(false);
   const [capsLock,setCapsLock] = useState(false);
   const [loading,setLoading] = useState(false);
@@ -56,14 +68,9 @@ export default function LoginPage(){
       const stored = localStorage.getItem(PORTAL_KEY) as PortalType | null;
       if(stored && portals.some(p=>p.id===stored)) setPortal(stored);
     }catch{}
-
-    // Never block the login screen. Both checks run quietly in the background.
     void quickPost("quickPinStatus").then(data=>{
-      setQuickConfigured(Boolean(data?.configured));
-      setTrustedDevice(Boolean(data?.trusted));
-      setTrustedUntil(data?.expiresAt ? Number(data.expiresAt) : null);
+      setQuickConfigured(Boolean(data?.configured)); setTrustedDevice(Boolean(data?.trusted)); setTrustedUntil(data?.expiresAt ? Number(data.expiresAt) : null);
     }).catch(()=>{});
-
     setSessionChecking(true);
     void landViewApi.getSession().then(session=>{
       const role = normalizeRole(session?.user?.role || session?.user?.Role);
@@ -81,20 +88,21 @@ export default function LoginPage(){
 
   function choosePortal(next:PortalType){
     if(loading || quickBusy) return;
-    setPortal(next); setPassword(""); setError(""); setCapsLock(false);
+    setPortal(next); setUserId(""); setPassword(""); setClientMobile(""); setError(""); setCapsLock(false);
     try{ localStorage.setItem(PORTAL_KEY,next); }catch{}
   }
 
   async function submit(e:FormEvent<HTMLFormElement>){
-    e.preventDefault();
-    if(loading) return;
+    e.preventDefault(); if(loading) return;
     let id = userId.trim();
-    if(portal === "employee") id = id.toUpperCase();
-    if(!id || !password){ setError(`Enter your ${selected.identifier.toLowerCase()} and password to continue.`); return; }
+    if(portal === "employee" || portal === "client") id = id.toUpperCase();
+    if(portal === "client"){
+      if(!id || !clientMobile.trim()){ setError("Enter your Project ID and registered mobile number to continue."); return; }
+    } else if(!id || !password){ setError(`Enter your ${selected.identifier.toLowerCase()} and password to continue.`); return; }
 
     setLoading(true); setError(""); clearStoredSession();
     try{
-      const result = await landViewApi.login(id,password);
+      const result = portal === "client" ? await clientLogin(id,clientMobile.trim()) : await landViewApi.login(id,password);
       const role = normalizeRole(result?.user?.role || result?.user?.Role);
       if(!roleMatchesPortal(role,portal)){
         const correct = portalForRole(role);
@@ -120,11 +128,7 @@ export default function LoginPage(){
     finally{ setQuickBusy(false); }
   }
 
-  function handlePin(value:string){
-    const next = value.replace(/\D/g,"").slice(0,6);
-    setPin(next); setError("");
-    if(next.length===6) void unlockPin(next);
-  }
+  function handlePin(value:string){ const next=value.replace(/\D/g,"").slice(0,6); setPin(next); setError(""); if(next.length===6) void unlockPin(next); }
   function keyState(e:KeyboardEvent<HTMLInputElement>){ setCapsLock(Boolean(e.getModifierState?.("CapsLock"))); }
 
   return <main className="lv-login">
@@ -138,19 +142,19 @@ export default function LoginPage(){
     </div></header>
 
     <section className="lv-main">
-      <div className="copy"><span className="kicker">LAND VIEW ERP</span><h1>{quickMode ? <>Trusted device<br/><span>PIN access.</span></> : <>One system.<br/><span>Three workspaces.</span></>}</h1><p>{quickMode ? "Use your permanent six-digit Admin PIN on this trusted browser to create a fresh secure session." : "A single controlled gateway for management, employees and clients. Choose the workspace that matches your LAND VIEW account."}</p>
-        <div className="info"><div><small>ACCESS CONTROL</small><strong>Role verified after sign-in</strong></div><div><small>LOGIN SCREEN</small><strong>Available immediately</strong></div><div><small>TRUSTED DEVICE</small><strong>{trustedDevice&&quickConfigured?`${daysLeft||1} day${daysLeft===1?"":"s"} remaining`:"Available to Admin"}</strong></div></div>
+      <div className="copy"><span className="kicker">LAND VIEW ERP</span><h1>{quickMode ? <>Trusted device<br/><span>PIN access.</span></> : <>One system.<br/><span>Three workspaces.</span></>}</h1><p>{quickMode ? "Use your permanent six-digit Admin PIN on this trusted browser to create a fresh secure session." : "A single controlled gateway for management, employees and clients. Clients now enter with their Project ID and registered mobile number."}</p>
+        <div className="info"><div><small>CLIENT ACCESS</small><strong>Project ID + mobile</strong></div><div><small>PROJECT STATUS</small><strong>Workflow progress live</strong></div><div><small>FINANCE</small><strong>Bill, paid and due</strong></div></div>
         <div className="summary"><small>{quickMode?"TRUSTED ADMIN ACCESS":selected.eyebrow}</small><strong>{quickMode?"PIN Login":selected.label}</strong><p>{quickMode?"PIN access is available only while this browser remains trusted.":selected.description}</p></div>
       </div>
 
       <section className="card">
         {quickMode&&trustedDevice&&quickConfigured ? <div className="pinpanel"><div className="pintitle"><small>TRUSTED DEVICE</small><h2>Admin PIN Login</h2></div>{error&&<div className="error"><i>!</i><div><strong>PIN login failed</strong><p>{error}</p></div></div>}<input className="pinfield" type="password" inputMode="numeric" maxLength={6} value={pin} onChange={e=>handlePin(e.target.value)} autoFocus disabled={quickBusy} placeholder="••••••"/><div className="pinhelp">{quickBusy?"Creating secure Admin session…":"Enter all 6 digits to sign in automatically."}</div><button className="switch" type="button" onClick={()=>{setQuickMode(false);setPin("");setError("");}}>USE USERNAME & PASSWORD</button></div> : <>
-          <div className="cardhead"><div><small>SECURE LOGIN</small><h2>Sign in to LAND VIEW</h2></div><span className={`session ${sessionChecking?"active":""}`}>{sessionChecking?"SESSION CHECKING IN BACKGROUND":"READY"}</span></div>
+          <div className="cardhead"><div><small>SECURE LOGIN</small><h2>Sign in to LAND VIEW</h2></div><span className={`session ${sessionChecking?"active":""}`}>{sessionChecking?"SESSION CHECKING":"READY"}</span></div>
           <div className="tabs">{portals.map(p=><button key={p.id} className={`tab ${portal===p.id?"active":""}`} type="button" onClick={()=>choosePortal(p.id)} disabled={loading}><b>{p.short}</b><span>{p.label}</span></button>)}</div>
           <form className="form" onSubmit={submit}>{error&&<div className="error"><i>!</i><div><strong>Sign in failed</strong><p>{error}</p></div></div>}{trustedDevice&&quickConfigured&&portal==="admin"&&<><button className="pinbtn" type="button" onClick={()=>{setQuickMode(true);setError("");setPin("");}}>PIN LOGIN ON THIS TRUSTED DEVICE</button><div className="trust">Trusted access expires in about {daysLeft||1} day{daysLeft===1?"":"s"}</div></>}
-            <label className="field"><span className="fieldrow"><span>{selected.identifier}</span></span><span className="wrap"><input value={userId} onChange={e=>{setUserId(portal==="employee"?e.target.value.toUpperCase():e.target.value);setError("");}} placeholder={selected.placeholder} autoComplete="username" disabled={loading} autoFocus/></span></label>
-            <label className="field"><span className="fieldrow"><span>PASSWORD</span>{capsLock&&<span className="caps">CAPS LOCK IS ON</span>}</span><span className="wrap"><input className="password" type={showPassword?"text":"password"} value={password} onChange={e=>{setPassword(e.target.value);setError("");}} onKeyDown={keyState} onKeyUp={keyState} placeholder="Enter your password" autoComplete="current-password" disabled={loading}/><button className="show" type="button" onClick={()=>setShowPassword(v=>!v)} tabIndex={-1}>{showPassword?"HIDE":"SHOW"}</button></span></label>
-            <button className="submit" type="submit" disabled={loading}><span>{loading?"AUTHENTICATING…":`CONTINUE TO ${selected.label.toUpperCase()}`}</span><span>→</span></button><div className="note">Your account role is verified before workspace access is granted.</div>
+            <label className="field"><span className="fieldrow"><span>{selected.identifier}</span></span><span className="wrap"><input value={userId} onChange={e=>{setUserId((portal==="employee"||portal==="client")?e.target.value.toUpperCase():e.target.value);setError("");}} placeholder={selected.placeholder} autoComplete="username" disabled={loading} autoFocus/></span></label>
+            {portal === "client" ? <label className="field"><span className="fieldrow"><span>REGISTERED MOBILE NUMBER</span></span><span className="wrap"><input value={clientMobile} onChange={e=>{setClientMobile(e.target.value);setError("");}} placeholder="01XXXXXXXXX" inputMode="tel" autoComplete="tel" disabled={loading}/></span></label> : <label className="field"><span className="fieldrow"><span>PASSWORD</span>{capsLock&&<span className="caps">CAPS LOCK IS ON</span>}</span><span className="wrap"><input className="password" type={showPassword?"text":"password"} value={password} onChange={e=>{setPassword(e.target.value);setError("");}} onKeyDown={keyState} onKeyUp={keyState} placeholder="Enter your password" autoComplete="current-password" disabled={loading}/><button className="show" type="button" onClick={()=>setShowPassword(v=>!v)} tabIndex={-1}>{showPassword?"HIDE":"SHOW"}</button></span></label>}
+            <button className="submit" type="submit" disabled={loading}><span>{loading?"AUTHENTICATING…":`CONTINUE TO ${selected.label.toUpperCase()}`}</span><span>→</span></button><div className="note">{portal==="client"?"Access is limited to the project that matches both details.":"Your account role is verified before workspace access is granted."}</div>
           </form>
         </>}
       </section>
