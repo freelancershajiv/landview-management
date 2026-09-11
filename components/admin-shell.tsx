@@ -12,6 +12,7 @@ import {
 const nav = [
   { href: "/admin", label: "Dashboard", accounts: true },
   { href: "/admin/projects", label: "Projects", accounts: true },
+  { href: "/admin/workflow", label: "Workflow" },
   { href: "/admin/employees", label: "Employees" },
   { href: "/admin/finance", label: "Finance", accounts: true },
 ];
