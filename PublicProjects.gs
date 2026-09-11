@@ -18,9 +18,7 @@ function trustedPinSessionFromGateway_(params) {
     return rowUserId === userId && isActiveUser(user) && isAdminRole(role);
   }) || null;
 
-  if (!foundUser) {
-    return { success: false, message: "Trusted Admin account is unavailable." };
-  }
+  if (!foundUser) return { success: false, message: "Trusted Admin account is unavailable." };
 
   const token = createSession(foundUser);
   const safeUser = sanitizeUser(foundUser);
@@ -33,9 +31,7 @@ function employeeWorkspaceFromGateway_(params) {
   if (requested !== "1") return null;
 
   const session = requireSession(params);
-  if (normalizeRoleName(session.role) !== "employee") {
-    return { success: false, error: "Employee access required." };
-  }
+  if (normalizeRoleName(session.role) !== "employee") return { success: false, error: "Employee access required." };
 
   const allowedIds = getAllowedProjectIds(session) || [];
   const allowed = {};
@@ -51,41 +47,15 @@ function employeeWorkspaceFromGateway_(params) {
   const workflow = financeWorkflowRows_(workflowSheet).filter(function(row) {
     return !!allowed[normalizeFinanceWorkflowProjectId_(row.Project_ID)];
   });
-
   const employeeId = String(session.employeeId || "").trim();
-  const assigned = workflow.filter(function(row) {
-    return employeeId && String(row.Assigned_Employee_ID || "").trim() === employeeId;
-  });
-  const unassigned = workflow.filter(function(row) {
-    return !String(row.Assigned_Employee_ID || "").trim();
-  });
+  const assigned = workflow.filter(function(row) { return employeeId && String(row.Assigned_Employee_ID || "").trim() === employeeId; });
+  const unassigned = workflow.filter(function(row) { return !String(row.Assigned_Employee_ID || "").trim(); });
 
-  return {
-    success: true,
-    data: {
-      workflow: workflow,
-      assignedWorkflow: assigned,
-      unassignedWorkflow: unassigned,
-      allowedProjectIds: Object.keys(allowed),
-      employeeId: employeeId,
-      source: "LV - Auto Invoice / Workflow",
-      updatedAt: new Date().toISOString()
-    }
-  };
+  return { success: true, data: { workflow: workflow, assignedWorkflow: assigned, unassignedWorkflow: unassigned, allowedProjectIds: Object.keys(allowed), employeeId: employeeId, source: "LV - Auto Invoice / Workflow", updatedAt: new Date().toISOString() } };
 }
 
 function ensureProjectPublicHeaders_() {
-  return ensureHeaders_(getSheet(CONFIG.SHEETS.PROJECTS), [
-    "Public_Display",
-    "Public_Project_Title",
-    "Public_Description",
-    "Project_Category",
-    "Project_Area",
-    "Number_of_Stories",
-    "Public_Services",
-    "Completion_Year",
-    "Public_Display_Order"
-  ]);
+  return ensureHeaders_(getSheet(CONFIG.SHEETS.PROJECTS), ["Public_Display", "Public_Project_Title", "Public_Description", "Project_Category", "Project_Area", "Number_of_Stories", "Public_Services", "Completion_Year", "Public_Display_Order"]);
 }
 
 function initializePublicProjectPortfolio() {
@@ -94,9 +64,7 @@ function initializePublicProjectPortfolio() {
 }
 
 function splitPublicList_(value) {
-  return String(value || "").split(/\r?\n|\s*[•|]\s*/).map(function(item) {
-    return String(item || "").trim();
-  }).filter(Boolean);
+  return String(value || "").split(/\r?\n|\s*[•|]\s*/).map(function(item) { return String(item || "").trim(); }).filter(Boolean);
 }
 
 function isPublicProjectImageFile_(file) {
@@ -105,55 +73,30 @@ function isPublicProjectImageFile_(file) {
   return mime.indexOf("image/") === 0 && (/\.(jpe?g|png|webp)$/i.test(name) || /image\/(jpeg|jpg|png|webp)/i.test(mime));
 }
 
-function projectDriveImageUrl_(file) {
-  return "https://drive.google.com/file/d/" + file.getId() + "/view";
-}
-
-function makePublicProjectImageReadable_(file) {
-  try {
-    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-  } catch (error) {}
-}
+function projectDriveImageUrl_(file) { return "https://drive.google.com/file/d/" + file.getId() + "/view"; }
+function makePublicProjectImageReadable_(file) { try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (error) {} }
 
 function getExteriorPublicImages_(project) {
   try {
     const rootFolder = getLandViewRootFolder();
     const projectFolder = findExistingProjectFolder(rootFolder, project);
     if (!projectFolder) return { coverImageUrl: "", galleryImages: [] };
-
     const folders = projectFolder.getFoldersByName("3D Design - Exterior");
     if (!folders.hasNext()) return { coverImageUrl: "", galleryImages: [] };
-
     const files = folders.next().getFiles();
     const images = [];
     while (files.hasNext()) {
       const file = files.next();
       if (!isPublicProjectImageFile_(file)) continue;
       makePublicProjectImageReadable_(file);
-      images.push({
-        name: String(file.getName() || ""),
-        lowerName: String(file.getName() || "").toLowerCase(),
-        url: projectDriveImageUrl_(file)
-      });
+      images.push({ name: String(file.getName() || ""), lowerName: String(file.getName() || "").toLowerCase(), url: projectDriveImageUrl_(file) });
     }
-
     if (!images.length) return { coverImageUrl: "", galleryImages: [] };
-    images.sort(function(a, b) {
-      return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
-    });
-
-    const frontIndex = images.findIndex(function(image) {
-      return /^front\.(jpe?g|png|webp)$/i.test(image.lowerName);
-    });
+    images.sort(function(a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }); });
+    const frontIndex = images.findIndex(function(image) { return /^front\.(jpe?g|png|webp)$/i.test(image.lowerName); });
     const cover = frontIndex >= 0 ? images[frontIndex] : images[0];
-
-    return {
-      coverImageUrl: cover.url,
-      galleryImages: images.filter(function(image) { return image.url !== cover.url; }).map(function(image) { return image.url; })
-    };
-  } catch (error) {
-    return { coverImageUrl: "", galleryImages: [] };
-  }
+    return { coverImageUrl: cover.url, galleryImages: images.filter(function(image) { return image.url !== cover.url; }).map(function(image) { return image.url; }) };
+  } catch (error) { return { coverImageUrl: "", galleryImages: [] }; }
 }
 
 function getPublicProjects(params) {
@@ -161,38 +104,23 @@ function getPublicProjects(params) {
   if (trustedSession) return trustedSession;
 
   if (typeof certificateVerificationFromGateway_ === "function") {
-    const certificateVerification = certificateVerificationFromGateway_(params);
-    if (certificateVerification) return certificateVerification;
+    const result = certificateVerificationFromGateway_(params);
+    if (result) return result;
   }
-
   if (typeof certificateRegistryFromGateway_ === "function") {
-    const certificateRegistry = certificateRegistryFromGateway_(params);
-    if (certificateRegistry) return certificateRegistry;
+    const result = certificateRegistryFromGateway_(params);
+    if (result) return result;
+  }
+  if (typeof certificatePortalFromGateway_ === "function") {
+    const result = certificatePortalFromGateway_(params);
+    if (result) return result;
   }
 
-  // Client login gets the V2 matcher first. It checks Finance File List,
-  // Finance Summary and Management Projects, including common phone headers.
-  if (
-    String((params && params._clientPortal) || "").trim() === "1" &&
-    String((params && params.clientOp) || "").trim().toLowerCase() === "login" &&
-    typeof clientPortalLoginV2_ === "function"
-  ) {
-    return clientPortalLoginV2_(params);
-  }
-
-  // Client workspace gets the billing V2 reader first so it uses the exact
-  // LV - Auto Invoice Summary/File List headers and live billing tabs.
-  if (
-    String((params && params._clientPortal) || "").trim() === "1" &&
-    String((params && params.clientOp) || "workspace").trim().toLowerCase() === "workspace" &&
-    typeof clientPortalWorkspaceV2_ === "function"
-  ) {
-    return clientPortalWorkspaceV2_(params);
-  }
-
+  if (String((params && params._clientPortal) || "").trim() === "1" && String((params && params.clientOp) || "").trim().toLowerCase() === "login" && typeof clientPortalLoginV2_ === "function") return clientPortalLoginV2_(params);
+  if (String((params && params._clientPortal) || "").trim() === "1" && String((params && params.clientOp) || "workspace").trim().toLowerCase() === "workspace" && typeof clientPortalWorkspaceV2_ === "function") return clientPortalWorkspaceV2_(params);
   if (typeof clientPortalGateway_ === "function") {
-    const clientPortal = clientPortalGateway_(params);
-    if (clientPortal) return clientPortal;
+    const result = clientPortalGateway_(params);
+    if (result) return result;
   }
 
   const employeeWorkspace = employeeWorkspaceFromGateway_(params);
@@ -200,7 +128,6 @@ function getPublicProjects(params) {
 
   ensureProjectPublicHeaders_();
   const rows = readSheet(CONFIG.SHEETS.PROJECTS);
-
   const publicRows = rows.filter(function(project) {
     const visible = normalize(firstValue(project, ["Public_Display", "Public Display", "Show_Publicly", "Show Publicly"]));
     return visible === "true" || visible === "yes" || visible === "1";
@@ -221,9 +148,6 @@ function getPublicProjects(params) {
       services: splitPublicList_(firstValue(project, ["Public_Services", "Public Services", "Services"])),
       displayOrder: Number(firstValue(project, ["Public_Display_Order", "Public Display Order"]) || 9999)
     };
-  }).sort(function(a, b) {
-    return a.displayOrder - b.displayOrder || String(a.title || "").localeCompare(String(b.title || ""));
-  });
-
+  }).sort(function(a, b) { return a.displayOrder - b.displayOrder || String(a.title || "").localeCompare(String(b.title || "")); });
   return { success: true, data: publicRows };
 }
