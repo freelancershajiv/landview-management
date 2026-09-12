@@ -18,6 +18,7 @@ type ProjectRow = Record<string, unknown> & {
   Legacy_File_ID?: string;
   Public_Display?: unknown;
   Drive_Folder_URL?: string;
+  Drive_Folder_Name?: string;
 };
 type TaskRow = Record<string, unknown> & {
   Task_ID?: string;
@@ -35,6 +36,8 @@ const css = `
 function normalizeProjectId(value: unknown) {
   const raw = String(value || "").trim().toUpperCase();
   if (!raw) return "";
+  const match = raw.match(/LV[\s_-]*0*(\d+)/i);
+  if (match?.[1]) return `LV-${Number(match[1])}`;
   const digits = raw.replace(/\D/g, "");
   return digits ? `LV-${Number(digits)}` : raw;
 }
@@ -64,6 +67,12 @@ function value(record: Record<string, unknown>, keys: string[]) {
   }
   return "";
 }
+function nameFromDriveFolder(folderName: unknown, id: string) {
+  const raw = String(folderName || "").trim();
+  if (!raw) return id;
+  const cleaned = raw.replace(/^\s*LV[\s_-]*0*\d+\s*[-–—:]?\s*/i, "").trim();
+  return cleaned || raw || id;
+}
 async function getDriveIndex(category: ProjectCategory): Promise<DriveIndexResponse> {
   const url = new URL("/api/landview", window.location.origin);
   url.searchParams.set("action", "getProjectServiceFolders");
@@ -81,7 +90,7 @@ export default function ProjectsPage() {
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [role, setRole] = useState("");
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<"All" | ProjectCategory>("Running");
+  const [category, setCategory] = useState<"All" | ProjectCategory>("All");
   const [expanded, setExpanded] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -129,39 +138,63 @@ export default function ProjectsPage() {
           Number_of_Stories: String(value(source, ["Floor", "Floors", "Story"]) || ""),
           Status: String(pick(existing, ["Status", "status"], "")),
           Public_Display: existing.Public_Display ?? existing["Public Display"] ?? false,
-          Public_Project_Title: pick(existing, ["Public_Project_Title", "Public Project Title"], ""),
-          Public_Description: pick(existing, ["Public_Description", "Public Description"], ""),
-          Public_Services: pick(existing, ["Public_Services", "Public Services"], ""),
-          Completion_Year: pick(existing, ["Completion_Year", "Completion Year"], ""),
-          Public_Display_Order: pick(existing, ["Public_Display_Order", "Public Display Order"], ""),
-          Client_User_ID: pick(existing, ["Client_User_ID", "Client User ID"], ""),
-          Client_Username: pick(existing, ["Client_Username", "Client Username"], ""),
           Drive_Folder_URL: String(pick(existing, ["Drive_Folder_URL", "Drive Folder URL"], "")),
         });
       });
 
       const mergeDrive = (source: Record<string, any>, driveCategory: ProjectCategory) => {
         Object.entries(source || {}).forEach(([rawId, item]) => {
-          const id = normalizeProjectId(rawId || item?.projectId);
+          const id = normalizeProjectId(rawId || item?.projectId || item?.projectFolderName);
+          if (!id) return;
+          const existingDb = dbMap.get(id) || {};
           const current = map.get(id);
-          if (!id || !current) return;
+          if (current) {
+            map.set(id, {
+              ...current,
+              Status: driveCategory,
+              Drive_Folder_Name: String(item?.projectFolderName || current.Drive_Folder_Name || ""),
+              Drive_Folder_URL: String(item?.projectFolderUrl || current.Drive_Folder_URL || ""),
+            });
+            return;
+          }
+
+          const folderName = String(item?.projectFolderName || "");
+          const projectName = String(
+            pick(existingDb, ["Project_Name", "Project Name", "Name"], nameFromDriveFolder(folderName, id)) ||
+            nameFromDriveFolder(folderName, id)
+          );
           map.set(id, {
-            ...current,
+            Project_ID: id,
+            Legacy_File_ID: id.replace("LV-", ""),
+            Project_Name: projectName,
+            Client_Name: String(pick(existingDb, ["Client_Name", "Client Name"], projectName) || projectName),
+            Phone_Number: String(pick(existingDb, ["Phone_Number", "Phone Number", "Phone"], "")),
+            Project_Type: String(pick(existingDb, ["Project_Type", "Project Type"], "")),
+            Location: String(pick(existingDb, ["Location", "Project_Location", "Project Location"], "")),
+            Project_Area: String(pick(existingDb, ["Project_Area", "Project Area", "Land_Area", "Land Area"], "")),
+            Number_of_Stories: String(pick(existingDb, ["Number_of_Stories", "Number of Stories", "Floors"], "")),
             Status: driveCategory,
-            Drive_Folder_URL: String(item?.projectFolderUrl || current.Drive_Folder_URL || ""),
+            Public_Display: existingDb.Public_Display ?? existingDb["Public Display"] ?? false,
+            Drive_Folder_Name: folderName,
+            Drive_Folder_URL: String(item?.projectFolderUrl || pick(existingDb, ["Drive_Folder_URL", "Drive Folder URL"], "")),
           });
         });
       };
+
       mergeDrive(running.projects || {}, "Running");
       mergeDrive(paused.projects || {}, "Paused");
       mergeDrive(completed.projects || {}, "Completed");
 
-      setProjects(Array.from(map.values()).sort((a, b) => Number(normalizeProjectId(b.Project_ID).replace("LV-", "")) - Number(normalizeProjectId(a.Project_ID).replace("LV-", ""))));
+      setProjects(
+        Array.from(map.values()).sort(
+          (a, b) => Number(normalizeProjectId(b.Project_ID).replace("LV-", "")) - Number(normalizeProjectId(a.Project_ID).replace("LV-", ""))
+        )
+      );
       setEmployees((employeeRows || []).filter((employee: Record<string, unknown>) => !/inactive|former/i.test(String(pick(employee, ["Status", "status"], "")))) as EmployeeRow[]);
       setTasks((taskRows || []) as TaskRow[]);
       setRole(String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase());
     } catch (e: any) {
-      setError(e?.message || "Could not load projects from LV - Auto Invoice.");
+      setError(e?.message || "Could not load the LAND VIEW project register.");
     } finally {
       setLoading(false);
     }
@@ -182,7 +215,7 @@ export default function ProjectsPage() {
       const status = normalizeCategory(project.Status);
       if (category !== "All" && status !== category) return false;
       if (!term) return true;
-      return [project.Project_ID, project.Project_Name, project.Client_Name, project.Project_Type, project.Location, project.Project_Area, project.Number_of_Stories, status].join(" ").toLowerCase().includes(term);
+      return [project.Project_ID, project.Project_Name, project.Client_Name, project.Project_Type, project.Location, project.Project_Area, project.Number_of_Stories, project.Drive_Folder_Name, status].join(" ").toLowerCase().includes(term);
     });
   }, [projects, category, query]);
 
@@ -223,6 +256,7 @@ export default function ProjectsPage() {
             Location: project.Location || "",
             Project_Area: project.Project_Area || "",
             Number_of_Stories: project.Number_of_Stories || "",
+            Drive_Folder_URL: project.Drive_Folder_URL || "",
           },
         }),
       });
@@ -252,19 +286,19 @@ export default function ProjectsPage() {
     }
   }
 
-  if (loading) return <LoadingState label="Loading projects from LV - Auto Invoice..." />;
+  if (loading) return <LoadingState label="Loading projects from Auto Invoice and Google Drive..." />;
   if (error && projects.length === 0) return <ErrorState message={error} onRetry={load} />;
 
   return <>
     <style dangerouslySetInnerHTML={{ __html: css }} />
     <div className="projects-register">
-      <PageHeader eyebrow="AUTO INVOICE PROJECT REGISTER" title="Projects" description="Project names and details come directly from LV - Auto Invoice → File List. Use this page only to assign service responsibility and control public website visibility." action={<button className="refresh-btn" type="button" onClick={load}>Refresh</button>} />
+      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="Projects" description="Projects are combined from LV - Auto Invoice → File List and the Running, Paused and Completed project folders in Google Drive. Auto Invoice details take priority where available." action={<button className="refresh-btn" type="button" onClick={load}>Refresh</button>} />
       {error && <div className="error-inline">{error}</div>}
       <div className="projects-toolbar">
         <div className="projects-toolbar-left">
-          {(["Running","Paused","Completed","All"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${category===item?"active":""}`} onClick={() => setCategory(item)}>{item} · {counts[item]}</button>)}
+          {(["All","Running","Paused","Completed"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${category===item?"active":""}`} onClick={() => setCategory(item)}>{item} · {counts[item]}</button>)}
         </div>
-        <input className="projects-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search ID, client, type, location, area or floor" />
+        <input className="projects-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search ID, client, folder, type, location, area or floor" />
       </div>
       <section className="register-shell">
         <div className="register-scroll">
@@ -291,7 +325,7 @@ export default function ProjectsPage() {
                     <td className="public-cell"><div className="public-wrap"><span>{publicOn?"Shown":"Hidden"}</span><button type="button" className={`toggle ${publicOn?"on":""}`} role="switch" aria-checked={publicOn} aria-label={`${publicOn?"Hide":"Show"} ${id} on the public website`} disabled={!canManage || savingPublic===id} onClick={() => void togglePublic(project)} /></div></td>
                   </tr>
                   {isExpanded && <tr className="team-row"><td colSpan={7}><div className="team-panel">
-                    <div className="team-panel-head"><div><strong>Service responsibility · {id}</strong><small>Services are generated from the billing records in LV - Auto Invoice. Assign the responsible team member here.</small></div>{!canManage && <small>Accounts access is view-only for assignments.</small>}</div>
+                    <div className="team-panel-head"><div><strong>Service responsibility · {id}</strong><small>Services are generated from billing records in LV - Auto Invoice. Assign the responsible team member here.</small></div>{!canManage && <small>Accounts access is view-only for assignments.</small>}</div>
                     {projectTasks.length ? <div className="service-assignments">{projectTasks.map((task) => {
                       const taskId = String(pick(task,["Task_ID","Task ID","TaskId"],""));
                       const title = String(pick(task,["Task_Title","Task Title","Title"],"Service"));
@@ -309,8 +343,8 @@ export default function ProjectsPage() {
             </tbody>
           </table>
         </div>
-        {!filtered.length && <div className="team-empty" style={{margin:16}}>No populated projects from the Auto Invoice File List match this view.</div>}
-        <div className="register-note">Source of truth: LV - Auto Invoice → File List. Blank File List rows are ignored. LAND VIEW database rows are created automatically only when portal-specific state is needed, such as Public Website visibility.</div>
+        {!filtered.length && <div className="team-empty" style={{margin:16}}>No projects match this view.</div>}
+        <div className="register-note">Project register = Auto Invoice populated projects + every LV project folder found under Running, Paused and Completed in Google Drive. Auto Invoice supplies project details when available; Drive-only projects remain fully usable for team assignment and Public Website control.</div>
       </section>
     </div>
   </>;
