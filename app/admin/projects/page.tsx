@@ -23,17 +23,13 @@ type TaskRow = Record<string, unknown> & {
   Assigned_Employee_ID?: string;
 };
 type EmployeeRow = Record<string, unknown> & { Employee_ID?: string };
-type DriveIndexResponse = { projects?: Record<string, any> };
 
 const css = `
 .projects-register{display:grid;gap:18px}.projects-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.projects-toolbar-left{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.projects-search{min-width:min(100%,360px);height:42px;padding:0 13px;border:1px solid rgba(255,255,255,.13);border-radius:8px;background:#111b24;color:#f4f6f8}.projects-search::placeholder{color:#75818c}.filter-btn{height:38px;padding:0 13px;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:#121c25;color:#9ba7b1;font-size:12px;font-weight:700;cursor:pointer}.filter-btn.active{border-color:#d61f26;background:#d61f26;color:#fff}.refresh-btn{height:40px;padding:0 14px;border:1px solid rgba(255,255,255,.13);border-radius:8px;background:#18232d;color:#fff;font-size:12px;font-weight:800;cursor:pointer}.register-shell{overflow:hidden;border:1px solid rgba(255,255,255,.11);border-radius:12px;background:#0e1720}.register-scroll{overflow-x:auto}.project-table{width:100%;min-width:1080px;border-collapse:collapse}.project-table th{padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.1);background:#141e28;color:#8996a1;text-align:left;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.project-table td{padding:14px;border-bottom:1px solid rgba(255,255,255,.075);background:#0f1821;color:#dce2e7;font-size:12px;vertical-align:middle}.project-table tbody tr:hover>td{background:#121e28}.project-table tbody tr:last-child td{border-bottom:0}.project-main{display:flex;align-items:center;gap:11px;min-width:230px}.project-id{display:grid;place-items:center;min-width:68px;height:32px;padding:0 8px;border:1px solid rgba(214,31,38,.35);border-radius:6px;background:rgba(214,31,38,.08);color:#ff736c;font-size:11px;font-weight:900}.project-main strong,.project-main small{display:block}.project-main strong{color:#f5f7f8;font-size:13px}.project-main small{margin-top:3px;color:#77838d;font-size:11px}.muted{color:#8c98a2}.service-summary{display:flex;align-items:center;gap:8px;min-width:170px}.service-summary b{color:#fff}.team-button{border:1px solid rgba(255,255,255,.13);border-radius:7px;background:#18232d;color:#e8edf0;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer}.team-button:hover{border-color:#d61f26;color:#ff8179}.drive-link{color:#f07a72;font-weight:800;text-decoration:none}.drive-link:hover{text-decoration:underline}.open-link{display:inline-flex;align-items:center;gap:5px;color:#dfe5e9;font-weight:800;text-decoration:none}.open-link:hover{color:#ff8179}.public-cell{position:sticky;right:0;z-index:2;min-width:150px;background:#111b24!important;box-shadow:-10px 0 18px rgba(0,0,0,.16)}.project-table th.public-cell{z-index:4;background:#17212b!important}.public-wrap{display:flex;align-items:center;justify-content:space-between;gap:9px}.public-wrap span{font-size:11px;color:#94a0aa}.toggle{position:relative;width:42px;height:23px;border:0;border-radius:999px;background:#39434c;cursor:pointer;transition:.18s}.toggle::after{content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;transition:.18s}.toggle.on{background:#d61f26}.toggle.on::after{transform:translateX(19px)}.toggle:disabled{cursor:not-allowed;opacity:.45}.team-row td{padding:0!important;background:#0b141c!important}.team-panel{padding:16px 18px 18px;border-bottom:1px solid rgba(255,255,255,.08)}.team-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}.team-panel-head strong{display:block;color:#fff;font-size:13px}.team-panel-head small{display:block;margin-top:4px;color:#7e8b95;font-size:11px}.service-assignments{display:grid;gap:7px}.service-assignment{display:grid;grid-template-columns:minmax(180px,1fr) minmax(240px,1.2fr) auto;align-items:center;gap:12px;padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:#111b24}.service-assignment strong{color:#edf1f4;font-size:12px}.service-assignment select{height:36px;border:1px solid rgba(255,255,255,.14);border-radius:7px;background:#0d161e;color:#e8edf0;padding:0 10px;font-size:12px}.service-assignment small{color:#71808b;font-size:10px}.team-empty{padding:18px;border:1px dashed rgba(255,255,255,.12);border-radius:8px;color:#7e8b95;text-align:center;font-size:12px}.register-note{padding:12px 14px;border-top:1px solid rgba(255,255,255,.08);background:#0b141c;color:#76838d;font-size:11px;line-height:1.6}.error-inline{padding:11px 14px;border:1px solid rgba(214,31,38,.35);border-radius:8px;background:rgba(214,31,38,.08);color:#ff9c96;font-size:12px}@media(max-width:760px){.projects-toolbar{align-items:stretch}.projects-search{width:100%;min-width:0}.service-assignment{grid-template-columns:1fr}.team-panel-head{flex-direction:column}.public-cell{position:static;box-shadow:none}}
 `;
 
 function normalizeProjectId(value: unknown) {
-  const raw = String(value || "").trim().toUpperCase();
-  if (!raw) return "";
-  const digits = raw.replace(/\D/g, "");
-  return digits ? `LV-${Number(digits)}` : raw;
+  return String(value || "").trim().toUpperCase();
 }
 function truthy(value: unknown) {
   return value === true || ["true", "yes", "1", "on"].includes(String(value || "").trim().toLowerCase());
@@ -43,21 +39,6 @@ function normalizeCategory(value: unknown): ProjectCategory {
   if (/complete|completed|done|closed|finish/.test(text)) return "Completed";
   if (/pause|paused|hold|inactive|cancel/.test(text)) return "Paused";
   return "Running";
-}
-function folderNameWithoutId(name: unknown, id: string) {
-  const raw = String(name || "").trim();
-  if (!raw) return id;
-  return raw.replace(new RegExp(`^${id.replace("-", "[- _]?")}\\s*[-–—:]?\\s*`, "i"), "").trim() || id;
-}
-async function getDriveIndex(category: ProjectCategory): Promise<DriveIndexResponse> {
-  const url = new URL("/api/landview", window.location.origin);
-  url.searchParams.set("action", "getProjectServiceFolders");
-  url.searchParams.set("bulk", "1");
-  url.searchParams.set("category", category);
-  const response = await fetch(url.toString(), { method: "GET", cache: "no-store", credentials: "same-origin" });
-  const json = await response.json();
-  if (!response.ok || !json?.success) throw new Error(String(json?.error || `Could not load ${category} projects.`));
-  return json.data || { projects: {} };
 }
 
 export default function ProjectsPage() {
@@ -78,44 +59,27 @@ export default function ProjectsPage() {
     setLoading(true);
     setError("");
     try {
-      const [session, sheetProjects, employeeRows, taskRows, running, paused, completed] = await Promise.all([
+      const [session, sheetProjects, employeeRows, taskRows] = await Promise.all([
         landViewApi.getSession(),
         landViewApi.getProjects(),
         landViewApi.getEmployees().catch(() => []),
         landViewApi.getErpRecords("tasks").catch(() => []),
-        getDriveIndex("Running").catch(() => ({ projects: {} })),
-        getDriveIndex("Paused").catch(() => ({ projects: {} })),
-        getDriveIndex("Completed").catch(() => ({ projects: {} })),
       ]);
-      const map = new Map<string, ProjectRow>();
-      (sheetProjects || []).forEach((row: Record<string, unknown>) => {
-        const id = normalizeProjectId(pick(row, ["Project_ID", "Project ID", "ProjectId"], ""));
-        if (id) map.set(id, { ...row, Project_ID: id });
+
+      const rows = (sheetProjects || [])
+        .map((row: Record<string, unknown>) => {
+          const id = normalizeProjectId(pick(row, ["Project_ID", "Project ID", "ProjectId"], ""));
+          return id ? ({ ...row, Project_ID: id } as ProjectRow) : null;
+        })
+        .filter(Boolean) as ProjectRow[];
+
+      rows.sort((a, b) => {
+        const an = Number(String(a.Project_ID || "").replace(/\D/g, ""));
+        const bn = Number(String(b.Project_ID || "").replace(/\D/g, ""));
+        return (Number.isFinite(bn) ? bn : 0) - (Number.isFinite(an) ? an : 0);
       });
-      const mergeDrive = (source: Record<string, any>, driveCategory: ProjectCategory) => {
-        Object.entries(source || {}).forEach(([rawId, item]) => {
-          const id = normalizeProjectId(rawId || item?.projectId);
-          if (!id) return;
-          const current = map.get(id);
-          const driveName = folderNameWithoutId(item?.projectFolderName, id);
-          map.set(id, current ? {
-            ...current,
-            Status: driveCategory,
-            Drive_Folder_URL: String(item?.projectFolderUrl || current.Drive_Folder_URL || ""),
-          } : {
-            Project_ID: id,
-            Project_Name: driveName,
-            Client_Name: driveName,
-            Status: driveCategory,
-            Drive_Folder_URL: String(item?.projectFolderUrl || ""),
-            Public_Display: false,
-          });
-        });
-      };
-      mergeDrive(running.projects || {}, "Running");
-      mergeDrive(paused.projects || {}, "Paused");
-      mergeDrive(completed.projects || {}, "Completed");
-      setProjects(Array.from(map.values()).sort((a, b) => Number(normalizeProjectId(b.Project_ID).replace("LV-", "")) - Number(normalizeProjectId(a.Project_ID).replace("LV-", ""))));
+
+      setProjects(rows);
       setEmployees((employeeRows || []).filter((employee: Record<string, unknown>) => !/inactive|former/i.test(String(pick(employee, ["Status", "status"], "")))) as EmployeeRow[]);
       setTasks((taskRows || []) as TaskRow[]);
       setRole(String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase());
@@ -204,7 +168,7 @@ export default function ProjectsPage() {
   return <>
     <style dangerouslySetInnerHTML={{ __html: css }} />
     <div className="projects-register">
-      <PageHeader eyebrow="PROJECT REGISTER" title="Projects" description="Projects are created and maintained in Google Drive and Sheets. Use this register to assign service responsibility and control public website visibility." action={<button className="refresh-btn" type="button" onClick={load}>Refresh</button>} />
+      <PageHeader eyebrow="PROJECT REGISTER" title="Projects" description="Projects are read directly from the Projects sheet. Add or edit project master data in Google Sheets; this page is only for team assignment and public website visibility." action={<button className="refresh-btn" type="button" onClick={load}>Refresh</button>} />
       {error && <div className="error-inline">{error}</div>}
       <div className="projects-toolbar">
         <div className="projects-toolbar-left">
@@ -248,15 +212,15 @@ export default function ProjectsPage() {
                         const position = String(pick(employee,["Position","Department"],""));
                         return <option value={employeeId} key={employeeId}>{employeeName}{position?` — ${position}`:""}</option>;
                       })}</select><small>{savingTask===taskId?"Saving…":assignedEmployee || "Not assigned"}</small></div>;
-                    })}</div> : <div className="team-empty">No billed/workflow services are currently linked to this project, so there is nothing to assign yet.</div>}
+                    })}</div> : <div className="team-empty">No workflow services are linked to this project yet.</div>}
                   </div></td></tr>}
                 </Fragment>;
               })}
             </tbody>
           </table>
         </div>
-        {!filtered.length && <div className="team-empty" style={{margin:16}}>No projects match this view.</div>}
-        <div className="register-note">Project creation and master-data editing are handled in Google Drive and Google Sheets. This page only manages service responsibility and the public website on/off state.</div>
+        {!filtered.length && <div className="team-empty" style={{margin:16}}>No projects are currently present in this Projects-sheet view.</div>}
+        <div className="register-note">Google Sheets is the project master. Add a project row there first; the Admin portal will never create a project automatically. This page only manages service responsibility and the public website on/off state.</div>
       </section>
     </div>
   </>;
