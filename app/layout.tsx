@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import ContactMapEnhancer from "@/components/contact-map-enhancer";
 import GlobalActionFeedback from "@/components/global-action-feedback";
-import SessionKeepAlive from "@/components/session-keepalive";
 import "./globals.css";
 import "./premium-theme.css";
 import "./team-overrides.css";
@@ -79,7 +78,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en-BD">
       <body>
         {children}
-        <SessionKeepAlive />
         <Analytics />
         <GlobalActionFeedback />
         <ContactMapEnhancer />
