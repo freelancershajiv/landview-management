@@ -52,11 +52,11 @@ const headerCss = `
     color: #fff;
     white-space: nowrap;
   }
-  .public-brand-copy strong em { color: #d79a17; font-style: normal; }
+  .public-brand-copy strong em { color: #ef4a50; font-style: normal; }
   .public-brand-copy span {
     margin-top: 6px !important;
     color: #f1f1f1 !important;
-    font-size: 7px !important;
+    font-size: 12px !important;
     font-weight: 700;
     letter-spacing: .18em !important;
   }
@@ -68,7 +68,7 @@ const headerCss = `
     padding: 0 12px !important;
     border: 0 !important;
     color: #e6e8ea !important;
-    font-size: 8px !important;
+    font-size: 12px !important;
     font-weight: 800;
     letter-spacing: .02em !important;
     text-transform: uppercase;
@@ -78,9 +78,9 @@ const headerCss = `
     right: 12px !important;
     bottom: 18px !important;
     height: 2px !important;
-    background: #d79a17 !important;
+    background: #ef4a50 !important;
   }
-  .public-nav a:hover { background: transparent !important; color: #d79a17 !important; }
+  .public-nav a:hover { background: transparent !important; color: #ef4a50 !important; }
   .public-header-actions { display: flex; align-items: center; gap: 9px; margin-left: 8px; }
   .public-header-login {
     min-height: 40px;
@@ -89,22 +89,22 @@ const headerCss = `
     justify-content: center;
     gap: 8px;
     padding: 0 14px;
-    border: 1px solid rgba(215,154,23,.55);
+    border: 1px solid rgba(214,31,38,.55);
     border-radius: 7px;
-    background: rgba(215,154,23,.03);
+    background: rgba(214,31,38,.03);
     color: #f4f5f6 !important;
-    font-size: 8px;
+    font-size: 12px;
     font-weight: 900;
     letter-spacing: .05em;
     text-transform: uppercase;
     white-space: nowrap;
     transition: .18s ease;
   }
-  .public-header-login b { color: #d79a17; font-size: 12px; }
+  .public-header-login b { color: #ef4a50; font-size: 12px; }
   .public-header-login:hover {
-    border-color: #d79a17;
-    color: #d79a17 !important;
-    background: rgba(215,154,23,.08);
+    border-color: #ef4a50;
+    color: #ef4a50 !important;
+    background: rgba(214,31,38,.08);
     transform: translateY(-1px);
   }
   .public-header-cta {
@@ -113,11 +113,11 @@ const headerCss = `
     align-items: center;
     justify-content: center;
     padding: 0 18px;
-    border: 1px solid #d79a17;
+    border: 1px solid #ef4a50;
     border-radius: 7px;
-    background: linear-gradient(180deg, #e6aa27, #c98709);
-    color: #111820;
-    font-size: 8px;
+    background: linear-gradient(180deg, #d61f26, #ad171d);
+    color: #fff;
+    font-size: 12px;
     font-weight: 900;
     letter-spacing: .04em;
     text-transform: uppercase;
@@ -150,7 +150,7 @@ const headerCss = `
   .public-site .lv-eyebrow {
     margin-bottom: 24px !important;
     color: #96b9d2 !important;
-    font-size: 7px !important;
+    font-size: 12px !important;
     font-weight: 800 !important;
     letter-spacing: .28em !important;
   }
@@ -164,14 +164,14 @@ const headerCss = `
     color: #fff !important;
   }
   .public-site .lv-hero h1 em {
-    color: #e5a719 !important;
+    color: #ef4a50 !important;
     font-style: normal !important;
   }
   .public-site .lv-gold-rule {
     width: 84px !important;
     height: 3px !important;
     margin: 26px 0 20px !important;
-    background: #d79a17 !important;
+    background: #ef4a50 !important;
   }
   .public-site .lv-hero-copy p {
     max-width: 550px !important;
@@ -188,19 +188,19 @@ const headerCss = `
     min-height: 46px !important;
     padding: 0 22px !important;
     border-radius: 6px !important;
-    font-size: 8px !important;
+    font-size: 12px !important;
     font-weight: 900 !important;
     letter-spacing: .03em !important;
   }
   .public-site .lv-btn-gold {
-    background: linear-gradient(180deg,#e4a820,#c98b0c) !important;
-    color: #071019 !important;
-    border-color: #e2a21a !important;
+    background: linear-gradient(180deg,#d61f26,#ad171d) !important;
+    color: #fff !important;
+    border-color: #ef4a50 !important;
   }
   .public-site .lv-btn-outline {
     color: #fff !important;
     background: transparent !important;
-    border-color: #b78316 !important;
+    border-color: #ef4a50 !important;
   }
   .public-site .lv-hero-visual {
     min-height: 570px !important;
@@ -218,14 +218,14 @@ const headerCss = `
     width: 250px !important;
     max-width: calc(100% - 40px) !important;
     padding: 14px 16px !important;
-    border-left: 3px solid #d79a17 !important;
+    border-left: 3px solid #ef4a50 !important;
     border-radius: 0 !important;
     background: rgba(5,10,15,.90) !important;
     backdrop-filter: blur(10px) !important;
   }
   .public-site .lv-project-badge small {
-    color: #d79a17 !important;
-    font-size: 7px !important;
+    color: #ef4a50 !important;
+    font-size: 12px !important;
     font-weight: 900 !important;
     letter-spacing: .12em !important;
   }
@@ -239,7 +239,7 @@ const headerCss = `
   .public-site .lv-project-badge span {
     margin-top: 5px !important;
     color: #8d99a4 !important;
-    font-size: 7px !important;
+    font-size: 12px !important;
   }
   .public-site .lv-hero-services {
     position: relative !important;
@@ -259,18 +259,18 @@ const headerCss = `
   }
   .public-site .lv-hero-services article:last-child { border-right: 0 !important; }
   .public-site .lv-hero-services b {
-    color: #e1a316 !important;
+    color: #ef4a50 !important;
     font-size: 24px !important;
   }
   .public-site .lv-hero-services strong {
     color: #fff !important;
-    font-size: 9px !important;
+    font-size: 12px !important;
     font-weight: 900 !important;
     letter-spacing: .02em !important;
   }
   .public-site .lv-hero-services span {
     color: #c6d0d7 !important;
-    font-size: 8px !important;
+    font-size: 12px !important;
     line-height: 1.55 !important;
   }
 
@@ -286,9 +286,9 @@ const headerCss = `
     .public-brand { min-width: 0 !important; }
     .public-brand img { width: 52px !important; height: 52px !important; }
     .public-brand-copy strong { font-size: 16px !important; }
-    .public-brand-copy span { font-size: 6px !important; }
+    .public-brand-copy span { font-size: 12px !important; }
     .public-header-actions { margin-left: auto; }
-    .public-header-login { min-height: 40px; padding: 0 11px; font-size: 8px; }
+    .public-header-login { min-height: 40px; padding: 0 11px; font-size: 12px; }
     .public-header-cta { display: none; }
     .public-menu-button { display: block; }
     .public-nav { position: absolute; left: 0; right: 0; top: 74px; display: none; grid-template-columns: repeat(2, minmax(0,1fr)); background: #09111a; border-top: 1px solid rgba(255,255,255,.08); box-shadow: 0 18px 30px rgba(0,0,0,.28); }
@@ -329,13 +329,13 @@ export default function PublicHeader() {
               <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
               <div className="public-brand-copy"><strong>LAND <em>VIEW</em></strong><span>ENGINEERS &amp; ARCHITECTS</span></div>
             </Link>
-            <nav className={`public-nav ${open ? "open" : ""}`}>
+            <nav id="public-navigation" className={`public-nav ${open ? "open" : ""}`}>
               {nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>)}
             </nav>
             <div className="public-header-actions">
-              <a className="public-header-login" href="https://app.landview.com.bd/login" onClick={() => setOpen(false)}><b>↪</b><span>Login</span></a>
+              <a className="public-header-login" aria-label="Sign in to LAND VIEW" href="https://app.landview.com.bd/login" onClick={() => setOpen(false)}><b>↪</b><span>Login</span></a>
               <a className="public-header-cta" href="/#contact">Get in touch</a>
-              <button type="button" className="public-menu-button" aria-label="Toggle website navigation" aria-expanded={open} onClick={() => setOpen((value) => !value)}><span /><span /><span /></button>
+              <button type="button" className="public-menu-button" aria-controls="public-navigation" aria-label="Toggle website navigation" aria-expanded={open} onClick={() => setOpen((value) => !value)}><span /><span /><span /></button>
             </div>
           </div>
         </div>

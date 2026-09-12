@@ -248,7 +248,8 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
   const daysLeft = trustedUntil ? Math.max(1, Math.ceil((trustedUntil - Date.now()) / (24 * 60 * 60 * 1000))) : 0;
 
   return (
-    <div className="admin-shell tmg-shell">
+    <div className="admin-shell tmg-shell portal-admin">
+      <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
       <header className="masthead">
         <div className="utility-bar">
           <div className="utility-inner">
@@ -277,21 +278,21 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
               <button className="utility-logout" onClick={logout}>Sign out</button>
             </div>
 
-            <button className="mobile-menu tmg-mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen((v) => !v)}>☰</button>
+            <button className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} aria-controls="management-navigation" onClick={() => setMobileOpen((v) => !v)}>☰</button>
           </div>
         </div>
 
-        <nav className={`primary-nav ${mobileOpen ? "open" : ""}`}>
+        <nav id="management-navigation" aria-label="Management" className={`primary-nav ${mobileOpen ? "open" : ""}`}>
           <div className="primary-nav-inner">
             {visibleNav.map((item) => {
               const active = item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
-              return <Link key={item.href} href={item.href} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}>{item.label}</Link>;
+              return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}>{item.label}</Link>;
             })}
           </div>
         </nav>
       </header>
 
-      <div className="admin-main tmg-admin-main"><main className="content-wrap tmg-content-wrap">{children}</main></div>
+      <div className="admin-main tmg-admin-main"><main id="workspace-content" className="content-wrap tmg-content-wrap">{children}</main></div>
     </div>
   );
 }

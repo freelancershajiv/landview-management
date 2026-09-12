@@ -22,6 +22,7 @@ const employeeNav = [
   { href: "/employee#visits", label: "Site Visits" },
   { href: "/employee#documents", label: "Documents" },
   { href: "/employee#attendance", label: "Attendance" },
+  { href: "/employee#certificates", label: "Certificates" },
 ];
 
 const clientNav = [
@@ -29,7 +30,8 @@ const clientNav = [
   { href: "/client#project", label: "Project" },
   { href: "/client#workflow", label: "Workflow" },
   { href: "/client#finance", label: "Finance" },
-  { href: "/client#certificates", label: "Certificates" },
+  { href: "/client#certificates", label: "Requests" },
+  { href: "/client#certificate-center", label: "Certificates" },
 ];
 
 export default function RolePortalShell({ portal, children }: { portal: PortalType; children: ReactNode }) {
@@ -38,6 +40,16 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [activeHash, setActiveHash] = useState("#dashboard");
+
+  useEffect(() => {
+    const update = () => setActiveHash(window.location.hash || "#dashboard");
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setMobileOpen(false); };
+    update();
+    window.addEventListener("hashchange", update);
+    window.addEventListener("keydown", escape);
+    return () => {window.removeEventListener("hashchange", update);window.removeEventListener("keydown", escape);};
+  }, []);
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -97,42 +109,23 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
     </div>
   );
 
-  if (portal === "employee") {
-    return <div className="admin-shell tmg-shell">
-      <header className="masthead">
-        <div className="utility-bar"><div className="utility-inner">
-          <Link href="/employee" className="masthead-brand"><img src="/land-view-logo.svg" alt="LAND VIEW logo" /><div><strong>LAND VIEW</strong><span>ENGINEERS &amp; ARCHITECTS</span></div></Link>
-          <div className="utility-items">
-            <div className="utility-item"><b>●</b><span><small>SYSTEM STATUS</small>Online</span></div>
-            <div className="utility-item"><b>◆</b><span><small>WORKSPACE</small>Employee System</span></div>
-            <div className="utility-item user-utility"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><span><small>{String(employeeId)}</small>{name}</span></div>
-            <button className="utility-logout" onClick={() => { setPasswordOpen(true); setPasswordMessage(""); }}>Password</button>
-            <button className="utility-logout" onClick={logout}>Sign out</button>
-          </div>
-          <button className="mobile-menu tmg-mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(v => !v)}>☰</button>
-        </div></div>
-        <nav className={`primary-nav ${mobileOpen ? "open" : ""}`}><div className="primary-nav-inner">{employeeNav.map(item => <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>{item.label}</Link>)}</div></nav>
-      </header>
-      <div className="admin-main tmg-admin-main"><main className="content-wrap tmg-content-wrap">{children}</main></div>
-      {passwordModal}
-    </div>;
-  }
-
-  return <div className="admin-shell tmg-shell">
-    <header className="masthead">
-      <div className="utility-bar"><div className="utility-inner">
-        <Link href="/client" className="masthead-brand"><img src="/land-view-logo.svg" alt="LAND VIEW logo" /><div><strong>LAND VIEW</strong><span>ENGINEERS &amp; ARCHITECTS</span></div></Link>
-        <div className="utility-items">
-          <div className="utility-item"><b>●</b><span><small>SYSTEM STATUS</small>Online</span></div>
-          <div className="utility-item"><b>◆</b><span><small>WORKSPACE</small>Client System</span></div>
-          <div className="utility-item user-utility"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><span><small>CLIENT ACCESS</small>{name}</span></div>
-          <Link href="/" className="utility-logout">Website</Link>
-          <button className="utility-logout" onClick={logout}>Sign out</button>
-        </div>
-        <button className="mobile-menu tmg-mobile-menu" aria-label="Open navigation" onClick={() => setMobileOpen(v => !v)}>☰</button>
-      </div></div>
-      <nav className={`primary-nav ${mobileOpen ? "open" : ""}`}><div className="primary-nav-inner">{clientNav.map(item => <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>{item.label}</Link>)}</div></nav>
+  const links = portal === "employee" ? employeeNav : clientNav;
+  return <div className={`admin-shell tmg-shell portal-${portal}`}>
+    <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
+    <header className="portal-header">
+      <Link href={`/${portal}`} className="portal-brand"><img src="/land-view-logo.svg" alt=""/><span><strong>LAND VIEW</strong><small>{portal === "employee" ? "TEAM WORKSPACE" : "YOUR PROJECT SPACE"}</small></span></Link>
+      <div className="portal-identity"><strong>{String(name)}</strong><small>{portal === "employee" ? String(employeeId) : "Client portal"}</small></div>
+      <div className="portal-account">
+        {portal === "employee" && <button onClick={() => {setPasswordOpen(true); setPasswordMessage("");}}>Password</button>}
+        {portal === "client" && <a href="https://landview.com.bd">Website</a>}
+        <button onClick={logout}>Sign out</button>
+      </div>
+      <button className="portal-menu" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} aria-controls="portal-navigation" onClick={() => setMobileOpen(v=>!v)}>{mobileOpen ? "Close" : "Menu"}</button>
     </header>
-    <div className="admin-main tmg-admin-main"><main className="content-wrap tmg-content-wrap">{children}</main></div>
+    <nav id="portal-navigation" aria-label={`${portal} workspace`} className={`portal-navigation ${mobileOpen ? "open" : ""}`}>
+      {links.map(item=><Link key={item.href} href={item.href} aria-current={item.href.endsWith(activeHash) ? "location" : undefined} onClick={()=>{setActiveHash(item.href.slice(item.href.indexOf("#")));setMobileOpen(false);}}>{item.label}</Link>)}
+    </nav>
+    <div className="admin-main tmg-admin-main"><main id="workspace-content" className="content-wrap tmg-content-wrap">{children}</main></div>
+    {passwordModal}
   </div>;
 }
