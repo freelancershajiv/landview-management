@@ -28,10 +28,26 @@ export const businessSchema = {
   address: business.address,
   hasMap: business.mapUrl,
   description: "Engineering and architectural consultancy based in Feni, Bangladesh, providing building design, structural design, site supervision and coordinated technical services.",
-  areaServed: { "@type": "Country", name: "Bangladesh" },
+  areaServed: [
+    { "@type": "AdministrativeArea", name: "Feni" },
+    { "@type": "Country", name: "Bangladesh" },
+  ],
+  knowsAbout: [
+    "Architectural design",
+    "Structural design",
+    "3D exterior design",
+    "3D interior design",
+    "Electrical design",
+    "Plumbing design",
+    "Estimate and costing",
+    "Building plan approval support",
+    "Digital survey",
+    "Soil investigation support",
+    "Site supervision",
+  ],
   contactPoint: [
-    { "@type": "ContactPoint", contactType: "Engineering enquiries", telephone: business.telephone },
-    { "@type": "ContactPoint", contactType: "Architecture enquiries", telephone: business.architecturePhone },
+    { "@type": "ContactPoint", contactType: "Engineering enquiries", telephone: business.telephone, areaServed: "BD" },
+    { "@type": "ContactPoint", contactType: "Architecture enquiries", telephone: business.architecturePhone, areaServed: "BD" },
   ],
 };
 
