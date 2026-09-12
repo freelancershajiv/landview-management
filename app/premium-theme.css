@@ -40,7 +40,7 @@ body{background-image:radial-gradient(circle at 82% -8%,rgba(214,31,38,.09),tran
 .admin-shell,.tmg-shell,.login-page,.login-panel,.admin-main,.tmg-admin-main{background:var(--premium-bg)!important;color:var(--premium-text)}
 .content-wrap,.tmg-content-wrap{background:transparent}
 
-.card,.panel,.form-card,.project-card,.employee-card,.stat-card,.summary-card,.table-card,.data-card,.finance-mini,.project-summary,.notice:not(.error),.record-card,.metric-card,[class*="-card"]:not(.public-team-card):not(.public-service-card):not(.public-project-card):not(.public-about-card){border-color:var(--premium-line)!important;background:linear-gradient(145deg,rgba(24,30,37,.99),rgba(15,19,24,.99))!important;color:var(--premium-text);box-shadow:0 14px 40px rgba(0,0,0,.22)}
+.card,.panel,.form-card,.project-card,.employee-card,.stat-card,.summary-card,.table-card,.data-card,.finance-mini,.project-summary,.notice:not(.error),.record-card,.metric-card{border-color:var(--premium-line)!important;background:linear-gradient(145deg,rgba(24,30,37,.99),rgba(15,19,24,.99))!important;color:var(--premium-text);box-shadow:0 14px 40px rgba(0,0,0,.22)}
 .card:hover,.project-card:hover,.employee-card:hover,[class*="-card"]:hover{border-color:#49535d}
 
 .page-head h1,.page-head h2,.page-title,.section-title,.dashboard-heading,.login-heading h2,.form-section h2,.project-card h3,.employee-top h3{color:var(--premium-text)}

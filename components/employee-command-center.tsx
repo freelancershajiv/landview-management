@@ -100,7 +100,7 @@ export default function EmployeeCommandCenter(){
     `}</style>
 
     <header className={styles.header}>
-      <div><span className={styles.eyebrow}>LAND VIEW EMPLOYEE ERP</span><h1>Command center<span>.</span></h1><span className={styles.timestamp}>{refreshing?"Updating Excel & project data…":updated?`Updated ${updated.toLocaleTimeString("en-BD",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Dhaka"})} · ${name} · ${employeeId}`:"Employee workspace"}</span></div>
+      <div><span className={styles.eyebrow}>LAND VIEW TEAM</span><h1>My work<span>.</span></h1><span className={styles.timestamp}>{refreshing?"Updating your assignments…":updated?`Updated ${updated.toLocaleTimeString("en-BD",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Dhaka"})} · ${name} · ${employeeId}`:"Employee workspace"}</span></div>
       <div className={styles.actions}><button type="button" className={styles.refresh} onClick={()=>void load(true)} disabled={refreshing}><span>↻</span>{refreshing?"Updating…":"Refresh"}</button></div>
     </header>
 
@@ -108,10 +108,10 @@ export default function EmployeeCommandCenter(){
 
     <section className={styles.metrics}>
       <a href="#projects" className={styles.metric}><span className={styles.metricTitle}>Assigned projects <i>↗</i></span><strong>{projects.length}</strong><small>{activeProjects.length} active assignments</small></a>
-      <a href="#workflow" className={styles.metric}><span className={styles.metricTitle}>Required services <i>↗</i></span><strong>{workflow.length}</strong><small>Read from Excel Workflow</small></a>
+      <a href="#workflow" className={styles.metric}><span className={styles.metricTitle}>Required services <i>↗</i></span><strong>{workflow.length}</strong><small>Services for your assignments</small></a>
       <a href="#workflow" className={`${styles.metric} ${overdue.length?styles.dueMetric:""}`}><span className={styles.metricTitle}>Open services <i>↗</i></span><strong>{openWorkflow.length}</strong><small>{overdue.length} overdue</small></a>
       <a href="#workflow" className={styles.metric}><span className={styles.metricTitle}>Delivery progress <i>↗</i></span><strong>{overall}%</strong><small>{completed}/{workflow.length} completed</small></a>
-      <a href="#visits" className={styles.metric}><span className={styles.metricTitle}>Site visits <i>↗</i></span><strong>{visits.length}</strong><small>Management Site Visits sheet</small></a>
+      <a href="#visits" className={styles.metric}><span className={styles.metricTitle}>Site visits <i>↗</i></span><strong>{visits.length}</strong><small>Recorded site visits</small></a>
       <a href="#records" className={styles.metric}><span className={styles.metricTitle}>Project records <i>↗</i></span><strong>{documents.length}</strong><small>{drawings.length} drawing records</small></a>
     </section>
 

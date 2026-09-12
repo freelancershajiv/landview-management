@@ -84,7 +84,7 @@ export default function ClientPortalPage(){
     `}</style>
 
     <header className={styles.header}>
-      <div><span className={styles.eyebrow}>LAND VIEW CLIENT ERP</span><h1>Command center<span>.</span></h1><span className={styles.timestamp}>{refreshing?"Updating project data…":updated?`Updated ${updated.toLocaleTimeString("en-BD",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Dhaka"})} · ${project?.clientName||workspace?.client?.name||"Client"}`:"Client workspace"}</span></div>
+      <div><span className={styles.eyebrow}>YOUR LAND VIEW PROJECT</span><h1>Your project, at a glance<span>.</span></h1><span className={styles.timestamp}>{refreshing?"Updating project data…":updated?`Updated ${updated.toLocaleTimeString("en-BD",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Dhaka"})} · ${project?.clientName||workspace?.client?.name||"Client"}`:"Client workspace"}</span></div>
       <div className={styles.actions}><button type="button" className={styles.refresh} onClick={()=>void load(true)} disabled={refreshing}><span>↻</span>{refreshing?"Updating…":"Refresh"}</button></div>
     </header>
 
