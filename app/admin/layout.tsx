@@ -1,5 +1,4 @@
 import AdminShell from "@/components/admin-shell";
-import AdminPublicProjectsCard from "@/components/admin-public-projects-card";
 import PortalPreloader from "@/components/portal-preloader";
 import { requirePortalSession } from "@/lib/server-auth";
 
@@ -8,10 +7,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <>
       <PortalPreloader portal="admin" />
-      <AdminShell>
-        <AdminPublicProjectsCard />
-        {children}
-      </AdminShell>
+      <style>{`a[href="/admin/projects/new"],a[href="/admin/public-projects"]{display:none!important}`}</style>
+      <AdminShell>{children}</AdminShell>
     </>
   );
 }
