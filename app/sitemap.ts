@@ -19,14 +19,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const projectEntries: MetadataRoute.Sitemap = projects
     .filter((project) => String(project.projectId || "").trim())
-    .map((project) => {
-      return {
-        url: `${baseUrl}/projects/${encodeURIComponent(String(project.projectId))}`,
-        changeFrequency: "monthly" as const,
-        priority: 0.8,
-        images: project.coverImageUrl ? [String(project.coverImageUrl)] : undefined,
-      };
-    });
+    .map((project) => ({
+      url: `${baseUrl}/projects/${encodeURIComponent(String(project.projectId))}`,
+      changeFrequency: "monthly" as const,
+      priority: 0.8,
+      images: project.coverImageUrl ? [String(project.coverImageUrl)] : undefined,
+    }));
 
   const serviceEntries: MetadataRoute.Sitemap = publicServices.map((service) => ({
     url: `${baseUrl}/services/${service.slug}`,
@@ -36,10 +34,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   return [
     { url: baseUrl, changeFrequency: "weekly", priority: 1 },
+    { url: `${baseUrl}/bn`, changeFrequency: "monthly", priority: 0.9 },
     { url: `${baseUrl}/services`, changeFrequency: "monthly", priority: 0.95 },
     ...serviceEntries,
     { url: `${baseUrl}/contact`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${baseUrl}/team`, changeFrequency: "monthly", priority: 0.7 },
+    { url: `${baseUrl}/team`, changeFrequency: "monthly", priority: 0.8 },
     { url: `${baseUrl}/projects`, changeFrequency: "weekly", priority: 0.9 },
     ...projectEntries,
   ];
