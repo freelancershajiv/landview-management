@@ -57,6 +57,22 @@ async function callBackend(payload: Record<string, unknown>) {
   return { response, json };
 }
 
+function cleanProjectSeed(projectId: string, source: any) {
+  const input = source && typeof source === "object" ? source : {};
+  const seed: Record<string, string> = {
+    Project_ID: projectId,
+    Legacy_File_ID: String(input.Legacy_File_ID || projectId.replace(/^LV-/i, "")).trim(),
+    Project_Name: String(input.Project_Name || "").trim(),
+    Client_Name: String(input.Client_Name || input.Project_Name || "").trim(),
+    Phone_Number: String(input.Phone_Number || "").trim(),
+    Project_Type: String(input.Project_Type || "").trim(),
+    Location: String(input.Location || "").trim(),
+    Project_Area: String(input.Project_Area || "").trim(),
+    Number_of_Stories: String(input.Number_of_Stories || "").trim(),
+  };
+  return seed;
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!APPS_SCRIPT_URL || !PROXY_SECRET) {
@@ -80,17 +96,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Project ID is required." }, { status: 400 });
     }
 
+    const clientFingerprint = clientKey(request);
     const sessionCheck = await callBackend({
       action: "getSession",
       token,
       proxySecret: PROXY_SECRET,
-      _clientKey: clientKey(request),
+      _clientKey: clientFingerprint,
     });
     if (!sessionCheck.json?.success) {
-      return NextResponse.json(
-        { success: false, error: "Your backend session has expired. Sign in again once; the portal will now keep active sessions alive automatically." },
-        { status: 401 }
-      );
+      return NextResponse.json({ success: false, error: "Your backend session has expired. Sign in again." }, { status: 401 });
     }
 
     const role = String(sessionCheck.json?.data?.user?.role || sessionCheck.json?.data?.user?.Role || "").trim().toLowerCase();
@@ -98,22 +112,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Admin or Manager access is required." }, { status: 403 });
     }
 
-    const { response, json } = await callBackend({
+    const updatePayload = {
       action: "updateProject",
       projectId,
       Public_Display: publicDisplay,
       token,
       proxySecret: PROXY_SECRET,
-      _clientKey: clientKey(request),
-    });
+      _clientKey: clientFingerprint,
+    };
 
-    if (!json?.success) {
-      const message = String(json?.error || json?.message || "Could not update public visibility.");
+    let result = await callBackend(updatePayload);
+    const initialMessage = String(result.json?.error || result.json?.message || "");
+
+    // Auto Invoice is the master project list. The LAND VIEW Projects sheet only
+    // needs a row once portal-specific state (for example Public_Display) exists.
+    if (!result.json?.success && /project not found/i.test(initialMessage)) {
+      const seed = cleanProjectSeed(projectId, body?.project);
+      if (!seed.Project_Name) {
+        return NextResponse.json({ success: false, error: `${projectId} is missing a project name in LV - Auto Invoice → File List.` }, { status: 400 });
+      }
+
+      const imported = await callBackend({
+        action: "importLegacyBillingBatch",
+        kind: "projects",
+        records: [seed],
+        token,
+        proxySecret: PROXY_SECRET,
+        _clientKey: clientFingerprint,
+      });
+      if (!imported.json?.success) {
+        const message = String(imported.json?.error || imported.json?.message || `Could not register ${projectId} for portal controls.`);
+        return NextResponse.json({ success: false, error: message }, { status: 400 });
+      }
+
+      result = await callBackend(updatePayload);
+    }
+
+    if (!result.json?.success) {
+      const message = String(result.json?.error || result.json?.message || "Could not update public visibility.");
       const status = /unauthorized|session expired/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : 400;
       return NextResponse.json({ success: false, error: message }, { status });
     }
 
-    return NextResponse.json({ success: true, data: json.data ?? { projectId, Public_Display: publicDisplay } }, { status: response.ok ? 200 : response.status });
+    return NextResponse.json(
+      { success: true, data: result.json.data ?? { projectId, Public_Display: publicDisplay } },
+      { status: result.response.ok ? 200 : result.response.status }
+    );
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message || "Could not update public visibility." }, { status: 502 });
   }
