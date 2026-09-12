@@ -4,14 +4,14 @@
   "description": "LAND VIEW Engineers & Architects — architecture, engineering and project consultancy.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#111315",
-  "theme_color": "#111315",
+  "background_color": "#07101a",
+  "theme_color": "#07101a",
   "orientation": "portrait",
   "icons": [
     {
-      "src": "/favicon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/land-view-logo.png",
+      "sizes": "768x768",
+      "type": "image/png",
       "purpose": "any maskable"
     }
   ]

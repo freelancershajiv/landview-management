@@ -1,0 +1,29 @@
+/* LAND VIEW official navy/gold logo integration */
+.public-brand-copy strong em { color: #d7a11b !important; }
+.public-brand img,
+.masthead-brand img,
+.portal-brand img,
+.loading-brand-image,
+.lv-login .brand img { object-fit: contain !important; filter: drop-shadow(0 6px 14px rgba(0,0,0,.28)); }
+
+/* Use the full dark-background lockup where there is enough visual space. */
+.lv-footer-brand {
+  width: 250px !important;
+  min-height: 145px !important;
+  background: url('/land-view-logo-full.svg') left center / contain no-repeat !important;
+}
+.lv-footer-brand > img,
+.lv-footer-brand > div { display: none !important; }
+
+/* Keep the official slogan consistent with the supplied lockup. */
+.lv-footer-copy small { font-size: 0 !important; }
+.lv-footer-copy small::after {
+  content: 'Designing Today. Building Tomorrow.';
+  font-size: 10px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+@media (max-width: 700px) {
+  .lv-footer-brand { width: 210px !important; min-height: 125px !important; }
+}
