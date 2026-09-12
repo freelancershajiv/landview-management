@@ -5,6 +5,15 @@ import { landViewApi } from "@/lib/api";
 
 type Row = Record<string, unknown>;
 const CHAIRMAN_EMPLOYEE_ID = "EMP-0001";
+const RONY_SEEDS = [
+  { ref: "RONY-SEP-2026-001", Expense_Date: "2026-09-03", Description: "Eng Rony Mobile Recharge", Amount: 639 },
+  { ref: "RONY-SEP-2026-002", Expense_Date: "2026-09-03", Description: "Nisha Bhabi Piali Dress Buying", Amount: 1300 },
+  { ref: "RONY-SEP-2026-003", Expense_Date: "2026-09-05", Description: "Send Money to 01408080400", Amount: 10020 },
+  { ref: "RONY-SEP-2026-004", Expense_Date: "2026-09-07", Description: "Hazari Road Shop Rent", Amount: 20000, Notes: "Eng Rony personal cost / salary draw from LAND VIEW. Source personal ledger also showed BDT 13,000 income; that is not LAND VIEW income." },
+  { ref: "RONY-SEP-2026-005", Expense_Date: "2026-09-07", Description: "Fu Teacher Account", Amount: 7000 },
+  { ref: "RONY-SEP-2026-006", Expense_Date: "2026-09-09", Description: "Nisha Bhabi Send Money", Amount: 10704.25 },
+  { ref: "RONY-SEP-2026-007", Expense_Date: "2026-09-09", Project_ID: "LV-048", Description: "LV-048 - Daudpool Bill to Eng Rony Bkash", Amount: 20000 },
+] as const;
 
 function text(value: unknown) { return String(value ?? "").trim(); }
 function valueOf(row: Row, keys: string[]) {
@@ -20,26 +29,10 @@ function money(value: unknown) {
 }
 function expenseId(row: Row) { return text(valueOf(row, ["Expense_ID", "Expense ID", "ExpenseId"])); }
 function expenseStatus(row: Row) { return text(valueOf(row, ["Status", "Approval_Status", "Approval Status"])) || "Pending"; }
-function isRonyDraw(row: Row) { return expenseId(row).startsWith("RONY-SEP-2026-") || text(valueOf(row, ["Notes"])).toLowerCase().includes("personal cost / salary draw"); }
-
-async function apiGet(action: string) {
-  const response = await fetch(`/api/landview?action=${encodeURIComponent(action)}`, { credentials: "same-origin", cache: "no-store" });
-  const json = await response.json().catch(() => null);
-  if (!response.ok || !json?.success) throw new Error(String(json?.error || json?.message || "Request failed."));
-  return (json.data || []) as Row[];
-}
-
-async function apiPost(action: string, body: Record<string, unknown>) {
-  const response = await fetch("/api/landview", {
-    method: "POST",
-    credentials: "same-origin",
-    cache: "no-store",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, ...body }),
-  });
-  const json = await response.json().catch(() => null);
-  if (!response.ok || !json?.success) throw new Error(String(json?.error || json?.message || "Request failed."));
-  return json.data;
+function referenceOf(row: Row) { return text(valueOf(row, ["Reference", "Reference_No", "Reference No"])); }
+function isRonyDraw(row: Row) {
+  const ref = referenceOf(row);
+  return ref.startsWith("RONY-SEP-2026-") || expenseId(row).startsWith("RONY-SEP-2026-") || text(valueOf(row, ["Notes"])).toLowerCase().includes("personal cost / salary draw");
 }
 
 export default function ChairmanExpenseApproval() {
@@ -60,17 +53,27 @@ export default function ChairmanExpenseApproval() {
     setLoading(true);
     setError("");
     try {
-      const [chairmanRows, erpRows] = await Promise.all([
-        apiGet("getChairmanPendingApprovals").catch(() => []),
-        landViewApi.getErpRecords("expenses").catch(() => []),
-      ]);
-      const map = new Map<string, Row>();
-      [...(erpRows || []), ...(chairmanRows || [])].forEach((row) => {
-        const id = expenseId(row);
-        if (id) map.set(id, row);
-      });
-      setRows(Array.from(map.values()));
-      if (!chairmanRows.length && !erpRows.length) setError("The approval queue is empty or the Apps Script chairman endpoint has not been deployed yet.");
+      let expenses = await landViewApi.getErpRecords("expenses");
+      const existingRefs = new Set((expenses || []).map(referenceOf).filter(Boolean));
+      const missing = RONY_SEEDS.filter((seed) => !existingRefs.has(seed.ref));
+
+      for (const seed of missing) {
+        await landViewApi.createErpRecord("expenses", {
+          Project_ID: "Project_ID" in seed ? seed.Project_ID : "",
+          Expense_Date: seed.Expense_Date,
+          Category: "Salary / Wages",
+          Description: seed.Description,
+          Amount: seed.Amount,
+          Payment_Method: "bKash",
+          Reference: seed.ref,
+          Status: "Pending",
+          Notes: ("Notes" in seed && seed.Notes) ? seed.Notes : "Eng Rony personal cost / salary draw from LAND VIEW; not an office operating cost.",
+        });
+      }
+
+      if (missing.length) expenses = await landViewApi.getErpRecords("expenses");
+      setRows(expenses || []);
+      if (missing.length) setOk(`${missing.length} missing Eng. Rony September draw record${missing.length === 1 ? "" : "s"} added to the approval queue.`);
     } catch (e: any) {
       setError(e?.message || "Could not load the Chairman approval queue.");
     } finally {
@@ -103,11 +106,10 @@ export default function ChairmanExpenseApproval() {
     if (!id) return;
     setBusy(id); setError(""); setOk("");
     try {
-      if (id.startsWith("RONY-SEP-2026-")) {
-        await apiPost("reviewChairmanPendingApproval", { id, status, note: text(notes[id]) || `${status} by Chairman Eng Jamal Rony` });
-      } else {
-        await landViewApi.updateErpRecord("expenses", id, { Status: status, Review_Notes: text(notes[id]) || `${status} by Chairman Eng Jamal Rony` });
-      }
+      await landViewApi.updateErpRecord("expenses", id, {
+        Status: status,
+        Review_Notes: text(notes[id]) || `${status} by Chairman Eng Jamal Rony`,
+      });
       setRows((current) => current.map((item) => expenseId(item) === id ? { ...item, Status: status, Reviewed_By: CHAIRMAN_EMPLOYEE_ID, Reviewed_At: new Date().toISOString() } : item));
       setOk(`${id} ${status.toLowerCase()} successfully.`);
     } catch (e: any) {
