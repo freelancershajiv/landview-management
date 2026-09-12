@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PublicHeader from "@/components/public-header";
-import { business, businessSchema, jsonLd, siteUrl } from "@/lib/site-info";
+import { business, jsonLd, siteUrl } from "@/lib/site-info";
 
 export const metadata: Metadata = {
   title: { absolute: "Engineering & Architectural Consultancy in Feni | LAND VIEW" },
@@ -35,7 +35,6 @@ export default function FeniOfficePage() {
   const pageSchema = {
     "@context": "https://schema.org",
     "@graph": [
-      businessSchema,
       {
         "@type": "WebPage",
         "@id": `${siteUrl}/feni#webpage`,
