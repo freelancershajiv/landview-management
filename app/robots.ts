@@ -6,10 +6,10 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/login", "/admin/", "/employee/", "/client/", "/api/"],
+        disallow: ["/api/"],
       },
     ],
-    sitemap: "https://landview.com.bd/sitemap.xml",
-    host: "https://landview.com.bd",
+    sitemap: "https://www.landview.com.bd/sitemap.xml",
+    host: "https://www.landview.com.bd",
   };
 }

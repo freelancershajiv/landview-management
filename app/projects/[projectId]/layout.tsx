@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { jsonLd } from "@/lib/site-info";
 import {
   getPublicProjectForSeo,
   normalizePublicImageUrl,
@@ -41,11 +42,11 @@ export async function generateMetadata({ params }: LayoutProps): Promise<Metadat
   const titleBase = String(project.title || project.projectId || "LAND VIEW Project").trim();
   const title = `${titleBase} | LAND VIEW Engineers & Architects`;
   const description = projectDescription(project);
-  const canonical = `https://landview.com.bd/projects/${encodeURIComponent(String(project.projectId || id))}`;
+  const canonical = `https://www.landview.com.bd/projects/${encodeURIComponent(String(project.projectId || id))}`;
   const cover = normalizePublicImageUrl(project.coverImageUrl);
 
   return {
-    title,
+    title: { absolute: title },
     description,
     alternates: { canonical },
     openGraph: {
@@ -83,7 +84,7 @@ export default async function ProjectDetailLayout({ children, params }: LayoutPr
 
   const id = String(project.projectId || decodeURIComponent(projectId));
   const title = String(project.title || id || "LAND VIEW Project");
-  const canonical = `https://landview.com.bd/projects/${encodeURIComponent(id)}`;
+  const canonical = `https://www.landview.com.bd/projects/${encodeURIComponent(id)}`;
   const cover = normalizePublicImageUrl(project.coverImageUrl);
   const gallery = (project.galleryImages || []).map(normalizePublicImageUrl).filter(Boolean);
 
@@ -110,7 +111,7 @@ export default async function ProjectDetailLayout({ children, params }: LayoutPr
     creator: {
       "@type": "ProfessionalService",
       name: "LAND VIEW Engineers & Architects",
-      url: "https://landview.com.bd",
+      url: "https://www.landview.com.bd",
       address: {
         "@type": "PostalAddress",
         addressLocality: "Feni",
@@ -128,13 +129,13 @@ export default async function ProjectDetailLayout({ children, params }: LayoutPr
         "@type": "ListItem",
         position: 1,
         name: "Home",
-        item: "https://landview.com.bd",
+        item: "https://www.landview.com.bd",
       },
       {
         "@type": "ListItem",
         position: 2,
         name: "Projects",
-        item: "https://landview.com.bd/projects",
+        item: "https://www.landview.com.bd/projects",
       },
       {
         "@type": "ListItem",
@@ -149,11 +150,11 @@ export default async function ProjectDetailLayout({ children, params }: LayoutPr
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(projectSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(projectSchema) }}
       />
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }}
+        dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbSchema) }}
       />
       {children}
     </>
