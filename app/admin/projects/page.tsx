@@ -128,7 +128,7 @@ export default function ProjectsPage() {
           Project_Area: String(value(source, ["Area", "Project Area"]) || ""),
           Number_of_Stories: String(value(source, ["Floor", "Floors", "Story"]) || ""),
           Status: String(pick(existing, ["Status", "status"], "")),
-          Public_Display: pick(existing, ["Public_Display", "Public Display"], false),
+          Public_Display: existing.Public_Display ?? existing["Public Display"] ?? false,
           Public_Project_Title: pick(existing, ["Public_Project_Title", "Public Project Title"], ""),
           Public_Description: pick(existing, ["Public_Description", "Public Description"], ""),
           Public_Services: pick(existing, ["Public_Services", "Public Services"], ""),
