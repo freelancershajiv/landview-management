@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { businessSchema, jsonLd, siteUrl } from "@/lib/site-info";
+import { jsonLd, siteUrl } from "@/lib/site-info";
 import {
   getPublicProjectForSeo,
   normalizePublicImageUrl,
@@ -136,7 +136,7 @@ export default async function ProjectDetailLayout({ children, params }: LayoutPr
 
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd({ "@context": "https://schema.org", "@graph": [businessSchema, projectSchema] }) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(projectSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(breadcrumbSchema) }} />
       {children}
     </>
