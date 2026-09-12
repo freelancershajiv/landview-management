@@ -1,10 +1,15 @@
 /* LAND VIEW — PUBLIC PROJECT PORTFOLIO
- * Public project images are sourced only from each project's
- * "3D Design - Exterior" Google Drive folder.
+ * Public project images are sourced from image files placed directly in each
+ * project's root Google Drive folder. The existing "3D Design - Exterior"
+ * folder remains supported as a backward-compatible secondary source.
  *
  * Naming rule:
- *   front.jpeg / front.jpg / front.png / front.webp => cover image
- *   all other JPG/JPEG/PNG/WEBP files => gallery images
+ *   front.jpeg / front.jpg / front.png / front.webp => preferred cover image
+ *   otherwise the first root-folder image alphabetically becomes the cover
+ *   all remaining JPG/JPEG/PNG/WEBP files => gallery images
+ *
+ * Only projects marked for public display are returned by getPublicProjects.
+ * Non-image files and files inside other project subfolders are never exposed.
  */
 
 function trustedPinSessionFromGateway_(params) {
@@ -76,27 +81,60 @@ function isPublicProjectImageFile_(file) {
 function projectDriveImageUrl_(file) { return "https://drive.google.com/file/d/" + file.getId() + "/view"; }
 function makePublicProjectImageReadable_(file) { try { file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (error) {} }
 
-function getExteriorPublicImages_(project) {
+function collectPublicProjectImages_(folder, sourceRank, images, seen) {
+  if (!folder) return;
+  const files = folder.getFiles();
+  while (files.hasNext()) {
+    const file = files.next();
+    if (!isPublicProjectImageFile_(file)) continue;
+    const id = String(file.getId() || "");
+    if (!id || seen[id]) continue;
+    seen[id] = true;
+    makePublicProjectImageReadable_(file);
+    images.push({
+      id: id,
+      name: String(file.getName() || ""),
+      lowerName: String(file.getName() || "").toLowerCase(),
+      sourceRank: sourceRank,
+      url: projectDriveImageUrl_(file)
+    });
+  }
+}
+
+function getPublicProjectImages_(project) {
   try {
     const rootFolder = getLandViewRootFolder();
     const projectFolder = findExistingProjectFolder(rootFolder, project);
     if (!projectFolder) return { coverImageUrl: "", galleryImages: [] };
-    const folders = projectFolder.getFoldersByName("3D Design - Exterior");
-    if (!folders.hasNext()) return { coverImageUrl: "", galleryImages: [] };
-    const files = folders.next().getFiles();
+
     const images = [];
-    while (files.hasNext()) {
-      const file = files.next();
-      if (!isPublicProjectImageFile_(file)) continue;
-      makePublicProjectImageReadable_(file);
-      images.push({ name: String(file.getName() || ""), lowerName: String(file.getName() || "").toLowerCase(), url: projectDriveImageUrl_(file) });
-    }
+    const seen = {};
+
+    // New preferred workflow: upload 3D images directly into the project root folder.
+    collectPublicProjectImages_(projectFolder, 0, images, seen);
+
+    // Backward compatibility: continue to include images already stored in the old exterior folder.
+    const exteriorFolders = projectFolder.getFoldersByName("3D Design - Exterior");
+    while (exteriorFolders.hasNext()) collectPublicProjectImages_(exteriorFolders.next(), 1, images, seen);
+
     if (!images.length) return { coverImageUrl: "", galleryImages: [] };
-    images.sort(function(a, b) { return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" }); });
-    const frontIndex = images.findIndex(function(image) { return /^front\.(jpe?g|png|webp)$/i.test(image.lowerName); });
-    const cover = frontIndex >= 0 ? images[frontIndex] : images[0];
-    return { coverImageUrl: cover.url, galleryImages: images.filter(function(image) { return image.url !== cover.url; }).map(function(image) { return image.url; }) };
-  } catch (error) { return { coverImageUrl: "", galleryImages: [] }; }
+
+    images.sort(function(a, b) {
+      return a.sourceRank - b.sourceRank || a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+    });
+
+    const rootFront = images.find(function(image) { return image.sourceRank === 0 && /^front\.(jpe?g|png|webp)$/i.test(image.lowerName); });
+    const firstRoot = images.find(function(image) { return image.sourceRank === 0; });
+    const legacyFront = images.find(function(image) { return /^front\.(jpe?g|png|webp)$/i.test(image.lowerName); });
+    const cover = rootFront || firstRoot || legacyFront || images[0];
+
+    return {
+      coverImageUrl: cover.url,
+      galleryImages: images.filter(function(image) { return image.id !== cover.id; }).map(function(image) { return image.url; })
+    };
+  } catch (error) {
+    return { coverImageUrl: "", galleryImages: [] };
+  }
 }
 
 function migrateLegacyCertificateRequestsInGateway_() {
@@ -208,7 +246,7 @@ function getPublicProjects(params) {
     const visible = normalize(firstValue(project, ["Public_Display", "Public Display", "Show_Publicly", "Show Publicly"]));
     return visible === "true" || visible === "yes" || visible === "1";
   }).map(function(project) {
-    const exteriorImages = getExteriorPublicImages_(project);
+    const projectImages = getPublicProjectImages_(project);
     return {
       projectId: firstValue(project, ["Project_ID", "Project ID", "ProjectId"]),
       title: firstValue(project, ["Public_Project_Title", "Public Project Title", "Project_Name", "Project Name", "Name"]),
@@ -219,8 +257,8 @@ function getPublicProjects(params) {
       stories: firstValue(project, ["Number_of_Stories", "Number of Stories", "Floor_Story", "Floor/Story", "Floors"]),
       completionYear: firstValue(project, ["Completion_Year", "Completion Year"]),
       description: firstValue(project, ["Public_Description", "Public Description"]),
-      coverImageUrl: exteriorImages.coverImageUrl,
-      galleryImages: exteriorImages.galleryImages,
+      coverImageUrl: projectImages.coverImageUrl,
+      galleryImages: projectImages.galleryImages,
       services: splitPublicList_(firstValue(project, ["Public_Services", "Public Services", "Services"])),
       displayOrder: Number(firstValue(project, ["Public_Display_Order", "Public Display Order"]) || 9999)
     };
