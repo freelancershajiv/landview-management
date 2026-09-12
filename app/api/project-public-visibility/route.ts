@@ -57,20 +57,20 @@ async function callBackend(payload: Record<string, unknown>) {
   return { response, json };
 }
 
-function cleanProjectSeed(projectId: string, source: any) {
+function cleanProjectSeed(projectId: string, source: any, drive: any) {
   const input = source && typeof source === "object" ? source : {};
-  const seed: Record<string, string> = {
+  const driveData = drive && typeof drive === "object" ? drive : {};
+  return {
     Project_ID: projectId,
     Legacy_File_ID: String(input.Legacy_File_ID || projectId.replace(/^LV-/i, "")).trim(),
-    Project_Name: String(input.Project_Name || "").trim(),
-    Client_Name: String(input.Client_Name || input.Project_Name || "").trim(),
-    Phone_Number: String(input.Phone_Number || "").trim(),
+    Project_Name: String(input.Project_Name || driveData.projectFolderName || projectId).trim(),
     Project_Type: String(input.Project_Type || "").trim(),
     Location: String(input.Location || "").trim(),
     Project_Area: String(input.Project_Area || "").trim(),
     Number_of_Stories: String(input.Number_of_Stories || "").trim(),
+    Drive_Folder_ID: String(driveData.projectFolderId || "").trim(),
+    Drive_Folder_URL: String(driveData.projectFolderUrl || "").trim(),
   };
-  return seed;
 }
 
 export async function POST(request: NextRequest) {
@@ -97,12 +97,13 @@ export async function POST(request: NextRequest) {
     }
 
     const clientFingerprint = clientKey(request);
-    const sessionCheck = await callBackend({
-      action: "getSession",
+    const commonAuth = {
       token,
       proxySecret: PROXY_SECRET,
       _clientKey: clientFingerprint,
-    });
+    };
+
+    const sessionCheck = await callBackend({ action: "getSession", ...commonAuth });
     if (!sessionCheck.json?.success) {
       return NextResponse.json({ success: false, error: "Your backend session has expired. Sign in again." }, { status: 401 });
     }
@@ -116,32 +117,38 @@ export async function POST(request: NextRequest) {
       action: "updateProject",
       projectId,
       Public_Display: publicDisplay,
-      token,
-      proxySecret: PROXY_SECRET,
-      _clientKey: clientFingerprint,
+      ...commonAuth,
     };
 
     let result = await callBackend(updatePayload);
     const initialMessage = String(result.json?.error || result.json?.message || "");
 
-    // Auto Invoice is the master project list. The LAND VIEW Projects sheet only
-    // needs a row once portal-specific state (for example Public_Display) exists.
+    // Auto Invoice + Drive are the project sources. The LAND VIEW Projects sheet
+    // receives a minimal row only when portal-specific state is first required.
+    // Do not use importLegacyBillingBatch here: older live Apps Script deployments
+    // do not expose that migration helper.
     if (!result.json?.success && /project not found/i.test(initialMessage)) {
-      const seed = cleanProjectSeed(projectId, body?.project);
-      if (!seed.Project_Name) {
-        return NextResponse.json({ success: false, error: `${projectId} is missing a project name in LV - Auto Invoice → File List.` }, { status: 400 });
+      const driveLookup = await callBackend({
+        action: "getProjectServiceFolders",
+        projectId,
+        ...commonAuth,
+      });
+      const drive = driveLookup.json?.data || {};
+      if (!driveLookup.json?.success || drive?.found === false || !String(drive?.projectFolderUrl || "").trim()) {
+        return NextResponse.json(
+          { success: false, error: `${projectId} does not have a project folder in LAND VIEW Drive. Create/move the project folder manually first, then refresh Projects.` },
+          { status: 400 }
+        );
       }
 
-      const imported = await callBackend({
-        action: "importLegacyBillingBatch",
-        kind: "projects",
-        records: [seed],
-        token,
-        proxySecret: PROXY_SECRET,
-        _clientKey: clientFingerprint,
+      const seed = cleanProjectSeed(projectId, body?.project, drive);
+      const created = await callBackend({
+        action: "createProject",
+        ...seed,
+        ...commonAuth,
       });
-      if (!imported.json?.success) {
-        const message = String(imported.json?.error || imported.json?.message || `Could not register ${projectId} for portal controls.`);
+      if (!created.json?.success) {
+        const message = String(created.json?.error || created.json?.message || `Could not register ${projectId} for portal controls.`);
         return NextResponse.json({ success: false, error: message }, { status: 400 });
       }
 
