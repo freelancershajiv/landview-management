@@ -47,7 +47,7 @@ export default function EmployeePortalShell() {
       const u: any = session?.user || {};
       const id = text(u.employeeId || u.Employee_ID || u.userId || u.User_ID).toUpperCase();
       const name = text(u.name || u.Name || u.username || u.Username).toLowerCase();
-      setIsChairman(id === "EMP-0001" || name.includes("jamal rony"));
+      setIsChairman(id === "EMP-0001" || name.includes("jamal rony") || name.includes("jamal ahmed bhuiyan"));
     }).catch(() => setIsChairman(false));
   }, []);
 

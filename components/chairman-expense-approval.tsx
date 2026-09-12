@@ -81,6 +81,34 @@ function money(value: unknown) {
   return new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 2 }).format(Number.isFinite(n) ? n : 0);
 }
 
+async function chairmanQueueApi() {
+  const response = await fetch("/api/landview?action=getChairmanPendingApprovals", {
+    method: "GET",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || !json?.success) {
+    throw new Error(String(json?.error || json?.message || "Could not load chairman approvals."));
+  }
+  return (json.data || []) as Row[];
+}
+
+async function chairmanReviewApi(id: string, status: "Approved" | "Rejected", note: string) {
+  const response = await fetch("/api/landview", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "reviewChairmanPendingApproval", id, status, note }),
+  });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || !json?.success) {
+    throw new Error(String(json?.error || json?.message || `Could not mark ${id} as ${status}.`));
+  }
+  return json.data || {};
+}
+
 export default function ChairmanExpenseApproval() {
   const [user, setUser] = useState<any>(null);
   const [sessionReady, setSessionReady] = useState(false);
@@ -93,39 +121,16 @@ export default function ChairmanExpenseApproval() {
 
   const employeeId = text(user?.employeeId || user?.Employee_ID || user?.userId || user?.User_ID).toUpperCase();
   const name = text(user?.name || user?.Name || user?.username || user?.Username).toLowerCase();
-  const isChairman = employeeId === CHAIRMAN_ID || name.includes("jamal rony");
+  const isChairman = employeeId === CHAIRMAN_ID || name.includes("jamal rony") || name.includes("jamal ahmed bhuiyan");
 
   async function loadQueue() {
     setLoading(true);
     setError("");
     setMessage("");
     try {
-      let expenses = await landViewApi.getErpRecords("expenses");
-      const refs = new Set((expenses || []).map(refOf).filter(Boolean));
-      const missing = SEPTEMBER_2026_EXPENSES.filter((seed) => !refs.has(seed.ref));
-
-      for (const seed of missing) {
-        await landViewApi.createErpRecord("expenses", {
-          Project_ID: seed.projectId || "",
-          Expense_Date: seed.date,
-          Category: seed.category,
-          Description: seed.description,
-          Amount: seed.amount,
-          Reference: seed.ref,
-          Approval_Status: "Pending",
-          Status: "Pending",
-          Approved_By: "",
-          Approved_At: "",
-          Classification: seed.classification || "Office / Project Cost",
-          Notes: seed.note || (seed.classification === "Eng Rony Personal Draw / Salary"
-            ? "Eng Rony personal cost / salary draw from LAND VIEW; not an office operating cost."
-            : "September 2026 LAND VIEW expense. Requires EMP-0001 approval."),
-        });
-      }
-
-      if (missing.length) expenses = await landViewApi.getErpRecords("expenses");
+      const expenses = await chairmanQueueApi();
       setRows(expenses || []);
-      if (missing.length) setMessage(`${missing.length} missing September 2026 expense record${missing.length === 1 ? "" : "s"} added as Pending for EMP-0001 approval.`);
+      setMessage(`Loaded ${expenses.length} September 2026 expense record${expenses.length === 1 ? "" : "s"} for EMP-0001 review.`);
     } catch (e: any) {
       setError(e?.message || "Could not load the September 2026 approval queue.");
     } finally {
@@ -140,7 +145,7 @@ export default function ChairmanExpenseApproval() {
         const u = session?.user;
         const id = text(u?.employeeId || u?.Employee_ID || u?.userId || u?.User_ID).toUpperCase();
         const n = text(u?.name || u?.Name || u?.username || u?.Username).toLowerCase();
-        if (id === CHAIRMAN_ID || n.includes("jamal rony")) void loadQueue();
+        if (id === CHAIRMAN_ID || n.includes("jamal rony") || n.includes("jamal ahmed bhuiyan")) void loadQueue();
       })
       .catch(() => setError("Could not verify the employee session."))
       .finally(() => setSessionReady(true));
@@ -161,16 +166,9 @@ export default function ChairmanExpenseApproval() {
     if (!id) return;
     setBusy(id); setError(""); setMessage("");
     const now = new Date().toISOString();
+    const reviewNote = text(notes[id]) || `${status} by EMP-0001 · Engr. Jamal Ahmed Bhuiyan`;
     try {
-      await landViewApi.updateErpRecord("expenses", id, {
-        Status: status,
-        Approval_Status: status,
-        Approved_By: status === "Approved" ? CHAIRMAN_ID : "",
-        Approved_At: status === "Approved" ? now : "",
-        Reviewed_By: CHAIRMAN_ID,
-        Reviewed_At: now,
-        Review_Notes: text(notes[id]) || `${status} by EMP-0001 · Chairman Eng Jamal Rony`,
-      });
+      await chairmanReviewApi(id, status, reviewNote);
       setRows((current) => current.map((item) => idOf(item) === id ? {
         ...item,
         Status: status,
@@ -179,6 +177,7 @@ export default function ChairmanExpenseApproval() {
         Approved_At: status === "Approved" ? now : "",
         Reviewed_By: CHAIRMAN_ID,
         Reviewed_At: now,
+        Review_Notes: reviewNote,
       } : item));
       setMessage(`${id} ${status.toLowerCase()} by EMP-0001.`);
     } catch (e: any) {

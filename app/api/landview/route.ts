@@ -39,6 +39,7 @@ const GET_ACTIONS = new Set([
   "getInvoices",
   "getPermissions",
   "getErpRecords",
+  "getChairmanPendingApprovals",
 ]);
 
 const POST_ACTIONS = new Set([
@@ -73,6 +74,7 @@ const POST_ACTIONS = new Set([
   "initializeErpSheets",
   "createErpRecord",
   "updateErpRecord",
+  "reviewChairmanPendingApproval",
 ]);
 
 const QUICK_ACTIONS = new Set(["setQuickPin", "quickPinStatus", "quickPinLogin", "quickLock", "trustDevice", "untrustDevice"]);

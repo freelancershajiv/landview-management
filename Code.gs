@@ -732,6 +732,31 @@ function loginUser(params) {
   return { success: true, data: { token: token, user: safeUser } };
 }
 
+
+function chairmanIdentityMatches_(identity) {
+  const source = identity || {};
+  const employeeId = String(firstValue(source, ["employeeId", "Employee_ID", "Employee ID", "EmployeeId"]) || "").trim().toUpperCase();
+  const userId = String(firstValue(source, ["userId", "User_ID", "User ID", "UserId"]) || "").trim().toUpperCase();
+  const username = String(firstValue(source, ["username", "Username", "User_Name", "User Name"]) || "").trim().toLowerCase();
+  const name = String(firstValue(source, ["name", "Name", "Employee_Name", "Employee Name"]) || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return employeeId === "EMP-0001" ||
+    userId === "EMP-0001" ||
+    username === "emp-0001" ||
+    name.indexOf("jamal ahmed bhuiyan") >= 0 ||
+    name.indexOf("jamal rony") >= 0;
+}
+
+function canonicalEmployeeIdForIdentity_(identity) {
+  const source = identity || {};
+  const existing = String(firstValue(source, ["employeeId", "Employee_ID", "Employee ID", "EmployeeId"]) || "").trim();
+  return chairmanIdentityMatches_(source) ? "EMP-0001" : existing;
+}
+
 function createSession(user) {
   const token = Utilities.getUuid() + "-" + Utilities.getUuid() + "-" + Utilities.getUuid();
   const now = Date.now();
@@ -740,7 +765,7 @@ function createSession(user) {
     username: String(firstValue(user, ["Username", "username", "User_Name", "User Name"]) || ""),
     name: String(firstValue(user, ["Name", "name"]) || ""),
     role: String(firstValue(user, ["Role", "role"]) || ""),
-    employeeId: String(firstValue(user, ["Employee_ID", "Employee ID", "EmployeeId"]) || ""),
+    employeeId: canonicalEmployeeIdForIdentity_(user),
     projectIds: String(firstValue(user, ["Project_IDs", "Project IDs", "Projects", "Project_ID", "Project ID"]) || ""),
     createdAt: now,
     lastSeenAt: now,
@@ -769,6 +794,11 @@ function readSession(token) {
   }
 
   const now = Date.now();
+  const canonicalEmployeeId = canonicalEmployeeIdForIdentity_(session);
+  if (canonicalEmployeeId && canonicalEmployeeId !== String(session.employeeId || "").trim()) {
+    session.employeeId = canonicalEmployeeId;
+    props.setProperty(key, JSON.stringify(session));
+  }
   const idleMs = Number(CONFIG.SESSION_IDLE_MINUTES || 45) * 60 * 1000;
   if (!session || !session.expiresAt || now > Number(session.expiresAt) || (session.lastSeenAt && now - Number(session.lastSeenAt) > idleMs)) {
     props.deleteProperty(key);
@@ -831,7 +861,7 @@ function sanitizeUser(user) {
   const username = firstValue(user, ["Username", "username", "User_Name", "User Name"]);
   const name = firstValue(user, ["Name", "name"]);
   const role = firstValue(user, ["Role", "role"]);
-  const employeeId = firstValue(user, ["Employee_ID", "Employee ID", "EmployeeId"]);
+  const employeeId = canonicalEmployeeIdForIdentity_(user);
   const projectIds = firstValue(user, ["Project_IDs", "Project IDs", "Projects", "Project_ID", "Project ID"]);
 
   return {
