@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import ContactMapEnhancer from "@/components/contact-map-enhancer";
 import GlobalActionFeedback from "@/components/global-action-feedback";
 import "./globals.css";
@@ -79,6 +80,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         {children}
         <Analytics />
+        <SpeedInsights />
         <GlobalActionFeedback />
         <ContactMapEnhancer />
         <script
