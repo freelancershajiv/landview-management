@@ -30,6 +30,10 @@ const LAND_VIEW_PERMISSION_KEYS = {
   REPORTS_VIEW: "reports.view"
 };
 
+function isMainAdminSession_(session) {
+  return normalizeRoleName(session && session.role) === "admin";
+}
+
 function permissionPrincipalIds_(session) {
   const ids = [];
   [session && session.userId, session && session.employeeId, session && session.username]
@@ -41,7 +45,7 @@ function permissionPrincipalIds_(session) {
 }
 
 function latestPermissionState_(session, permissionKey) {
-  if (isAdminRole(session && session.role)) return true;
+  if (isMainAdminSession_(session)) return true;
   const principals = permissionPrincipalIds_(session);
   if (!principals.length) return false;
   const key = String(permissionKey || "").trim();
@@ -78,28 +82,28 @@ function ownsExpenseRecord_(row, session) {
 }
 
 function filterExpensesForSession_(records, session) {
-  if (isAdminRole(session.role) || hasPermission_(session, LAND_VIEW_PERMISSION_KEYS.EXPENSES_VIEW_ALL) || hasPermission_(session, LAND_VIEW_PERMISSION_KEYS.EXPENSES_APPROVE)) {
+  if (isMainAdminSession_(session) || hasPermission_(session, LAND_VIEW_PERMISSION_KEYS.EXPENSES_VIEW_ALL) || hasPermission_(session, LAND_VIEW_PERMISSION_KEYS.EXPENSES_APPROVE)) {
     return records;
   }
   return records.filter(function(row) { return ownsExpenseRecord_(row, session); });
 }
 
 function enforceErpReadPermission_(moduleName, session) {
-  if (isAdminRole(session.role)) return true;
+  if (isMainAdminSession_(session)) return true;
   const role = normalizeRoleName(session.role);
   if (moduleName === "expenses") {
-    if (role === "employee") return true; // own records are scoped later
+    if (role === "employee") return true;
     if (hasPermission_(session, LAND_VIEW_PERMISSION_KEYS.EXPENSES_VIEW_ALL) || hasPermission_(session, LAND_VIEW_PERMISSION_KEYS.EXPENSES_APPROVE)) return true;
   }
   if (moduleName === "tasks") return requirePermission_(session, LAND_VIEW_PERMISSION_KEYS.WORKFLOW_VIEW);
   if (moduleName === "attendance") return requirePermission_(session, LAND_VIEW_PERMISSION_KEYS.ATTENDANCE_VIEW);
   if (moduleName === "drawings") return requirePermission_(session, LAND_VIEW_PERMISSION_KEYS.DOCUMENTS_VIEW);
   if (role === "accounts") return true;
-  return false;
+  throw new Error("Access denied.");
 }
 
 function enforceErpCreatePermission_(moduleName, session) {
-  if (isAdminRole(session.role)) return true;
+  if (isMainAdminSession_(session)) return true;
   if (moduleName === "expenses") return requirePermission_(session, LAND_VIEW_PERMISSION_KEYS.EXPENSES_SUBMIT, "You do not have permission to submit office expenses.");
   if (moduleName === "tasks") return requirePermission_(session, LAND_VIEW_PERMISSION_KEYS.WORKFLOW_EDIT);
   if (moduleName === "attendance") return requirePermission_(session, LAND_VIEW_PERMISSION_KEYS.ATTENDANCE_EDIT);
@@ -109,7 +113,7 @@ function enforceErpCreatePermission_(moduleName, session) {
 }
 
 function enforceErpUpdatePermission_(moduleName, params, session) {
-  if (isAdminRole(session.role)) return true;
+  if (isMainAdminSession_(session)) return true;
   if (moduleName === "expenses") {
     const statusChange = params.Status !== undefined || params.Reviewed_By !== undefined || params.Reviewed_At !== undefined;
     if (statusChange) return requirePermission_(session, LAND_VIEW_PERMISSION_KEYS.EXPENSES_APPROVE, "You do not have permission to approve or reject expenses.");
@@ -127,7 +131,7 @@ function enforceErpUpdatePermission_(moduleName, params, session) {
 
 function secureFilterErpRecordsForSession_(moduleName, records, session) {
   const role = normalizeRoleName(session.role);
-  if (isAdminRole(role)) return records;
+  if (isMainAdminSession_(session)) return records;
   enforceErpReadPermission_(moduleName, session);
 
   if (moduleName === "expenses") return filterExpensesForSession_(records, session);
