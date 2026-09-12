@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import ContactMapEnhancer from "@/components/contact-map-enhancer";
 import GlobalActionFeedback from "@/components/global-action-feedback";
 import "./globals.css";
@@ -75,6 +76,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en-BD">
       <body>
         {children}
+        <Analytics />
         <GlobalActionFeedback />
         <ContactMapEnhancer />
         <script
