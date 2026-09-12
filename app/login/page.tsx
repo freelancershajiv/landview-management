@@ -61,7 +61,6 @@ export default function LoginPage(){
   const [quickMode,setQuickMode] = useState(false);
   const [pin,setPin] = useState("");
   const [quickBusy,setQuickBusy] = useState(false);
-  const [sessionChecking,setSessionChecking] = useState(false);
 
   useEffect(()=>{
     try{
@@ -71,17 +70,7 @@ export default function LoginPage(){
     void quickPost("quickPinStatus").then(data=>{
       setQuickConfigured(Boolean(data?.configured)); setTrustedDevice(Boolean(data?.trusted)); setTrustedUntil(data?.expiresAt ? Number(data.expiresAt) : null);
     }).catch(()=>{});
-    setSessionChecking(true);
-    void landViewApi.getSession().then(session=>{
-      const role = normalizeRole(session?.user?.role || session?.user?.Role);
-      const target = portalForRole(role);
-      if(session?.authenticated && session?.user && target){
-        saveSessionCache({authenticated:true,user:session.user});
-        try{ localStorage.setItem(PORTAL_KEY,target); }catch{}
-        router.replace(portalPath(target));
-      }
-    }).catch(()=>{}).finally(()=>setSessionChecking(false));
-  },[router]);
+  },[]);
 
   const selected = useMemo(()=>portals.find(p=>p.id===portal) || portals[0],[portal]);
   const daysLeft = trustedUntil ? Math.max(0,Math.ceil((trustedUntil-Date.now())/86400000)) : 0;
@@ -149,7 +138,7 @@ export default function LoginPage(){
 
       <section className="card">
         {quickMode&&trustedDevice&&quickConfigured ? <div className="pinpanel"><div className="pintitle"><small>TRUSTED DEVICE</small><h2>Admin PIN Login</h2></div>{error&&<div className="error"><i>!</i><div><strong>PIN login failed</strong><p>{error}</p></div></div>}<input className="pinfield" type="password" inputMode="numeric" maxLength={6} value={pin} onChange={e=>handlePin(e.target.value)} autoFocus disabled={quickBusy} placeholder="••••••"/><div className="pinhelp">{quickBusy?"Creating secure Admin session…":"Enter all 6 digits to sign in automatically."}</div><button className="switch" type="button" onClick={()=>{setQuickMode(false);setPin("");setError("");}}>USE USERNAME & PASSWORD</button></div> : <>
-          <div className="cardhead"><div><small>SECURE LOGIN</small><h2>Sign in to LAND VIEW</h2></div><span className={`session ${sessionChecking?"active":""}`}>{sessionChecking?"SESSION CHECKING":"READY"}</span></div>
+          <div className="cardhead"><div><small>SECURE LOGIN</small><h2>Sign in to LAND VIEW</h2></div><span className="session">READY</span></div>
           <div className="tabs">{portals.map(p=><button key={p.id} aria-pressed={portal===p.id} className={`tab ${portal===p.id?"active":""}`} type="button" onClick={()=>choosePortal(p.id)} disabled={loading}><b>{p.short}</b><span>{p.label}</span></button>)}</div>
           <form className="form" onSubmit={submit}>{error&&<div className="error"><i>!</i><div><strong>Sign in failed</strong><p>{error}</p></div></div>}{trustedDevice&&quickConfigured&&portal==="admin"&&<><button className="pinbtn" type="button" onClick={()=>{setQuickMode(true);setError("");setPin("");}}>PIN LOGIN ON THIS TRUSTED DEVICE</button><div className="trust">Trusted access expires in about {daysLeft||1} day{daysLeft===1?"":"s"}</div></>}
             <label className="field"><span className="fieldrow"><span>{selected.identifier}</span></span><span className="wrap"><input value={userId} onChange={e=>{setUserId((portal==="employee"||portal==="client")?e.target.value.toUpperCase():e.target.value);setError("");}} placeholder={selected.placeholder} autoComplete="username" disabled={loading} autoFocus/></span></label>
