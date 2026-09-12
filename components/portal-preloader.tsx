@@ -118,9 +118,13 @@ function roleFromCache() {
   return String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase();
 }
 
+function isFullAdminRole(role: string) {
+  return role === "admin" || role === "manager";
+}
+
 function adminRoutes(role: string) {
   const shared = ["/admin", "/admin/projects", "/admin/finance", "/admin/finance/invoices"];
-  if (role === "accounts") return shared;
+  if (!isFullAdminRole(role)) return shared;
   return [...shared, "/admin/workflow", "/admin/employees", "/admin/certificate-requests", "/admin/certificates"];
 }
 
@@ -146,7 +150,7 @@ function adminSecondaryData(role: string) {
     "/api/landview?action=getFinanceSheet&tab=Others%20Bill",
     "/api/landview?action=getFinanceSheet&tab=Others%20Bill%20Deposit",
   ];
-  if (role !== "accounts") {
+  if (isFullAdminRole(role)) {
     urls.push(
       "/api/landview?action=getEmployees",
       "/api/landview?action=getFinanceSheet&tab=Workflow",
