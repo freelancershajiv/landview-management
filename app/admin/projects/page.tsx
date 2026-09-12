@@ -16,14 +16,12 @@ type ProjectRow = Record<string, unknown> & {
   Public_Display?: unknown;
   Drive_Folder_URL?: string;
 };
-
 type TaskRow = Record<string, unknown> & {
   Task_ID?: string;
   Project_ID?: string;
   Task_Title?: string;
   Assigned_Employee_ID?: string;
 };
-
 type EmployeeRow = Record<string, unknown> & { Employee_ID?: string };
 type DriveIndexResponse = { projects?: Record<string, any> };
 
@@ -37,24 +35,20 @@ function normalizeProjectId(value: unknown) {
   const digits = raw.replace(/\D/g, "");
   return digits ? `LV-${Number(digits)}` : raw;
 }
-
 function truthy(value: unknown) {
   return value === true || ["true", "yes", "1", "on"].includes(String(value || "").trim().toLowerCase());
 }
-
 function normalizeCategory(value: unknown): ProjectCategory {
   const text = String(value || "").trim().toLowerCase();
   if (/complete|completed|done|closed|finish/.test(text)) return "Completed";
   if (/pause|paused|hold|inactive|cancel/.test(text)) return "Paused";
   return "Running";
 }
-
 function folderNameWithoutId(name: unknown, id: string) {
   const raw = String(name || "").trim();
   if (!raw) return id;
   return raw.replace(new RegExp(`^${id.replace("-", "[- _]?")}\\s*[-–—:]?\\s*`, "i"), "").trim() || id;
 }
-
 async function getDriveIndex(category: ProjectCategory): Promise<DriveIndexResponse> {
   const url = new URL("/api/landview", window.location.origin);
   url.searchParams.set("action", "getProjectServiceFolders");
@@ -78,7 +72,6 @@ export default function ProjectsPage() {
   const [error, setError] = useState("");
   const [savingPublic, setSavingPublic] = useState("");
   const [savingTask, setSavingTask] = useState("");
-
   const canManage = role === "admin" || role === "manager";
 
   async function load() {
@@ -94,48 +87,35 @@ export default function ProjectsPage() {
         getDriveIndex("Paused").catch(() => ({ projects: {} })),
         getDriveIndex("Completed").catch(() => ({ projects: {} })),
       ]);
-
       const map = new Map<string, ProjectRow>();
       (sheetProjects || []).forEach((row: Record<string, unknown>) => {
         const id = normalizeProjectId(pick(row, ["Project_ID", "Project ID", "ProjectId"], ""));
-        if (!id) return;
-        map.set(id, { ...row, Project_ID: id });
+        if (id) map.set(id, { ...row, Project_ID: id });
       });
-
       const mergeDrive = (source: Record<string, any>, driveCategory: ProjectCategory) => {
         Object.entries(source || {}).forEach(([rawId, item]) => {
           const id = normalizeProjectId(rawId || item?.projectId);
           if (!id) return;
           const current = map.get(id);
           const driveName = folderNameWithoutId(item?.projectFolderName, id);
-          if (current) {
-            map.set(id, {
-              ...current,
-              Status: driveCategory,
-              Drive_Folder_URL: String(item?.projectFolderUrl || current.Drive_Folder_URL || ""),
-            });
-          } else {
-            map.set(id, {
-              Project_ID: id,
-              Project_Name: driveName,
-              Client_Name: driveName,
-              Status: driveCategory,
-              Drive_Folder_URL: String(item?.projectFolderUrl || ""),
-              Public_Display: false,
-            });
-          }
+          map.set(id, current ? {
+            ...current,
+            Status: driveCategory,
+            Drive_Folder_URL: String(item?.projectFolderUrl || current.Drive_Folder_URL || ""),
+          } : {
+            Project_ID: id,
+            Project_Name: driveName,
+            Client_Name: driveName,
+            Status: driveCategory,
+            Drive_Folder_URL: String(item?.projectFolderUrl || ""),
+            Public_Display: false,
+          });
         });
       };
-
       mergeDrive(running.projects || {}, "Running");
       mergeDrive(paused.projects || {}, "Paused");
       mergeDrive(completed.projects || {}, "Completed");
-
-      setProjects(Array.from(map.values()).sort((a, b) => {
-        const ai = Number(normalizeProjectId(a.Project_ID).replace("LV-", ""));
-        const bi = Number(normalizeProjectId(b.Project_ID).replace("LV-", ""));
-        return (Number.isFinite(bi) ? bi : 0) - (Number.isFinite(ai) ? ai : 0);
-      }));
+      setProjects(Array.from(map.values()).sort((a, b) => Number(normalizeProjectId(b.Project_ID).replace("LV-", "")) - Number(normalizeProjectId(a.Project_ID).replace("LV-", ""))));
       setEmployees((employeeRows || []).filter((employee: Record<string, unknown>) => !/inactive|former/i.test(String(pick(employee, ["Status", "status"], "")))) as EmployeeRow[]);
       setTasks((taskRows || []) as TaskRow[]);
       setRole(String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase());
@@ -150,9 +130,9 @@ export default function ProjectsPage() {
 
   const counts = useMemo(() => ({
     All: projects.length,
-    Running: projects.filter((project) => normalizeCategory(project.Status) === "Running").length,
-    Paused: projects.filter((project) => normalizeCategory(project.Status) === "Paused").length,
-    Completed: projects.filter((project) => normalizeCategory(project.Status) === "Completed").length,
+    Running: projects.filter((p) => normalizeCategory(p.Status) === "Running").length,
+    Paused: projects.filter((p) => normalizeCategory(p.Status) === "Paused").length,
+    Completed: projects.filter((p) => normalizeCategory(p.Status) === "Completed").length,
   }), [projects]);
 
   const filtered = useMemo(() => {
@@ -161,14 +141,7 @@ export default function ProjectsPage() {
       const status = normalizeCategory(project.Status);
       if (category !== "All" && status !== category) return false;
       if (!term) return true;
-      return [
-        project.Project_ID,
-        pick(project, ["Project_Name", "Project Name", "Name"]),
-        pick(project, ["Client_Name", "Client Name", "Client"]),
-        pick(project, ["Project_Type", "Project Type"]),
-        pick(project, ["Location", "Address"]),
-        status,
-      ].join(" ").toLowerCase().includes(term);
+      return [project.Project_ID, pick(project,["Project_Name","Project Name","Name"]), pick(project,["Client_Name","Client Name","Client"]), pick(project,["Project_Type","Project Type"]), pick(project,["Location","Address"]), status].join(" ").toLowerCase().includes(term);
     });
   }, [projects, category, query]);
 
@@ -181,7 +154,7 @@ export default function ProjectsPage() {
       bucket.push(task);
       map.set(id, bucket);
     });
-    map.forEach((rows) => rows.sort((a, b) => String(pick(a, ["Task_Title", "Task Title", "Title"], "")).localeCompare(String(pick(b, ["Task_Title", "Task Title", "Title"], "")))));
+    map.forEach((rows) => rows.sort((a,b) => String(pick(a,["Task_Title","Task Title","Title"],"")).localeCompare(String(pick(b,["Task_Title","Task Title","Title"],"")))));
     return map;
   }, [tasks]);
 
@@ -192,10 +165,18 @@ export default function ProjectsPage() {
     setSavingPublic(id);
     setError("");
     try {
-      await landViewApi.updateProject(id, { Public_Display: next });
+      const response = await fetch("/api/project-public-visibility", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        body: JSON.stringify({ projectId: id, publicDisplay: next }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json?.success) throw new Error(String(json?.error || `Could not update ${id} public visibility.`));
       setProjects((rows) => rows.map((row) => normalizeProjectId(row.Project_ID) === id ? { ...row, Public_Display: next } : row));
     } catch (e: any) {
-      setError(e?.message || `Could not update ${id} public visibility. Make sure ${id} exists in the Projects sheet.`);
+      setError(e?.message || `Could not update ${id} public visibility.`);
     } finally {
       setSavingPublic("");
     }
@@ -209,8 +190,8 @@ export default function ProjectsPage() {
     setError("");
     try {
       const updated = await landViewApi.updateErpRecord("tasks", taskId, { Assigned_Employee_ID: employeeId });
-      setTasks((rows) => rows.map((row) => String(pick(row, ["Task_ID", "Task ID", "TaskId"], "")) === taskId ? { ...row, ...(updated as Record<string, unknown>), Assigned_Employee_ID: employeeId } : row));
-    } catch (e: any) {
+      setTasks((rows) => rows.map((row) => String(pick(row,["Task_ID","Task ID","TaskId"],"")) === taskId ? { ...row, ...(updated as Record<string, unknown>), Assigned_Employee_ID: employeeId } : row));
+    } catch (e:any) {
       setError(e?.message || "Could not assign the service team member.");
     } finally {
       setSavingTask("");
@@ -223,120 +204,58 @@ export default function ProjectsPage() {
   return <>
     <style dangerouslySetInnerHTML={{ __html: css }} />
     <div className="projects-register">
-      <PageHeader
-        eyebrow="PROJECT REGISTER"
-        title="Projects"
-        description="Projects are created and maintained in Google Drive and Sheets. Use this register to assign service responsibility and control public website visibility."
-        action={<button className="refresh-btn" type="button" onClick={load}>Refresh</button>}
-      />
-
+      <PageHeader eyebrow="PROJECT REGISTER" title="Projects" description="Projects are created and maintained in Google Drive and Sheets. Use this register to assign service responsibility and control public website visibility." action={<button className="refresh-btn" type="button" onClick={load}>Refresh</button>} />
       {error && <div className="error-inline">{error}</div>}
-
       <div className="projects-toolbar">
         <div className="projects-toolbar-left">
-          {(["Running", "Paused", "Completed", "All"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${category === item ? "active" : ""}`} onClick={() => setCategory(item)}>{item} · {counts[item]}</button>)}
+          {(["Running","Paused","Completed","All"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${category===item?"active":""}`} onClick={() => setCategory(item)}>{item} · {counts[item]}</button>)}
         </div>
-        <input className="projects-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ID, project, client, type or location" />
+        <input className="projects-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search ID, project, client, type or location" />
       </div>
-
       <section className="register-shell">
         <div className="register-scroll">
           <table className="project-table">
-            <thead>
-              <tr>
-                <th>Project</th>
-                <th>Type</th>
-                <th>Location</th>
-                <th>Status</th>
-                <th>Service team</th>
-                <th>Links</th>
-                <th className="public-cell">Public website</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Project</th><th>Type</th><th>Location</th><th>Status</th><th>Service team</th><th>Links</th><th className="public-cell">Public website</th></tr></thead>
             <tbody>
               {filtered.map((project) => {
                 const id = normalizeProjectId(project.Project_ID);
                 const projectTasks = tasksByProject.get(id) || [];
-                const assignedCount = projectTasks.filter((task) => String(pick(task, ["Assigned_Employee_ID", "Assigned Employee ID"], "")).trim()).length;
+                const assignedCount = projectTasks.filter((task) => String(pick(task,["Assigned_Employee_ID","Assigned Employee ID"],"")).trim()).length;
                 const isExpanded = expanded === id;
                 const publicOn = truthy(project.Public_Display);
                 const driveUrl = String(project.Drive_Folder_URL || "").trim();
-                const name = String(pick(project, ["Project_Name", "Project Name", "Name"], id));
-                const client = String(pick(project, ["Client_Name", "Client Name", "Client"], "")).trim();
-
+                const name = String(pick(project,["Project_Name","Project Name","Name"],id));
+                const client = String(pick(project,["Client_Name","Client Name","Client"],"")).trim();
                 return <Fragment key={id}>
                   <tr>
-                    <td>
-                      <div className="project-main">
-                        <span className="project-id">{id}</span>
-                        <div><strong>{name}</strong>{client && client !== name && <small>{client}</small>}</div>
-                      </div>
-                    </td>
-                    <td>{String(pick(project, ["Project_Type", "Project Type", "Type"], "—"))}</td>
-                    <td className="muted">{String(pick(project, ["Location", "Address"], "—"))}</td>
+                    <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{name}</strong>{client && client !== name && <small>{client}</small>}</div></div></td>
+                    <td>{String(pick(project,["Project_Type","Project Type","Type"],"—"))}</td>
+                    <td className="muted">{String(pick(project,["Location","Address"],"—"))}</td>
                     <td><StatusBadge value={normalizeCategory(project.Status)} /></td>
-                    <td>
-                      <div className="service-summary">
-                        <span><b>{assignedCount}</b>/{projectTasks.length || 0} assigned</span>
-                        <button className="team-button" type="button" onClick={() => setExpanded(isExpanded ? "" : id)}>{isExpanded ? "Close" : "Assign team"}</button>
-                      </div>
-                    </td>
-                    <td>
-                      <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                        <Link className="open-link" href={`/admin/projects/${encodeURIComponent(id)}`}>Open →</Link>
-                        {driveUrl && <a className="drive-link" href={driveUrl} target="_blank" rel="noreferrer">Drive ↗</a>}
-                      </div>
-                    </td>
-                    <td className="public-cell">
-                      <div className="public-wrap">
-                        <span>{publicOn ? "Shown" : "Hidden"}</span>
-                        <button
-                          type="button"
-                          className={`toggle ${publicOn ? "on" : ""}`}
-                          role="switch"
-                          aria-checked={publicOn}
-                          aria-label={`${publicOn ? "Hide" : "Show"} ${id} on the public website`}
-                          disabled={!canManage || savingPublic === id}
-                          onClick={() => void togglePublic(project)}
-                        />
-                      </div>
-                    </td>
+                    <td><div className="service-summary"><span><b>{assignedCount}</b>/{projectTasks.length || 0} assigned</span><button className="team-button" type="button" onClick={() => setExpanded(isExpanded?"":id)}>{isExpanded?"Close":"Assign team"}</button></div></td>
+                    <td><div style={{display:"flex",gap:12,alignItems:"center"}}><Link className="open-link" href={`/admin/projects/${encodeURIComponent(id)}`}>Open →</Link>{driveUrl && <a className="drive-link" href={driveUrl} target="_blank" rel="noreferrer">Drive ↗</a>}</div></td>
+                    <td className="public-cell"><div className="public-wrap"><span>{publicOn?"Shown":"Hidden"}</span><button type="button" className={`toggle ${publicOn?"on":""}`} role="switch" aria-checked={publicOn} aria-label={`${publicOn?"Hide":"Show"} ${id} on the public website`} disabled={!canManage || savingPublic===id} onClick={() => void togglePublic(project)} /></div></td>
                   </tr>
-
-                  {isExpanded && <tr className="team-row"><td colSpan={7}>
-                    <div className="team-panel">
-                      <div className="team-panel-head">
-                        <div><strong>Service responsibility · {id}</strong><small>Assign one responsible team member to each service used in this project workflow.</small></div>
-                        {!canManage && <small>Accounts access is view-only for assignments.</small>}
-                      </div>
-                      {projectTasks.length ? <div className="service-assignments">
-                        {projectTasks.map((task) => {
-                          const taskId = String(pick(task, ["Task_ID", "Task ID", "TaskId"], ""));
-                          const title = String(pick(task, ["Task_Title", "Task Title", "Title"], "Service"));
-                          const assignedEmployee = String(pick(task, ["Assigned_Employee_ID", "Assigned Employee ID"], ""));
-                          return <div className="service-assignment" key={taskId}>
-                            <strong>{title}</strong>
-                            <select value={assignedEmployee} disabled={!canManage || savingTask === taskId} onChange={(event) => void assignService(task, event.target.value)}>
-                              <option value="">Unassigned</option>
-                              {employees.map((employee) => {
-                                const employeeId = String(pick(employee, ["Employee_ID", "Employee ID", "EmployeeId"], ""));
-                                const employeeName = String(pick(employee, ["Employee_Name", "Employee Name", "Name"], employeeId));
-                                const position = String(pick(employee, ["Position", "Department"], ""));
-                                return <option value={employeeId} key={employeeId}>{employeeName}{position ? ` — ${position}` : ""}</option>;
-                              })}
-                            </select>
-                            <small>{savingTask === taskId ? "Saving…" : assignedEmployee || "Not assigned"}</small>
-                          </div>;
-                        })}
-                      </div> : <div className="team-empty">No billed/workflow services are currently linked to this project, so there is nothing to assign yet.</div>}
-                    </div>
-                  </td></tr>}
+                  {isExpanded && <tr className="team-row"><td colSpan={7}><div className="team-panel">
+                    <div className="team-panel-head"><div><strong>Service responsibility · {id}</strong><small>Assign one responsible team member to each service used in this project workflow.</small></div>{!canManage && <small>Accounts access is view-only for assignments.</small>}</div>
+                    {projectTasks.length ? <div className="service-assignments">{projectTasks.map((task) => {
+                      const taskId = String(pick(task,["Task_ID","Task ID","TaskId"],""));
+                      const title = String(pick(task,["Task_Title","Task Title","Title"],"Service"));
+                      const assignedEmployee = String(pick(task,["Assigned_Employee_ID","Assigned Employee ID"],""));
+                      return <div className="service-assignment" key={taskId}><strong>{title}</strong><select value={assignedEmployee} disabled={!canManage || savingTask===taskId} onChange={(e) => void assignService(task,e.target.value)}><option value="">Unassigned</option>{employees.map((employee) => {
+                        const employeeId = String(pick(employee,["Employee_ID","Employee ID","EmployeeId"],""));
+                        const employeeName = String(pick(employee,["Employee_Name","Employee Name","Name"],employeeId));
+                        const position = String(pick(employee,["Position","Department"],""));
+                        return <option value={employeeId} key={employeeId}>{employeeName}{position?` — ${position}`:""}</option>;
+                      })}</select><small>{savingTask===taskId?"Saving…":assignedEmployee || "Not assigned"}</small></div>;
+                    })}</div> : <div className="team-empty">No billed/workflow services are currently linked to this project, so there is nothing to assign yet.</div>}
+                  </div></td></tr>}
                 </Fragment>;
               })}
             </tbody>
           </table>
         </div>
-        {!filtered.length && <div className="team-empty" style={{ margin: 16 }}>No projects match this view.</div>}
+        {!filtered.length && <div className="team-empty" style={{margin:16}}>No projects match this view.</div>}
         <div className="register-note">Project creation and master-data editing are handled in Google Drive and Google Sheets. This page only manages service responsibility and the public website on/off state.</div>
       </section>
     </div>
