@@ -1,8 +1,5 @@
-import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
-import EmployeeCommandCenter from "@/components/employee-command-center";
-import EmployeeCertificateCenter from "@/components/employee-certificate-center";
-import EmployeeExpenseCenter from "@/components/employee-expense-center";
+import EmployeePortalShell from "@/components/employee-portal-shell";
 
 export default function EmployeePortalPage() {
-  return <><EmployeeCommandCenter /><ChairmanExpenseApproval /><EmployeeExpenseCenter /><EmployeeCertificateCenter /></>;
+  return <EmployeePortalShell />;
 }
