@@ -30,7 +30,9 @@ async function callAppsScript(request: NextRequest, body: Record<string, unknown
   try { json = JSON.parse(raw); }
   catch { throw new Error(/^\s*</.test(raw) ? "Apps Script returned HTML instead of JSON." : "Certificate portal returned invalid JSON."); }
   if (!json?.success) throw new Error(String(json?.error || json?.message || "Certificate portal request failed."));
-  return json.data || {};
+  let data = json.data;
+  for (let depth = 0; depth < 2 && data?.success === true && data?.data; depth++) data = data.data;
+  return data || {};
 }
 
 async function backend(request: NextRequest, certificatePortalOp: string, payload: Record<string, unknown> = {}) {
@@ -41,25 +43,44 @@ async function legacyClientBackend(request: NextRequest, clientOp: string, paylo
   return callAppsScript(request, { _clientPortal: "1", clientOp, ...payload });
 }
 
+const headers = { "Cache-Control": "no-store, max-age=0" };
+const supportedCategories = ["project", "structural_design", "supervision", "building", "employee"];
+
+async function mine(request: NextRequest) {
+  const data = await backend(request, "mine");
+  if (Array.isArray(data?.requests) && Array.isArray(data?.certificates)) {
+    return { ...data, backendMode: "unified", certificatesAvailable: true, categories: supportedCategories };
+  }
+  // Older gateways ignore an unknown certificate flag and return public-project
+  // data with success:true. Only accept the authenticated client workspace shape.
+  const workspace = await legacyClientBackend(request, "workspace");
+  if (!workspace?.client || !Array.isArray(workspace.projects) ||
+      !workspace.projects.every((project: any) => typeof project?.projectId === "string" && Array.isArray(project.certificateRequests))) {
+    throw new Error("The certificate backend needs an Apps Script deployment update. Project request history is unavailable.");
+  }
+  const requests = workspace.projects.flatMap((project: any) => project.certificateRequests.map((row: any) => ({
+    ...row, projectId: project.projectId,
+    category: row.category || (row.certificateType === "building" ? "building" : "project"),
+  })));
+  return { requests, certificates: [], backendMode: "legacy", certificatesAvailable: false, categories: ["project", "building"] };
+}
+
+async function adminRequests(request: NextRequest) {
+  const data = await backend(request, "adminList");
+  if (Array.isArray(data?.requests)) return { ...data, backendMode: "unified" };
+  const legacy = await legacyClientBackend(request, "adminRequests");
+  if (!Array.isArray(legacy?.requests)) throw new Error("Certificate request history is unavailable. Update the Apps Script deployment.");
+  return { ...legacy, backendMode: "legacy" };
+}
+
 export async function GET(request: NextRequest) {
   const mode = clean(request.nextUrl.searchParams.get("mode"), 30).toLowerCase();
   try {
-    if (mode === "admin") {
-      try {
-        const data = await backend(request, "adminList");
-        const requests = Array.isArray(data?.requests) ? data.requests : [];
-        if (requests.length) return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store, max-age=0" } });
-      } catch {}
-
-      const legacy = await legacyClientBackend(request, "adminRequests");
-      return NextResponse.json({ success: true, data: legacy }, { headers: { "Cache-Control": "no-store, max-age=0" } });
-    }
-
-    const data = await backend(request, "mine");
-    return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    const data = mode === "admin" ? await adminRequests(request) : await mine(request);
+    return NextResponse.json({ success: true, data }, { headers });
   } catch (error: any) {
     const message = error?.message || "Could not load certificate portal.";
-    return NextResponse.json({ success: false, error: message }, { status: /session|access|unauthorized/i.test(message) ? 401 : 502 });
+    return NextResponse.json({ success: false, error: message }, { status: /session|access|unauthorized/i.test(message) ? 401 : 502, headers });
   }
 }
 
@@ -70,31 +91,38 @@ export async function POST(request: NextRequest) {
     const action = clean(input?.action, 30).toLowerCase();
 
     if (action === "request") {
-      const data = await backend(request, "request", {
+      const capability = await mine(request);
+      const payload = {
         category: clean(input?.category, 40), projectId: clean(input?.projectId, 60).toUpperCase(),
         subject: clean(input?.subject, 160), details: clean(input?.details, 800),
-      });
-      return NextResponse.json({ success: true, data });
+      };
+      if (!capability.categories.includes(payload.category)) return NextResponse.json({ success: false, error: "This certificate category is not supported by the current backend. Refresh certificates to see available categories." }, { status: 400 });
+      // Choose before the write; never retry an ambiguous mutation on another backend.
+      const data = capability.backendMode === "legacy"
+        ? await legacyClientBackend(request, "requestCertificate", { ...payload, certificateType: payload.category })
+        : await backend(request, "request", payload);
+      if (!data?.request?.requestId) throw new Error("The backend did not confirm a request ID. Refresh request history before trying again.");
+      return NextResponse.json({ success: true, data }, { headers });
     }
 
     if (action === "review") {
       const payload = {
         requestId: clean(input?.requestId, 80), decision: clean(input?.decision, 20), note: clean(input?.note, 400),
       };
-      try {
-        const data = await backend(request, "review", payload);
-        return NextResponse.json({ success: true, data });
-      } catch {
-        const data = await legacyClientBackend(request, "reviewRequest", payload);
-        return NextResponse.json({ success: true, data });
-      }
+      const capability = await adminRequests(request);
+      const data = capability.backendMode === "legacy"
+        ? await legacyClientBackend(request, "reviewRequest", payload)
+        : await backend(request, "review", payload);
+      if (!data?.request?.requestId) throw new Error("The backend did not confirm the review. Refresh request history before trying again.");
+      return NextResponse.json({ success: true, data }, { headers });
     }
 
     if (action === "link-issued") {
       const data = await backend(request, "linkIssued", {
         requestId: clean(input?.requestId, 80), certificateId: clean(input?.certificateId, 80).toUpperCase(),
       });
-      return NextResponse.json({ success: true, data });
+      if (!data?.request?.requestId) throw new Error("The backend did not confirm certificate linkage. Refresh request history before trying again.");
+      return NextResponse.json({ success: true, data }, { headers });
     }
 
     return NextResponse.json({ success: false, error: "Unknown certificate portal action." }, { status: 400 });

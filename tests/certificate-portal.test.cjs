@@ -7,7 +7,7 @@ const { NextRequest } = require('next/server');
 
 // Exercise the actual Next route and Apps Script handlers with in-memory sheets.
 // No production sessions, records or requests are used.
-function fixture() {
+function fixture(options = {}) {
   const rows = [];
   const certificates = [];
   const sessions = { client: {role:'client',name:'Test client',projectIds:['LV-1']}, admin: {role:'admin',userId:'TEST-ADMIN'}, other: {role:'client',projectIds:['LV-2']} };
@@ -25,19 +25,42 @@ function fixture() {
   gs.certPortalEnsureRequestSheet_ = () => ({});
   gs.certPortalRequestRows_ = () => rows.map((row,index) => ({...row,_row:index+2}));
   gs.certPortalWriteRequest_ = (_sheet,index,row) => { if(index) rows[index-2]={...row}; else rows.push({...row}); };
+  vm.runInContext(fs.readFileSync('ClientPortal.gs','utf8'),gs);
+  const headers = vm.runInContext('CLIENT_CERT_REQUEST_HEADERS_', gs);
+  const record = values => Object.fromEntries(headers.map((header,i)=>[header,values[i]]));
+  gs.getFinanceWorkbook_ = () => ({});
+  gs.clientPortalFindProject_ = () => ({row:{}});
+  gs.clientPortalClientName_ = (_row,fallback) => fallback;
+  gs.clientPortalMobileFromProject_ = () => '';
+  gs.clientCertificateRequests_ = () => rows.map((row,index)=>({...row,_row:index+2}));
+  gs.ensureClientCertificateRequestSheet_ = () => ({
+    getLastColumn:()=>headers.length,
+    getRange:row=>({getDisplayValues:()=>[headers],setValues:([values])=>{rows[row-2]=record(values);}}),
+    appendRow:values=>rows.push(record(values)),
+  });
+  gs.clientPortalWorkspace_ = params => {
+    const session=gs.clientPortalSession_(params);
+    if(options.malformed) return {success:true,data:{projects:[]}};
+    return {success:true,data:{client:{name:session.name},projects:(session.projectIds||[]).map(projectId=>({projectId,
+      certificateRequests:rows.filter(row=>row.Project_ID===projectId).map(gs.clientCertificatePublic_)}))}};
+  };
+  const operations=[];
   const module = {exports:{}};
   let calls = 0;
   const sandbox = vm.createContext({module,exports:module.exports,require,console,URL,
     process:{env:{LAND_VIEW_API_URL:'https://backend.example/exec',LAND_VIEW_PROXY_SECRET:'test-only',NODE_ENV:'test'}},
-    fetch: async (_url,options) => {
+    fetch: async (_url,fetchOptions) => {
       calls++;
-      const params = JSON.parse(options.body);
-      if (params._clientPortal === '1' && params.clientOp === 'reviewRequest') {
-        params._certificatePortal = '1'; params.certificatePortalOp = 'review';
-      }
-      assert.equal(params._certificatePortal,'1');
+      const params = JSON.parse(fetchOptions.body);
+      operations.push(params.clientOp || params.certificatePortalOp);
       assert.equal(params.action,'getPublicProjects');
-      try { return {text:async()=>JSON.stringify(gs.certificatePortalFromGateway_(params))}; }
+      try {
+        let result = params._clientPortal === '1' ? gs.clientPortalGateway_(params)
+          : options.legacy ? {success:true,data:{projects:[]}} : gs.certificatePortalFromGateway_(params);
+        if(options.ambiguous && params.clientOp==='requestCertificate') result={success:true,data:{}};
+        if(options.nested) result={success:true,data:result};
+        return {text:async()=>JSON.stringify(result)};
+      }
       catch(error) { return {text:async()=>JSON.stringify({success:false,error:error.message})}; }
     },
   });
@@ -48,7 +71,7 @@ function fixture() {
     const response = await module.exports[body?'POST':'GET'](req);
     return {status:response.status,...await response.json()};
   };
-  return {request,rows,certificates,calls:()=>calls};
+  return {request,rows,certificates,operations,calls:()=>calls};
 }
 
 test('one request flows through client history, admin approval and issued certificate linkage',async()=>{
@@ -73,7 +96,9 @@ test('one request flows through client history, admin approval and issued certif
   assert.equal(mine.data.requests[0].certificateId,'CERT-TEST');
   assert.equal(mine.data.certificates[0].certificateId,'CERT-TEST');
   assert.equal(mine.data.requests[0].adminNote,'Reviewed');
-  assert.deepEqual((await f.request('other')).data,{requests:[],certificates:[]});
+  const other=(await f.request('other')).data;
+  assert.deepEqual(other.requests,[]);
+  assert.deepEqual(other.certificates,[]);
 });
 
 test('project scope and admin review restrictions remain enforced',async()=>{
@@ -111,4 +136,46 @@ test('client certificate center renders one project-scoped form with all support
   assert.match(html,/SUBJECT \/ PURPOSE/);
   assert.match(html,/DETAILS FOR LAND VIEW/);
   assert.match(html,/<fieldset disabled=""/); // Loading must not allow an unverified submission.
+});
+
+
+test('legacy gateway restores scoped requests and admin review without claiming issued details',async()=>{
+  const f=fixture({legacy:true});
+  const mine=await f.request('client');
+  assert.equal(mine.success,true);
+  assert.equal(mine.data.certificatesAvailable,false);
+  assert.deepEqual(mine.data.categories,['project','building']);
+  const payload={action:'request',projectId:'LV-1',category:'building',subject:'Building completion',details:'Review please'};
+  const created=await f.request('client',payload);
+  assert.equal(created.success,true);
+  assert.equal(created.data.request.certificateType,'building');
+  assert.equal((await f.request('client',payload)).data.duplicate,true);
+  assert.equal(f.rows.length,1);
+  assert.equal((await f.request('client')).data.requests[0].category,'building');
+  assert.deepEqual((await f.request('other')).data.requests,[]);
+  assert.equal((await f.request('client',{...payload,projectId:'LV-2'})).success,false);
+  assert.equal((await f.request('client',{...payload,category:'structural_design'})).status,400);
+  const requestId=created.data.request.requestId;
+  assert.equal((await f.request('admin',null,'?mode=admin')).data.requests[0].requestId,requestId);
+  assert.equal((await f.request('admin',{action:'review',requestId,decision:'approved'})).data.request.status,'Approved');
+  assert.equal((await f.request('client',{action:'review',requestId,decision:'approved'})).success,false);
+});
+
+test('malformed legacy responses block writes and ambiguous writes are never retried',async()=>{
+  const payload={action:'request',projectId:'LV-1',category:'project',subject:'Test'};
+  const broken=fixture({legacy:true,malformed:true});
+  assert.equal((await broken.request('client')).status,502);
+  assert.equal((await broken.request('client',payload)).success,false);
+  assert.equal(broken.rows.length,0);
+  const uncertain=fixture({legacy:true,ambiguous:true});
+  assert.equal((await uncertain.request('client',payload)).success,false);
+  assert.equal(uncertain.rows.length,1);
+  assert.equal(uncertain.operations.filter(op=>op==='requestCertificate').length,1);
+});
+
+test('nested gateway envelopes are accepted and empty unified history stays unified',async()=>{
+  const f=fixture({nested:true});
+  assert.equal((await f.request('client')).data.backendMode,'unified');
+  assert.equal((await f.request('admin',null,'?mode=admin')).data.backendMode,'unified');
+  assert.deepEqual(f.operations,['mine','adminList']);
 });

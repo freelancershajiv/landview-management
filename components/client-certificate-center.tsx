@@ -30,7 +30,7 @@ function categoryLabel(category: string) { return categories.find(item => item.v
 function errorText(error: unknown) { return error instanceof Error ? error.message : "Certificate service is unavailable. Please retry."; }
 
 export default function ClientCertificateCenter({ projects, refreshKey, onSummary }: Props) {
-  const [data, setData] = useState<{ requests: RequestRow[]; certificates: CertificateRow[] } | null>(null);
+  const [data, setData] = useState<{ requests: RequestRow[]; certificates: CertificateRow[]; certificatesAvailable: boolean; categories: string[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [submitError, setSubmitError] = useState("");
@@ -44,6 +44,9 @@ export default function ClientCertificateCenter({ projects, refreshKey, onSummar
   const loadVersion = useRef({ version: 0 });
   const selectedProject = projects.some(project => project.projectId === projectId) ? projectId : projects[0]?.projectId || "";
 
+  const availableCategories = categories.filter(item => !data || data.categories.includes(item.value));
+  const selectedCategory = availableCategories.some(item => item.value === category) ? category : availableCategories[0]?.value || "project";
+
   const load = useCallback(() => {
     const version = ++loadVersion.current.version;
     return fetch("/api/certificate-portal", { cache: "no-store", credentials: "same-origin" }).then(async response => {
@@ -51,7 +54,7 @@ export default function ClientCertificateCenter({ projects, refreshKey, onSummar
       if (!response.ok || !json?.success) throw new Error(json?.error || "Could not load certificates.");
       if (!Array.isArray(json.data?.requests) || !Array.isArray(json.data?.certificates)) throw new Error("The certificate service returned an incomplete response. Please retry.");
       if (version !== loadVersion.current.version) return;
-      const next = { requests: json.data.requests as RequestRow[], certificates: json.data.certificates as CertificateRow[] };
+      const next = { requests: json.data.requests as RequestRow[], certificates: json.data.certificates as CertificateRow[], certificatesAvailable: json.data.certificatesAvailable !== false, categories: Array.isArray(json.data.categories) ? json.data.categories : categories.map(item => item.value) };
       setLoadError("");
       setData(next);
       onSummary({ total: next.requests.length, pending: next.requests.filter(row => row.status.toLowerCase() === "pending").length });
@@ -75,7 +78,7 @@ export default function ClientCertificateCenter({ projects, refreshKey, onSummar
     try {
       const response = await fetch("/api/certificate-portal", {
         method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin",
-        body: JSON.stringify({ action: "request", projectId: selectedProject, category, subject: subject.trim(), details: details.trim() }),
+        body: JSON.stringify({ action: "request", projectId: selectedProject, category: selectedCategory, subject: subject.trim(), details: details.trim() }),
       });
       const json = await response.json();
       if (!response.ok || !json?.success) throw new Error(json?.error || "Could not submit certificate request.");
@@ -104,7 +107,7 @@ export default function ClientCertificateCenter({ projects, refreshKey, onSummar
         <fieldset disabled={busy || loading || !!loadError || !selectedProject} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>
           <div className="form-grid">
             <label className="form-field"><span>PROJECT</span><select value={selectedProject} onChange={event => setProjectId(event.target.value)} required>{!selectedProject && <option value="">No project available</option>}{projects.map(project => <option key={project.projectId} value={project.projectId}>{project.projectId}{project.projectName ? ` · ${project.projectName}` : ""}</option>)}</select></label>
-            <label className="form-field"><span>CERTIFICATE CATEGORY</span><select value={category} onChange={event => { setCategory(event.target.value); setSubject(categoryLabel(event.target.value)); }}>{categories.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+            <label className="form-field"><span>CERTIFICATE CATEGORY</span><select value={selectedCategory} onChange={event => { setCategory(event.target.value); setSubject(categoryLabel(event.target.value)); }}>{availableCategories.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
             <label className="form-field" style={{ gridColumn: "1 / -1" }}><span>SUBJECT / PURPOSE</span><input value={subject} onChange={event => setSubject(event.target.value)} maxLength={160} required /></label>
             <label className="form-field" style={{ gridColumn: "1 / -1" }}><span>DETAILS FOR LAND VIEW</span><textarea value={details} onChange={event => setDetails(event.target.value)} maxLength={800} style={{ minHeight: 110 }} placeholder="Describe the purpose or wording needed for your certificate." /></label>
           </div>
@@ -122,11 +125,12 @@ export default function ClientCertificateCenter({ projects, refreshKey, onSummar
         <td><span className={`${styles.status} ${statusClass(row.status)}`}>{row.status || "Pending"}</span></td><td>{row.certificateId || "—"}</td>
       </tr>)}</tbody></table></div>
       {!data.requests.length && <div className={styles.empty}><h3>No requests yet</h3><p>Submitted requests and review updates will appear here.</p></div>}
-      <div className={styles.projectHeader}><h3>Issued certificates <span>({data.certificates.length})</span></h3></div>
+      <div className={styles.projectHeader}><h3>Issued certificates {data.certificatesAvailable && <span>({data.certificates.length})</span>}</h3></div>
       <div className={styles.tableWrap}><table><thead><tr><th>Certificate ID / project</th><th>Category</th><th>Subject</th><th>Status</th><th>Issued</th></tr></thead><tbody>{data.certificates.map(certificate => <tr key={certificate.certificateId}>
         <td><strong>{certificate.certificateId}</strong><small>{certificate.reference}</small></td><td>{categoryLabel(certificate.category || certificate.type)}</td><td><span className={styles.projectName}>{certificate.subject || "Certificate"}</span></td><td><span className={`${styles.status} ${statusClass(certificate.status)}`}>{certificate.status || "Active"}</span></td><td>{dateText(certificate.issuedAt)}</td>
       </tr>)}</tbody></table></div>
-      {!data.certificates.length && <div className={styles.empty}><h3>No certificates issued yet</h3><p>Certificates issued for your project will appear here.</p></div>}
+      {!data.certificatesAvailable && <div className={styles.empty}><p>Issued-certificate details are unavailable from the current service. Any linked certificate IDs are shown in request history above.</p></div>}
+      {data.certificatesAvailable && !data.certificates.length && <div className={styles.empty}><h3>No certificates issued yet</h3><p>Certificates issued for your project will appear here.</p></div>}
     </>}
   </section>;
 }
