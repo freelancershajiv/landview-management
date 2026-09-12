@@ -121,6 +121,17 @@ export const publicServices: PublicService[] = [
     keywords: ["soil test Feni", "SPT test Feni", "geotechnical investigation Bangladesh", "soil investigation Feni"],
     icon: "◉",
   },
+  {
+    slug: "site-supervision",
+    name: "Site Supervision",
+    shortDescription: "Scheduled site visits, construction observations and design-to-site coordination for building projects.",
+    description: "Site supervision and construction coordination in Bangladesh from LAND VIEW, Feni. Discuss scheduled visits, reporting and drawing-related site support.",
+    intro: "Site supervision connects the drawing package with questions arising during construction. We agree on the visit schedule, reporting and responsibilities around the project location and construction stage, so the client and construction team know what support is included.",
+    highlights: ["Scheduled site visits", "Construction observations", "Drawing and site coordination", "Follow-up documentation"],
+    deliverables: ["Agreed visit schedule", "Site observations and instructions", "Design queries for coordination", "Visit records and follow-up items"],
+    keywords: ["site supervision Bangladesh", "construction supervision Feni"],
+    icon: "⌂",
+  },
 ];
 
 export function getPublicService(slug: string) {

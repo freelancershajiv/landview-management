@@ -41,6 +41,11 @@ export function proxy(request: NextRequest) {
   const host = normalizeHost(request.headers.get("host"));
   const path = request.nextUrl.pathname;
 
+  // Public content has one production URL; keep workspaces on the app host.
+  if (host === "app.landview.com.bd" && (path === "/services" || path.startsWith("/services/") || path === "/projects" || path.startsWith("/projects/") || path === "/team" || path === "/contact")) {
+    return NextResponse.redirect(new URL(path + request.nextUrl.search, "https://www.landview.com.bd"), 308);
+  }
+
   if (host === "app.landview.com.bd" && path === "/") {
     return NextResponse.redirect(new URL("/login", request.url));
   }
@@ -63,7 +68,11 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  if (host === "app.landview.com.bd" || isProtectedPath(path) || path === "/login" || path.startsWith("/verify/") || path.startsWith("/certificate/verify/")) {
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+  }
+  return response;
 }
 
 export const config = {

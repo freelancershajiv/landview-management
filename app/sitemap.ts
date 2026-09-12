@@ -2,23 +2,9 @@ import type { MetadataRoute } from "next";
 import { getPublicProjectsForSeo } from "@/lib/public-projects-server";
 import { publicServices } from "@/lib/public-services";
 
+export const dynamic = "force-dynamic";
+
 const baseUrl = "https://www.landview.com.bd";
-
-function safeProjectLastModified(value: unknown): Date | undefined {
-  const raw = String(value ?? "").trim();
-  if (!raw) return undefined;
-
-  // Accept a clean four-digit year without allowing malformed project data
-  // to make the entire sitemap return HTTP 500.
-  const yearMatch = raw.match(/^(19|20)\d{2}$/);
-  if (yearMatch) {
-    const date = new Date(`${raw}-01-01T00:00:00.000Z`);
-    return Number.isNaN(date.getTime()) ? undefined : date;
-  }
-
-  const parsed = new Date(raw);
-  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
-}
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let projects: Awaited<ReturnType<typeof getPublicProjectsForSeo>> = [];
@@ -34,10 +20,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const projectEntries: MetadataRoute.Sitemap = projects
     .filter((project) => String(project.projectId || "").trim())
     .map((project) => {
-      const lastModified = safeProjectLastModified(project.completionYear);
       return {
         url: `${baseUrl}/projects/${encodeURIComponent(String(project.projectId))}`,
-        ...(lastModified ? { lastModified } : {}),
         changeFrequency: "monthly" as const,
         priority: 0.8,
         images: project.coverImageUrl ? [String(project.coverImageUrl)] : undefined,
@@ -54,6 +38,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: baseUrl, changeFrequency: "weekly", priority: 1 },
     { url: `${baseUrl}/services`, changeFrequency: "monthly", priority: 0.95 },
     ...serviceEntries,
+    { url: `${baseUrl}/contact`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${baseUrl}/team`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${baseUrl}/projects`, changeFrequency: "weekly", priority: 0.9 },
     ...projectEntries,
   ];

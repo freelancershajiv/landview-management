@@ -9,7 +9,7 @@ const nav = [
   { href: "/services", label: "Services" },
   { href: "/projects", label: "Projects" },
   { href: "/team", label: "Team" },
-  { href: "/#contact", label: "Contact" },
+  { href: "/contact", label: "Contact" },
 ];
 
 const headerCss = `

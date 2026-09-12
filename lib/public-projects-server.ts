@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 export type PublicProjectSeo = {
   projectId?: string;
   title?: string;
@@ -38,7 +40,7 @@ export function normalizePublicImageUrl(url?: string) {
   return value;
 }
 
-export async function getPublicProjectsForSeo(): Promise<PublicProjectSeo[]> {
+export const getPublicProjectsForSeo = cache(async function getPublicProjectsForSeo(): Promise<PublicProjectSeo[]> {
   if (!APPS_SCRIPT_URL || !PROXY_SECRET) return [];
 
   try {
@@ -48,6 +50,7 @@ export async function getPublicProjectsForSeo(): Promise<PublicProjectSeo[]> {
       body: JSON.stringify({ action: "getPublicProjects", proxySecret: PROXY_SECRET }),
       cache: "no-store",
       redirect: "follow",
+      signal: AbortSignal.timeout(8000),
     });
 
     if (!response.ok) return [];
@@ -58,7 +61,7 @@ export async function getPublicProjectsForSeo(): Promise<PublicProjectSeo[]> {
   } catch {
     return [];
   }
-}
+});
 
 export async function getPublicProjectForSeo(projectId: string) {
   const id = decodeURIComponent(String(projectId || "")).trim();

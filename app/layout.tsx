@@ -8,13 +8,13 @@ import "./app-brand-theme.css";
 import "./action-feedback.css";
 import "./portal-experiences.css";
 
-const siteUrl = "https://landview.com.bd";
+import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    default: "LAND VIEW Engineers & Architects | Feni, Bangladesh",
-    template: "%s | LAND VIEW Engineers & Architects",
+    default: "Engineering & Architectural Consultancy in Bangladesh | LAND VIEW",
+    template: "%s | LAND VIEW",
   },
   description:
     "LAND VIEW Engineers & Architects is an architectural and engineering consultancy in Feni, Bangladesh offering architectural design, structural design, exterior and interior 3D design, electrical and plumbing design, estimate and costing, plan approval, digital survey and soil testing.",
@@ -35,7 +35,6 @@ export const metadata: Metadata = {
     "digital survey Bangladesh",
     "soil test Bangladesh",
   ],
-  alternates: { canonical: "/" },
   manifest: "/manifest.json",
   robots: {
     index: true,
@@ -53,14 +52,14 @@ export const metadata: Metadata = {
     locale: "en_BD",
     url: siteUrl,
     siteName: "LAND VIEW Engineers & Architects",
-    title: "LAND VIEW Engineers & Architects | Feni, Bangladesh",
+    title: "Engineering & Architectural Consultancy in Bangladesh | LAND VIEW",
     description:
       "Architectural design, structural engineering, 3D design and complete building consultancy services in Feni, Bangladesh.",
     images: [{ url: "/land-view-logo.png", alt: "LAND VIEW Engineers & Architects" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "LAND VIEW Engineers & Architects | Feni, Bangladesh",
+    title: "Engineering & Architectural Consultancy in Bangladesh | LAND VIEW",
     description: "Architecture, structural engineering and complete building consultancy services in Feni, Bangladesh.",
     images: ["/land-view-logo.png"],
   },
@@ -68,46 +67,6 @@ export const metadata: Metadata = {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
     shortcut: "/favicon.svg",
     apple: "/favicon.svg",
-  },
-};
-
-const organizationSchema = {
-  "@context": "https://schema.org",
-  "@type": "ProfessionalService",
-  "@id": `${siteUrl}/#organization`,
-  name: "LAND VIEW Engineers & Architects",
-  url: siteUrl,
-  logo: `${siteUrl}/land-view-logo.png`,
-  image: `${siteUrl}/land-view-logo.png`,
-  description:
-    "Architectural and engineering consultancy providing architectural design, structural design, 3D exterior and interior design, electrical and plumbing design, estimate and costing, plan approval, digital survey and soil testing.",
-  areaServed: {
-    "@type": "Country",
-    name: "Bangladesh",
-  },
-  address: {
-    "@type": "PostalAddress",
-    addressLocality: "Feni",
-    addressCountry: "BD",
-  },
-  hasOfferCatalog: {
-    "@type": "OfferCatalog",
-    name: "Architecture and Engineering Services",
-    itemListElement: [
-      "Architectural Design",
-      "Structural Design",
-      "3D Design - Exterior",
-      "3D Design - Interior",
-      "Electrical Design",
-      "Plumbing Design",
-      "Estimate & Costing",
-      "Plan Approval",
-      "Digital Survey",
-      "Soil Test",
-    ].map((name) => ({
-      "@type": "Offer",
-      itemOffered: { "@type": "Service", name },
-    })),
   },
 };
 
@@ -120,7 +79,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ContactMapEnhancer />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: JSON.stringify(organizationSchema) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd({ "@context": "https://schema.org", "@graph": [businessSchema, { "@type": "WebSite", "@id": `${siteUrl}/#website`, url: siteUrl, name: "LAND VIEW Engineers & Architects", publisher: { "@id": `${siteUrl}/#organization` } }] }) }}
         />
       </body>
     </html>
