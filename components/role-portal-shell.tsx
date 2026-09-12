@@ -30,8 +30,7 @@ const clientNav = [
   { href: "/client#project", label: "Project" },
   { href: "/client#workflow", label: "Workflow" },
   { href: "/client#finance", label: "Finance" },
-  { href: "/client#certificates", label: "Requests" },
-  { href: "/client#certificate-center", label: "Certificates" },
+  { href: "/client#certificates", label: "Certificates" },
 ];
 
 export default function RolePortalShell({ portal, children }: { portal: PortalType; children: ReactNode }) {
