@@ -214,6 +214,8 @@ function handleAction(
 
   switch (action) {
     case "getFinanceSheet": return getFinanceSheet(params);
+    case "getChairmanPendingApprovals": return getChairmanPendingApprovals(params);
+    case "reviewChairmanPendingApproval": return reviewChairmanPendingApproval(params);
 
     case "health":
       return health();
@@ -485,7 +487,7 @@ function authorizeActionRequest(action, params) {
 
   // These actions are available to every authenticated role.
   // They are NOT public because requireSession() has already succeeded.
-  const sharedAuthenticatedActions = ["getSession", "logout"];
+  const sharedAuthenticatedActions = ["getSession", "logout", "getChairmanPendingApprovals", "reviewChairmanPendingApproval"];
   if (sharedAuthenticatedActions.includes(action)) return session;
 
   const role = normalizeRoleName(session.role);
