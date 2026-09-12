@@ -1,8 +1,8 @@
 /* LAND VIEW brand foundation and three independent workspace compositions. */
 :root { --brand-red:#d61f26; --brand-red-hover:#ad171d; }
-.portal-admin,.portal-employee,.portal-client { --portal-accent:var(--brand-red); --portal-ink:#f3f4f4; --portal-muted:#adb6bf; --portal-panel:#14191f; --portal-panel-2:#1a2027; --portal-line:#343d46; min-width:0; }
-.portal-employee,.portal-client { --portal-ink:#202731; --portal-muted:#596572; --portal-panel:#fff; --portal-panel-2:#f0f3f6; --portal-line:#d7dee5; --lv-text:var(--portal-ink); --lv-muted:var(--portal-muted); --lv-border:var(--portal-line); --lv-surface:#fff; --lv-paper:#f0f3f6; --app-muted:var(--portal-muted); background:#f0f3f6!important; color:var(--portal-ink)!important; }
-.portal-client {background:#fff!important;--portal-panel-2:#f6f7f8;}
+.portal-admin,.portal-employee,.portal-client { --portal-accent:var(--brand-red); --portal-ink:#f3f4f4; --portal-muted:#adb6bf; --portal-panel:#14191f; --portal-panel-2:#1a2027; --portal-line:#343d46; --portal-input:#0d1117; --portal-accent-text:#ff8589; color-scheme:dark; min-width:0; }
+.portal-employee,.portal-client { --portal-ink:#f3f4f6; --portal-muted:#b3bdc8; --portal-panel:#171d25; --portal-panel-2:#202833; --portal-line:#3a4653; --lv-text:var(--portal-ink); --lv-muted:var(--portal-muted); --lv-border:var(--portal-line); --lv-surface:var(--portal-panel); --lv-paper:#10151c; --app-muted:var(--portal-muted); background:#10151c!important; color:var(--portal-ink)!important; }
+.portal-client {background:#0d1015!important;--portal-panel:#161b23;--portal-panel-2:#202630;--portal-line:#38414e;}
 .portal-header {display:flex;align-items:center;gap:24px;padding:20px 32px;background:var(--portal-panel);border-bottom:1px solid var(--portal-line);}
 .portal-brand {display:flex;gap:12px;align-items:center;color:var(--portal-ink);min-width:0;}
 .portal-brand img{width:48px;height:48px;object-fit:contain;}
@@ -16,7 +16,7 @@
 .portal-menu{display:none;}
 .portal-navigation{display:flex;flex-wrap:wrap;gap:4px;padding:10px 32px;background:var(--portal-panel);border-bottom:1px solid var(--portal-line);}
 .portal-navigation a{display:flex;align-items:center;min-height:44px;padding:10px 16px;font-size:14px;color:var(--portal-ink);border-radius:6px;}
-.portal-navigation a:hover,.portal-navigation a:focus-visible{background:var(--portal-panel-2);color:var(--brand-red);}
+.portal-navigation a:hover,.portal-navigation a:focus-visible{background:var(--portal-panel-2);color:var(--portal-accent-text);}
 .portal-client .portal-header{max-width:1200px;margin:auto;padding-top:32px;border:0;}
 .portal-client .portal-brand strong{font-family:Georgia,serif;}
 .portal-client .portal-navigation{max-width:1136px;margin:auto;padding:6px 0 16px;background:transparent;gap:12px;}
@@ -27,12 +27,12 @@
 .portal-employee :is(h1,h2,h3,h4,strong),.portal-client :is(h1,h2,h3,h4,strong){color:var(--portal-ink)!important;}
 .portal-employee :is(p,small,.muted),.portal-client :is(p,small,.muted){color:var(--portal-muted)!important;}
 .portal-employee :is(.card,.ec-row,.ec-card,.ec-mini>div),.portal-client :is(.card,.cp-mini>div,.cp-request,.cp-modal-card){background:var(--portal-panel)!important;border-color:var(--portal-line)!important;color:var(--portal-ink)!important;box-shadow:none!important;}
-.portal-employee :is(input,select,textarea),.portal-client :is(input,select,textarea){background:#fff!important;color:var(--portal-ink)!important;border-color:var(--portal-line)!important;font-size:16px;}
+.portal-employee :is(input,select,textarea),.portal-client :is(input,select,textarea){background:var(--portal-input)!important;color:var(--portal-ink)!important;border-color:var(--portal-line)!important;font-size:16px;}
 .portal-employee :is(th,td),.portal-client :is(th,td){background:var(--portal-panel)!important;color:var(--portal-ink)!important;border-color:var(--portal-line)!important;font-size:14px;}
 .portal-employee th,.portal-client th{background:var(--portal-panel-2)!important;}
 .portal-employee tr:hover td,.portal-client tr:hover td{background:var(--portal-panel-2)!important;}
 .portal-employee .ec-row{border-radius:4px;border-width:0 0 1px;padding:16px 0;}
-.portal-employee .ec-icon{background:#fce9ea;color:var(--brand-red);}
+.portal-employee .ec-icon{background:#352027;color:var(--portal-accent-text);}
 .portal-employee :is(.ec-row strong,.ec-card strong,.ec-card a),.portal-client :is(.cp-request strong,.cp-primary,.cp-secondary){font-size:14px;}
 .portal-employee :is(.ec-row small,.ec-card small,.ec-mini span),.portal-client :is(.cp-mini small,.cp-request small,.cp-field span){font-size:12px;}
 .portal-client :is(.cp-primary,.cp-secondary){height:auto;min-height:44px;white-space:normal;}
@@ -73,7 +73,7 @@
 :is(.portal-admin,.portal-employee,.portal-client) :is(.modal,.modal.card){max-width:calc(100vw - 32px);max-height:calc(100dvh - 32px);overflow-y:auto;}
 :is(.portal-admin,.portal-employee,.portal-client) :is(.ec-section,.cp-section,[id]){scroll-margin-top:24px;}
 :is(.portal-admin,.portal-employee,.portal-client) :focus-visible{outline:3px solid #e3474d!important;outline-offset:3px;}
-.portal-skip{position:fixed;top:8px;left:8px;z-index:200;transform:translateY(-160%);padding:12px 20px;background:white;color:#111;}
+.portal-skip{position:fixed;top:8px;left:8px;z-index:200;transform:translateY(-160%);padding:12px 20px;background:#202833;color:#fff;}
 .portal-skip:focus{transform:none;}
 /* Login keeps its compact role-specific form within the first mobile screen. */
 .lv-login[data-portal] .lv-main{align-items:start;}
@@ -120,11 +120,20 @@
 }
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;}}
 
-/* Keep legacy global theme rules from leaking into the light workspaces. */
+/* Keep legacy global theme rules from leaking between the role workspaces. */
 .portal-employee,.portal-client{--premium-text:var(--portal-ink);--premium-muted:var(--portal-muted);--premium-line:var(--portal-line);}
-.portal-employee select option,.portal-client select option{background:white;color:var(--portal-ink);}
+.portal-employee select option,.portal-client select option{background:var(--portal-input);color:var(--portal-ink);}
 .portal-admin .primary-nav a.active{background:var(--brand-red)!important;color:white!important;}
 .portal-navigation a[aria-current="location"]{background:var(--brand-red);color:white;}
 .portal-client .portal-navigation a[aria-current="location"]{border-color:var(--brand-red);}
 .portal-admin .primary-nav-inner{padding:0;}
 .portal-client .cp-modal-card .cp-field span{color:var(--portal-muted);}
+
+/* Dark form and interaction states across management, team and client pages. */
+:is(.portal-admin,.portal-employee,.portal-client) :is(input,textarea)::placeholder{color:#9daaba;opacity:1;}
+:is(.portal-admin,.portal-employee,.portal-client) :is(input,select,textarea):disabled{color:#9daaba!important;opacity:.65;cursor:not-allowed;}
+:is(.portal-admin,.portal-employee,.portal-client) :is(button,fieldset):disabled{opacity:.6;cursor:not-allowed;}
+.portal-account :is(a,button):hover,.portal-menu:hover{background:var(--portal-panel-2);border-color:#788391;}
+.portal-employee .portal-header{border-top:3px solid var(--brand-red);}
+.portal-client .portal-header{background:transparent;}
+.portal-employee .form-field>span,.portal-client .form-field>span{color:var(--portal-accent-text)!important;}

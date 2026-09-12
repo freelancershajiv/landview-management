@@ -139,6 +139,6 @@
 :global(.portal-client) .dueMetric,:global(.portal-employee) .dueMetric {background:var(--portal-panel)!important;}
 :global(.portal-client) .moduleIcon,:global(.portal-employee) .moduleIcon,:global(.portal-client) .primary,:global(.portal-employee) .primary {color:white!important;}
 :global(.portal-client) .root .metric strong,:global(.portal-employee) .root .metric strong {color:var(--portal-ink)!important;}
-:global(.portal-client) .attentionBadge,:global(.portal-employee) .attentionBadge {background:var(--portal-panel-2);color:var(--portal-accent)!important;border-color:var(--portal-line);width:auto;white-space:nowrap;}
+:global(.portal-client) .attentionBadge,:global(.portal-employee) .attentionBadge {background:var(--portal-panel-2);color:var(--portal-accent-text)!important;border-color:var(--portal-line);width:auto;white-space:nowrap;}
 @media(max-width:650px){:global(.portal-employee) .metrics,:global(.portal-client) .metrics {grid-template-columns:repeat(2,minmax(0,1fr));}.panelTop{flex-wrap:wrap}.collectionBody{flex-wrap:wrap}.header,.actions,.projectTools{min-width:0;flex-wrap:wrap}}
 @media(max-width:380px){:global(.portal-employee) .metrics,:global(.portal-client) .metrics{grid-template-columns:1fr;}}
