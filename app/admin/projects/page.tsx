@@ -1,93 +1,346 @@
 "use client";
+
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
-import { EmptyState, ErrorState, LoadingState, Money, PageHeader, StatusBadge, pick } from "@/components/lv-ui";
+import { ErrorState, LoadingState, PageHeader, StatusBadge, pick } from "@/components/lv-ui";
 
-type PublicProjectPreview={projectId?:string;coverImageUrl?:string};
-type ProjectFinance={billed:number;paid:number;due:number;status:string};
-type ProjectCategory="Running"|"Paused"|"Completed";
-type DriveProjectInfo={found:boolean;category?:ProjectCategory;projectFolderId?:string;projectFolderName?:string;projectFolderUrl?:string;folders?:Array<{name:string;id:string;url:string}>};
-type InvoiceProject={Project_ID:string;Project_Name:string;Client_Name:string;Phone_Number:string;Location:string;Floors:string;Project_Type:string;Plot_Area:string;Status:ProjectCategory};
-type DriveIndexResponse={bulk:true;category?:string;projects:Record<string,any>};
-type ProjectCache={savedAt:number;projects:InvoiceProject[];drive:Record<string,DriveProjectInfo>;finance:Record<string,ProjectFinance>;previews:Record<string,string>};
+type ProjectCategory = "Running" | "Paused" | "Completed";
+type ProjectRow = Record<string, unknown> & {
+  Project_ID?: string;
+  Project_Name?: string;
+  Client_Name?: string;
+  Project_Type?: string;
+  Location?: string;
+  Status?: string;
+  Public_Display?: unknown;
+  Drive_Folder_URL?: string;
+  __sheetBacked?: boolean;
+};
 
-const CACHE_KEY="landview-projects-fast-v3";
-const CACHE_TTL=5*60*1000;
+type TaskRow = Record<string, unknown> & {
+  Task_ID?: string;
+  Project_ID?: string;
+  Task_Title?: string;
+  Assigned_Employee_ID?: string;
+};
 
-function imageUrl(url?:string){const value=String(url||"").trim();if(!value)return "";const fileMatch=value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);if(fileMatch?.[1])return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileMatch[1])}&sz=w900`;try{const parsed=new URL(value);if(parsed.hostname==="drive.google.com"){const id=parsed.searchParams.get("id");if(id)return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w900`;}}catch{}return value;}
-function isExteriorDocument(document:any){const type=String(pick(document,["Document_Type","Document Type","Type"],"")).trim().toLowerCase();const name=String(pick(document,["Document_Name","Document Name","Name"],"")).trim().toLowerCase();return type==="3d design - exterior"&&/\.(jpe?g|png|webp)$/i.test(name);}
-function normalizeFinanceId(value:unknown){const raw=String(value||"").trim().toUpperCase();if(!raw)return "";const digits=raw.replace(/\D/g,"");if(!digits)return raw;return `LV-${Number(digits)}`;}
-function normalizeProjectCategory(value:unknown):ProjectCategory{const status=String(value||"").trim().toLowerCase();if(/complete|completed|done|closed|finish/.test(status))return "Completed";if(/pause|paused|hold|inactive|cancel/.test(status))return "Paused";return "Running";}
-function folderDisplayName(folderName:string,id:string){const cleaned=String(folderName||"").replace(new RegExp(`^${id.replace("-","[- _]?")}\\s*[-–—:]?\\s*`,"i"),"").trim();return cleaned||id;}
-function moneyNumber(value:unknown){const n=Number(String(value??0).replace(/,/g,"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0;}
-function buildFinanceMap(rows:string[][]){const map:Record<string,ProjectFinance>={};rows.forEach(row=>{const id=normalizeFinanceId(row[0]);if(!id)return;const gross=moneyNumber(row[3])+moneyNumber(row[7])+moneyNumber(row[11]);const discount=moneyNumber(row[4])+moneyNumber(row[8])+moneyNumber(row[12]);const paid=moneyNumber(row[5])+moneyNumber(row[9])+moneyNumber(row[13]);const due=moneyNumber(row[15]);map[id]={billed:gross-discount,paid,due,status:String(row[16]||"").trim()||(due>0?"Due":"Full Paid")};});return map;}
-function buildFileListMap(rows:string[][]){const map:Record<string,string[]>={};rows.forEach(row=>{const id=normalizeFinanceId(row[0]);if(id)map[id]=row;});return map;}
-function buildProjectsFromDrive(source:Record<string,any>,fileRows:string[][]=[]):{projects:InvoiceProject[];drive:Record<string,DriveProjectInfo>}{const files=buildFileListMap(fileRows);const drive:Record<string,DriveProjectInfo>={};const projects:InvoiceProject[]=[];Object.entries(source||{}).forEach(([rawId,item])=>{const id=normalizeFinanceId(rawId||item?.projectId);if(!id)return;const row=files[id]||[];const category=normalizeProjectCategory(item?.category||"Running");const folderName=String(item?.projectFolderName||"").trim();const fileName=String(row[1]||"").trim();const fallback=folderDisplayName(folderName,id);projects.push({Project_ID:id,Project_Name:fileName||fallback,Client_Name:fileName||fallback,Phone_Number:String(row[3]||"").trim(),Location:String(row[2]||"").trim(),Floors:String(row[4]||"").trim(),Project_Type:String(row[5]||"").trim(),Plot_Area:String(row[6]||"").trim(),Status:category});drive[id]={found:true,category,projectFolderId:item?.projectFolderId,projectFolderName:folderName,projectFolderUrl:item?.projectFolderUrl,folders:item?.folders||[]};});projects.sort((a,b)=>Number(b.Project_ID.replace("LV-",""))-Number(a.Project_ID.replace("LV-","")));return{projects,drive};}
-function enrichProjects(current:InvoiceProject[],fileRows:string[][]){const files=buildFileListMap(fileRows);return current.map(project=>{const row=files[project.Project_ID];if(!row)return project;const name=String(row[1]||"").trim()||project.Project_Name;return{...project,Project_Name:name,Client_Name:name,Phone_Number:String(row[3]||"").trim(),Location:String(row[2]||"").trim(),Floors:String(row[4]||"").trim(),Project_Type:String(row[5]||"").trim(),Plot_Area:String(row[6]||"").trim()};});}
-function mergeProjects(current:InvoiceProject[],incoming:InvoiceProject[]){const map=new Map<string,InvoiceProject>();current.forEach(p=>map.set(p.Project_ID,p));incoming.forEach(p=>map.set(p.Project_ID,p));return Array.from(map.values()).sort((a,b)=>Number(b.Project_ID.replace("LV-",""))-Number(a.Project_ID.replace("LV-","")));}
-function buildDocumentPreviewMap(documents:any[]){const grouped:Record<string,any[]>={};documents.filter(isExteriorDocument).forEach(document=>{const projectId=normalizeFinanceId(pick(document,["Project_ID","Project ID","ProjectId"],""));if(!projectId)return;(grouped[projectId] ||= []).push(document);});const map:Record<string,string>={};Object.entries(grouped).forEach(([projectId,rows])=>{rows.sort((a,b)=>{const an=String(pick(a,["Document_Name","Document Name","Name"],""));const bn=String(pick(b,["Document_Name","Document Name","Name"],""));const af=/^front\.(jpe?g|png|webp)$/i.test(an)?0:1;const bf=/^front\.(jpe?g|png|webp)$/i.test(bn)?0:1;return af-bf||an.localeCompare(bn,undefined,{numeric:true,sensitivity:"base"});});const cover=imageUrl(String(pick(rows[0],["File_URL","File URL","URL","Document_URL"],"")));if(cover)map[projectId]=cover;});return map;}
-function readCache():ProjectCache|null{try{const raw=sessionStorage.getItem(CACHE_KEY);if(!raw)return null;const parsed=JSON.parse(raw) as ProjectCache;if(!parsed?.savedAt||Date.now()-parsed.savedAt>CACHE_TTL)return null;return parsed;}catch{return null;}}
-function writeCache(value:Omit<ProjectCache,"savedAt">){try{sessionStorage.setItem(CACHE_KEY,JSON.stringify({savedAt:Date.now(),...value}));}catch{}}
-async function getDriveIndex(category:ProjectCategory):Promise<DriveIndexResponse>{const url=new URL("/api/landview",window.location.origin);url.searchParams.set("action","getProjectServiceFolders");url.searchParams.set("bulk","1");url.searchParams.set("category",category);const response=await fetch(url.toString(),{method:"GET",cache:"no-store",credentials:"same-origin"});const json=await response.json();if(!response.ok||!json?.success)throw new Error(String(json?.error||`Could not load ${category} projects.`));return json.data as DriveIndexResponse;}
+type EmployeeRow = Record<string, unknown> & { Employee_ID?: string };
+type DriveIndexResponse = { projects?: Record<string, any> };
 
-export default function ProjectsPage(){
-  const [projects,setProjects]=useState<InvoiceProject[]>([]);const [previews,setPreviews]=useState<Record<string,string>>({});const [finance,setFinance]=useState<Record<string,ProjectFinance>>({});const [drive,setDrive]=useState<Record<string,DriveProjectInfo>>({});const [loading,setLoading]=useState(true);const [backgroundLoading,setBackgroundLoading]=useState(false);const [error,setError]=useState("");const [query,setQuery]=useState("");const [category,setCategory]=useState<"All"|ProjectCategory>("Running");const mounted=useRef(true);
+const css = `
+.projects-register{display:grid;gap:18px}.projects-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.projects-toolbar-left{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.projects-search{min-width:min(100%,360px);height:42px;padding:0 13px;border:1px solid rgba(255,255,255,.13);border-radius:8px;background:#111b24;color:#f4f6f8}.projects-search::placeholder{color:#75818c}.filter-btn{height:38px;padding:0 13px;border:1px solid rgba(255,255,255,.12);border-radius:999px;background:#121c25;color:#9ba7b1;font-size:12px;font-weight:700;cursor:pointer}.filter-btn.active{border-color:#d61f26;background:#d61f26;color:#fff}.refresh-btn{height:40px;padding:0 14px;border:1px solid rgba(255,255,255,.13);border-radius:8px;background:#18232d;color:#fff;font-size:12px;font-weight:800;cursor:pointer}.register-shell{overflow:hidden;border:1px solid rgba(255,255,255,.11);border-radius:12px;background:#0e1720}.register-scroll{overflow-x:auto}.project-table{width:100%;min-width:1080px;border-collapse:collapse}.project-table th{padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.1);background:#141e28;color:#8996a1;text-align:left;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.project-table td{padding:14px;border-bottom:1px solid rgba(255,255,255,.075);background:#0f1821;color:#dce2e7;font-size:12px;vertical-align:middle}.project-table tbody tr:hover>td{background:#121e28}.project-table tbody tr:last-child>td{border-bottom:0}.project-main{display:flex;align-items:center;gap:11px;min-width:230px}.project-id{display:grid;place-items:center;min-width:68px;height:32px;padding:0 8px;border:1px solid rgba(214,31,38,.35);border-radius:6px;background:rgba(214,31,38,.08);color:#ff736c;font-size:11px;font-weight:900}.project-main strong,.project-main small{display:block}.project-main strong{color:#f5f7f8;font-size:13px}.project-main small{margin-top:3px;color:#77838d;font-size:11px}.muted{color:#8c98a2}.service-summary{display:flex;align-items:center;gap:8px;min-width:170px}.service-summary b{color:#fff}.team-button{border:1px solid rgba(255,255,255,.13);border-radius:7px;background:#18232d;color:#e8edf0;padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer}.team-button:hover{border-color:#d61f26;color:#ff8179}.drive-link{color:#f07a72;font-weight:800;text-decoration:none}.drive-link:hover{text-decoration:underline}.open-link{display:inline-flex;align-items:center;gap:5px;color:#dfe5e9;font-weight:800;text-decoration:none}.open-link:hover{color:#ff8179}.public-cell{position:sticky;right:0;z-index:2;min-width:150px;background:#111b24!important;box-shadow:-10px 0 18px rgba(0,0,0,.16)}.project-table th.public-cell{z-index:4;background:#17212b!important}.public-wrap{display:flex;align-items:center;justify-content:space-between;gap:9px}.public-wrap span{font-size:11px;color:#94a0aa}.toggle{position:relative;width:42px;height:23px;border:0;border-radius:999px;background:#39434c;cursor:pointer;transition:.18s}.toggle::after{content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:#fff;transition:.18s}.toggle.on{background:#d61f26}.toggle.on::after{transform:translateX(19px)}.toggle:disabled{cursor:not-allowed;opacity:.45}.team-row td{padding:0!important;background:#0b141c!important}.team-panel{padding:16px 18px 18px;border-bottom:1px solid rgba(255,255,255,.08)}.team-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}.team-panel-head strong{display:block;color:#fff;font-size:13px}.team-panel-head small{display:block;margin-top:4px;color:#7e8b95;font-size:11px}.service-assignments{display:grid;gap:7px}.service-assignment{display:grid;grid-template-columns:minmax(180px,1fr) minmax(240px,1.2fr) auto;align-items:center;gap:12px;padding:10px 12px;border:1px solid rgba(255,255,255,.08);border-radius:8px;background:#111b24}.service-assignment strong{color:#edf1f4;font-size:12px}.service-assignment select{height:36px;border:1px solid rgba(255,255,255,.14);border-radius:7px;background:#0d161e;color:#e8edf0;padding:0 10px;font-size:12px}.service-assignment small{color:#71808b;font-size:10px}.team-empty{padding:18px;border:1px dashed rgba(255,255,255,.12);border-radius:8px;color:#7e8b95;text-align:center;font-size:12px}.register-note{padding:12px 14px;border-top:1px solid rgba(255,255,255,.08);background:#0b141c;color:#76838d;font-size:11px;line-height:1.6}.error-inline{padding:11px 14px;border:1px solid rgba(214,31,38,.35);border-radius:8px;background:rgba(214,31,38,.08);color:#ff9c96;font-size:12px}@media(max-width:760px){.projects-toolbar{align-items:stretch}.projects-search{width:100%;min-width:0}.service-assignment{grid-template-columns:1fr}.team-panel-head{flex-direction:column}.public-cell{position:static;box-shadow:none}}
+`;
 
-  async function load(){
+function normalizeProjectId(value: unknown) {
+  const raw = String(value || "").trim().toUpperCase();
+  if (!raw) return "";
+  const digits = raw.replace(/\D/g, "");
+  return digits ? `LV-${Number(digits)}` : raw;
+}
+
+function truthy(value: unknown) {
+  return value === true || ["true", "yes", "1", "on"].includes(String(value || "").trim().toLowerCase());
+}
+
+function normalizeCategory(value: unknown): ProjectCategory {
+  const text = String(value || "").trim().toLowerCase();
+  if (/complete|completed|done|closed|finish/.test(text)) return "Completed";
+  if (/pause|paused|hold|inactive|cancel/.test(text)) return "Paused";
+  return "Running";
+}
+
+function folderNameWithoutId(name: unknown, id: string) {
+  const raw = String(name || "").trim();
+  if (!raw) return id;
+  return raw.replace(new RegExp(`^${id.replace("-", "[- _]?")}\\s*[-–—:]?\\s*`, "i"), "").trim() || id;
+}
+
+async function getDriveIndex(category: ProjectCategory): Promise<DriveIndexResponse> {
+  const url = new URL("/api/landview", window.location.origin);
+  url.searchParams.set("action", "getProjectServiceFolders");
+  url.searchParams.set("bulk", "1");
+  url.searchParams.set("category", category);
+  const response = await fetch(url.toString(), { method: "GET", cache: "no-store", credentials: "same-origin" });
+  const json = await response.json();
+  if (!response.ok || !json?.success) throw new Error(String(json?.error || `Could not load ${category} projects.`));
+  return json.data || { projects: {} };
+}
+
+export default function ProjectsPage() {
+  const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
+  const [tasks, setTasks] = useState<TaskRow[]>([]);
+  const [role, setRole] = useState("");
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState<"All" | ProjectCategory>("Running");
+  const [expanded, setExpanded] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [savingPublic, setSavingPublic] = useState("");
+  const [savingTask, setSavingTask] = useState("");
+
+  const canManage = role === "admin" || role === "manager";
+
+  async function load() {
+    setLoading(true);
     setError("");
-    const cached=readCache();
-    if(cached){setProjects(cached.projects);setDrive(cached.drive);setFinance(cached.finance);setPreviews(cached.previews);setLoading(false);setBackgroundLoading(true);}else{setLoading(true);setProjects([]);setDrive({});}
+    try {
+      const [session, sheetProjects, employeeRows, taskRows, running, paused, completed] = await Promise.all([
+        landViewApi.getSession(),
+        landViewApi.getProjects().catch(() => []),
+        landViewApi.getEmployees().catch(() => []),
+        landViewApi.getErpRecords("tasks").catch(() => []),
+        getDriveIndex("Running").catch(() => ({ projects: {} })),
+        getDriveIndex("Paused").catch(() => ({ projects: {} })),
+        getDriveIndex("Completed").catch(() => ({ projects: {} })),
+      ]);
 
-    try{
-      const runningIndex=await getDriveIndex("Running");
-      if(!mounted.current)return;
-      const running=buildProjectsFromDrive(runningIndex.projects||{});
-      if(!cached){setProjects(running.projects);setDrive(running.drive);setLoading(false);}else{
-        setProjects(current=>mergeProjects(current.filter(p=>p.Status!=="Running"),running.projects));
-        setDrive(current=>({...current,...running.drive}));
-      }
-      setBackgroundLoading(true);
+      const map = new Map<string, ProjectRow>();
+      (sheetProjects || []).forEach((row: Record<string, unknown>) => {
+        const id = normalizeProjectId(pick(row, ["Project_ID", "Project ID", "ProjectId"], ""));
+        if (!id) return;
+        map.set(id, { ...row, Project_ID: id, __sheetBacked: true });
+      });
 
-      const fileListPromise=landViewApi.getFinanceSheet("File List").catch(()=>null);
-      const summaryPromise=landViewApi.getFinanceSheet("Summary").catch(()=>null);
-      const pausedPromise=getDriveIndex("Paused").catch(()=>({bulk:true,category:"Paused",projects:{}} as DriveIndexResponse));
-      const completedPromise=getDriveIndex("Completed").catch(()=>({bulk:true,category:"Completed",projects:{}} as DriveIndexResponse));
+      const mergeDrive = (source: Record<string, any>, driveCategory: ProjectCategory) => {
+        Object.entries(source || {}).forEach(([rawId, item]) => {
+          const id = normalizeProjectId(rawId || item?.projectId);
+          if (!id) return;
+          const current = map.get(id);
+          const driveName = folderNameWithoutId(item?.projectFolderName, id);
+          if (current) {
+            map.set(id, {
+              ...current,
+              Status: driveCategory,
+              Drive_Folder_URL: String(item?.projectFolderUrl || current.Drive_Folder_URL || ""),
+            });
+          } else {
+            map.set(id, {
+              Project_ID: id,
+              Project_Name: driveName,
+              Client_Name: driveName,
+              Status: driveCategory,
+              Drive_Folder_URL: String(item?.projectFolderUrl || ""),
+              __sheetBacked: false,
+            });
+          }
+        });
+      };
 
-      const fileList=await fileListPromise;
-      const fileRows=fileList?.rows||[];
-      if(fileRows.length&&mounted.current)setProjects(current=>enrichProjects(current,fileRows));
+      mergeDrive(running.projects || {}, "Running");
+      mergeDrive(paused.projects || {}, "Paused");
+      mergeDrive(completed.projects || {}, "Completed");
 
-      const [pausedIndex,completedIndex,summary]=await Promise.all([pausedPromise,completedPromise,summaryPromise]);
-      if(!mounted.current)return;
-      const paused=buildProjectsFromDrive(pausedIndex.projects||{},fileRows);
-      const completed=buildProjectsFromDrive(completedIndex.projects||{},fileRows);
-      let finalProjects:InvoiceProject[]=[];let finalDrive:Record<string,DriveProjectInfo>={};let finalFinance:Record<string,ProjectFinance>={};
-      setProjects(current=>{finalProjects=mergeProjects(current,[...paused.projects,...completed.projects]);return finalProjects;});
-      setDrive(current=>{finalDrive={...current,...paused.drive,...completed.drive};return finalDrive;});
-      finalFinance=summary?buildFinanceMap(summary.rows):{};setFinance(finalFinance);setBackgroundLoading(false);
-
-      window.setTimeout(async()=>{
-        if(!mounted.current)return;
-        const documents=await landViewApi.getDocuments().catch(()=>[]);
-        const map=buildDocumentPreviewMap(documents);
-        try{const response=await fetch("/api/public/projects",{cache:"force-cache"});const json=await response.json();const rows:PublicProjectPreview[]=Array.isArray(json?.data)?json.data:Array.isArray(json)?json:[];rows.forEach(p=>{const id=normalizeFinanceId(p.projectId);const cover=imageUrl(p.coverImageUrl);if(id&&cover&&!map[id])map[id]=cover;});}catch{}
-        if(!mounted.current)return;setPreviews(map);
-        setProjects(current=>{setDrive(currentDrive=>{setFinance(currentFinance=>{writeCache({projects:current,drive:currentDrive,finance:currentFinance,previews:map});return currentFinance;});return currentDrive;});return current;});
-      },1800);
-    }catch(e:any){if(!cached&&mounted.current){setError(e?.message||"Could not load Running projects from LV Project Files.");setLoading(false);}setBackgroundLoading(false);}
+      setProjects(Array.from(map.values()).sort((a, b) => {
+        const ai = Number(normalizeProjectId(a.Project_ID).replace("LV-", ""));
+        const bi = Number(normalizeProjectId(b.Project_ID).replace("LV-", ""));
+        return (Number.isFinite(bi) ? bi : 0) - (Number.isFinite(ai) ? ai : 0);
+      }));
+      setEmployees((employeeRows || []).filter((employee: Record<string, unknown>) => !/inactive|former/i.test(String(pick(employee, ["Status", "status"], "")))) as EmployeeRow[]);
+      setTasks((taskRows || []) as TaskRow[]);
+      setRole(String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase());
+    } catch (e: any) {
+      setError(e?.message || "Could not load the project register.");
+    } finally {
+      setLoading(false);
+    }
   }
 
-  useEffect(()=>{mounted.current=true;void load();return()=>{mounted.current=false}},[]);
-  const counts=useMemo(()=>({All:projects.length,Running:projects.filter(p=>p.Status==="Running").length,Paused:projects.filter(p=>p.Status==="Paused").length,Completed:projects.filter(p=>p.Status==="Completed").length}),[projects]);
-  const filtered=useMemo(()=>{const term=query.trim().toLowerCase();return projects.filter(project=>(category==="All"||project.Status===category)&&(!term||[project.Project_ID,project.Project_Name,project.Client_Name,project.Phone_Number,project.Location,project.Project_Type,project.Floors,project.Plot_Area,project.Status,drive[project.Project_ID]?.projectFolderName].join(" ").toLowerCase().includes(term)));},[projects,query,category,drive]);
+  useEffect(() => { void load(); }, []);
+
+  const counts = useMemo(() => ({
+    All: projects.length,
+    Running: projects.filter((project) => normalizeCategory(project.Status) === "Running").length,
+    Paused: projects.filter((project) => normalizeCategory(project.Status) === "Paused").length,
+    Completed: projects.filter((project) => normalizeCategory(project.Status) === "Completed").length,
+  }), [projects]);
+
+  const filtered = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return projects.filter((project) => {
+      const status = normalizeCategory(project.Status);
+      if (category !== "All" && status !== category) return false;
+      if (!term) return true;
+      return [
+        project.Project_ID,
+        pick(project, ["Project_Name", "Project Name", "Name"]),
+        pick(project, ["Client_Name", "Client Name", "Client"]),
+        pick(project, ["Project_Type", "Project Type"]),
+        pick(project, ["Location", "Address"]),
+        status,
+      ].join(" ").toLowerCase().includes(term);
+    });
+  }, [projects, category, query]);
+
+  const tasksByProject = useMemo(() => {
+    const map = new Map<string, TaskRow[]>();
+    tasks.forEach((task) => {
+      const id = normalizeProjectId(pick(task, ["Project_ID", "Project ID", "ProjectId"], ""));
+      if (!id) return;
+      const bucket = map.get(id) || [];
+      bucket.push(task);
+      map.set(id, bucket);
+    });
+    map.forEach((rows) => rows.sort((a, b) => String(pick(a, ["Task_Title", "Task Title", "Title"], "")).localeCompare(String(pick(b, ["Task_Title", "Task Title", "Title"], "")))));
+    return map;
+  }, [tasks]);
+
+  async function togglePublic(project: ProjectRow) {
+    const id = normalizeProjectId(project.Project_ID);
+    if (!canManage || !id || savingPublic) return;
+    if (!project.__sheetBacked) {
+      setError(`${id} exists in Drive but not in the Projects sheet. Add its row in Google Sheets before publishing it.`);
+      return;
+    }
+    const next = !truthy(project.Public_Display);
+    setSavingPublic(id);
+    setError("");
+    try {
+      await landViewApi.updateProject(id, { Public_Display: next });
+      setProjects((rows) => rows.map((row) => normalizeProjectId(row.Project_ID) === id ? { ...row, Public_Display: next } : row));
+    } catch (e: any) {
+      setError(e?.message || `Could not update ${id} public visibility.`);
+    } finally {
+      setSavingPublic("");
+    }
+  }
+
+  async function assignService(task: TaskRow, employeeId: string) {
+    if (!canManage) return;
+    const taskId = String(pick(task, ["Task_ID", "Task ID", "TaskId"], "")).trim();
+    if (!taskId) return;
+    setSavingTask(taskId);
+    setError("");
+    try {
+      const updated = await landViewApi.updateErpRecord("tasks", taskId, { Assigned_Employee_ID: employeeId });
+      setTasks((rows) => rows.map((row) => String(pick(row, ["Task_ID", "Task ID", "TaskId"], "")) === taskId ? { ...row, ...(updated as Record<string, unknown>), Assigned_Employee_ID: employeeId } : row));
+    } catch (e: any) {
+      setError(e?.message || "Could not assign the service team member.");
+    } finally {
+      setSavingTask("");
+    }
+  }
+
+  if (loading) return <LoadingState label="Loading project register..." />;
 
   return <>
-    <style>{`.admin-project-card{overflow:hidden!important;padding:0!important;background:#0d1822!important;border:1px solid rgba(255,255,255,.12)!important;content-visibility:auto;contain-intrinsic-size:360px}.admin-project-card::before,.admin-project-card::after{display:none!important;content:none!important}.admin-project-preview{position:relative;height:220px;overflow:hidden;border-bottom:1px solid rgba(255,255,255,.09);background:#0b151e}.admin-project-preview img{width:100%;height:100%;display:block;object-fit:cover;object-position:center}.admin-project-preview-badge{position:absolute;left:16px;bottom:14px;padding:6px 9px;border:1px solid rgba(214,166,44,.35);border-radius:6px;background:rgba(4,12,18,.86);color:#d6a62c;font-size:12px;font-weight:800;letter-spacing:.1em}.admin-project-body{padding:20px 22px 18px}.admin-project-card .project-card-top{margin:0 0 18px!important}.admin-project-card h3{margin-top:0!important}.project-meta-line{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin:16px 0 4px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)}.project-meta-line>div{min-width:0}.project-meta-line span{display:block;color:var(--brand-red);font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.project-meta-line strong{display:block;margin-top:6px;color:#f1f3f4;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.project-finance-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:16px 0 2px;padding-top:14px;border-top:1px solid rgba(255,255,255,.08)}.project-finance-strip div{min-width:0;padding:9px;border-radius:7px;background:#171f26}.project-finance-strip span{display:block;color:#7f8991;font-size:12px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.project-finance-strip strong{display:block;margin-top:5px;color:#f1f3f4;font-size:12px;overflow-wrap:anywhere}.project-finance-strip .project-due strong{color:#ff8c83}.project-finance-status{display:inline-flex;margin-top:10px;padding:5px 8px;border-radius:5px;background:#333;color:#bbb;font-size:12px;font-weight:700}.project-finance-status.paid{background:#223b2c;color:#a7dfba}.project-finance-status.due{background:#472824;color:#ff9a91}.invoice-source-note{margin:-8px 0 14px;color:#8f9aa3;font-size:12px}.invoice-source-note strong{color:#d6a62c}.project-status-filters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 16px}.project-status-filters button{border:1px solid rgba(255,255,255,.12);background:#161f27;color:#aeb7be;border-radius:999px;padding:8px 13px;font-size:12px;font-weight:700;cursor:pointer}.project-status-filters button.active{background:var(--brand-red);border-color:var(--brand-red);color:#fff}.project-status-filters b{margin-left:6px;font-size:12px;opacity:.8}.drive-match{display:inline-flex;align-items:center;gap:5px;margin-top:8px;padding:5px 8px;border-radius:5px;background:#1c3026;color:#9ed8b3;font-size:12px;font-weight:700}.background-load{margin-left:8px;color:#d6a62c;font-weight:700}@media(max-width:900px){.project-meta-line{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:520px){.project-meta-line{grid-template-columns:1fr}}`}</style>
-    <PageHeader eyebrow="PROJECT CONTROL" title="Projects" description="Running projects appear first; details, finance, images and archived projects load afterward." action={<Link className="btn btn-dark" href="/admin/finance/invoices">LV-Auto Invoice</Link>}/>
-    <div className="invoice-source-note">Project source: <strong>Google Drive → LV - Project Files</strong> · <strong>{projects.length} projects loaded</strong>{backgroundLoading&&<span className="background-load"> · syncing in background…</span>}</div>
-    <div className="project-status-filters" role="group" aria-label="Filter projects by status">{(["All","Running","Paused","Completed"] as const).map(item=><button key={item} type="button" className={category===item?"active":""} onClick={()=>setCategory(item)}>{item}<b>{counts[item]}</b></button>)}</div>
-    <div className="toolbar"><div className="search-box"><span>⌕</span><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search File ID, project, Drive folder..."/></div><div className="toolbar-count">{filtered.length} records</div></div>
-    {loading?<LoadingState label="Loading Running projects..."/>:error?<ErrorState message={error} onRetry={load}/>:!projects.length?<EmptyState title="No Running project folders found" text="Paused and Completed projects may still be loading in the background."/>:!filtered.length?<EmptyState title={`No ${category === "All" ? "matching" : category} projects`} text={backgroundLoading&&category!=="Running"?"This category is still loading. Please wait a moment.":"Try another project status or search term."}/>:<div className="project-grid">{filtered.map((p,i)=>{const id=p.Project_ID;const cover=previews[id];const account=finance[id];const driveInfo=drive[id];return <Link href={`/admin/projects/${encodeURIComponent(id)}`} className="project-card admin-project-card" key={id}>{cover&&<div className="admin-project-preview"><img loading="lazy" decoding="async" src={cover} alt={`${p.Project_Name} preview`}/><span className="admin-project-preview-badge">3D EXTERIOR</span></div>}<div className="admin-project-body"><div className="project-card-top"><span className="project-index">{String(i+1).padStart(2,"0")}</span><StatusBadge value={p.Status}/></div><h3>{p.Project_Name}</h3><p>{p.Location||driveInfo?.projectFolderName||"Address not set"}</p><div className="project-meta-line"><div><span>FILE ID</span><strong>{id}</strong></div><div><span>PROJECT TYPE</span><strong>{p.Project_Type||"—"}</strong></div><div><span>STORY</span><strong>{p.Floors||"—"}</strong></div><div><span>AREA</span><strong>{p.Plot_Area||"—"}</strong></div></div><span className="drive-match">◆ Drive linked · {driveInfo?.projectFolderName||p.Status}</span>{account&&<><div className="project-finance-strip"><div><span>Billed</span><strong><Money value={account.billed}/></strong></div><div><span>Received</span><strong><Money value={account.paid}/></strong></div><div className="project-due"><span>Due</span><strong><Money value={account.due}/></strong></div></div><span className={`project-finance-status ${account.due>0?"due":"paid"}`}>{account.status}</span></>}</div></Link>})}</div>}
+    <style dangerouslySetInnerHTML={{ __html: css }} />
+    <div className="projects-register">
+      <PageHeader
+        eyebrow="PROJECT REGISTER"
+        title="Projects"
+        description="Projects are created and maintained in Google Drive and Sheets. Use this register to assign service responsibility and control public website visibility."
+        action={<button className="refresh-btn" type="button" onClick={load}>Refresh</button>}
+      />
+
+      {error && <div className="error-inline">{error}</div>}
+
+      <div className="projects-toolbar">
+        <div className="projects-toolbar-left">
+          {(["Running", "Paused", "Completed", "All"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${category === item ? "active" : ""}`} onClick={() => setCategory(item)}>{item} · {counts[item]}</button>)}
+        </div>
+        <input className="projects-search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ID, project, client, type or location" />
+      </div>
+
+      <section className="register-shell">
+        <div className="register-scroll">
+          <table className="project-table">
+            <thead>
+              <tr>
+                <th>Project</th>
+                <th>Type</th>
+                <th>Location</th>
+                <th>Status</th>
+                <th>Service team</th>
+                <th>Project</th>
+                <th className="public-cell">Public website</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((project) => {
+                const id = normalizeProjectId(project.Project_ID);
+                const projectTasks = tasksByProject.get(id) || [];
+                const assignedCount = projectTasks.filter((task) => String(pick(task, ["Assigned_Employee_ID", "Assigned Employee ID"], "")).trim()).length;
+                const isExpanded = expanded === id;
+                const publicOn = truthy(project.Public_Display);
+                const driveUrl = String(project.Drive_Folder_URL || "").trim();
+                const name = String(pick(project, ["Project_Name", "Project Name", "Name"], id));
+                const client = String(pick(project, ["Client_Name", "Client Name", "Client"], "")).trim();
+                return <>
+                  <tr key={id}>
+                    <td>
+                      <div className="project-main">
+                        <span className="project-id">{id}</span>
+                        <div><strong>{name}</strong>{client && client !== name && <small>{client}</small>}</div>
+                      </div>
+                    </td>
+                    <td>{String(pick(project, ["Project_Type", "Project Type", "Type"], "—"))}</td>
+                    <td className="muted">{String(pick(project, ["Location", "Address"], "—"))}</td>
+                    <td><StatusBadge value={normalizeCategory(project.Status)} /></td>
+                    <td>
+                      <div className="service-summary">
+                        <span><b>{assignedCount}</b>/{projectTasks.length || 0} assigned</span>
+                        <button className="team-button" type="button" onClick={() => setExpanded(isExpanded ? "" : id)}>{isExpanded ? "Close" : "Assign team"}</button>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{display:"flex",gap:12,alignItems:"center"}}>
+                        <Link className="open-link" href={`/admin/projects/${encodeURIComponent(id)}`}>Open →</Link>
+                        {driveUrl && <a className="drive-link" href={driveUrl} target="_blank" rel="noreferrer">Drive ↗</a>}
+                      </div>
+                    </td>
+                    <td className="public-cell">
+                      <div className="public-wrap">
+                        <span>{publicOn ? "Shown" : project.__sheetBacked ? "Hidden" : "Sheet row needed"}</span>
+                        <button
+                          type="button"
+                          className={`toggle ${publicOn ? "on" : ""}`}
+                          role="switch"
+                          aria-checked={publicOn}
+                          aria-label={`${publicOn ? "Hide" : "Show"} ${id} on the public website`}
+                          disabled={!canManage || !project.__sheetBacked || savingPublic === id}
+                          onClick={() => void togglePublic(project)}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                  {isExpanded && <tr key={`${id}-team`} className="team-row"><td colSpan={7}>
+                    <div className="team-panel">
+                      <div className="team-panel-head">
+                        <div><strong>Service responsibility · {id}</strong><small>Assign one responsible team member to each service used in this project workflow.</small></div>
+                        {!canManage && <small>Accounts access is view-only for assignments.</small>}
+                      </div>
+                      {projectTasks.length ? <div className="service-assignments">
+                        {projectTasks.map((task) => {
+                          const taskId = String(pick(task, ["Task_ID", "Task ID", "TaskId"], ""));
+                          const title = String(pick(task, ["Task_Title", "Task Title", "Title"], "Service"));
+                          const assignedEmployee = String(pick(task, ["Assigned_Employee_ID", "Assigned Employee ID"], ""));
+                          return <div className="service-assignment" key={taskId}>
+                            <strong>{title}</strong>
+                            <select value={assignedEmployee} disabled={!canManage || savingTask === taskId} onChange={(event) => void assignService(task, event.target.value)}>
+                              <option value="">Unassigned</option>
+                              {employees.map((employee) => {
+                                const employeeId = String(pick(employee, ["Employee_ID", "Employee ID", "EmployeeId"], ""));
+                                const employeeName = String(pick(employee, ["Employee_Name", "Employee Name", "Name"], employeeId));
+                                const position = String(pick(employee, ["Position", "Department"], ""));
+                                return <option value={employeeId} key={employeeId}>{employeeName}{position ? ` — ${position}` : ""}</option>;
+                              })}
+                            </select>
+                            <small>{savingTask === taskId ? "Saving…" : assignedEmployee || "Not assigned"}</small>
+                          </div>;
+                        })}
+                      </div> : <div className="team-empty">No billed/workflow services are currently linked to this project, so there is nothing to assign yet.</div>}
+                    </div>
+                  </td></tr>}
+                </>;
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!filtered.length && <div className="team-empty" style={{margin:16}}>No projects match this view.</div>}
+        <div className="register-note">Project creation and master-data editing are intentionally handled in Google Drive and Google Sheets. This page only manages service responsibility and the public website on/off state.</div>
+      </section>
+    </div>
   </>;
 }
