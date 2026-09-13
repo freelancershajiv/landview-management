@@ -1,0 +1,41 @@
+name: Fix September closing position
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/fix-september-closing.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Correct OFF PER classification
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('components/accounts-status-panel.tsx')
+          s = p.read_text()
+          old_income = '''function isPersonalIncome(row: Row) {\n  return (\n    /eng rony income \\/ recovery/i.test(text(row.Income_Category)) ||'''
+          new_income = '''function isPersonalIncome(row: Row) {\n  return (\n    text(row.Created_By).toUpperCase() === "PER" ||\n    /eng rony income \\/ recovery/i.test(text(row.Income_Category)) ||'''
+          old_expense = '''function isPersonalExpense(row: Row) {\n  return (\n    /^RONY-SEP-2026-/i.test(text(row.Reference_No)) ||'''
+          new_expense = '''function isPersonalExpense(row: Row) {\n  return (\n    text(row.Created_By).toUpperCase() === "PER" ||\n    /^RONY-SEP-2026-/i.test(text(row.Reference_No)) ||'''
+          if old_income not in s or old_expense not in s:
+              raise SystemExit('Expected classification functions not found')
+          s = s.replace(old_income, new_income).replace(old_expense, new_expense)
+          p.write_text(s)
+          PY
+      - name: Commit correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/accounts-status-panel.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Correct September closing position from OFF PER source tags"
+          git push origin HEAD:main
