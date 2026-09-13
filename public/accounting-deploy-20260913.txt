@@ -1,0 +1,2 @@
+LAND VIEW accounting deployment trigger 2026-09-13
+Canonical September status source: OFF/PER rebuilt database rows only.
