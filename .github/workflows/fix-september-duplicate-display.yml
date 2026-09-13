@@ -1,0 +1,113 @@
+name: Fix doubled September accounts display
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-september-duplicate-display.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Patch September reconciliation deduplication
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('components/accounts-status-panel.tsx')
+          s = p.read_text()
+          old = '''function incomeKey(row: Row) {
+  const reference = text(row.Reference_No);
+  return reference
+    ? [reference, text(row.File_ID), dateKey(row.Payment_Date), amount(row.Amount), text(row.Payment_For)].join("|")
+    : text(row.Income_ID) || JSON.stringify(row);
+}
+
+function expenseKey(row: Row) {
+  const id = text(row.Expense_ID);
+  const duplicatedSeptemberSeed = /^HIST-2026-09-R\\d+$/i.test(id) || /^SEP-2026-EXP-\\d+$/i.test(id);
+  if (!duplicatedSeptemberSeed) return `id:${id || JSON.stringify(row)}`;
+  return ["sep-2026", dateKey(row.Expense_Date), text(row.File_ID), text(row.Category), amount(row.Amount)].join("|");
+}'''
+          new = '''function canonical(value: unknown) {
+  return text(value).toLowerCase().replace(/\\s+/g, " ").trim();
+}
+
+// The rebuilt accounting workbook can be returned together with mirrored legacy
+// rows by the finance API. Reconcile on the actual transaction, not row IDs or
+// import references, so the same September receipt is never counted twice.
+function incomeKey(row: Row) {
+  return [
+    "income",
+    dateKey(row.Payment_Date),
+    canonical(row.File_ID),
+    amount(row.Amount).toFixed(2),
+    canonical(row.Payment_For),
+  ].join("|");
+}
+
+function expenseKey(row: Row) {
+  return [
+    "expense",
+    dateKey(row.Expense_Date),
+    canonical(row.File_ID),
+    amount(row.Amount).toFixed(2),
+    canonical(row.Category),
+    canonical(row.Description),
+  ].join("|");
+}
+
+function sourceRank(row: Row) {
+  const createdBy = text(row.Created_By).toUpperCase();
+  if (createdBy === "OFF" || createdBy === "PER") return 10;
+  if (/^SRC-[IE]-/i.test(text(row.Income_ID) || text(row.Expense_ID))) return 9;
+  return statusRank(row);
+}'''
+          if old not in s:
+              raise SystemExit('Target key functions not found; refusing unsafe patch')
+          s = s.replace(old, new)
+          old2 = '''  incomeRows.forEach((row) => {
+    const key = incomeKey(row);
+    if (!uniqueIncome.has(key)) uniqueIncome.set(key, row);
+  });
+
+  const uniqueExpense = new Map<string, Row>();
+  expenseRows.forEach((row) => {
+    const key = expenseKey(row);
+    const current = uniqueExpense.get(key);
+    if (!current || statusRank(row) > statusRank(current)) uniqueExpense.set(key, row);
+  });'''
+          new2 = '''  incomeRows.forEach((row) => {
+    const key = incomeKey(row);
+    const current = uniqueIncome.get(key);
+    if (!current || sourceRank(row) > sourceRank(current)) uniqueIncome.set(key, row);
+  });
+
+  const uniqueExpense = new Map<string, Row>();
+  expenseRows.forEach((row) => {
+    const key = expenseKey(row);
+    const current = uniqueExpense.get(key);
+    if (!current || sourceRank(row) > sourceRank(current)) uniqueExpense.set(key, row);
+  });'''
+          if old2 not in s:
+              raise SystemExit('Target dedupe loop not found; refusing unsafe patch')
+          p.write_text(s.replace(old2, new2))
+          PY
+      - name: Commit corrected reconciliation
+        run: |
+          if git diff --quiet -- components/accounts-status-panel.tsx; then
+            echo "Already corrected"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/accounts-status-panel.tsx
+          git commit -m "Deduplicate mirrored September accounting rows"
+          git push origin main
