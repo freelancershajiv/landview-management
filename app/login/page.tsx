@@ -99,7 +99,7 @@ export default function LoginPage(){
       }
       saveSessionCache({authenticated:true,user:result.user});
       try{ localStorage.setItem(PORTAL_KEY,portal); }catch{}
-      router.replace(portalPath(portal));
+      window.location.replace(portalPath(portal));
     }catch(err:any){ clearStoredSession(); setError(err?.message || "Sign in failed. Check your credentials and try again."); }
     finally{ setLoading(false); }
   }
