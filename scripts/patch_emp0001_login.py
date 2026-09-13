@@ -94,7 +94,6 @@ new_upload_gate = '''  const uploadRole = normalizeRoleName(session.role);
     throw new Error("Access denied.");
   }
 '''
-# Scope replacement to the upload function only.
 upload_start = s.find('function uploadProjectServiceFile(params)')
 if upload_start >= 0:
     upload_end = s.find('\n}\n', upload_start)
@@ -191,12 +190,14 @@ elif 'defaultPermissionForRole_(session, permissionKey)' not in s:
 code_path.write_text(s, encoding="utf-8")
 
 # -----------------------------------------------------------------------------
-# Frontend API alignment: Employee task reads must use the employee-scoped ERP
-# endpoint, not the Admin/Accounts Finance Sheet workflow endpoint.
+# Frontend API alignment: Employee task reads/writes use the employee-scoped ERP
+# endpoints. Admin/Manager continue to use the billing-driven Finance workflow.
 # -----------------------------------------------------------------------------
 api_path = Path("lib/api.ts")
 if api_path.exists():
     api = api_path.read_text(encoding="utf-8")
+    original_api = api
+
     old_task_reader = '''  getErpRecords: async (module: ErpModule) => {
     if (module === "tasks") return getBillingDrivenWorkflowTasks();
     return get<Record<string, unknown>[]>("getErpRecords", { module });
@@ -214,9 +215,69 @@ if api_path.exists():
   },'''
     if old_task_reader in api:
         api = api.replace(old_task_reader, new_task_reader, 1)
+
+    old_task_create = '''  createErpRecord: (module: ErpModule, record: Record<string, unknown>) => {
+    if (module === "tasks") {
+      return post<Record<string, unknown>>("getFinanceSheet", { tab: "Workflow", workflowOp: "create", ...record });
+    }
+    return post<unknown>("createErpRecord", { module, ...record });
+  },'''
+    new_task_create = '''  createErpRecord: (module: ErpModule, record: Record<string, unknown>) => {
+    if (module === "tasks") {
+      const session = readSessionCache();
+      const role = String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase();
+      if (role === "employee") {
+        return post<Record<string, unknown>>("createErpRecord", { module: "tasks", ...record });
+      }
+      return post<Record<string, unknown>>("getFinanceSheet", { tab: "Workflow", workflowOp: "create", ...record });
+    }
+    return post<unknown>("createErpRecord", { module, ...record });
+  },'''
+    if old_task_create in api:
+        api = api.replace(old_task_create, new_task_create, 1)
+
+    old_task_update = '''  updateErpRecord: (module: ErpModule, id: string, changes: Record<string, unknown>) => {
+    if (module === "tasks") {
+      const auto = parseAutoTaskId(id);
+      if (auto) {
+        return post<Record<string, unknown>>("getFinanceSheet", {
+          tab: "Workflow",
+          workflowOp: "create",
+          Project_ID: auto.projectId,
+          Task_Title: auto.title,
+          ...changes,
+        });
+      }
+      return post<Record<string, unknown>>("getFinanceSheet", { tab: "Workflow", workflowOp: "update", id, ...changes });
+    }
+    return post<unknown>("updateErpRecord", { module, id, ...changes });
+  },'''
+    new_task_update = '''  updateErpRecord: (module: ErpModule, id: string, changes: Record<string, unknown>) => {
+    if (module === "tasks") {
+      const session = readSessionCache();
+      const role = String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase();
+      if (role === "employee") {
+        return post<Record<string, unknown>>("updateErpRecord", { module: "tasks", id, ...changes });
+      }
+      const auto = parseAutoTaskId(id);
+      if (auto) {
+        return post<Record<string, unknown>>("getFinanceSheet", {
+          tab: "Workflow",
+          workflowOp: "create",
+          Project_ID: auto.projectId,
+          Task_Title: auto.title,
+          ...changes,
+        });
+      }
+      return post<Record<string, unknown>>("getFinanceSheet", { tab: "Workflow", workflowOp: "update", id, ...changes });
+    }
+    return post<unknown>("updateErpRecord", { module, id, ...changes });
+  },'''
+    if old_task_update in api:
+        api = api.replace(old_task_update, new_task_update, 1)
+
+    if api != original_api:
         api_path.write_text(api, encoding="utf-8")
-        # The existing workflow's later git-add list does not mention lib/api.ts.
-        # Stage it here so the same workflow commit includes the alignment fix.
         subprocess.run(["git", "add", "lib/api.ts"], check=True)
 
 print("Employee role policy, default permissions, chairman approvals, and task API alignment patched successfully")
