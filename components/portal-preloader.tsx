@@ -85,6 +85,19 @@ function getWarmState() {
   return state;
 }
 
+async function responseIsCacheable(response: Response) {
+  if (!response.ok) return false;
+  const contentType = String(response.headers.get("content-type") || "").toLowerCase();
+  if (!contentType.includes("application/json")) return true;
+
+  try {
+    const json = await response.clone().json();
+    return json?.success === true;
+  } catch {
+    return false;
+  }
+}
+
 async function warmGet(url: string) {
   const state = getWarmState();
   if (!state) return;
@@ -101,8 +114,8 @@ async function warmGet(url: string) {
     method: "GET",
     cache: "no-store",
     credentials: "same-origin",
-  }).then((response) => {
-    if (response.ok && generation === state.generation) {
+  }).then(async (response) => {
+    if (generation === state.generation && await responseIsCacheable(response)) {
       state.entries.set(details.key, { response: response.clone(), expiresAt: Date.now() + WARM_TTL_MS });
     }
   }).catch(() => {}).finally(() => {
@@ -169,10 +182,7 @@ function employeeData() {
     "/api/landview?action=getDocuments",
     "/api/landview?action=getErpRecords&module=attendance",
     "/api/landview?action=getErpRecords&module=drawings",
-    "/api/landview?action=getFinanceSheet&tab=Workflow",
-    "/api/landview?action=getFinanceSheet&tab=Design%20Bill",
-    "/api/landview?action=getFinanceSheet&tab=Others%20Bill",
-    "/api/landview?action=getFinanceSheet&tab=Supervision%20Bill",
+    "/api/landview?action=getErpRecords&module=tasks",
   ];
 }
 
