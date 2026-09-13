@@ -7,6 +7,7 @@ on:
     paths:
       - .github/workflows/patch-code-gs.yml
       - scripts/patch_chairman_approval.py
+      - scripts/patch_chairman_core_backend.py
       - scripts/patch_emp0001_login.py
       - scripts/patch_backend_retry.py
       - scripts/patch_employee_login_transition.py
@@ -26,6 +27,8 @@ jobs:
           fetch-depth: 0
       - name: Patch EMP-0001 identity and approval UI
         run: python3 scripts/patch_chairman_approval.py
+      - name: Patch self-contained chairman approval backend
+        run: python3 scripts/patch_chairman_core_backend.py
       - name: Patch EMP-0001 login alias and employee permissions
         run: python3 scripts/patch_emp0001_login.py
       - name: Patch Apps Script proxy retries
