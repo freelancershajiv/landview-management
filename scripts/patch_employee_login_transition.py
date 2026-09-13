@@ -24,4 +24,5 @@ patch_file(
     "login full navigation",
 )
 
+# This comment intentionally keeps the permission-rewrite pipeline retriggerable.
 print("Employee login transition hardening applied")
