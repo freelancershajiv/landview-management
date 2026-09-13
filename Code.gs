@@ -426,7 +426,16 @@ function health() {
 
 const ROLE_ACCESS = {
   employee: [
-    "getProjects", "getProject", "getDocuments", "createDocument", "getSiteVisits", "createSiteVisit", "changeOwnPassword",
+    // Account/session-safe operations.
+    "changeOwnPassword",
+
+    // Assigned-project read access. Each function still applies project scoping.
+    "getProjects", "getProject", "getProjectDriveFolder", "getProjectServiceFolders",
+
+    // Assigned-project operational records.
+    "getDocuments", "createDocument", "getSiteVisits", "createSiteVisit", "uploadProjectServiceFile",
+
+    // Employee ERP modules: workflow/tasks, attendance, leave, drawings and expenses.
     "getErpRecords", "createErpRecord", "updateErpRecord"
   ],
   client: [
@@ -496,7 +505,8 @@ function authorizeActionRequest(action, params) {
 
   const allowed = ROLE_ACCESS[role] || [];
   if (!allowed.includes(action)) {
-    throw new Error("Access denied for role: " + (session.role || "Unknown"));
+    auditSecurityEvent_(session, "ROLE_DENIED", action, "DENIED", "Role action policy");
+    throw new Error("Access denied for role: " + (session.role || "Unknown") + " (action: " + action + ")");
   }
 
   return session;
@@ -2737,14 +2747,9 @@ function uploadProjectServiceFile(params) {
       params
     );
 
-  if (
-    !isAdminRole(
-      session.role
-    )
-  ) {
-    throw new Error(
-      "Access denied."
-    );
+  const uploadRole = normalizeRoleName(session.role);
+  if (!isAdminRole(uploadRole) && uploadRole !== "employee") {
+    throw new Error("Access denied.");
   }
 
   const projectId =
@@ -5818,6 +5823,58 @@ const LAND_VIEW_PERMISSION_KEYS = {
   REPORTS_VIEW: "reports.view"
 };
 
+// Built-in role defaults keep normal portal functions working even when the
+// Permissions sheet has no per-user rows. An explicit latest permission row
+// still overrides the default, so Admin can revoke a capability with Status=Inactive.
+const ROLE_DEFAULT_PERMISSIONS = {
+  employee: [
+    LAND_VIEW_PERMISSION_KEYS.PROJECTS_VIEW,
+    LAND_VIEW_PERMISSION_KEYS.WORKFLOW_VIEW,
+    LAND_VIEW_PERMISSION_KEYS.WORKFLOW_EDIT,
+    LAND_VIEW_PERMISSION_KEYS.DOCUMENTS_VIEW,
+    LAND_VIEW_PERMISSION_KEYS.DOCUMENTS_EDIT,
+    LAND_VIEW_PERMISSION_KEYS.SITE_VIEW,
+    LAND_VIEW_PERMISSION_KEYS.SITE_EDIT,
+    LAND_VIEW_PERMISSION_KEYS.CERTIFICATES_VIEW,
+    LAND_VIEW_PERMISSION_KEYS.ATTENDANCE_VIEW,
+    LAND_VIEW_PERMISSION_KEYS.ATTENDANCE_EDIT,
+    LAND_VIEW_PERMISSION_KEYS.EXPENSES_SUBMIT
+  ]
+};
+
+function isChairmanSession_(session) {
+  if (!session) return false;
+  return chairmanIdentityMatches_({
+    userId: session.userId,
+    User_ID: session.userId,
+    username: session.username,
+    Username: session.username,
+    name: session.name,
+    Name: session.name,
+    employeeId: session.employeeId,
+    Employee_ID: session.employeeId
+  });
+}
+
+function defaultPermissionForRole_(session, permissionKey) {
+  if (!session) return false;
+  const role = normalizeRoleName(session.role);
+  if (isMainAdminRole_(role)) return true;
+
+  const defaults = ROLE_DEFAULT_PERMISSIONS[role] || [];
+  if (defaults.indexOf(permissionKey) >= 0) return true;
+
+  // EMP-0001 is the chairman expense approver but remains an Employee account.
+  if (role === "employee" && isChairmanSession_(session)) {
+    if (permissionKey === LAND_VIEW_PERMISSION_KEYS.EXPENSES_VIEW_ALL ||
+        permissionKey === LAND_VIEW_PERMISSION_KEYS.EXPENSES_APPROVE) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 function permissionPrincipalIds_(session) {
   const ids = [];
   [session && session.userId, session && session.employeeId, session && session.username].forEach(function(value) {
@@ -5843,12 +5900,14 @@ function latestPermissionState_(session, permissionKey) {
       const bd = new Date(String(firstValue(b, ["Created_At", "Created At"]) || 0)).getTime() || 0;
       return ad - bd;
     });
-  if (!rows.length) return false;
+  if (!rows.length) return null;
   return normalize(firstValue(rows[rows.length - 1], ["Status", "status"])) === "active";
 }
 
 function hasPermission_(session, permissionKey) {
-  return latestPermissionState_(session, permissionKey);
+  const explicitState = latestPermissionState_(session, permissionKey);
+  if (explicitState !== null && explicitState !== undefined) return explicitState;
+  return defaultPermissionForRole_(session, permissionKey);
 }
 
 function requirePermission_(session, permissionKey, message) {
