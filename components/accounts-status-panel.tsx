@@ -160,6 +160,7 @@ function statusRank(row: Row) {
 
 function isPersonalIncome(row: Row) {
   return (
+    text(row.Created_By).toUpperCase() === "PER" ||
     /eng rony income \/ recovery/i.test(text(row.Income_Category)) ||
     /eng rony ledger/i.test(text(row.Created_By)) ||
     /^RONY-SIDE-/i.test(text(row.Income_ID))
@@ -168,6 +169,7 @@ function isPersonalIncome(row: Row) {
 
 function isPersonalExpense(row: Row) {
   return (
+    text(row.Created_By).toUpperCase() === "PER" ||
     /^RONY-SEP-2026-/i.test(text(row.Reference_No)) ||
     /eng rony personal cost \/ salary draw/i.test(text(row.Notes)) ||
     /^EXP-000[1-7]$/i.test(text(row.Expense_ID))
