@@ -214,8 +214,8 @@ function handleAction(
 
   switch (action) {
     case "getFinanceSheet": return getFinanceSheet(params);
-    case "getChairmanPendingApprovals": return getChairmanPendingApprovalsCore_(params);
-    case "reviewChairmanPendingApproval": return reviewChairmanPendingApprovalCore_(params);
+    case "getChairmanPendingApprovals": return getChairmanFinanceApprovalsCore_(params);
+    case "reviewChairmanPendingApproval": return reviewChairmanFinanceApprovalCore_(params);
 
     case "health":
       return health();
@@ -731,6 +731,343 @@ function reviewChairmanPendingApprovalCore_(params) {
       Reviewed_At: now
     }
   };
+}
+
+
+/* =========================================================
+   CHAIRMAN UNIFIED FINANCE APPROVALS
+   Office income + office expense + personal income + personal draw.
+   Personal income is approval-visible but never treated as LAND VIEW income.
+========================================================= */
+
+function isSeptember2026PaymentCore_(row) {
+  const raw = firstValue(row || {}, ["Payment_Date", "Payment Date", "Date"]);
+  const text = String(raw || "").trim();
+  if (/^2026-09-/.test(text)) return true;
+  const date = raw instanceof Date ? raw : new Date(text);
+  return !isNaN(date.getTime()) && date.getFullYear() === 2026 && date.getMonth() === 8;
+}
+
+function approvalHeadersCore_(sheet, required) {
+  return ensureHeaders_(sheet, required);
+}
+
+function september2026IncomeSeedsCore_() {
+  return [
+    { id: "SEP-2026-INC-001", ref: "LEGACY-INCOME-2026-09-R001", date: "2026-09-02", description: "3 No Office Rent Collection", amount: 5500, category: "Rent Income" },
+    { id: "SEP-2026-INC-002", ref: "LEGACY-INCOME-2026-09-R002", date: "2026-09-02", projectId: "LV-134", description: "LV-134 - Khusipur - Site Visit Bill", amount: 10000, category: "Site Visit" },
+    { id: "SEP-2026-INC-003", ref: "LEGACY-INCOME-2026-09-R003", date: "2026-09-03", projectId: "LV-279", description: "LV-279 - Khodeza - Luddar Par - Soil Test", amount: 15000, category: "Soil Test" },
+    { id: "SEP-2026-INC-004", ref: "LEGACY-INCOME-2026-09-R004", date: "2026-09-03", description: "Sika Chemicle Sale", amount: 2000, category: "Material / Product Sale" },
+    { id: "SEP-2026-INC-005", ref: "LEGACY-INCOME-2026-09-R005", date: "2026-09-06", projectId: "LV-280", description: "LV-280 - Nurul Huda - Silonia - Soil Test", amount: 14500, category: "Soil Test" },
+    { id: "SEP-2026-INC-006", ref: "LEGACY-INCOME-2026-09-R006", date: "2026-09-06", description: "Somrat Bhai Site Visit Bill", amount: 5000, category: "Site Visit" },
+    { id: "SEP-2026-INC-007", ref: "LEGACY-INCOME-2026-09-R007", date: "2026-09-06", projectId: "LV-209", description: "LV-209 - Razu - 1st & 2nd Floro R.C.C Bill", amount: 40000, category: "Supervision Bill" },
+    { id: "SEP-2026-INC-008", ref: "LEGACY-INCOME-2026-09-R008", date: "2026-09-07", description: "8 No Office Rent Collection", amount: 7000, category: "Rent Income" },
+    { id: "SEP-2026-INC-009", ref: "LEGACY-INCOME-2026-09-R009", date: "2026-09-09", projectId: "LV-219", description: "LV-219 - Hassan - 1st Floor R.C.C Bill", amount: 18000, category: "Supervision Bill" },
+    { id: "SEP-2026-INC-010", ref: "LEGACY-INCOME-2026-09-R010", date: "2026-09-09", projectId: "LV-048", description: "LV-048 - Bablu - Finishing Supervision Bill", amount: 20000, category: "Supervision Bill" },
+    { id: "SEP-2026-INC-011", ref: "LEGACY-INCOME-2026-09-R011", date: "2026-09-12", description: "Tamim Bhai Printing", amount: 200, category: "Printing / Documentation" },
+    { id: "SEP-2026-INC-012", ref: "LEGACY-INCOME-2026-09-R012", date: "2026-09-12", projectId: "LV-276", description: "LV-276 - Ali - Gillabaria - Site Visit", amount: 1500, category: "Site Visit" }
+  ];
+}
+
+function ensureSeptember2026IncomeCore_() {
+  const sheet = getSheet(CONFIG.SHEETS.PAYMENTS);
+  const headers = approvalHeadersCore_(sheet, [
+    "Payment_ID", "Project_ID", "Payment_Date", "Amount", "Payment_Method", "Reference_No",
+    "Received_By", "Notes", "Created_At", "Payment_For", "Income_Category", "Transaction_Type",
+    "Affects_Business_Balance", "Approval_Status", "Reviewed_By", "Reviewed_At", "Review_Notes",
+    "Approved_By", "Approved_At", "Created_By"
+  ]);
+  const idIndex = headers.indexOf("Payment_ID");
+  const refIndex = headers.indexOf("Reference_No");
+  const existing = {};
+
+  if (sheet.getLastRow() > 1) {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getDisplayValues().forEach(function(row) {
+      const id = String(row[idIndex] || "").trim();
+      const ref = refIndex >= 0 ? String(row[refIndex] || "").trim() : "";
+      if (id) existing[id] = true;
+      if (ref) existing[ref] = true;
+    });
+  }
+
+  let created = 0;
+  september2026IncomeSeedsCore_().forEach(function(seed) {
+    if (existing[seed.id] || existing[seed.ref]) return;
+    const record = {
+      Payment_ID: seed.id,
+      Project_ID: seed.projectId || "",
+      Payment_Date: seed.date,
+      Amount: seed.amount,
+      Payment_Method: "",
+      Reference_No: seed.ref,
+      Received_By: "Not recorded",
+      Notes: "Management-provided September 2026 LAND VIEW ledger. Requires EMP-0001 approval before affecting business totals.",
+      Created_At: new Date().toISOString(),
+      Created_By: "Historical Import",
+      Payment_For: seed.description,
+      Income_Category: seed.category,
+      Transaction_Type: "Office Income",
+      Affects_Business_Balance: true,
+      Approval_Status: "Pending",
+      Reviewed_By: "",
+      Reviewed_At: "",
+      Review_Notes: "",
+      Approved_By: "",
+      Approved_At: ""
+    };
+    sheet.appendRow(headers.map(function(header) { return record[header] === undefined ? "" : record[header]; }));
+    existing[seed.id] = true;
+    existing[seed.ref] = true;
+    created++;
+  });
+  return created;
+}
+
+function ensureSeptember2026PersonalIncomeCore_() {
+  const sheet = getSheet(CONFIG.SHEETS.APPROVALS);
+  const headers = approvalHeadersCore_(sheet, [
+    "Approval_ID", "Project_ID", "Approval_Type", "Status", "Decision_Notes", "Requested_At",
+    "Decided_At", "Created_At", "Created_By", "Transaction_Type", "Transaction_Date",
+    "Description", "Amount", "Category", "Affects_Business_Balance", "Reviewed_By", "Reviewed_At",
+    "Review_Notes", "Approved_By", "Approved_At"
+  ]);
+  const id = "PERSONAL-SEP-2026-INC-001";
+  const existing = readSheet(CONFIG.SHEETS.APPROVALS).some(function(row) {
+    return String(firstValue(row, ["Approval_ID", "Approval ID"]) || "").trim() === id;
+  });
+  if (existing) return 0;
+
+  const record = {
+    Approval_ID: id,
+    Project_ID: "",
+    Approval_Type: "Personal Income",
+    Status: "Pending",
+    Decision_Notes: "",
+    Requested_At: new Date().toISOString(),
+    Decided_At: "",
+    Created_At: new Date().toISOString(),
+    Created_By: "Management Ledger",
+    Transaction_Type: "Personal Income",
+    Transaction_Date: "2026-09-07",
+    Description: "Hazari Road Shop Rent",
+    Amount: 13000,
+    Category: "Personal Rental Income",
+    Affects_Business_Balance: false,
+    Reviewed_By: "",
+    Reviewed_At: "",
+    Review_Notes: "",
+    Approved_By: "",
+    Approved_At: ""
+  };
+  sheet.appendRow(headers.map(function(header) { return record[header] === undefined ? "" : record[header]; }));
+  return 1;
+}
+
+function paymentIsFinanciallyEffective_(payment) {
+  const type = String(firstValue(payment || {}, ["Transaction_Type", "Transaction Type"]) || "").trim().toLowerCase();
+  if (type === "personal income") return false;
+
+  const impact = firstValue(payment || {}, ["Affects_Business_Balance", "Affects Business Balance"]);
+  if (impact === false) return false;
+  const impactText = String(impact === null || impact === undefined ? "" : impact).trim().toLowerCase();
+  if (["false", "no", "0"].indexOf(impactText) >= 0) return false;
+
+  const status = String(firstValue(payment || {}, ["Approval_Status", "Approval Status"]) || "").trim().toLowerCase();
+  return !status || status === "approved";
+}
+
+function effectiveBusinessPayments_(payments) {
+  return (payments || []).filter(paymentIsFinanciallyEffective_);
+}
+
+function preparePaymentForApproval_(params, session) {
+  const sheet = getSheet(CONFIG.SHEETS.PAYMENTS);
+  approvalHeadersCore_(sheet, [
+    "Payment_ID", "Project_ID", "Payment_Date", "Amount", "Payment_Method", "Reference_No",
+    "Received_By", "Notes", "Created_At", "Payment_For", "Income_Category", "Transaction_Type",
+    "Affects_Business_Balance", "Approval_Status", "Reviewed_By", "Reviewed_At", "Review_Notes",
+    "Approved_By", "Approved_At", "Created_By"
+  ]);
+  const record = cleanParams(params);
+  record.Transaction_Type = String(record.Transaction_Type || "Office Income").trim() || "Office Income";
+  if (record.Affects_Business_Balance === undefined || record.Affects_Business_Balance === "") {
+    record.Affects_Business_Balance = record.Transaction_Type.toLowerCase() !== "personal income";
+  }
+  record.Approval_Status = "Pending";
+  record.Reviewed_By = "";
+  record.Reviewed_At = "";
+  record.Review_Notes = "";
+  record.Approved_By = "";
+  record.Approved_At = "";
+  record.Created_At = record.Created_At || new Date().toISOString();
+  record.Created_By = record.Created_By || session.userId || session.username || "";
+  return record;
+}
+
+function financeApprovalStatusCore_(row) {
+  return String(firstValue(row || {}, ["Approval_Status", "Approval Status", "Status"]) || "Pending").trim() || "Pending";
+}
+
+function financeApprovalFromExpenseCore_(row) {
+  const id = String(firstValue(row, ["Expense_ID", "Expense ID", "ExpenseId"]) || "").trim();
+  const ref = String(firstValue(row, ["Reference", "Reference_No", "Reference No"]) || "").trim();
+  const classification = String(firstValue(row, ["Classification", "Notes"]) || "").toLowerCase();
+  const personal = ref.indexOf("RONY-SEP-2026-") === 0 || classification.indexOf("personal draw") >= 0 || classification.indexOf("salary draw") >= 0;
+  return {
+    Approval_Key: "expense:" + id,
+    Source: "Expenses",
+    Source_ID: id,
+    Transaction_Type: personal ? "Personal Draw" : "Office Expense",
+    Transaction_Date: firstValue(row, ["Expense_Date", "Expense Date", "Date"]),
+    Project_ID: firstValue(row, ["Project_ID", "Project ID", "ProjectId"]),
+    Description: firstValue(row, ["Description", "Particulars", "Expense"]),
+    Amount: firstValue(row, ["Amount", "Expense_Amount", "Expense Amount"]),
+    Category: firstValue(row, ["Category", "Expense_Category", "Expense Category"]),
+    Approval_Status: financeApprovalStatusCore_(row),
+    Notes: firstValue(row, ["Notes", "Review_Notes", "Review Notes"]),
+    Reviewed_By: firstValue(row, ["Reviewed_By", "Reviewed By"]),
+    Reviewed_At: firstValue(row, ["Reviewed_At", "Reviewed At"]),
+    Affects_Business_Balance: personal ? false : true
+  };
+}
+
+function financeApprovalFromPaymentCore_(row) {
+  const id = String(firstValue(row, ["Payment_ID", "Payment ID", "PaymentId"]) || "").trim();
+  const type = String(firstValue(row, ["Transaction_Type", "Transaction Type"]) || "Office Income").trim() || "Office Income";
+  return {
+    Approval_Key: "payment:" + id,
+    Source: "Payments",
+    Source_ID: id,
+    Transaction_Type: type,
+    Transaction_Date: firstValue(row, ["Payment_Date", "Payment Date", "Date"]),
+    Project_ID: firstValue(row, ["Project_ID", "Project ID", "ProjectId"]),
+    Description: firstValue(row, ["Payment_For", "Payment For", "Description", "Particulars"]),
+    Amount: firstValue(row, ["Amount", "Payment_Amount", "Payment Amount"]),
+    Category: firstValue(row, ["Income_Category", "Income Category", "Category"]),
+    Approval_Status: financeApprovalStatusCore_(row),
+    Notes: firstValue(row, ["Notes", "Review_Notes", "Review Notes"]),
+    Reviewed_By: firstValue(row, ["Reviewed_By", "Reviewed By"]),
+    Reviewed_At: firstValue(row, ["Reviewed_At", "Reviewed At"]),
+    Affects_Business_Balance: firstValue(row, ["Affects_Business_Balance", "Affects Business Balance"])
+  };
+}
+
+function financeApprovalFromPersonalCore_(row) {
+  const id = String(firstValue(row, ["Approval_ID", "Approval ID"]) || "").trim();
+  return {
+    Approval_Key: "personal:" + id,
+    Source: "Approvals",
+    Source_ID: id,
+    Transaction_Type: String(firstValue(row, ["Transaction_Type", "Approval_Type"]) || "Personal Income"),
+    Transaction_Date: firstValue(row, ["Transaction_Date", "Date"]),
+    Project_ID: firstValue(row, ["Project_ID", "Project ID"]),
+    Description: firstValue(row, ["Description", "Decision_Notes"]),
+    Amount: firstValue(row, ["Amount"]),
+    Category: firstValue(row, ["Category"]),
+    Approval_Status: financeApprovalStatusCore_(row),
+    Notes: firstValue(row, ["Review_Notes", "Decision_Notes"]),
+    Reviewed_By: firstValue(row, ["Reviewed_By", "Reviewed By"]),
+    Reviewed_At: firstValue(row, ["Reviewed_At", "Reviewed At"]),
+    Affects_Business_Balance: false
+  };
+}
+
+function getChairmanFinanceApprovalsCore_(params) {
+  chairmanApprovalSessionCore_(params);
+  ensureSeptember2026PendingExpensesCore_();
+  ensureSeptember2026IncomeCore_();
+  ensureSeptember2026PersonalIncomeCore_();
+
+  const expenses = readSheet(CONFIG.SHEETS.EXPENSES)
+    .filter(isSeptember2026ExpenseCore_)
+    .map(financeApprovalFromExpenseCore_);
+  const payments = readSheet(CONFIG.SHEETS.PAYMENTS)
+    .filter(isSeptember2026PaymentCore_)
+    .map(financeApprovalFromPaymentCore_);
+  const personal = readSheet(CONFIG.SHEETS.APPROVALS)
+    .filter(function(row) {
+      return String(firstValue(row, ["Approval_ID", "Approval ID"]) || "").indexOf("PERSONAL-SEP-2026-") === 0;
+    })
+    .map(financeApprovalFromPersonalCore_);
+
+  const data = expenses.concat(payments, personal).sort(function(a, b) {
+    const ad = new Date(String(a.Transaction_Date || 0)).getTime() || 0;
+    const bd = new Date(String(b.Transaction_Date || 0)).getTime() || 0;
+    if (ad !== bd) return ad - bd;
+    return String(a.Approval_Key || "").localeCompare(String(b.Approval_Key || ""));
+  });
+
+  return { success: true, data: data };
+}
+
+function reviewChairmanFinanceApprovalCore_(params) {
+  const session = chairmanApprovalSessionCore_(params);
+  ensureSeptember2026PendingExpensesCore_();
+  ensureSeptember2026IncomeCore_();
+  ensureSeptember2026PersonalIncomeCore_();
+
+  let key = String((params && (params.approvalKey || params.Approval_Key)) || "").trim();
+  let source = String((params && (params.source || params.Source)) || "").trim().toLowerCase();
+  let id = String((params && (params.id || params.Source_ID || params.Expense_ID || params.Payment_ID || params.Approval_ID)) || "").trim();
+  if (key && key.indexOf(":") > 0) {
+    const parts = key.split(":");
+    source = String(parts.shift() || "").toLowerCase();
+    id = parts.join(":");
+  }
+  const status = String((params && (params.status || params.Status)) || "").trim();
+  if (!id) throw new Error("Approval record ID is required.");
+  if (["Approved", "Rejected", "Returned"].indexOf(status) < 0) throw new Error("Invalid approval decision.");
+
+  let sheetName;
+  let idHeader;
+  if (source === "expense" || source === "expenses") {
+    sheetName = CONFIG.SHEETS.EXPENSES;
+    idHeader = "Expense_ID";
+  } else if (source === "payment" || source === "payments" || source === "income") {
+    sheetName = CONFIG.SHEETS.PAYMENTS;
+    idHeader = "Payment_ID";
+  } else if (source === "personal" || source === "approvals" || source === "approval") {
+    sheetName = CONFIG.SHEETS.APPROVALS;
+    idHeader = "Approval_ID";
+  } else {
+    throw new Error("Unknown approval source.");
+  }
+
+  const sheet = getSheet(sheetName);
+  const headers = approvalHeadersCore_(sheet, [
+    idHeader, "Status", "Approval_Status", "Reviewed_By", "Reviewed_At", "Review_Notes",
+    "Approved_By", "Approved_At", "Decision_Notes", "Decided_At"
+  ]);
+  const idIndex = headers.indexOf(idHeader);
+  if (idIndex < 0 || sheet.getLastRow() < 2) throw new Error("Approval record was not found.");
+  const values = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues();
+  let rowIndex = -1;
+  for (let i = 0; i < values.length; i++) {
+    if (String(values[i][idIndex] || "").trim() === id) { rowIndex = i + 2; break; }
+  }
+  if (rowIndex < 0) throw new Error("Approval record was not found.");
+
+  function setValue(header, value) {
+    const index = headers.indexOf(header);
+    if (index >= 0) sheet.getRange(rowIndex, index + 1).setValue(value);
+  }
+
+  const now = new Date().toISOString();
+  const reviewer = session.employeeId || session.userId || "EMP-0001";
+  const note = String((params && (params.note || params.Review_Notes)) || (status + " by EMP-0001 / Engr. Jamal Ahmed Bhuiyan")).trim();
+  setValue("Status", status);
+  setValue("Approval_Status", status);
+  setValue("Reviewed_By", reviewer);
+  setValue("Reviewed_At", now);
+  setValue("Review_Notes", note);
+  setValue("Decision_Notes", note);
+  setValue("Decided_At", now);
+  setValue("Approved_By", status === "Approved" ? "EMP-0001" : "");
+  setValue("Approved_At", status === "Approved" ? now : "");
+
+  try { auditSecurityEvent_(session, "FINANCE_APPROVAL", source + ":" + id, status.toUpperCase(), note); } catch (error) {}
+
+  return { success: true, data: { Approval_Key: source + ":" + id, Source_ID: id, Status: status, Reviewed_By: reviewer, Reviewed_At: now } };
 }
 
 function splitIds(value) {
@@ -4165,7 +4502,7 @@ function getBillingDashboard(params) {
   );
 
 
-  payments.forEach(
+  effectiveBusinessPayments_(payments).forEach(
     payment => {
 
       totalPaid +=
@@ -4222,7 +4559,7 @@ function getProjectBilling(params) {
 
   if (normalizeRoleName(session.role) === "client") {
     bills = bills.map(record => sanitizeBillingRecordForClient(record, "bill"));
-    payments = payments.map(record => sanitizeBillingRecordForClient(record, "payment"));
+    payments = effectiveBusinessPayments_(payments).map(record => sanitizeBillingRecordForClient(record, "payment"));
   }
 
   return {
@@ -4284,7 +4621,7 @@ function getBillingBook(params) {
     category.gross += gross; category.discount += discount; category.billed += gross - discount;
   });
 
-  payments.forEach(function(payment) {
+  effectiveBusinessPayments_(payments).forEach(function(payment) {
     const id = String(firstValue(payment, ["Project_ID", "Project ID", "ProjectId"]) || "").trim();
     if (!id) return;
     const name = categoryName(payment);
@@ -4463,7 +4800,7 @@ function getPayments(params) {
   }
 
   if (normalizeRoleName(session.role) === "client") {
-    payments = payments.map(record => sanitizeBillingRecordForClient(record, "payment"));
+    payments = effectiveBusinessPayments_(payments).map(record => sanitizeBillingRecordForClient(record, "payment"));
   }
 
   return { success: true, data: payments };
@@ -4477,7 +4814,7 @@ function savePayment(params) {
 
   return appendRecord(
     CONFIG.SHEETS.PAYMENTS,
-    cleanParams(params),
+    preparePaymentForApproval_(params, session),
     "PAY-",
     "Payment_ID"
   );
@@ -4492,7 +4829,7 @@ function createPayment(params) {
 
   return appendRecord(
     CONFIG.SHEETS.PAYMENTS,
-    cleanParams(params),
+    preparePaymentForApproval_(params, session),
     "PAY-",
     "Payment_ID"
   );
@@ -7243,6 +7580,10 @@ function sumAmount(records) {
       total,
       record
     ) => {
+
+      if (firstValue(record || {}, ["Payment_ID", "Payment ID", "PaymentId"]) && !paymentIsFinanciallyEffective_(record)) {
+        return total;
+      }
 
       return (
         total +
