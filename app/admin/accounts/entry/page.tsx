@@ -1,113 +1,176 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { landViewApi } from "@/lib/api";
 
-const OPENING_BALANCE = -63847.541895;
-const incomeCategories = ["Design Bill","Supervision Bill","Soil Test","Digital Survey","3D Design","Estimate & Costing","Plan Approval","Other Income"];
-const expenseCategories = ["Office Rent","Salary / Wages","Staff Commission / Bonus","Utility","Internet / Phone","Transport","Site Visit","Printing / Stationery","Software / Subscription","Equipment","Design Outsourcing","Soil Test / Survey Cost","Municipality / Approval Cost","Marketing","Government Fee","Refreshment","Maintenance","Staff Welfare / Gifts","Miscellaneous"];
-const methods = ["Cash","bKash","Nagad","Bank","Card","Cheque","Other"];
+type EntryType = "income" | "expense";
 
-function t(value: unknown){return String(value??"").trim()}
-function money(value:number){return new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(value)}
-function septemberDate(value:string){return /^2026-09-\d{2}$/.test(value)}
+type EntryState = {
+  date: string;
+  category: string;
+  description: string;
+  amount: string;
+  method: string;
+  project: string;
+  counterparty: string;
+  reference: string;
+  notes: string;
+};
 
-export default function SeptemberLedgerEntryPage(){
-  const [userId,setUserId]=useState("admin");
-  const [income,setIncome]=useState({date:"2026-09-13",category:incomeCategories[0],description:"",amount:"",method:"Cash",project:"",from:"",reference:"",notes:""});
-  const [expense,setExpense]=useState({date:"2026-09-13",category:expenseCategories[0],description:"",amount:"",method:"Cash",project:"",reference:"",notes:""});
-  const [incomeBusy,setIncomeBusy]=useState(false),[expenseBusy,setExpenseBusy]=useState(false),[error,setError]=useState(""),[ok,setOk]=useState("");
+const incomeCategories = [
+  "Design Bill", "Supervision Bill", "Soil Test", "Digital Survey", "3D Design",
+  "Estimate & Costing", "Plan Approval", "Site Visit", "Rent Income",
+  "Material / Product Sale", "Commission Income", "Other Income",
+];
+const expenseCategories = [
+  "Office Rent", "Salary / Wages", "Staff Commission / Bonus", "Utility", "Internet / Phone",
+  "Transport", "Site Visit", "Printing / Stationery", "Software / Subscription", "Equipment",
+  "Design Outsourcing", "Soil Test / Survey Cost", "Municipality / Approval Cost", "Marketing",
+  "Government Fee", "Refreshment", "Maintenance", "Staff Welfare / Gifts", "Miscellaneous",
+];
+const methods = ["Cash", "bKash", "Nagad", "Bank", "Card", "Cheque", "Other"];
 
-  useEffect(()=>{void landViewApi.getSession().then(s=>setUserId(t(s?.user?.userId||s?.user?.User_ID||s?.user?.username||"admin"))).catch(()=>{})},[]);
+const t = (value: unknown) => String(value ?? "").trim();
+function localDate() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+function makeEntry(category: string): EntryState {
+  return {
+    date: localDate(),
+    category,
+    description: "",
+    amount: "",
+    method: "Cash",
+    project: "",
+    counterparty: "",
+    reference: "",
+    notes: "",
+  };
+}
 
-  async function submitIncome(event:FormEvent){
-    event.preventDefault();setError("");setOk("");
-    if(!septemberDate(income.date)){setError("Use a September 2026 date for this opening ledger period.");return}
-    if(!income.description.trim()||Number(income.amount)<=0){setError("Enter an income description and valid amount.");return}
-    setIncomeBusy(true);
-    try{
-      await landViewApi.createPayment({
-        Payment_Date:income.date,
-        Project_ID:income.project.trim().toUpperCase(),
-        Category:income.category,
-        Payment_For:income.description.trim(),
-        Amount:Number(income.amount),
-        Payment_Method:income.method,
-        Reference:income.reference.trim(),
-        Received_From:income.from.trim(),
-        Received_By:userId,
-        Notes:income.notes.trim(),
-        Created_At:new Date().toISOString(),
-        Created_By:userId,
-      });
-      setOk("Income saved to the LAND VIEW source ledger. It will appear in Accounts after the finance sync.");
-      setIncome(v=>({...v,description:"",amount:"",project:"",from:"",reference:"",notes:""}));
-    }catch(e:any){setError(e?.message||"Could not save income.")}finally{setIncomeBusy(false)}
+export default function AccountsEntryPage() {
+  const [type, setType] = useState<EntryType>("income");
+  const [userId, setUserId] = useState("admin");
+  const [income, setIncome] = useState<EntryState>(() => makeEntry(incomeCategories[0]));
+  const [expense, setExpense] = useState<EntryState>(() => makeEntry(expenseCategories[0]));
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [ok, setOk] = useState("");
+
+  useEffect(() => {
+    void landViewApi.getSession()
+      .then((session) => setUserId(t(session?.user?.userId || session?.user?.User_ID || session?.user?.username || "admin")))
+      .catch(() => {});
+  }, []);
+
+  const form = type === "income" ? income : expense;
+  const categories = type === "income" ? incomeCategories : expenseCategories;
+  const setForm = type === "income" ? setIncome : setExpense;
+  const amountValue = Number(form.amount || 0);
+  const canSubmit = Boolean(form.date && form.description.trim() && amountValue > 0 && !busy);
+
+  const submitLabel = useMemo(() => {
+    if (busy) return type === "income" ? "SAVING INCOME…" : "SUBMITTING EXPENSE…";
+    return type === "income" ? "SAVE INCOME FOR APPROVAL" : "SUBMIT EXPENSE FOR APPROVAL";
+  }, [busy, type]);
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    setError("");
+    setOk("");
+    if (!form.date) return setError("Choose a transaction date.");
+    if (!form.description.trim()) return setError("Enter a short description.");
+    if (!Number.isFinite(amountValue) || amountValue <= 0) return setError("Enter a valid amount greater than zero.");
+
+    setBusy(true);
+    try {
+      const projectId = form.project.trim().toUpperCase();
+      if (type === "income") {
+        await landViewApi.createPayment({
+          Payment_Date: form.date,
+          Project_ID: projectId,
+          Income_Category: form.category,
+          Payment_For: form.description.trim(),
+          Amount: amountValue,
+          Payment_Method: form.method,
+          Reference_No: form.reference.trim(),
+          Received_From: form.counterparty.trim(),
+          Received_By: userId,
+          Notes: form.notes.trim(),
+          Transaction_Type: "Office Income",
+          Created_At: new Date().toISOString(),
+          Created_By: userId,
+        });
+        setIncome(makeEntry(incomeCategories[0]));
+        setOk("Income saved as Pending. It will affect LAND VIEW totals only after EMP-0001 approval.");
+      } else {
+        await landViewApi.createErpRecord("expenses", {
+          Expense_Date: form.date,
+          Project_ID: projectId,
+          Category: form.category,
+          Description: form.description.trim(),
+          Amount: amountValue,
+          Payment_Method: form.method,
+          Reference: form.reference.trim(),
+          Paid_To: form.counterparty.trim(),
+          Status: "Pending",
+          Notes: form.notes.trim(),
+          Created_At: new Date().toISOString(),
+          Created_By: userId,
+        });
+        setExpense(makeEntry(expenseCategories[0]));
+        setOk("Expense saved as Pending for EMP-0001 approval.");
+      }
+    } catch (e: any) {
+      setError(e?.message || `Could not save ${type}.`);
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function submitExpense(event:FormEvent){
-    event.preventDefault();setError("");setOk("");
-    if(!septemberDate(expense.date)){setError("Use a September 2026 date for this opening ledger period.");return}
-    if(!expense.description.trim()||Number(expense.amount)<=0){setError("Enter an expense description and valid amount.");return}
-    setExpenseBusy(true);
-    try{
-      await landViewApi.createErpRecord("expenses",{
-        Expense_Date:expense.date,
-        Project_ID:expense.project.trim().toUpperCase(),
-        Category:expense.category,
-        Description:expense.description.trim(),
-        Amount:Number(expense.amount),
-        Payment_Method:expense.method,
-        Reference:expense.reference.trim(),
-        Status:"Pending",
-        Notes:expense.notes.trim(),
-        Created_At:new Date().toISOString(),
-        Created_By:userId,
-      });
-      setOk("Expense saved as Pending. Chairman Eng Jamal Rony (EMP-0001) must approve it before it counts as an approved expense.");
-      setExpense(v=>({...v,description:"",amount:"",project:"",reference:"",notes:""}));
-    }catch(e:any){setError(e?.message||"Could not save expense.")}finally{setExpenseBusy(false)}
-  }
+  return (
+    <main className="entry-page">
+      <style>{`
+        .entry-page{max-width:980px;margin:0 auto;color:#edf1f4}.entry-page *{box-sizing:border-box}.en-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:18px}.en-head small{color:#e45c5c;font-size:9px;font-weight:900;letter-spacing:.15em}.en-head h1{margin:5px 0 6px;font-size:32px}.en-head p{margin:0;max-width:560px;color:#87939c;font-size:11px;line-height:1.6}.en-back{display:inline-flex;margin-top:7px;color:#e98480;text-decoration:none;font-size:9px;font-weight:900}.en-shell{display:grid;grid-template-columns:220px 1fr;gap:12px}.en-side,.en-form{border:1px solid #2c3841;border-radius:12px;background:#0f171e}.en-side{padding:12px;height:max-content}.en-choice{width:100%;border:1px solid transparent;border-radius:9px;background:transparent;color:#8a969f;text-align:left;padding:12px;cursor:pointer}.en-choice+.en-choice{margin-top:6px}.en-choice strong{display:block;font-size:12px}.en-choice span{display:block;margin-top:4px;font-size:9px;line-height:1.45}.en-choice.active{border-color:#493034;background:#211619;color:#fff}.en-choice.income.active strong{color:#93deb0}.en-choice.expense.active strong{color:#ffaaa6}.en-note{margin-top:11px;padding:10px;border-radius:8px;background:#0b1217;color:#75828b;font-size:9px;line-height:1.55}.en-form{padding:18px}.en-form-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:14px}.en-form-head h2{margin:0;font-size:20px}.en-form-head p{margin:4px 0 0;color:#7d8992;font-size:9px}.en-state{display:inline-flex;padding:5px 8px;border-radius:999px;background:#3a321d;color:#e9cf8c;font-size:8px;font-weight:900}.en-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px}.en-fields label{display:grid;gap:5px;color:#87929a;font-size:9px}.en-fields label.wide{grid-column:1/-1}.en-fields input,.en-fields select,.en-fields textarea{width:100%;border:1px solid #35424b;border-radius:7px;background:#091016;color:#edf1f4;padding:10px;font-size:10px}.en-fields textarea{min-height:74px;resize:vertical}.en-fields input::placeholder,.en-fields textarea::placeholder{color:#65727b}.en-submit{grid-column:1/-1;height:42px;border:0;border-radius:8px;background:#c7262d;color:#fff;font-size:10px;font-weight:900;cursor:pointer}.en-submit.income{background:#1d5f3d;color:#d8ffe5}.en-submit:disabled{opacity:.45;cursor:not-allowed}.en-msg{margin-bottom:12px;padding:10px 12px;border-radius:8px;font-size:10px}.en-msg.error{border:1px solid #6d3438;background:#351c1e;color:#ffb0ac}.en-msg.ok{border:1px solid #2e6345;background:#183524;color:#a2e6b8}@media(max-width:760px){.en-head{align-items:flex-start;flex-direction:column}.en-shell{grid-template-columns:1fr}.en-side{display:grid;grid-template-columns:1fr 1fr;gap:7px}.en-choice+.en-choice{margin-top:0}.en-note{grid-column:1/-1}}@media(max-width:520px){.en-fields,.en-side{grid-template-columns:1fr}.en-fields label.wide,.en-submit,.en-note{grid-column:auto}}
+      `}</style>
 
-  return <main className="ledger-entry-page">
-    <style>{`
-      .ledger-entry-page{color:#eef2f5}.lep-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-end;margin-bottom:16px}.lep-head h1{margin:4px 0 0;font-size:32px}.lep-head p{max-width:650px;margin:0;color:#96a1aa;font-size:11px;line-height:1.55}.lep-back{color:#ffaaa5;text-decoration:none;font-size:10px;font-weight:800}.lep-balance{display:grid;grid-template-columns:1.1fr .9fr;gap:12px;margin-bottom:18px}.lep-card{padding:15px;border:1px solid #343f47;border-radius:10px;background:#101820}.lep-card span{display:block;color:#7f8c96;font-size:9px;text-transform:uppercase}.lep-card strong{display:block;margin-top:7px;font-size:24px}.lep-card.neg strong{color:#ff9b9b}.lep-card p{margin:7px 0 0;color:#8d99a2;font-size:10px;line-height:1.5}.lep-msg{margin-bottom:14px;padding:10px 12px;border-radius:8px;font-size:10px}.lep-msg.err{background:#3e1d20;color:#ffaaaa;border:1px solid #6f3337}.lep-msg.ok{background:#173724;color:#9fe7b7;border:1px solid #2c6746}.lep-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.lep-form{padding:18px;border:1px solid #343f47;border-radius:11px;background:#111920}.lep-form h2{margin:0 0 4px;font-size:20px}.lep-form>p{margin:0 0 14px;color:#87939d;font-size:10px;line-height:1.5}.fields{display:grid;grid-template-columns:1fr 1fr;gap:9px}.fields label{display:grid;gap:5px;color:#89949d;font-size:9px}.fields label.wide{grid-column:1/-1}.fields input,.fields select,.fields textarea{width:100%;border:1px solid #3b4650;border-radius:7px;background:#0b1116;color:#eef2f5;padding:9px;font-size:10px}.fields textarea{min-height:70px;resize:vertical}.lep-submit{grid-column:1/-1;height:40px;border:0;border-radius:7px;font-size:10px;font-weight:900;cursor:pointer}.income-submit{background:#1e633f;color:#d3ffe2}.expense-submit{background:#8a2d31;color:#fff1f1}.lep-submit:disabled{opacity:.55}@media(max-width:900px){.lep-balance,.lep-grid{grid-template-columns:1fr}.lep-head{align-items:flex-start;flex-direction:column}}@media(max-width:560px){.fields{grid-template-columns:1fr}.fields label.wide,.lep-submit{grid-column:auto}}
-    `}</style>
-    <div className="lep-head"><div><small>SEPTEMBER 2026</small><h1>New ledger entry</h1></div><div><p>Start September from the reconciled 31-Aug closing balance. Income is recorded when received; every new office expense is Pending until Chairman Eng Jamal Rony approves it.</p><Link className="lep-back" href="/admin/accounts">← Back to Accounts Ledger</Link></div></div>
+      <header className="en-head">
+        <div><small>LAND VIEW · ACCOUNTS</small><h1>New transaction</h1></div>
+        <div><p>Record the transaction once. Income and expenses are both saved as Pending until EMP-0001 reviews them, so unapproved money does not affect official totals.</p><Link className="en-back" href="/admin/accounts">← Back to accounts ledger</Link></div>
+      </header>
 
-    <div className="lep-balance">
-      <div className="lep-card neg"><span>1 September opening balance</span><strong>{money(OPENING_BALANCE)}</strong><p>Confirmed 31-Aug-2026 LAND VIEW office closing balance: −63,847.541895.</p></div>
-      <div className="lep-card"><span>Expense approval authority</span><strong>EMP-0001</strong><p>Chairman Eng Jamal Rony approves or rejects Pending September office expenses from his Employee portal.</p></div>
-    </div>
+      {error && <div className="en-msg error">{error}</div>}
+      {ok && <div className="en-msg ok">{ok}</div>}
 
-    {error&&<div className="lep-msg err">{error}</div>}{ok&&<div className="lep-msg ok">{ok}</div>}
+      <div className="en-shell">
+        <aside className="en-side">
+          <button className={`en-choice income ${type === "income" ? "active" : ""}`} onClick={() => { setType("income"); setError(""); setOk(""); }}>
+            <strong>Income</strong><span>Client payment, rent, service bill, sale or other money received.</span>
+          </button>
+          <button className={`en-choice expense ${type === "expense" ? "active" : ""}`} onClick={() => { setType("expense"); setError(""); setOk(""); }}>
+            <strong>Expense</strong><span>Office cost, salary, commission, site cost, purchase or payment.</span>
+          </button>
+          <div className="en-note">Project ID, counterparty and reference are optional. Description, date and amount are the only required transaction details.</div>
+        </aside>
 
-    <div className="lep-grid">
-      <form className="lep-form" onSubmit={submitIncome}><h2>Record income</h2><p>Use this for money LAND VIEW actually received in September.</p><div className="fields">
-        <label>Date<input type="date" min="2026-09-01" max="2026-09-30" value={income.date} onChange={e=>setIncome({...income,date:e.target.value})}/></label>
-        <label>Category<select value={income.category} onChange={e=>setIncome({...income,category:e.target.value})}>{incomeCategories.map(x=><option key={x}>{x}</option>)}</select></label>
-        <label className="wide">Description<input value={income.description} onChange={e=>setIncome({...income,description:e.target.value})} placeholder="e.g. LV-280 design bill payment"/></label>
-        <label>Amount (BDT)<input inputMode="decimal" value={income.amount} onChange={e=>setIncome({...income,amount:e.target.value.replace(/[^0-9.]/g,"")})}/></label>
-        <label>Payment method<select value={income.method} onChange={e=>setIncome({...income,method:e.target.value})}>{methods.map(x=><option key={x}>{x}</option>)}</select></label>
-        <label>File / Project ID<input value={income.project} onChange={e=>setIncome({...income,project:e.target.value})} placeholder="LV-280"/></label>
-        <label>Received from<input value={income.from} onChange={e=>setIncome({...income,from:e.target.value})} placeholder="Client / payer"/></label>
-        <label>Reference<input value={income.reference} onChange={e=>setIncome({...income,reference:e.target.value})} placeholder="Trx / receipt"/></label>
-        <label className="wide">Notes<textarea value={income.notes} onChange={e=>setIncome({...income,notes:e.target.value})}/></label>
-        <button className="lep-submit income-submit" disabled={incomeBusy}>{incomeBusy?"SAVING…":"SAVE INCOME"}</button>
-      </div></form>
-
-      <form className="lep-form" onSubmit={submitExpense}><h2>Submit expense</h2><p>Saved as Pending; it affects approved-expense totals only after Chairman approval.</p><div className="fields">
-        <label>Date<input type="date" min="2026-09-01" max="2026-09-30" value={expense.date} onChange={e=>setExpense({...expense,date:e.target.value})}/></label>
-        <label>Category<select value={expense.category} onChange={e=>setExpense({...expense,category:e.target.value})}>{expenseCategories.map(x=><option key={x}>{x}</option>)}</select></label>
-        <label className="wide">Description<input value={expense.description} onChange={e=>setExpense({...expense,description:e.target.value})} placeholder="What was paid / purchased?"/></label>
-        <label>Amount (BDT)<input inputMode="decimal" value={expense.amount} onChange={e=>setExpense({...expense,amount:e.target.value.replace(/[^0-9.]/g,"")})}/></label>
-        <label>Payment method<select value={expense.method} onChange={e=>setExpense({...expense,method:e.target.value})}>{methods.map(x=><option key={x}>{x}</option>)}</select></label>
-        <label>File / Project ID<input value={expense.project} onChange={e=>setExpense({...expense,project:e.target.value})} placeholder="Optional LV-xxx"/></label>
-        <label>Reference<input value={expense.reference} onChange={e=>setExpense({...expense,reference:e.target.value})} placeholder="Trx / receipt"/></label>
-        <label className="wide">Notes<textarea value={expense.notes} onChange={e=>setExpense({...expense,notes:e.target.value})}/></label>
-        <button className="lep-submit expense-submit" disabled={expenseBusy}>{expenseBusy?"SUBMITTING…":"SUBMIT EXPENSE FOR CHAIRMAN APPROVAL"}</button>
-      </div></form>
-    </div>
-  </main>
+        <form className="en-form" onSubmit={submit}>
+          <div className="en-form-head"><div><h2>{type === "income" ? "Record income" : "Record expense"}</h2><p>{type === "income" ? "Money LAND VIEW received." : "Money LAND VIEW paid or owes."}</p></div><span className="en-state">PENDING APPROVAL</span></div>
+          <div className="en-fields">
+            <label>Date<input type="date" value={form.date} onChange={(event) => setForm({ ...form, date: event.target.value })} /></label>
+            <label>Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}>{categories.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label className="wide">Description<input value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder={type === "income" ? "e.g. LV-280 design bill payment" : "e.g. Office electricity bill"} autoFocus /></label>
+            <label>Amount (BDT)<input inputMode="decimal" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value.replace(/[^0-9.]/g, "") })} placeholder="0.00" /></label>
+            <label>Payment method<select value={form.method} onChange={(event) => setForm({ ...form, method: event.target.value })}>{methods.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label>Project ID<input value={form.project} onChange={(event) => setForm({ ...form, project: event.target.value })} placeholder="Optional LV-xxx" /></label>
+            <label>{type === "income" ? "Received from" : "Paid to"}<input value={form.counterparty} onChange={(event) => setForm({ ...form, counterparty: event.target.value })} placeholder={type === "income" ? "Client / payer" : "Employee / vendor"} /></label>
+            <label className="wide">Reference<input value={form.reference} onChange={(event) => setForm({ ...form, reference: event.target.value })} placeholder="Optional receipt, bKash, bank or cheque reference" /></label>
+            <label className="wide">Notes<textarea value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Optional note for the approver" /></label>
+            <button className={`en-submit ${type}`} disabled={!canSubmit}>{submitLabel}</button>
+          </div>
+        </form>
+      </div>
+    </main>
+  );
 }
