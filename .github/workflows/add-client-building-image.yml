@@ -1,0 +1,65 @@
+name: Add client building image
+
+on:
+  push:
+    paths:
+      - '.github/workflows/add-client-building-image.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Add building imagery to client portal
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/client/client.module.css')
+          s = p.read_text()
+
+          image = "https://commons.wikimedia.org/wiki/Special:FilePath/Modern%20%27black%20and%20gray%20building%27%20showing%20reflections%20of%20the%20cloudy%20syky%20in%20the%20windows%20of%20the%20facade%20by%20Matthias%20Heil%202016-08-03%20%28Unsplash%29.jpg?width=1600"
+
+          old_hero = '.hero{min-height:220px;border:1px solid var(--line);border-radius:0 0 14px 14px;overflow:hidden;position:relative;padding:38px 40px;background:radial-gradient(circle at 78% 30%,rgba(70,94,111,.35),transparent 32%),linear-gradient(110deg,#0d1821 0%,#0d1821 52%,#172735 100%)}'
+          new_hero = f'.hero{{min-height:250px;border:1px solid var(--line);border-radius:0 0 14px 14px;overflow:hidden;position:relative;padding:42px 40px;background-image:linear-gradient(90deg,rgba(7,13,19,.98) 0%,rgba(7,13,19,.93) 38%,rgba(7,13,19,.58) 64%,rgba(7,13,19,.20) 100%),url("{image}");background-size:cover;background-position:center 46%;background-repeat:no-repeat}}'
+          if old_hero not in s:
+              raise SystemExit('hero style block not found')
+          s = s.replace(old_hero, new_hero)
+
+          old_before = '.hero:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(6,11,16,.1),rgba(6,11,16,.05)),repeating-linear-gradient(90deg,transparent 0 79px,rgba(255,255,255,.025) 80px),repeating-linear-gradient(0deg,transparent 0 79px,rgba(255,255,255,.02) 80px);pointer-events:none}'
+          new_before = '.hero:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(8,14,20,.03),rgba(8,14,20,.26));pointer-events:none}'
+          s = s.replace(old_before, new_before)
+
+          old_after = '.hero:after{content:"";position:absolute;right:0;bottom:0;width:44%;height:88%;background:linear-gradient(145deg,transparent 0 37%,rgba(255,255,255,.04) 38% 39%,transparent 40%),linear-gradient(35deg,transparent 0 62%,rgba(239,48,56,.08) 63% 64%,transparent 65%);clip-path:polygon(25% 0,100% 0,100% 100%,0 100%);opacity:.85}'
+          new_after = '.hero:after{content:"";position:absolute;right:0;bottom:0;width:46%;height:100%;background:linear-gradient(90deg,transparent,rgba(239,48,56,.04));pointer-events:none}'
+          s = s.replace(old_after, new_after)
+
+          old_visual = '.projectVisual{height:126px;border-radius:12px;background:linear-gradient(145deg,#263743,#111b23);position:relative;overflow:hidden;border:1px solid #334653}'
+          new_visual = f'.projectVisual{{height:126px;border-radius:12px;background-image:linear-gradient(180deg,rgba(8,14,20,.03),rgba(8,14,20,.30)),url("{image}");background-size:cover;background-position:center;position:relative;overflow:hidden;border:1px solid #334653;box-shadow:inset 0 0 0 1px rgba(255,255,255,.03)}}'
+          if old_visual not in s:
+              raise SystemExit('project visual style block not found')
+          s = s.replace(old_visual, new_visual)
+
+          s = s.replace('.projectVisual:before{content:"LV";position:absolute;inset:0;display:grid;place-items:center;font-size:44px;font-weight:900;color:#425866}', '.projectVisual:before{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 58%,rgba(5,10,14,.42));pointer-events:none}')
+          s = s.replace('.projectVisual:after{content:"";position:absolute;left:20%;right:20%;bottom:0;height:78%;border:2px solid rgba(255,255,255,.14);border-bottom:0;box-shadow:22px -18px 0 -20px rgba(255,255,255,.14),-22px -18px 0 -20px rgba(255,255,255,.14)}', '.projectVisual:after{content:"";position:absolute;inset:0;border:1px solid rgba(255,255,255,.04);border-radius:inherit;pointer-events:none}')
+
+          s = s.replace('@media(max-width:620px){.root{padding-top:10px;gap:12px}.hero{min-height:220px;padding:28px 20px}', '@media(max-width:620px){.root{padding-top:10px;gap:12px}.hero{min-height:250px;padding:28px 20px;background-position:62% center}')
+
+          p.write_text(s)
+          PY
+      - name: Commit building image fix
+        run: |
+          if git diff --quiet; then
+            echo "No changes"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/client/client.module.css
+          git commit -m "Show architectural building images in client portal"
+          git push
