@@ -1,0 +1,3 @@
+LAND VIEW production deployment trigger
+2026-09-14 01:36 +06:00
+Includes npm allowScripts approval and client portal building-image fix.
