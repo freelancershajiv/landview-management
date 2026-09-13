@@ -122,9 +122,9 @@ export async function GET(request: NextRequest) {
     // employee project/task permissions server-side.
     console.warn("[employee-workspace] specialized bridge failed; using secure fallback:", String(workspaceJson?.error || workspaceJson?.message || "unknown error"));
 
-    const [projectsJson, tasksJson] = await Promise.all([
-      callBackend({ ...base, action: "getProjects" }).catch((error) => ({ success: false, error: error?.message || String(error) })),
-      callBackend({ ...base, action: "getErpRecords", module: "tasks" }).catch((error) => ({ success: false, error: error?.message || String(error) })),
+    const [projectsJson, tasksJson]: [BackendJson, BackendJson] = await Promise.all([
+      callBackend({ ...base, action: "getProjects" }).catch((error): BackendJson => ({ success: false, error: error?.message || String(error) })),
+      callBackend({ ...base, action: "getErpRecords", module: "tasks" }).catch((error): BackendJson => ({ success: false, error: error?.message || String(error) })),
     ]);
 
     const projects = projectsJson?.success && Array.isArray(projectsJson.data) ? projectsJson.data : [];
