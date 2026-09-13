@@ -1,0 +1,57 @@
+name: Remodel client portal
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/remodel-client-portal.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  remodel:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Switch client portal to dedicated responsive styles
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          replacements = {
+            'app/client/page.tsx': [
+              ('import styles from "@/app/admin/dashboard.module.css";', 'import styles from "@/app/client/client.module.css";'),
+            ],
+            'components/client-certificate-center.tsx': [
+              ('import styles from "@/app/admin/dashboard.module.css";', 'import styles from "@/app/client/client.module.css";'),
+            ],
+            'app/client/billing/[projectId]/page.tsx': [
+              ('import styles from "@/app/admin/finance/invoices/invoice.module.css";', 'import styles from "@/app/client/billing/client-billing.module.css";'),
+            ],
+          }
+          changed=[]
+          for filename, reps in replacements.items():
+            p=Path(filename)
+            s=p.read_text()
+            old=s
+            for a,b in reps:
+              s=s.replace(a,b)
+            if s!=old:
+              p.write_text(s)
+              changed.append(filename)
+          print('changed', changed)
+          PY
+      - name: Commit remodel
+        run: |
+          if git diff --quiet; then
+            echo "No changes required"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/client/page.tsx components/client-certificate-center.tsx app/client/billing/[projectId]/page.tsx
+          git commit -m "Remodel client portal responsive layout and PDF printing"
+          git push origin main
