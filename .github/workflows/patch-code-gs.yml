@@ -8,6 +8,7 @@ on:
       - .github/workflows/patch-code-gs.yml
       - scripts/patch_chairman_approval.py
       - scripts/patch_emp0001_login.py
+      - scripts/patch_backend_retry.py
       - ChairmanPendingExpenses.gs
   workflow_dispatch:
 
@@ -26,6 +27,8 @@ jobs:
         run: python3 scripts/patch_chairman_approval.py
       - name: Patch EMP-0001 login alias
         run: python3 scripts/patch_emp0001_login.py
+      - name: Patch Apps Script proxy retries
+        run: python3 scripts/patch_backend_retry.py
       - name: Commit patched application files
         run: |
           if git diff --quiet -- Code.gs app/api/landview/route.ts components/chairman-expense-approval.tsx components/employee-portal-shell.tsx; then
@@ -35,5 +38,5 @@ jobs:
           git config user.name "LAND VIEW Automation"
           git config user.email "actions@users.noreply.github.com"
           git add Code.gs app/api/landview/route.ts components/chairman-expense-approval.tsx components/employee-portal-shell.tsx
-          git commit -m "Fix EMP-0001 employee login alias"
+          git commit -m "Harden EMP-0001 login backend retries"
           git push origin HEAD:main
