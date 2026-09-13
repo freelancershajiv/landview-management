@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
-import { clearStoredSession, landViewApi, SessionUser } from "@/lib/api";
+import { clearStoredSession, landViewApi, readSessionCache, SessionUser } from "@/lib/api";
 
 type PortalType = "employee" | "client";
 
@@ -58,6 +58,18 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
   useEffect(() => {
     let cancelled = false;
     async function verify() {
+      const cached = readSessionCache();
+      const cachedRole = normalizeRole(cached?.user?.role || cached?.user?.Role);
+
+      // /employee is already protected by app/employee/layout.tsx on the server.
+      // Use the freshly saved login session immediately so a redundant browser
+      // getSession request cannot replace an already-authorized Employee portal
+      // with an Apps Script role-gate error.
+      if (portal === "employee" && cached?.authenticated && cached?.user && cachedRole === "employee") {
+        if (!cancelled) { setUser(cached.user); setReady(true); }
+        return;
+      }
+
       try {
         const session = await landViewApi.getSession();
         if (!session?.authenticated) throw new Error("Session expired");
@@ -65,6 +77,18 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
         if (role !== portal) { router.replace(routeForRole(role)); return; }
         if (!cancelled) { setUser(session.user); setReady(true); }
       } catch (err: any) {
+        // If the server-rendered Employee layout already admitted this request,
+        // an intermittent/legacy Apps Script role response must not destroy the
+        // portal shell. Keep the protected page open and let its scoped APIs
+        // load independently. Client portal keeps the stricter legacy behavior.
+        if (portal === "employee") {
+          if (!cancelled) {
+            setUser(cached?.user || { role: "employee", Role: "Employee" });
+            setReady(true);
+            setError("");
+          }
+          return;
+        }
         clearStoredSession();
         if (!cancelled) setError(err?.message || "Unable to validate session.");
       }
