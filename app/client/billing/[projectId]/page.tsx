@@ -39,7 +39,7 @@ type ClientAccessData = {
 export default function ClientBillingPage() {
   const params = useParams<{ projectId: string }>();
   const rawId = decodeURIComponent(String(params?.projectId || ""));
-  const id = normalizeFileId(rawId);
+  const requestedId = rawId.toLowerCase() === "current" ? "" : normalizeFileId(rawId);
   const [result, setResult] = useState<SheetInvoices | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
@@ -50,12 +50,6 @@ export default function ClientBillingPage() {
     let active = true;
 
     async function load() {
-      if (!id) {
-        setError("Invalid project File ID.");
-        setBusy(false);
-        return;
-      }
-
       try {
         const accessResponse = await fetch("/api/client-access", {
           cache: "no-store",
@@ -67,8 +61,13 @@ export default function ClientBillingPage() {
         }
 
         const access = accessJson.data as ClientAccessData;
-        const allowed = (access.projects || []).some((project) => normalizeFileId(String(project.projectId || "")) === id);
-        if (!allowed) throw new Error("This billing statement is not available for your client account.");
+        const allowedIds = (access.projects || [])
+          .map((project) => normalizeFileId(String(project.projectId || "")))
+          .filter(Boolean);
+
+        const id = requestedId || allowedIds[0] || "";
+        if (!id) throw new Error("No project is linked to this client account.");
+        if (!allowedIds.includes(id)) throw new Error("This billing statement is not available for your client account.");
 
         const billing = buildSheetInvoices(await loadFinanceTabs(), id);
         if (!active) return;
@@ -98,7 +97,7 @@ export default function ClientBillingPage() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [requestedId]);
 
   const renderTable = (category: SheetInvoices["invoices"][number], type: "bill" | "deposit") => {
     if (type === "bill") {
