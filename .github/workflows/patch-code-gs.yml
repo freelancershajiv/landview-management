@@ -1,4 +1,4 @@
-name: Patch chairman identity and September approvals
+name: Patch LAND VIEW application files
 
 on:
   push:
@@ -8,10 +8,10 @@ on:
       - .github/workflows/patch-code-gs.yml
       - scripts/patch_chairman_approval.py
       - scripts/patch_chairman_core_backend.py
-      - scripts/patch_september_expense_seeds.py
       - scripts/patch_emp0001_login.py
       - scripts/patch_backend_retry.py
       - scripts/patch_employee_login_transition.py
+      - scripts/patch_accounting_database_id.py
       - ChairmanPendingExpenses.gs
   workflow_dispatch:
 
@@ -30,14 +30,14 @@ jobs:
         run: python3 scripts/patch_chairman_approval.py
       - name: Patch self-contained chairman approval backend
         run: python3 scripts/patch_chairman_core_backend.py
-      - name: Restore September 2026 office expense seeds
-        run: python3 scripts/patch_september_expense_seeds.py
       - name: Patch EMP-0001 login alias and employee permissions
         run: python3 scripts/patch_emp0001_login.py
       - name: Patch Apps Script proxy retries
         run: python3 scripts/patch_backend_retry.py
       - name: Patch employee login transition
         run: python3 scripts/patch_employee_login_transition.py
+      - name: Switch to clean accounting database
+        run: python3 scripts/patch_accounting_database_id.py
       - name: Publish patched application files
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -54,9 +54,12 @@ jobs:
           token = os.environ["GITHUB_TOKEN"]
           allowed = {
               "Code.gs",
+              "FinanceLedger.gs",
+              "ZZ_AccountingFinance.gs",
               "lib/api.ts",
               "app/api/landview/route.ts",
               "app/login/page.tsx",
+              "app/admin/accounts/page.tsx",
               "components/chairman-expense-approval.tsx",
               "components/employee-portal-shell.tsx",
           }
@@ -75,7 +78,7 @@ jobs:
               "Authorization": f"Bearer {token}",
               "Accept": "application/vnd.github+json",
               "X-GitHub-Api-Version": "2022-11-28",
-              "User-Agent": "land-view-permission-patcher",
+              "User-Agent": "land-view-patcher",
           }
 
           for path in files:
@@ -92,7 +95,7 @@ jobs:
                       raise
 
               payload = {
-                  "message": "Apply LAND VIEW employee role and permission rewrite",
+                  "message": "Apply LAND VIEW accounting database switch",
                   "content": base64.b64encode(open(path, "rb").read()).decode("ascii"),
                   "branch": "main",
               }
