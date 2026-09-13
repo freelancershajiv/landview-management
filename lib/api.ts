@@ -415,6 +415,11 @@ export const landViewApi = {
 
   createErpRecord: (module: ErpModule, record: Record<string, unknown>) => {
     if (module === "tasks") {
+      const session = readSessionCache();
+      const role = String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase();
+      if (role === "employee") {
+        return post<Record<string, unknown>>("createErpRecord", { module: "tasks", ...record });
+      }
       return post<Record<string, unknown>>("getFinanceSheet", { tab: "Workflow", workflowOp: "create", ...record });
     }
     return post<unknown>("createErpRecord", { module, ...record });
@@ -422,6 +427,11 @@ export const landViewApi = {
 
   updateErpRecord: (module: ErpModule, id: string, changes: Record<string, unknown>) => {
     if (module === "tasks") {
+      const session = readSessionCache();
+      const role = String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase();
+      if (role === "employee") {
+        return post<Record<string, unknown>>("updateErpRecord", { module: "tasks", id, ...changes });
+      }
       const auto = parseAutoTaskId(id);
       if (auto) {
         return post<Record<string, unknown>>("getFinanceSheet", {
