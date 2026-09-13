@@ -9,6 +9,7 @@ on:
       - scripts/patch_chairman_approval.py
       - scripts/patch_emp0001_login.py
       - scripts/patch_backend_retry.py
+      - scripts/patch_employee_login_transition.py
       - ChairmanPendingExpenses.gs
   workflow_dispatch:
 
@@ -29,14 +30,16 @@ jobs:
         run: python3 scripts/patch_emp0001_login.py
       - name: Patch Apps Script proxy retries
         run: python3 scripts/patch_backend_retry.py
+      - name: Patch employee login transition
+        run: python3 scripts/patch_employee_login_transition.py
       - name: Commit patched application files
         run: |
-          if git diff --quiet -- Code.gs app/api/landview/route.ts components/chairman-expense-approval.tsx components/employee-portal-shell.tsx; then
+          if git diff --quiet -- Code.gs app/api/landview/route.ts app/login/page.tsx components/chairman-expense-approval.tsx components/employee-portal-shell.tsx; then
             echo "No application changes required"
             exit 0
           fi
           git config user.name "LAND VIEW Automation"
           git config user.email "actions@users.noreply.github.com"
-          git add Code.gs app/api/landview/route.ts components/chairman-expense-approval.tsx components/employee-portal-shell.tsx
-          git commit -m "Harden EMP-0001 login backend retries"
+          git add Code.gs app/api/landview/route.ts app/login/page.tsx components/chairman-expense-approval.tsx components/employee-portal-shell.tsx
+          git commit -m "Harden EMP-0001 login transition"
           git push origin HEAD:main
