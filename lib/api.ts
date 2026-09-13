@@ -402,7 +402,14 @@ export const landViewApi = {
   initializeErpSheets: () => post<{ initialized: boolean; modules: string[] }>("initializeErpSheets"),
 
   getErpRecords: async (module: ErpModule) => {
-    if (module === "tasks") return getBillingDrivenWorkflowTasks();
+    if (module === "tasks") {
+      const session = readSessionCache();
+      const role = String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase();
+      if (role === "employee") {
+        return get<Record<string, unknown>[]>("getErpRecords", { module: "tasks" });
+      }
+      return getBillingDrivenWorkflowTasks();
+    }
     return get<Record<string, unknown>[]>("getErpRecords", { module });
   },
 
