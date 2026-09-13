@@ -1,5 +1,6 @@
 "use client";
 
+// Production refresh: client-safe billing feed (no direct getFinanceSheet access).
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
