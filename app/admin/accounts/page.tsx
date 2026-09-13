@@ -51,7 +51,7 @@ type EmployeePayout = {
   records: number;
 };
 
-const LEDGER_URL = "https://docs.google.com/spreadsheets/d/1E1hCMKn3fGl7LUov1FS60IJNVnZTJUlf6CCO4pFMQw4/edit";
+const LEDGER_URL = "https://docs.google.com/spreadsheets/d/1e51Mq3hOj9rUH9ugF8SiHe4SYJW3dJ3Bcw9JNgii_bs/edit";
 const EMPTY_FILTERS: Filters = {
   query: "",
   year: "",
