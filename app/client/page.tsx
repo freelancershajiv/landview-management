@@ -16,7 +16,7 @@ type Workspace = { projects:ClientProject[]; client?:{name?:string;projectIds?:s
 function text(value:unknown){ return String(value ?? "").trim(); }
 function pick(row:Row,keys:string[]){ for(const key of keys) if(text(row?.[key])) return row[key]; return ""; }
 function money(value:unknown){ const n=Number(String(value??0).replace(/[^0-9.-]/g,""))||0; return new Intl.NumberFormat("en-BD",{maximumFractionDigits:0}).format(n); }
-function dateText(value:unknown){ const d=new Date(String(value||"")); return Number.isNaN(d.getTime())?"—":d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); }
+function dateText(value:unknown){ const d=new Date(String(value||"")); return Number.isNaN(d.getTime())?"Recent":d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"}); }
 function statusClass(value:unknown){ const v=text(value).toLowerCase(); if(v.includes("complete")||v==="approved"||v==="active") return styles.complete; if(v==="rejected"||v==="revoked"||v==="deleted") return styles.paused; if(v.includes("progress")||v.includes("pending")) return styles.active; return styles.other; }
 
 export default function ClientPortalPage(){
@@ -44,53 +44,86 @@ export default function ClientPortalPage(){
   const project=projects[0];
   const workflow=projects.flatMap(p=>p.workflow||[]);
   const totals=useMemo(()=>projects.reduce((sum,p)=>({bill:sum.bill+Number(p.finance?.totalBill||0),paid:sum.paid+Number(p.finance?.totalPaid||0),due:sum.due+Number(p.finance?.due||0)}),{bill:0,paid:0,due:0}),[projects]);
-  const completed=workflow.filter(t=>text(pick(t,["Status"])) .toLowerCase()==="completed").length;
-  const progress=project?.progress||0;
-
-  function printInvoice(p:ClientProject){
-    const w=window.open("","_blank","width=900,height=900"); if(!w) return;
-    const rows=[["Engineering",p.finance.engineeringBill,p.finance.engineeringPaid,p.finance.engineeringDue],["Supervision",p.finance.supervisionBill,p.finance.supervisionPaid,p.finance.supervisionDue],["Others",p.finance.othersBill,p.finance.othersPaid,p.finance.othersDue]];
-    w.document.write(`<!doctype html><html><head><title>${p.projectId} Invoice</title><style>body{font-family:Arial;padding:42px;color:#111}header{display:flex;justify-content:space-between;border-bottom:3px solid #111;padding-bottom:18px}.brand{font-size:26px;font-weight:900}.brand span{color:#d73329}.meta{text-align:right;font-size:12px}.box{margin-top:28px;padding:18px;border:1px solid #bbb}.box h2{margin:0 0 8px}table{width:100%;border-collapse:collapse;margin-top:25px}th,td{padding:12px;border:1px solid #ccc;text-align:right}th:first-child,td:first-child{text-align:left}tfoot td{font-weight:900}.note{margin-top:28px;font-size:11px;color:#555}</style></head><body><header><div><div class="brand">LAND <span>VIEW</span></div><div>Engineers & Architects</div></div><div class="meta"><b>CLIENT INVOICE / ACCOUNT STATEMENT</b><br>${new Date().toLocaleDateString("en-GB")}</div></header><div class="box"><h2>${p.clientName||"Client"}</h2><div>${p.projectId} · ${p.projectName||"LAND VIEW Project"}</div><div>${p.location||""}</div></div><table><thead><tr><th>Category</th><th>Bill (৳)</th><th>Paid (৳)</th><th>Due (৳)</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r[0]}</td><td>${money(r[1])}</td><td>${money(r[2])}</td><td>${money(r[3])}</td></tr>`).join("")}</tbody><tfoot><tr><td>TOTAL</td><td>${money(p.finance.totalBill)}</td><td>${money(p.finance.totalPaid)}</td><td>${money(p.finance.due)}</td></tr></tfoot></table><div class="note">Generated from the LAND VIEW client portal. Financial records remain subject to LAND VIEW accounting verification.</div><script>window.onload=()=>window.print()</script></body></html>`);
-    w.document.close();
-  }
+  const progress=Math.max(0,Math.min(100,Number(project?.progress||0)));
+  const recent=workflow.slice(-5).reverse();
+  const status=project?.status|| (progress>=100?"Completed":"Ongoing");
 
   if(loading)return <div className={styles.skeleton} role="status"><span/><span/><span/><span/><span/><span/></div>;
 
   return <div className={styles.root} id="dashboard">
-    <style>{`
-      .cp-section{scroll-margin-top:130px}.cp-actions{display:flex;gap:8px;flex-wrap:wrap}.cp-primary,.cp-secondary{height:38px;padding:0 14px;border-radius:7px;font-size:9px;font-weight:800;cursor:pointer}.cp-primary{border:1px solid #ef493b;background:#ef493b;color:#fff}.cp-secondary{border:1px solid #454545;background:#282828;color:#eee}.cp-project-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:20px}.cp-progress{height:8px;border-radius:999px;background:#3a3a3a;overflow:hidden;margin-top:16px}.cp-progress span{display:block;height:100%;background:#ef493b}.cp-mini{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:16px}.cp-mini div{padding:14px;border:1px solid #3d3d3d;border-radius:9px;background:#252525}.cp-mini small{display:block;color:#999;font-size:9px}.cp-mini strong{display:block;margin-top:6px;font-size:18px;color:#fff}@media(max-width:950px){.cp-project-grid{grid-template-columns:1fr}}@media(max-width:650px){.cp-mini{grid-template-columns:1fr}}
-    `}</style>
-
-    <header className={styles.header}>
-      <div><span className={styles.eyebrow}>YOUR LAND VIEW PROJECT</span><h1>Your project, at a glance<span>.</span></h1><span className={styles.timestamp}>{refreshing?"Updating project data…":updated?`Updated ${updated.toLocaleTimeString("en-BD",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Dhaka"})} · ${project?.clientName||workspace?.client?.name||"Client"}`:"Client workspace"}</span></div>
-      <div className={styles.actions}><button type="button" className={styles.refresh} onClick={()=>void load(true)} disabled={refreshing}><span>↻</span>{refreshing?"Updating…":"Refresh"}</button></div>
-    </header>
+    <section className={styles.hero}>
+      <div className={styles.heroContent}>
+        <span className={styles.eyebrow}>WELCOME TO LAND VIEW</span>
+        <h1>Your Project, Our Commitment<span>.</span></h1>
+        <p>Track progress, manage payments, request certificates and stay connected with your project — all in one place.</p>
+        <div className={styles.heroMeta}>
+          <span>{project?.projectId||"Project"}</span>
+          <span>{project?.location||"LAND VIEW project"}</span>
+          <span>{refreshing?"Updating…":updated?`Updated ${updated.toLocaleTimeString("en-BD",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Dhaka"})}`:"Live workspace"}</span>
+          <button type="button" className={styles.refresh} onClick={()=>void load(true)} disabled={refreshing}>{refreshing?"Refreshing…":"Refresh"}</button>
+        </div>
+      </div>
+    </section>
 
     {error&&<div className={styles.error}>{error}</div>}
 
-    <section className={styles.metrics}>
-      <a href="#project" className={styles.metric}><span className={styles.metricTitle}>Project <i>↗</i></span><strong>{project?.projectId||"—"}</strong><small>{project?.status||"Active"}</small></a>
-      <a href="#workflow" className={styles.metric}><span className={styles.metricTitle}>Delivery progress <i>↗</i></span><strong>{progress}%</strong><small>{completed}/{workflow.length} services completed</small></a>
-      <a href="#finance" className={styles.metric}><span className={styles.metricTitle}>Total bill <i>↗</i></span><strong>৳ {money(totals.bill)}</strong><small>Current project billing</small></a>
-      <a href="#finance" className={styles.metric}><span className={styles.metricTitle}>Paid <i>↗</i></span><strong>৳ {money(totals.paid)}</strong><small>Recorded deposits</small></a>
-      <a href="#finance" className={`${styles.metric} ${totals.due>0?styles.dueMetric:""}`}><span className={styles.metricTitle}>Balance due <i>↗</i></span><strong>৳ {money(totals.due)}</strong><small>Current outstanding balance</small></a>
-      <a href="#certificates" className={styles.metric}><span className={styles.metricTitle}>Certificate requests <i>↗</i></span><strong>{certificateSummary?.total ?? "—"}</strong><small>{certificateSummary ? `${certificateSummary.pending} pending approval` : "Open certificate center"}</small></a>
+    <section id="project" className={`${styles.overviewGrid} cp-section`}>
+      <div className={`${styles.card} ${styles.projectCard}`}>
+        <div className={styles.projectVisual}/>
+        <div>
+          <span className={styles.label}>Current project</span>
+          <h2>{project?.projectId||"—"}</h2>
+          <div className={styles.client}>{project?.clientName||workspace?.client?.name||"Client"}</div>
+          <div className={styles.location}>{project?.location||"Project location not recorded"}</div>
+          <div className={styles.projectFooter}><span className={styles.statusPill}>{status.toUpperCase()}</span><small>{project?.completedServices||0}/{project?.totalServices||workflow.length||0} services completed</small></div>
+        </div>
+      </div>
+      <div className={`${styles.card} ${styles.metricCard}`}><div className={styles.metricIcon}>▤</div><span>Total Bill</span><strong>৳ {money(totals.bill)}</strong><small>Project billing amount</small></div>
+      <div className={`${styles.card} ${styles.metricCard}`}><div className={styles.metricIcon}>▣</div><span>Total Paid</span><strong>৳ {money(totals.paid)}</strong><small>Payments received</small></div>
+      <div className={`${styles.card} ${styles.metricCard}`}><div className={styles.metricIcon}>◔</div><span>Balance Due</span><strong>৳ {money(totals.due)}</strong><small>{totals.due>0?"Current outstanding balance":"No outstanding balance"}</small></div>
     </section>
 
-    <section className={styles.moduleGrid}>
-      <a href="#workflow" className={styles.moduleCard}><span className={styles.moduleIcon}>01</span><div><small>PROJECT DELIVERY</small><strong>Workflow</strong><p>Follow every billed service from pending to completed.</p></div><b>→</b></a>
-      <a href="#finance" className={styles.moduleCard}><span className={styles.moduleIcon}>02</span><div><small>ACCOUNT POSITION</small><strong>Finance & invoice</strong><p>See bills, payments and current due, then generate an account invoice.</p></div><b>→</b></a>
-      <a href="#certificates" className={styles.moduleCard}><span className={styles.moduleIcon}>03</span><div><small>CLIENT SERVICES</small><strong>Certificates</strong><p>Request a project or building certificate for LAND VIEW approval.</p></div><b>→</b></a>
+    <section className={styles.middleGrid}>
+      <div className={`${styles.card} ${styles.progressCard}`}>
+        <div className={styles.sectionTitle}><h2>Project Progress</h2><strong>{progress}%</strong></div>
+        <div className={styles.progressTrack}><span style={{width:`${progress}%`}}/></div>
+        <p>{project?.completedServices||0} of {project?.totalServices||workflow.length||0} services completed</p>
+      </div>
+      <div className={`${styles.card} ${styles.quickCard}`}>
+        <div className={styles.sectionTitle}><h2>Quick Actions</h2></div>
+        <div className={styles.quickActions}>
+          <button className={`${styles.action} ${styles.actionPrimary}`} onClick={()=>project&&(window.location.href=`/client/billing/${encodeURIComponent(project.projectId)}`)}><span className={styles.actionIcon}>▤</span><span><strong>Generate Invoice</strong><small>View detailed bill</small></span></button>
+          <a className={styles.action} href="#certificates"><span className={styles.actionIcon}>◫</span><span><strong>Request Certificate</strong><small>Get project certificate</small></span></a>
+          <a className={styles.action} href="#documents"><span className={styles.actionIcon}>□</span><span><strong>View Documents</strong><small>Project files & drawings</small></span></a>
+          <a className={styles.action} href="mailto:landviewcivil@gmail.com"><span className={styles.actionIcon}>◌</span><span><strong>Message Us</strong><small>Send a message</small></span></a>
+        </div>
+      </div>
     </section>
 
-    <div id="project" className="cp-project-grid cp-section">
-      <section className={styles.attentionPanel}><div className={styles.panelTop}><div><small className={styles.panelKicker}>PROJECT OVERVIEW</small><h2>{project?.projectName||"LAND VIEW Project"}</h2></div><strong className={styles.attentionBadge}>{project?.projectId||"—"}</strong></div><p>{project?.location||"Project location not recorded"}</p><div className="cp-progress"><span style={{width:`${Math.max(0,Math.min(100,progress))}%`}}/></div><div className="cp-mini"><div><small>Completed services</small><strong>{project?.completedServices||0}</strong></div><div><small>Total services</small><strong>{project?.totalServices||0}</strong></div><div><small>Status</small><strong>{project?.status||"Active"}</strong></div></div></section>
-      <section className={styles.healthPanel}><div className={styles.panelTop}><div><small className={styles.panelKicker}>QUICK ACTIONS</small><h2>Client services</h2></div><strong>{progress}%</strong></div><div className={styles.healthBar}><span style={{width:`${progress}%`}}/></div><p>Use these actions for your project account. Certificate requests are reviewed by LAND VIEW administration.</p><div className="cp-actions"><button className="cp-secondary" onClick={()=>project&&(window.location.href=`/client/billing/${encodeURIComponent(project.projectId)}`)}>GENERATE INVOICE</button><a className="btn btn-dark" href="#certificates">REQUEST CERTIFICATE</a></div></section>
-    </div>
+    <section className={styles.bottomGrid}>
+      <div id="workflow" className={`${styles.card} ${styles.updatesCard} cp-section`}>
+        <div className={styles.sectionTitle}><h2>Recent Updates</h2><a href="#workflow" style={{color:"#ff4148",fontSize:11}}>View All →</a></div>
+        <div className={styles.updatesList}>{recent.length?recent.map((task,index)=>{const s=text(pick(task,["Status"]))||"Updated";const title=pick(task,["Task_Title","Title","Description"])||"Project service updated";return <div className={styles.updateRow} key={text(pick(task,["Task_ID"]))||index}><span className={styles.dot}/><span className={styles.updateDate}>{dateText(pick(task,["Due_Date","Due Date","Updated_At"]))}</span><span className={styles.updateText}>{title} · {s}</span></div>}):<div className={styles.updateRow}><span className={styles.dot}/><span className={styles.updateDate}>Current</span><span className={styles.updateText}>Your project workspace is active and up to date.</span></div>}</div>
+      </div>
+      <div className={`${styles.card} ${styles.supportCard}`}>
+        <div className={styles.sectionTitle}><h2>Your Dedicated Support</h2></div>
+        <div className={styles.supportPerson}><div className={styles.supportAvatar}>LV</div><div><strong>LAND VIEW Support</strong><small>Project coordination team</small></div></div>
+        <div className={styles.supportLines}><span>✉ landviewcivil@gmail.com</span><span>Project: {project?.projectId||"—"}</span></div>
+        <p className={styles.supportNote}>For any queries about your project, invoices or certificates, contact our team directly.</p>
+      </div>
+      <div className={`${styles.card} ${styles.brandCard}`}><strong>LAND VIEW</strong><i/><p>Design<br/>Plan<br/>Build<br/><span style={{color:"#9aa7b2"}}>for a Better Tomorrow</span></p></div>
+    </section>
 
-    <section id="workflow" className={`${styles.projects} cp-section`}><div className={styles.projectHeader}><div><small className={styles.panelKicker}>PROJECT DELIVERY</small><h2>Workflow <span>{workflow.length}</span></h2></div><div className={styles.projectTools}><span style={{fontSize:10,color:"#999"}}>Live billing-driven progress</span></div></div><div className={styles.tableWrap}><table><thead><tr><th>#</th><th>Service</th><th>Status</th><th>Progress</th><th>Due date</th></tr></thead><tbody>{workflow.map((task,index)=>{const status=text(pick(task,["Status"]))||"Pending";const taskProgress=status.toLowerCase()==="completed"?100:Number(pick(task,["Progress"])||0);return <tr key={text(pick(task,["Task_ID"]))||index}><td><strong>{String(index+1).padStart(2,"0")}</strong></td><td><span className={styles.projectName}>{pick(task,["Task_Title","Title"])||"Project service"}</span><small>{pick(task,["Description"])||"LAND VIEW service workflow"}</small></td><td><span className={`${styles.status} ${statusClass(status)}`}><i/>{status}</span></td><td><strong>{taskProgress}%</strong></td><td>{dateText(pick(task,["Due_Date","Due Date"]))}</td></tr>})}</tbody></table>{!workflow.length&&<div className={styles.empty}><h3>No workflow services yet</h3><p>Workflow will appear when billed project services are available.</p></div>}</div></section>
+    <div className={styles.trustBanner}><div><strong>Your Trust Builds Safer Spaces</strong><small>Professional design. Reliable supervision. Lasting value.</small></div><span>Architecture for a Better Tomorrow.</span></div>
 
-    <section id="finance" className={`${styles.projects} cp-section`}><div className={styles.projectHeader}><div><small className={styles.panelKicker}>FINANCIAL UPDATE</small><h2>Account position</h2></div><div className="cp-actions"><button className="cp-secondary" onClick={()=>project&&(window.location.href=`/client/billing/${encodeURIComponent(project.projectId)}`)}>GENERATE INVOICE</button></div></div><div className={styles.tableWrap}><table><thead><tr><th>Category</th><th>Bill</th><th>Paid</th><th>Due</th></tr></thead><tbody>{project&&<><tr><td><span className={styles.projectName}>Engineering</span></td><td>৳ {money(project.finance.engineeringBill)}</td><td>৳ {money(project.finance.engineeringPaid)}</td><td><strong>৳ {money(project.finance.engineeringDue)}</strong></td></tr><tr><td><span className={styles.projectName}>Supervision</span></td><td>৳ {money(project.finance.supervisionBill)}</td><td>৳ {money(project.finance.supervisionPaid)}</td><td><strong>৳ {money(project.finance.supervisionDue)}</strong></td></tr><tr><td><span className={styles.projectName}>Others</span></td><td>৳ {money(project.finance.othersBill)}</td><td>৳ {money(project.finance.othersPaid)}</td><td><strong>৳ {money(project.finance.othersDue)}</strong></td></tr></>}</tbody></table></div></section>
+    <section id="finance" className={`${styles.financePanel} cp-section`}>
+      <div className={styles.projectHeader}><div><small className={styles.panelKicker}>ACCOUNT POSITION</small><h2>Invoices & Payments</h2></div><button className="cp-secondary" onClick={()=>project&&(window.location.href=`/client/billing/${encodeURIComponent(project.projectId)}`)}>GENERATE INVOICE</button></div>
+      <div className={styles.tableWrap}><table><thead><tr><th>Category</th><th>Bill</th><th>Paid</th><th>Due</th></tr></thead><tbody>{project&&<><tr><td><span className={styles.projectName}>Engineering</span></td><td>৳ {money(project.finance.engineeringBill)}</td><td>৳ {money(project.finance.engineeringPaid)}</td><td><strong>৳ {money(project.finance.engineeringDue)}</strong></td></tr><tr><td><span className={styles.projectName}>Supervision</span></td><td>৳ {money(project.finance.supervisionBill)}</td><td>৳ {money(project.finance.supervisionPaid)}</td><td><strong>৳ {money(project.finance.supervisionDue)}</strong></td></tr><tr><td><span className={styles.projectName}>Others</span></td><td>৳ {money(project.finance.othersBill)}</td><td>৳ {money(project.finance.othersPaid)}</td><td><strong>৳ {money(project.finance.othersDue)}</strong></td></tr></>}</tbody></table></div>
+    </section>
+
+    <section id="documents" className={`${styles.projects} cp-section`}><div className={styles.projectHeader}><div><small className={styles.panelKicker}>PROJECT FILES</small><h2>Documents</h2></div></div><div className={styles.empty}><h3>Project documents</h3><p>Approved drawings, files and project records will appear here when they are made available to the client portal.</p></div></section>
+
+    <section id="workflow-detail" className={`${styles.projects} cp-section`}><div className={styles.projectHeader}><div><small className={styles.panelKicker}>PROJECT DELIVERY</small><h2>Workflow <span style={{color:"#91a0aa"}}>({workflow.length})</span></h2></div></div><div className={styles.tableWrap}><table><thead><tr><th>#</th><th>Service</th><th>Status</th><th>Progress</th><th>Due date</th></tr></thead><tbody>{workflow.map((task,index)=>{const s=text(pick(task,["Status"]))||"Pending";const taskProgress=s.toLowerCase()==="completed"?100:Number(pick(task,["Progress"])||0);return <tr key={text(pick(task,["Task_ID"]))||index}><td><strong>{String(index+1).padStart(2,"0")}</strong></td><td><span className={styles.projectName}>{pick(task,["Task_Title","Title"])||"Project service"}</span><small>{pick(task,["Description"])||"LAND VIEW service workflow"}</small></td><td><span className={`${styles.status} ${statusClass(s)}`}>{s}</span></td><td><strong>{taskProgress}%</strong></td><td>{dateText(pick(task,["Due_Date","Due Date"]))}</td></tr>})}</tbody></table>{!workflow.length&&<div className={styles.empty}><h3>No workflow services yet</h3><p>Workflow will appear when billed project services are available.</p></div>}</div></section>
 
     <ClientCertificateCenter projects={projects} refreshKey={updated?.getTime() ?? 0} onSummary={setCertificateSummary} />
   </div>;
