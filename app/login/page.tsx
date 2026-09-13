@@ -8,7 +8,7 @@ type PortalType = "admin" | "employee" | "client";
 const PORTAL_KEY = "land_view_portal_type";
 
 const portals = [
-  { id:"employee" as PortalType, label:"Employee", short:"E", eyebrow:"EMPLOYEE WORKSPACE", description:"Assigned projects, workflow, site records, files and attendance.", identifier:"EMPLOYEE ID", placeholder:"EMP-0001" },
+  { id:"employee" as PortalType, label:"Employee", short:"E", eyebrow:"EMPLOYEE / ADMIN ACCESS", description:"Employees sign in with Employee ID. Administrators use the same login with the correct Admin ID and password.", identifier:"EMPLOYEE / ADMIN ID", placeholder:"EMP-0001 or admin username" },
   { id:"client" as PortalType, label:"Client", short:"C", eyebrow:"CLIENT PORTAL", description:"Sign in with your LAND VIEW project ID and the mobile number registered with that project.", identifier:"PROJECT ID", placeholder:"LV-1" },
 ];
 
@@ -81,7 +81,7 @@ export default function LoginPage(){
   async function submit(e:FormEvent<HTMLFormElement>){
     e.preventDefault(); if(loading) return;
     let id = userId.trim();
-    if(portal === "employee" || portal === "client") id = id.toUpperCase();
+    if(portal === "client") id = id.toUpperCase();
     if(portal === "client"){
       if(!id || !clientMobile.trim()){ setError("Enter your Project ID and registered mobile number to continue."); return; }
     } else if(!id || !password){ setError(`Enter your ${selected.identifier.toLowerCase()} and password to continue.`); return; }
