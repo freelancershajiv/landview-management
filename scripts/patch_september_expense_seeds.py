@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 path = Path("Code.gs")
 s = path.read_text(encoding="utf-8")
@@ -133,3 +134,8 @@ if old_review in s:
 
 path.write_text(s, encoding="utf-8")
 print("September 2026 office/project expense seeding restored with duplicate protection")
+
+# The established workflow already executes this file. Chain the unified finance
+# approval patch here so income + personal approval changes publish through the
+# same tested GitHub Contents API path without changing workflow credentials.
+runpy.run_path("scripts/patch_unified_finance_approvals.py", run_name="__main__")
