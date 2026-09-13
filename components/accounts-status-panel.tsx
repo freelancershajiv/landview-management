@@ -54,12 +54,65 @@ function records(data: FinanceSheetData | null): Row[] {
 function parseDate(value: unknown) {
   const raw = text(value);
   if (!raw) return null;
+
+  // Google Sheets may return Excel/Sheets serial dates.
   if (/^\d{5}(?:\.\d+)?$/.test(raw)) {
     const serial = Number(raw);
     if (Number.isFinite(serial) && serial > 20000 && serial < 80000) {
       return new Date(1899, 11, 30 + Math.floor(serial));
     }
   }
+
+  // The accounting API also returns dates such as 01/09/2026.
+  // Date.parse interprets that as MM/DD/YYYY in JavaScript, which caused
+  // September historical rows to be treated as January, February, etc.
+  const dmy = raw.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  if (dmy) {
+    const day = Number(dmy[1]);
+    const month = Number(dmy[2]);
+    let year = Number(dmy[3]);
+    if (year < 100) year += year >= 70 ? 1900 : 2000;
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      return new Date(year, month - 1, day);
+    }
+  }
+
+  const named = raw.match(/^(\d{1,2})[-\s]([A-Za-z]{3,9})[-\s](\d{2,4})$/);
+  if (named) {
+    const months: Record<string, number> = {
+      jan: 0,
+      january: 0,
+      feb: 1,
+      february: 1,
+      mar: 2,
+      march: 2,
+      apr: 3,
+      april: 3,
+      may: 4,
+      jun: 5,
+      june: 5,
+      jul: 6,
+      july: 6,
+      aug: 7,
+      august: 7,
+      sep: 8,
+      sept: 8,
+      september: 8,
+      oct: 9,
+      october: 9,
+      nov: 10,
+      november: 10,
+      dec: 11,
+      december: 11,
+    };
+    const month = months[named[2].toLowerCase()];
+    if (month !== undefined) {
+      let year = Number(named[3]);
+      if (year < 100) year += year >= 70 ? 1900 : 2000;
+      return new Date(year, month, Number(named[1]));
+    }
+  }
+
   const parsed = Date.parse(raw);
   return Number.isNaN(parsed) ? null : new Date(parsed);
 }
