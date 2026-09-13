@@ -1,0 +1,2 @@
+LAND VIEW client portal building image fix approved for production deployment on 2026-09-14.
+Includes hero building imagery and project thumbnail styling from commit eaa21f76f538c56a6ecfe766eb1b48f7afe45f62.
