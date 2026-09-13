@@ -24,23 +24,20 @@ jobs:
           s = p.read_text()
 
           s = s.replace('  { id:"admin" as PortalType, label:"Management", short:"A", eyebrow:"ADMIN / MANAGER / ACCOUNTS", description:"Projects, finance, employees, workflow and company administration.", identifier:"USERNAME", placeholder:"Enter username" },\n', '')
+          s = s.replace('{ id:"employee" as PortalType, label:"Employee", short:"E", eyebrow:"EMPLOYEE WORKSPACE", description:"Assigned projects, workflow, site records, files and attendance.", identifier:"EMPLOYEE ID", placeholder:"EMP-0001" }', '{ id:"employee" as PortalType, label:"Employee", short:"E", eyebrow:"EMPLOYEE / ADMIN ACCESS", description:"Employees sign in with Employee ID. Administrators use the same login with the correct Admin ID and password.", identifier:"EMPLOYEE / ADMIN ID", placeholder:"EMP-0001 or admin username" }')
           s = s.replace('const [portal,setPortal] = useState<PortalType>("admin");', 'const [portal,setPortal] = useState<PortalType>("employee");')
           s = s.replace('.lv-login .tabs{display:grid;grid-template-columns:repeat(3,1fr);', '.lv-login .tabs{display:grid;grid-template-columns:repeat(2,1fr);')
+          s = s.replace('if(stored && portals.some(p=>p.id===stored)) setPortal(stored);', 'if(stored === "employee" || stored === "client") setPortal(stored);')
+          s = s.replace('if(portal === "employee" || portal === "client") id = id.toUpperCase();', 'if(portal === "client") id = id.toUpperCase();')
 
-          old = '''      if(!roleMatchesPortal(role,portal)){\n        const correct = portalForRole(role);\n        throw new Error(correct ? `This account belongs to the ${portals.find(p=>p.id===correct)?.label || correct} portal.` : "This account cannot access this portal.");\n      }\n      saveSessionCache({authenticated:true,user:result.user});\n      try{ localStorage.setItem(PORTAL_KEY,portal); }catch{}\n      window.location.replace(portalPath(portal));'''
-          new = '''      const rolePortal = portalForRole(role);\n      if(portal === "employee" && rolePortal === "admin"){\n        saveSessionCache({authenticated:true,user:result.user});\n        try{ localStorage.setItem(PORTAL_KEY,"employee"); }catch{}\n        window.location.replace("/admin");\n        return;\n      }\n      if(!roleMatchesPortal(role,portal)){\n        throw new Error(rolePortal === "client" ? "This account belongs to the Client portal." : "This account cannot access this portal.");\n      }\n      saveSessionCache({authenticated:true,user:result.user});\n      try{ localStorage.setItem(PORTAL_KEY,portal); }catch{}\n      window.location.replace(portalPath(portal));'''
-          if old not in s:
-              raise SystemExit('login role block not found')
-          s = s.replace(old, new)
-
-          # Disable legacy Admin quick-PIN discovery/UI path now that Admin is intentionally hidden.
           old_status = '''    void quickPost("quickPinStatus").then(data=>{\n      setQuickConfigured(Boolean(data?.configured)); setTrustedDevice(Boolean(data?.trusted)); setTrustedUntil(data?.expiresAt ? Number(data.expiresAt) : null);\n    }).catch(()=>{});'''
           s = s.replace(old_status, '    setQuickConfigured(false);')
 
-          # Ensure any stale saved Admin portal cannot reactivate an Admin tab.
-          s = s.replace('if(stored && portals.some(p=>p.id===stored)) setPortal(stored);', 'if(stored === "employee" || stored === "client") setPortal(stored);')
+          old = '''      if(!roleMatchesPortal(role,portal)){\n        const correct = portalForRole(role);\n        throw new Error(correct ? `This account belongs to the ${portals.find(p=>p.id===correct)?.label || correct} portal.` : "This account cannot access this portal.");\n      }\n      saveSessionCache({authenticated:true,user:result.user});\n      try{ localStorage.setItem(PORTAL_KEY,portal); }catch{}\n      window.location.replace(portalPath(portal));'''
+          new = '''      const rolePortal = portalForRole(role);\n      if(portal === "employee" && rolePortal === "admin"){\n        saveSessionCache({authenticated:true,user:result.user});\n        try{ localStorage.setItem(PORTAL_KEY,"employee"); }catch{}\n        window.location.replace("/admin");\n        return;\n      }\n      if(!roleMatchesPortal(role,portal)){\n        throw new Error(rolePortal === "client" ? "This account belongs to the Client portal." : "This account cannot access this portal.");\n      }\n      saveSessionCache({authenticated:true,user:result.user});\n      try{ localStorage.setItem(PORTAL_KEY,portal); }catch{}\n      window.location.replace(portalPath(portal));'''
+          if old in s:
+              s = s.replace(old, new)
 
-          # Update the visible login copy where present.
           s = s.replace('Choose your portal', 'Choose Employee or Client')
           s = s.replace('Select the correct workspace and continue securely.', 'Employees and administrators use Employee login. Clients use Client login.')
 
@@ -55,5 +52,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add app/login/page.tsx
-          git commit -m "Keep only employee and client login portals"
+          git commit -m "Route admin credentials through employee login"
           git push
