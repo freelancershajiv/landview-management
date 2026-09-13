@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ClientCertificateCenter, { type CertificateSummary } from "@/components/client-certificate-center";
-import styles from "@/app/admin/dashboard.module.css";
+import styles from "@/app/client/client.module.css";
 
 type Row = Record<string, any>;
 type ClientProject = {

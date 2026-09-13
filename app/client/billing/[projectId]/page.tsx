@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { normalizeFileId } from "@/lib/sheet-invoices";
-import styles from "@/app/admin/finance/invoices/invoice.module.css";
+import styles from "@/app/client/billing/client-billing.module.css";
 
 type Row = Record<string, unknown>;
 type ClientProject = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
-import styles from "@/app/admin/dashboard.module.css";
+import styles from "@/app/client/client.module.css";
 
 type RequestRow = { requestId: string; projectId: string; category: string; categoryLabel?: string; subject: string; details?: string; status: string; certificateId?: string; requestedAt?: string; adminNote?: string };
 type CertificateRow = { certificateId: string; type: string; category?: string; subject: string; status: string; issuedAt: string; reference: string };
