@@ -699,8 +699,10 @@ function loginUser(params) {
     const user = users[i];
     const rowUserId = normalize(firstValue(user, ["User_ID", "User ID", "UserId", "userId"]));
     const rowUsername = normalize(firstValue(user, ["Username", "username", "User_Name", "User Name"]));
+    const rowEmployeeId = normalize(firstValue(user, ["Employee_ID", "Employee ID", "EmployeeId", "employeeId"]));
     const rowPhoneUsername = normalizePhoneIdentifier(firstValue(user, ["Username", "username", "Phone", "Phone_Number"]));
-    const identifierMatches = normalizedIdentifier === rowUserId || normalizedIdentifier === rowUsername || (phoneIdentifier && phoneIdentifier === rowPhoneUsername);
+    const chairmanAliasMatches = normalizedIdentifier === normalize("EMP-0001") && chairmanIdentityMatches_(user);
+    const identifierMatches = normalizedIdentifier === rowUserId || normalizedIdentifier === rowUsername || normalizedIdentifier === rowEmployeeId || chairmanAliasMatches || (phoneIdentifier && phoneIdentifier === rowPhoneUsername);
 
     if (identifierMatches && isActiveUser(user) && verifyUserPassword_(user, password)) {
       foundUser = user;
@@ -748,6 +750,7 @@ function chairmanIdentityMatches_(identity) {
     userId === "EMP-0001" ||
     username === "emp-0001" ||
     name.indexOf("jamal ahmed bhuiyan") >= 0 ||
+    name.indexOf("jamal ahamed bhuiyan") >= 0 ||
     name.indexOf("jamal rony") >= 0;
 }
 
