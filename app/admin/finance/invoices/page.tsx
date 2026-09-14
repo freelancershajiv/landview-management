@@ -5,7 +5,6 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import {
   buildSheetInvoices,
-  invoiceTabs,
   normalizeFileId,
   verifySheetInvoicesWithPayments,
   type SheetInvoices,
@@ -22,6 +21,14 @@ const BILLING_SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 type BillingSnapshot = {
   savedAt: number;
   billing: SheetInvoices;
+};
+
+type ProjectBillingBundle = {
+  projectId: string;
+  sheets: FinanceSheetData[];
+  payments: Record<string, unknown>[];
+  updatedAt?: string;
+  mode?: string;
 };
 
 function snapshotKey(id: string) {
@@ -49,15 +56,31 @@ function saveBillingSnapshot(id: string, billing: SheetInvoices) {
   } catch {}
 }
 
-async function loadFinanceTabs(fileListSheet?: FinanceSheetData | null) {
-  // lib/api already limits LAND VIEW requests to four concurrent calls. Starting
-  // all tabs here lets that shared queue run at full capacity instead of adding
-  // another, slower three-worker bottleneck. Reuse File List when this page has
-  // already loaded it so generating a bill does not fetch that sheet twice.
-  return Promise.all(invoiceTabs.map((tab) => {
-    if (tab === "File List" && fileListSheet) return Promise.resolve(fileListSheet);
-    return landViewApi.getFinanceSheet(tab);
-  }));
+async function loadProjectBillingBundle(id: string): Promise<ProjectBillingBundle> {
+  const response = await fetch(`/api/project-billing?fileId=${encodeURIComponent(`LV-${id}`)}`, {
+    method: "GET",
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  let json: any = null;
+  try {
+    json = await response.json();
+  } catch {
+    throw new Error("The billing service returned an invalid response.");
+  }
+  if (!response.ok || !json?.success || !json?.data) {
+    throw new Error(String(json?.error || "Could not load project billing."));
+  }
+  if (!Array.isArray(json.data.sheets)) {
+    throw new Error("The billing service returned incomplete finance data.");
+  }
+  return {
+    projectId: String(json.data.projectId || `LV-${id}`),
+    sheets: json.data.sheets as FinanceSheetData[],
+    payments: Array.isArray(json.data.payments) ? json.data.payments : [],
+    updatedAt: String(json.data.updatedAt || ""),
+    mode: String(json.data.mode || ""),
+  };
 }
 
 type FileListProject = {
@@ -79,7 +102,6 @@ export default function ProjectBillingPage() {
   const [fileListLoading, setFileListLoading] = useState(true);
   const [fileListError, setFileListError] = useState("");
   const request = useRef(0);
-  const fileListSheet = useRef<FinanceSheetData | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -89,7 +111,6 @@ export default function ProjectBillingPage() {
       try {
         const sheet = await landViewApi.getFinanceSheet("File List");
         if (!active) return;
-        fileListSheet.current = sheet;
         const projects = (sheet.rows || [])
           .map((row): FileListProject | null => {
             const normalized = normalizeFileId(String(row[0] || ""));
@@ -133,11 +154,11 @@ export default function ProjectBillingPage() {
   }
 
   async function fetchFreshBilling(id: string) {
-    const [financeTabs, databasePayments] = await Promise.all([
-      loadFinanceTabs(fileListSheet.current),
-      landViewApi.getPayments(`LV-${id}`).catch(() => [] as Record<string, unknown>[]),
-    ]);
-    return verifySheetInvoicesWithPayments(buildSheetInvoices(financeTabs, id), databasePayments);
+    const bundle = await loadProjectBillingBundle(id);
+    return verifySheetInvoicesWithPayments(
+      buildSheetInvoices(bundle.sheets, id),
+      bundle.payments || [],
+    );
   }
 
   async function refreshBilling(id: string, version: number, background: boolean) {
@@ -177,7 +198,7 @@ export default function ProjectBillingPage() {
     const snapshot = readBillingSnapshot(id);
     if (snapshot) {
       // Reopening a recently generated/fixed bill should feel instant. Display
-      // the snapshot first, then reconcile it with current Sheets data quietly.
+      // the snapshot first, then reconcile it with current finance data quietly.
       setResult(snapshot);
       setBusy(false);
       setRefreshing(true);
@@ -234,7 +255,7 @@ export default function ProjectBillingPage() {
       </form>
 
       {error && <div className={styles.error} role="alert">{error}</div>}
-      {busy && <div className={styles.loading} role="status">Pulling bill and deposit records…</div>}
+      {busy && <div className={styles.loading} role="status">Loading this project’s billing data…</div>}
       {refreshing && result && <div className={styles.loading} role="status">Bill opened from recent snapshot · checking latest finance data in background…</div>}
       {result && <ProjectBillingDocument result={result} verificationUrl={verificationUrl} verificationError={verificationError} />}
     </div>
