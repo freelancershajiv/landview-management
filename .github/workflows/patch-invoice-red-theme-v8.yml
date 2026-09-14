@@ -1,0 +1,37 @@
+name: Patch invoice red theme v8
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/patch-invoice-red-theme-v8.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply invoice red theme
+        run: python scripts/patch_invoice_red_theme_v8.py
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            echo "No changes needed"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/finance/invoices/invoice.module.css
+          git commit -m "Sync invoice screen and print colors with LAND VIEW red theme"
+          git push
