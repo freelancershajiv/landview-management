@@ -1,0 +1,60 @@
+name: Upgrade certificate A4 design
+
+on:
+  push:
+    paths:
+      - '.github/workflows/upgrade-certificate-a4-design.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Apply premium A4 portrait certificate design
+        shell: python
+        run: |
+          from pathlib import Path
+          p = Path('app/admin/certificates/page.tsx')
+          s = p.read_text()
+
+          s = s.replace(
+            'employee: { label: "Employee Certificate", position: "Employee", statement: "This is to certify that the person named above is / was associated with LAND VIEW — Engineers and Architects in the stated position and capacity." },',
+            'employee: { label: "Experience Certificate", position: "Employee", statement: "During the tenure, the employee has been primarily responsible for site management, construction supervision, coordination, and day-to-day monitoring across structural and architectural projects.\\n\\nMajor duties and responsibilities included:\\n• Managing day-to-day site activities and monitoring the progress of construction work.\\n• Supervising construction materials, concrete work, reinforcement layouts, and other site operations.\\n• Coordinating with contractors, masons, laboratory technicians, suppliers, and project personnel.\\n• Maintaining daily site records, progress reports, work schedules, and quality-control documentation.\\n\\nThroughout the service period, the employee’s professional conduct, site management capability, coordination skills, problem-solving ability, and commitment to project quality have been highly commendable. The employee has demonstrated dedication, responsibility, and technical capability.\\n\\nWe wish continued success." },'
+          )
+
+          old_css = '.certificate-paper{width:min(100%,980px);aspect-ratio:1.414/1;margin:auto;background:#fff;color:#111;padding:44px 52px;position:relative;outline:2px solid #111;outline-offset:-21px}.certificate-top{display:flex;justify-content:space-between}.certificate-brand{display:flex;align-items:center;gap:11px}.certificate-brand img{width:60px}.certificate-brand strong{display:block;font-size:20px;letter-spacing:.1em}.certificate-brand span,.certificate-id span{display:block;color:#666;font-size:12px}.certificate-id{text-align:right}.certificate-id strong{font-size:12px}.certificate-title{text-align:center;margin-top:27px}.certificate-title small{color:#b52d24;font-size:12px;font-weight:900}.certificate-title h2{font:500 34px Georgia,serif;margin:7px 0}.certificate-body{text-align:center;max-width:740px;margin:22px auto}.certificate-name{font:500 28px Georgia,serif;margin:8px}.certificate-body p{font-size:12px;line-height:1.7}.certificate-subject{margin:16px auto;padding:9px;border-block:1px solid #ddd;font-size:12px;font-weight:800}.certificate-bottom{position:absolute;left:52px;right:52px;bottom:43px;display:grid;grid-template-columns:1fr auto 1fr;gap:25px;align-items:end}.certificate-bottom>div:not(.certificate-qr){border-top:1px solid #222;padding-top:7px;text-align:center;font-size:12px}.certificate-qr img{width:80px;height:80px}.certificate-qr{font-size:6px;text-align:center}'
+          new_css = '.certificate-paper{width:min(100%,794px);aspect-ratio:210/297;margin:auto;background:#fff;color:#171717;padding:70px 62px 92px;position:relative;overflow:hidden;box-shadow:0 18px 60px #0008;font-family:Arial,sans-serif}.certificate-paper:before{content:"";position:absolute;left:-90px;top:-145px;width:720px;height:230px;background:#17191b;transform:rotate(-8deg);transform-origin:left bottom;border-bottom:10px solid #c71920}.certificate-paper:after{content:"";position:absolute;right:-100px;bottom:-145px;width:720px;height:215px;background:#17191b;transform:rotate(-8deg);transform-origin:right top;border-top:10px solid #c71920}.certificate-top{display:flex;justify-content:space-between;align-items:flex-start;position:relative;z-index:2}.certificate-brand{display:flex;align-items:center;gap:12px}.certificate-brand img{width:78px;height:auto}.certificate-brand strong{display:block;font-size:25px;letter-spacing:.04em}.certificate-brand strong::first-letter{color:#c71920}.certificate-brand span,.certificate-id span{display:block;color:#60646a;font-size:9px;letter-spacing:.08em}.certificate-id{text-align:right;padding-top:8px}.certificate-id strong{font-size:10px;color:#111}.certificate-title{text-align:center;margin-top:48px;position:relative;z-index:2}.certificate-title small{color:#c71920;font-size:10px;font-weight:900;letter-spacing:.18em}.certificate-title h2{font:800 31px Arial,sans-serif;letter-spacing:.04em;margin:8px 0 2px;text-transform:uppercase}.certificate-concern{display:flex;align-items:center;gap:14px;margin:13px auto 0;max-width:590px;color:#111;font-size:10px;font-weight:800;letter-spacing:.42em;white-space:nowrap}.certificate-concern:before,.certificate-concern:after{content:"";height:1px;flex:1;background:linear-gradient(90deg,#c71920,#222)}.certificate-body{text-align:left;max-width:650px;margin:34px auto 0;position:relative;z-index:2}.certificate-intro{font-size:11px;line-height:1.75;margin:0 0 15px;text-align:justify}.certificate-name{font:800 15px Arial,sans-serif;display:inline;margin:0}.certificate-position{font-weight:800}.certificate-address{font-weight:600}.certificate-body p{font-size:10.5px;line-height:1.72;text-align:justify;white-space:pre-line;margin:16px 0}.certificate-subject{margin:0 0 17px;padding:8px 11px;border-left:3px solid #c71920;background:#f4f4f4;font-size:9px;font-weight:800;letter-spacing:.04em}.certificate-bottom{position:absolute;left:62px;right:62px;bottom:94px;display:grid;grid-template-columns:1fr auto 1fr;gap:24px;align-items:end;z-index:3}.certificate-bottom>div:not(.certificate-qr){border-top:1px solid #222;padding-top:7px;font-size:9px}.certificate-bottom>div:last-child{text-align:right}.certificate-signature strong{font-size:11px}.certificate-signature b{display:block;color:#c71920;font-size:13px;margin-top:2px}.certificate-qr img{width:72px;height:72px}.certificate-qr{font-size:6px;text-align:center;font-weight:800;letter-spacing:.08em}.certificate-footer{position:absolute;left:0;right:0;bottom:18px;z-index:4;display:flex;justify-content:center;gap:24px;color:#eee;font-size:7px;letter-spacing:.04em}.certificate-watermark{position:absolute;right:-10px;bottom:120px;font-size:115px;font-weight:900;color:#00000007;z-index:1;transform:rotate(-90deg);transform-origin:center}.certificate-refline{display:flex;justify-content:space-between;margin-top:25px;font-size:9px;color:#333;position:relative;z-index:2}'
+          if old_css not in s:
+              raise SystemExit('certificate CSS target not found')
+          s = s.replace(old_css, new_css)
+          s = s.replace('@media print{body *{visibility:hidden!important}.certificate-paper,.certificate-paper *{visibility:visible!important}.certificate-paper{position:absolute;inset:0;width:100%;height:100%;box-shadow:none}.certificate-actions{display:none!important}@page{size:A4 landscape;margin:0}}', '@media print{body *{visibility:hidden!important}.certificate-paper,.certificate-paper *{visibility:visible!important}.certificate-paper{position:absolute;inset:0;width:210mm!important;height:297mm!important;max-width:none!important;box-shadow:none!important;padding:18mm 16mm 24mm!important}.certificate-actions{display:none!important}@page{size:A4 portrait;margin:0}}')
+
+          old_preview = '''<div className="certificate-top"><div className="certificate-brand"><img src="/land-view-logo.png" alt="LAND VIEW"/><div><strong>LAND VIEW</strong><span>ENGINEERS & ARCHITECTS</span></div></div><div className="certificate-id"><span>Certificate ID · Revision {issued.revision || 1}</span><strong>{issued.certificateId}</strong></div></div>
+      <div className="certificate-title"><small>OFFICIAL CERTIFICATE</small><h2>{meta[issued.type].label}</h2></div>
+      <div className="certificate-body"><span>This certificate is issued to</span><div className="certificate-name">{issued.name}</div><strong>{issued.position}</strong><div>{issued.address}</div><div className="certificate-subject">{issued.subject}{issued.reference ? ` · ${issued.reference}` : ""}</div><p>{issued.description}</p></div>
+      <div className="certificate-bottom"><div><strong>Authorized Signatory</strong><br/>LAND VIEW — Engineers & Architects</div><div className="certificate-qr"><img src={issued.qrUrl} alt="QR"/><br/>SCAN TO VERIFY</div><div><strong>{displayDate(issued.issuedAt)}</strong><br/>Date of Issue</div></div>'''
+          new_preview = '''<div className="certificate-watermark">LV</div>
+      <div className="certificate-top"><div className="certificate-brand"><img src="/land-view-logo-full.svg" alt="LAND VIEW"/><div><strong>LAND <span style={{color:'#c71920',display:'inline',fontSize:'inherit'}}>VIEW</span></strong><span>ENGINEERING & ARCHITECTURAL CONSULTANCY</span><span>ARCHITECTS AND ENGINEERS</span></div></div><div className="certificate-id"><span>OFFICIAL · QR VERIFIED</span><strong>{issued.certificateId}</strong></div></div>
+      <div className="certificate-refline"><span>Ref: {issued.reference || issued.certificateId}</span><span>Date: {displayDate(issued.issuedAt)}</span></div>
+      <div className="certificate-title"><small>LAND VIEW OFFICIAL DOCUMENT</small><h2>{meta[issued.type].label}</h2><div className="certificate-concern">TO WHOM IT MAY CONCERN</div></div>
+      <div className="certificate-body"><p className="certificate-intro">This is to certify that <span className="certificate-name">{issued.name}</span>{issued.address ? <>, of <span className="certificate-address">{issued.address}</span></> : null}, has been serving / served in the capacity of <span className="certificate-position">{issued.position}</span> at <strong>LAND VIEW — Engineering & Architectural Consultancy</strong>.</p><div className="certificate-subject">{issued.subject}{issued.reference ? ` · ${issued.reference}` : ""}</div><p>{issued.description}</p></div>
+      <div className="certificate-bottom"><div className="certificate-signature"><strong>Managing Director & CEO</strong><b>LAND VIEW</b><span>Engineering & Architectural Consultancy</span></div><div className="certificate-qr"><img src={issued.qrUrl} alt="QR"/><br/>SCAN TO VERIFY AUTHENTICITY</div><div><strong>{displayDate(issued.issuedAt)}</strong><br/>DATE OF ISSUE<br/><span>Revision {issued.revision || 1}</span></div></div>
+      <div className="certificate-footer"><span>Feni, Bangladesh</span><span>www.landview.com.bd</span><span>BUILD A SAFER TOMORROW</span></div>'''
+          if old_preview not in s:
+              raise SystemExit('certificate preview target not found')
+          s = s.replace(old_preview, new_preview)
+          p.write_text(s)
+      - name: Commit certificate upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/certificates/page.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Redesign admin certificates as premium A4 portrait documents"
+          git push origin main
