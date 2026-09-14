@@ -36,7 +36,7 @@ function isEngineering(item: ProposalItem) {
 function isOtherService(item: ProposalItem) {
   const service = normalize(item.Service);
   const category = normalize(item.Category);
-  return OTHER_SERVICES.has(service) || category === "others" || (!isEngineering(item) && category !== "supervision");
+  return OTHER_SERVICES.has(service) || category === "others" || !isEngineering(item);
 }
 
 function allocateDiscount(gross: number, totalGross: number, totalDiscount: number, remainder: number, isLast: boolean) {
