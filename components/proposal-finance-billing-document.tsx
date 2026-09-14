@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import ProjectBillingDocument, { printBillingPdf } from "@/components/project-billing-document";
-import { getProposal, type ProposalBundle, type ProposalItem } from "@/lib/proposal-api";
+import { getProposal, updateProposalAction, type ProposalBundle, type ProposalItem } from "@/lib/proposal-api";
 import type { SheetInvoices } from "@/lib/sheet-invoices";
 import styles from "@/app/admin/finance/invoices/invoice.module.css";
 
@@ -144,10 +144,27 @@ export default function ProposalFinanceBillingDocument({ proposalId }: { proposa
 
   useEffect(() => {
     if (!financeInvoice) return;
-    const print = () => printBillingPdf(financeInvoice);
-    window.addEventListener("landview:print-proposal-billing", print);
-    return () => window.removeEventListener("landview:print-proposal-billing", print);
-  }, [financeInvoice]);
+
+    const printNow = () => printBillingPdf(financeInvoice);
+    const onRequested = () => printNow();
+    const onCaptureClick = (event: MouseEvent) => {
+      const target = event.target instanceof Element ? event.target.closest("button.pw-btn.primary") : null;
+      if (!target || !String(target.textContent || "").includes("Print / Save PDF")) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation();
+      void updateProposalAction(proposalId, "print")
+        .catch(() => null)
+        .finally(printNow);
+    };
+
+    window.addEventListener("landview:print-proposal-billing", onRequested);
+    document.addEventListener("click", onCaptureClick, true);
+    return () => {
+      window.removeEventListener("landview:print-proposal-billing", onRequested);
+      document.removeEventListener("click", onCaptureClick, true);
+    };
+  }, [financeInvoice, proposalId]);
 
   if (error) {
     return (
