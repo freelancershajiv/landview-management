@@ -1,0 +1,38 @@
+name: Patch invoice print layout v3
+
+on:
+  push:
+    paths:
+      - 'scripts/patch_invoice_print_layout_v3.py'
+      - '.github/workflows/patch-invoice-print-layout-v3.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Patch invoice print layout
+        run: python scripts/patch_invoice_print_layout_v3.py
+
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git add app/admin/finance/invoices/invoice.module.css
+          git commit -m "Fix invoice table alignment and page 2 print overlap"
+          git push
