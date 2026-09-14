@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import ProjectBillingDocument from "@/components/project-billing-document";
+import ProjectBillingDocument, { printBillingPdf } from "@/components/project-billing-document";
 import { getProposal, type ProposalBundle, type ProposalItem } from "@/lib/proposal-api";
 import type { SheetInvoices } from "@/lib/sheet-invoices";
 import styles from "@/app/admin/finance/invoices/invoice.module.css";
@@ -142,6 +142,13 @@ export default function ProposalFinanceBillingDocument({ proposalId }: { proposa
     [bundle, proposalId],
   );
 
+  useEffect(() => {
+    if (!financeInvoice) return;
+    const print = () => printBillingPdf(financeInvoice);
+    window.addEventListener("landview:print-proposal-billing", print);
+    return () => window.removeEventListener("landview:print-proposal-billing", print);
+  }, [financeInvoice]);
+
   if (error) {
     return (
       <div style={{ marginTop: 16, padding: 12, border: "1px solid #73363a", borderRadius: 8, color: "#ffaaa5", background: "#351b1d" }}>
@@ -161,6 +168,7 @@ export default function ProposalFinanceBillingDocument({ proposalId }: { proposa
         .proposal-finance-billing .${styles.verificationBlock}{display:none!important}
         @media print{
           .proposal-finance-billing .proposal-note{display:none!important}
+          .proposal-finance-billing,.proposal-finance-billing *{visibility:visible!important}
         }
       `}</style>
       <p className="proposal-note">
