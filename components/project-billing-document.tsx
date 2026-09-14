@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo } from "react";
+import { billingQrSvg } from "@/lib/billing-qr";
 import type { SheetInvoices } from "@/lib/sheet-invoices";
 import styles from "@/app/admin/finance/invoices/invoice.module.css";
 
@@ -86,7 +88,37 @@ export function safePdfTitle(value: string) {
     .replace(/^-|-$/g, "") || "LAND-VIEW-Project-Billing-Statement";
 }
 
-export function printBillingPdf(result: SheetInvoices) {
+let billingPrintPending = false;
+
+export async function printBillingPdf(result: SheetInvoices) {
+  if (billingPrintPending) return;
+  const root = Array.from(document.querySelectorAll<HTMLElement>("[data-billing-id]"))
+    .find((element) => element.dataset.billingId === result.id);
+  if (!root) return;
+  const qrImage = root.querySelector<HTMLImageElement>("img[data-billing-qr]");
+  if (/^LV-\d+$/.test(result.id) && !qrImage) {
+    window.alert("The invoice QR is not ready. Wait for verification to finish, or reload the billing statement and try again.");
+    return;
+  }
+
+  billingPrintPending = true;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const qrSource = qrImage?.src;
+  try {
+    await Promise.race([
+      Promise.all(Array.from(root.querySelectorAll<HTMLImageElement>("img")).map((image) => image.decode())),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error("Invoice images did not load.")), 10000);
+      }),
+    ]);
+    if (!root.isConnected || root.dataset.billingId !== result.id || qrImage?.src !== qrSource) return;
+  } catch {
+    window.alert("The invoice images could not load. Reload the billing statement before saving the PDF.");
+    return;
+  } finally {
+    clearTimeout(timer);
+    billingPrintPending = false;
+  }
   const previousTitle = document.title;
   const displayName = result.client.name || result.id || "Project";
   const pdfTitle = safePdfTitle(`${result.id}-${displayName}-Billing-Statement`);
@@ -112,7 +144,15 @@ type Props = {
 
 export default function ProjectBillingDocument({ result, verificationUrl = "", verificationError = "" }: Props) {
   const issueDate = billingIssueDate(result);
-  const qrUrl = verificationUrl ? `/api/billing-verification/qr?data=${encodeURIComponent(verificationUrl)}` : "";
+  const qr = useMemo(() => {
+    if (!verificationUrl) return { url: "", error: "" };
+    try {
+      return { url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(billingQrSvg(verificationUrl))}`, error: "" };
+    } catch {
+      return { url: "", error: "Could not generate the invoice QR. Reload the billing statement and try again." };
+    }
+  }, [verificationUrl]);
+  const qrUrl = qr.url;
   const statementRef = `INV-${result.id.replace(/^LV-/, "")}-01`;
   const projectStatus = result.totals.due > 0 ? "Partial / Due" : "Full Paid";
   const allPayments = result.invoices.flatMap((category) => category.payments);
@@ -147,7 +187,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
     <header className={styles.sheetHeader}>
       <div className={styles.sheetBrand}><div className={styles.sheetBrandLockup}><img className={styles.sheetBrandLogo} src="/land-view-logo.svg" alt="LAND VIEW logo"/><div className={styles.sheetBrandWords}><strong>LAND <span>VIEW</span></strong><small>ENGINEERS AND ARCHITECTS</small></div></div><em>Building a safer tomorrow</em></div>
       <div className={styles.sheetTitle}><small>Page {page} of {totalPages}</small><b>Project Billing Statement</b><strong>{title}</strong></div>
-      <div className={styles.sheetHeaderQr}>{qrUrl ? <img className={styles.sheetHeaderQrImage} src={qrUrl} alt={`Verify ${result.id}`} width={96} height={96}/> : <div className={styles.sheetHeaderQrPlaceholder}>QR</div>}<small>Scan to verify</small></div>
+      <div className={styles.sheetHeaderQr}>{qrUrl ? <img data-billing-qr="true" className={styles.sheetHeaderQrImage} src={qrUrl} loading="eager" alt={`Verify ${result.id}`} width={96} height={96}/> : <div className={styles.sheetHeaderQrPlaceholder}>QR</div>}<small>Scan to verify</small></div>
     </header>
     <section className={styles.sheetInfoBoard}>
       <div className={styles.sheetMetaRow}><div className={styles.sheetMetaPair}><span>Invoice ID</span><strong>{statementRef}</strong></div><div className={styles.sheetMetaPair}><span>Issue Date</span><strong>{issueDate}</strong></div></div>
@@ -160,13 +200,13 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
     </section>
   </>;
 
-  return <>
+  return <div data-billing-id={result.id}>
     <main className={styles.report}>
       <header className={styles.printHeader}><div><strong>LAND <span>VIEW</span></strong><small>Engineers and Architects</small></div><div><h2>PROJECT BILLING STATEMENT</h2><p>Issue date {issueDate}</p></div></header>
       <section className={styles.projectCard}><div><span>FILE ID</span><strong>{result.id}</strong></div><div><span>CLIENT</span><strong>{result.client.name||"—"}</strong><small>{result.client.phone||"—"}</small></div><div><span>PROJECT TYPE</span><strong>{result.client.type||"—"}</strong><small>{result.client.floor||"—"}</small></div><div className={styles.totalDueCard}><span>TOTAL DUE</span><strong>{money(result.totals.due)}</strong></div></section>
       <section className={styles.categoryGrid}>{activeCategories.map(category=><article className={styles.category} key={category.name}><div className={styles.categoryHeader}><div><span>{category.name.toUpperCase()}</span><h2>{category.name} Billing</h2></div><div className={category.due>0?styles.dueBadge:styles.paidBadge}>{category.due>0?"DUE":"PAID"}</div></div><div className={styles.metrics}><div><span>Bill</span><strong>{money(category.gross)}</strong></div><div><span>Discount</span><strong>{money(category.discount)}</strong></div><div><span>Deposited</span><strong>{money(category.paid)}</strong></div><div><span>Due</span><strong>{money(category.due)}</strong></div></div><div className={styles.split}><section><h3>{category.name} Bill</h3>{renderTable(category,"bill")}</section><section><h3>{category.name} Deposit</h3>{renderTable(category,"deposit")}</section></div><div className={styles.formula}><span>{money(category.gross)} − {money(category.discount)} − {money(category.paid)}</span><strong>= {money(category.due)}</strong></div></article>)}</section>
       <section className={styles.grandSummary}><div><span>Total Bill</span><strong>{money(result.totals.gross)}</strong></div><div><span>Total Discount</span><strong>{money(result.totals.discount)}</strong></div><div><span>Total Deposited</span><strong>{money(result.totals.paid)}</strong></div><div className={styles.grandDue}><span>Grand Total Due</span><strong>{money(result.totals.due)}</strong></div></section>
-      <section className={styles.verificationBlock}><div><span className={styles.verificationLabel}>PROJECT QR</span><strong>{verificationUrl?"Signed billing verification":"Preparing project QR…"}</strong><p>{verificationUrl?"Anyone with this QR can verify the signed billing snapshot for this invoice.":verificationError||"A secure project verification link is being generated."}</p>{verificationUrl&&<a href={verificationUrl} target="_blank" rel="noreferrer">Open billing verification ↗</a>}</div>{qrUrl&&<img className={styles.qrCode} src={qrUrl} alt={`Billing QR for ${result.id}`} width={132} height={132}/>}</section>
+      <section className={styles.verificationBlock}><div><span className={styles.verificationLabel}>PROJECT QR</span><strong>{qr.error || verificationError ? "QR unavailable" : verificationUrl ? "Live billing verification" : "Preparing project QR…"}</strong><p>{qr.error || verificationError || (verificationUrl ? "Scan this QR to view the project’s current billing and payment verification." : "A secure project verification link is being generated.")}</p>{verificationUrl&&<a href={verificationUrl} target="_blank" rel="noreferrer">Open billing verification ↗</a>}</div>{qrUrl&&<img data-billing-qr="true" className={styles.qrCode} src={qrUrl} loading="eager" alt={`Billing QR for ${result.id}`} width={132} height={132}/>}</section>
     </main>
 
     <section className={styles.printSheets}>
@@ -182,5 +222,5 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
         </article>;
       })}
     </section>
-  </>;
+  </div>;
 }
