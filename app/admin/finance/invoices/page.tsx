@@ -10,25 +10,11 @@ import {
   verifySheetInvoicesWithPayments,
   type SheetInvoices,
 } from "@/lib/sheet-invoices";
+import ProjectBillingDocument, {
+  billingVerificationSnapshot,
+  printBillingPdf,
+} from "@/components/project-billing-document";
 import styles from "./invoice.module.css";
-
-const money = (value: number) =>
-  new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(value);
-
-function statementDate() {
-  return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", day: "2-digit", month: "short", year: "numeric" }).format(new Date());
-}
-
-
-function safePdfTitle(value: string) {
-  return value
-    .normalize("NFKD")
-    .replace(/[^A-Za-z0-9._ -]+/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "LAND-VIEW-Project-Billing-Statement";
-}
 
 async function loadFinanceTabs() {
   const results: FinanceSheetData[] = new Array(invoiceTabs.length);
@@ -55,7 +41,6 @@ export default function ProjectBillingPage() {
   const [result, setResult] = useState<SheetInvoices | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [generated, setGenerated] = useState("");
   const [verificationUrl, setVerificationUrl] = useState("");
   const [verificationError, setVerificationError] = useState("");
   const [fileListProjects, setFileListProjects] = useState<FileListProject[]>([]);
@@ -65,14 +50,12 @@ export default function ProjectBillingPage() {
 
   useEffect(() => {
     let active = true;
-
     async function loadProjects() {
       setFileListLoading(true);
       setFileListError("");
       try {
         const sheet = await landViewApi.getFinanceSheet("File List");
         if (!active) return;
-
         const projects = (sheet.rows || [])
           .map((row): FileListProject | null => {
             const normalized = normalizeFileId(String(row[0] || ""));
@@ -86,7 +69,6 @@ export default function ProjectBillingPage() {
           })
           .filter((item): item is FileListProject => Boolean(item))
           .sort((a, b) => Number(b.id.replace("LV-", "")) - Number(a.id.replace("LV-", "")));
-
         setFileListProjects(projects);
       } catch (err) {
         if (active) setFileListError(err instanceof Error ? err.message : "Could not load projects from File List.");
@@ -94,11 +76,8 @@ export default function ProjectBillingPage() {
         if (active) setFileListLoading(false);
       }
     }
-
     void loadProjects();
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, []);
 
   async function createVerification(billing: SheetInvoices, version: number) {
@@ -106,7 +85,10 @@ export default function ProjectBillingPage() {
       const response = await fetch("/api/billing-verification", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fileId: billing.id }),
+        body: JSON.stringify({
+          fileId: billing.id,
+          billing: billingVerificationSnapshot(billing),
+        }),
       });
       const json = await response.json();
       if (!response.ok || !json?.success || !json?.url) throw new Error(json?.error || "Could not create verification link.");
@@ -121,19 +103,20 @@ export default function ProjectBillingPage() {
     const id = normalizeFileId(fileId);
     if (!id) return setError("Select a project from File List or enter a File ID such as LV-209.");
     const version = ++request.current;
-    setBusy(true); setError(""); setResult(null); setVerificationUrl(""); setVerificationError("");
+    setBusy(true);
+    setError("");
+    setResult(null);
+    setVerificationUrl("");
+    setVerificationError("");
+
     try {
       const [financeTabs, databasePayments] = await Promise.all([
         loadFinanceTabs(),
         landViewApi.getPayments(`LV-${id}`).catch(() => [] as Record<string, unknown>[]),
       ]);
-      const billing = verifySheetInvoicesWithPayments(
-        buildSheetInvoices(financeTabs, id),
-        databasePayments,
-      );
+      const billing = verifySheetInvoicesWithPayments(buildSheetInvoices(financeTabs, id), databasePayments);
       if (version === request.current) {
         setResult(billing);
-        setGenerated(statementDate());
         void createVerification(billing, version);
       }
     } catch (err) {
@@ -143,146 +126,16 @@ export default function ProjectBillingPage() {
     }
   }
 
-  const qrUrl = verificationUrl ? `/api/billing-verification/qr?data=${encodeURIComponent(verificationUrl)}` : "";
-  const statementRef = result ? `INV-${result.id.replace(/^LV-/, "")}-01` : "";
-  const projectStatus = result ? (result.totals.due > 0 ? "Partial / Due" : "Full Paid") : "—";
-  const allPayments = result ? result.invoices.flatMap((category) => category.payments) : [];
-  const verifiedPayments = allPayments.filter((payment) => payment.verification === "Verified").length;
-  const unverifiedPayments = Math.max(0, allPayments.length - verifiedPayments);
-  const invoiceVerification = allPayments.length === 0
-    ? "Unverified"
-    : verifiedPayments === allPayments.length
-      ? "Verified"
-      : verifiedPayments === 0
-        ? "Unverified"
-        : "Partially Verified";
-
-
-  function printInvoice() {
-    if (!result) return;
-    const displayProjectName = result.client.name || result.id || "Project";
-    const pdfTitle = safePdfTitle(`${result.id}-${displayProjectName}-Billing-Statement`);
-    const previousTitle = document.title;
-    let restored = false;
-    const restoreTitle = () => {
-      if (restored) return;
-      restored = true;
-      document.title = previousTitle;
-      window.removeEventListener("afterprint", restoreTitle);
-    };
-
-    document.title = pdfTitle;
-    window.addEventListener("afterprint", restoreTitle, { once: true });
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()));
-    window.setTimeout(restoreTitle, 60000);
-  }
-
-  const renderTable = (category: SheetInvoices["invoices"][number], type: "bill" | "deposit") => {
-    if (type === "bill") {
-      if (!category.items.length) return <p className={styles.empty}>No bill records.</p>;
-
-      if (category.name === "Supervision") {
-        return (
-          <div className={styles.tableWrap}>
-            <table className={styles.supervisionBillTable}>
-              <thead><tr><th>SL.</th><th>Description</th><th>Amount</th></tr></thead>
-              <tbody>{category.items.map((item,index)=><tr key={index}><td>{index+1}</td><td>{item.service||"—"}</td><td className={styles.moneyCell}>{money(item.amount)}</td></tr>)}</tbody>
-            </table>
-          </div>
-        );
-      }
-
-      return (
-        <div className={styles.tableWrap}>
-          <table className={styles.billTable}>
-            <thead><tr><th>SL.</th><th>Description</th><th>Rate</th><th>Qty.</th><th>Amount</th></tr></thead>
-            <tbody>{category.items.map((item,index)=><tr key={index}><td>{index+1}</td><td>{item.service||"—"}</td><td>{item.price||"—"}</td><td>{item.quantity||"—"}</td><td className={styles.moneyCell}>{money(item.amount)}</td></tr>)}</tbody>
-          </table>
-        </div>
-      );
-    }
-
-    if (!category.payments.length) return <p className={styles.empty}>No deposit records.</p>;
-    return (
-      <div className={styles.tableWrap}>
-        <table className={styles.depositTable}>
-          <thead><tr><th>SL.</th><th>Date</th><th>Details</th><th>Amount</th><th>Verification</th></tr></thead>
-          <tbody>{category.payments.map((payment,index)=><tr key={index}>
-            <td>{index+1}</td>
-            <td className={styles.dateCell}>{payment.date||"—"}</td>
-            <td className={styles.detailsCell}>{payment.details||"—"}</td>
-            <td className={styles.moneyCell}>{money(payment.amount)}</td>
-            <td className={styles.verificationCell}>
-              <strong className={payment.verification === "Verified" ? styles.verificationVerified : styles.verificationUnverified}>{payment.verification||"Unverified"}</strong>
-              {payment.incomeId&&<small className={styles.verificationRef}>Ref: {payment.incomeId}</small>}
-            </td>
-          </tr>)}</tbody>
-        </table>
-      </div>
-    );
-  };
-
-  const PrintHeader = ({ page, title }: { page: number; title: string }) => (
-    <>
-      <header className={styles.sheetHeader}>
-        <div className={styles.sheetBrand}>
-          <div className={styles.sheetBrandLockup}>
-            <img className={styles.sheetBrandLogo} src="/land-view-logo.svg" alt="LAND VIEW logo" />
-            <div className={styles.sheetBrandWords}>
-              <strong>LAND <span>VIEW</span></strong>
-              <small>ENGINEERS AND ARCHITECTS</small>
-            </div>
-          </div>
-          <em>Building a safer tomorrow</em>
-        </div>
-        <div className={styles.sheetTitle}><small>Page {page} of 3</small><b>Project Billing Statement</b><strong>{title}</strong></div>
-        <div className={styles.sheetHeaderQr}>
-          {qrUrl ? <img className={styles.sheetHeaderQrImage} src={qrUrl} alt={`Verify ${result?.id || "project"}`} width={96} height={96}/> : <div className={styles.sheetHeaderQrPlaceholder}>QR</div>}
-          <small>Scan to verify</small>
-        </div>
-      </header>
-      <section className={styles.sheetInfoBoard}>
-        <div className={styles.sheetMetaRow}>
-          <div className={styles.sheetMetaPair}><span>Invoice ID</span><strong>{statementRef || "—"}</strong></div>
-          <div className={styles.sheetMetaPair}><span>Issue Date</span><strong>{generated || "—"}</strong></div>
-        </div>
-        <div className={styles.sheetPanelTitles}>
-          <strong>Owner Details</strong>
-          <strong>Building Details</strong>
-        </div>
-        <div className={styles.sheetInfoRow}>
-          <span>File ID</span><strong>{result?.id || "—"}</strong>
-          <span>Project Type</span><strong>{result?.client.type || "—"}</strong>
-        </div>
-        <div className={styles.sheetInfoRow}>
-          <span>Name</span><strong>{result?.client.name || "—"}</strong>
-          <span>Floor/Story</span><strong>{result?.client.floor || "—"}</strong>
-        </div>
-        <div className={styles.sheetInfoRow}>
-          <span>Address</span><strong>{result?.client.address || "—"}</strong>
-          <span>Land Area</span><strong>{result?.client.area || "—"}</strong>
-        </div>
-        <div className={styles.sheetInfoRow}>
-          <span>Contact</span><strong>{result?.client.phone || "—"}</strong>
-          <span>Status</span><strong>{projectStatus}</strong>
-        </div>
-        <div className={styles.sheetInfoRow}>
-          <span>Verification</span><strong className={invoiceVerification === "Verified" ? styles.statusVerified : invoiceVerification === "Partially Verified" ? styles.statusPartial : styles.statusUnverified}>{invoiceVerification}</strong>
-          <span>Receipts</span><strong>Verified: {verifiedPayments}/{allPayments.length}{unverifiedPayments > 0 ? ` · Pending: ${unverifiedPayments}` : ""}</strong>
-        </div>
-      </section>
-    </>
-  );
-
-  const engineering = result?.invoices.find((c) => c.name === "Engineering") || result?.invoices[0];
-  const supervision = result?.invoices.find((c) => c.name === "Supervision") || result?.invoices[1];
-  const others = result?.invoices.find((c) => c.name === "Others") || result?.invoices[2];
-
   return (
     <div className={styles.workspace}>
       <div className={styles.header}>
-        <div><Link href="/admin/finance">← Finance</Link><span className={styles.eyebrow}>LAND VIEW / ACCOUNTS</span><h1>LV-Auto Invoice</h1><p>Select a project pulled directly from Finance → File List, then load its live billing statement.</p></div>
-        {result && <button className={styles.printButton} type="button" onClick={printInvoice}>Print / Save PDF</button>}
+        <div>
+          <Link href="/admin/finance">← Finance</Link>
+          <span className={styles.eyebrow}>LAND VIEW / ACCOUNTS</span>
+          <h1>LV-Auto Invoice</h1>
+          <p>Select a project from Finance → File List and generate its live billing statement.</p>
+        </div>
+        {result && <button className={styles.printButton} type="button" onClick={() => printBillingPdf(result)}>Print / Save PDF</button>}
       </div>
 
       <form className={styles.lookup} onSubmit={load}>
@@ -292,37 +145,30 @@ export default function ProjectBillingPage() {
           list="billing-project-list"
           placeholder={fileListLoading ? "Loading projects from File List…" : "Search LV-209 or choose a project"}
           value={fileId}
-          onChange={(event)=>{setFileId(event.target.value);setResult(null);setError("");setVerificationUrl("");setVerificationError("");request.current++;setBusy(false);}}
+          onChange={(event) => {
+            setFileId(event.target.value);
+            setResult(null);
+            setError("");
+            setVerificationUrl("");
+            setVerificationError("");
+            request.current++;
+            setBusy(false);
+          }}
           required
           autoComplete="off"
         />
         <datalist id="billing-project-list">
-          {fileListProjects.map((project)=><option key={project.id} value={project.id}>{[project.name,project.type,project.floor].filter(Boolean).join(" · ")}</option>)}
+          {fileListProjects.map((project) => <option key={project.id} value={project.id}>{[project.name, project.type, project.floor].filter(Boolean).join(" · ")}</option>)}
         </datalist>
-        <button disabled={busy}>{busy?"Loading…":"View billing"}</button>
-        <span style={{width:"100%",fontSize:10,color:fileListError?"#ffb4aa":"#94a3ad"}}>
+        <button disabled={busy}>{busy ? "Loading…" : "View billing"}</button>
+        <span style={{ width: "100%", fontSize: 10, color: fileListError ? "#ffb4aa" : "#94a3ad" }}>
           {fileListError ? `File List unavailable: ${fileListError}` : fileListLoading ? "Loading project register…" : `${fileListProjects.length} projects pulled from Finance → File List`}
         </span>
       </form>
-      {error && <div className={styles.error} role="alert">{error}</div>}{busy && <div className={styles.loading} role="status">Pulling bill and deposit records…</div>}
 
-      {result && <>
-        <main className={styles.report}>
-          <header className={styles.printHeader}><div><strong>LAND <span>VIEW</span></strong><small>Engineers and Architects</small></div><div><h2>PROJECT BILLING STATEMENT</h2><p>Generated {generated}</p></div></header>
-          <section className={styles.projectCard}><div><span>FILE ID</span><strong>{result.id}</strong></div><div><span>CLIENT</span><strong>{result.client.name||"—"}</strong><small>{result.client.phone||"—"}</small></div><div><span>PROJECT TYPE</span><strong>{result.client.type||"—"}</strong><small>{result.client.floor||"—"}</small></div><div className={styles.totalDueCard}><span>TOTAL DUE</span><strong>{money(result.totals.due)}</strong></div></section>
-          <section className={styles.categoryGrid}>{result.invoices.map(category=><article className={styles.category} key={category.name}><div className={styles.categoryHeader}><div><span>{category.name.toUpperCase()}</span><h2>{category.name} Billing</h2></div><div className={category.due>0?styles.dueBadge:styles.paidBadge}>{category.due>0?"DUE":"PAID"}</div></div><div className={styles.metrics}><div><span>Bill</span><strong>{money(category.gross)}</strong></div><div><span>Discount</span><strong>{money(category.discount)}</strong></div><div><span>Deposited</span><strong>{money(category.paid)}</strong></div><div><span>Due</span><strong>{money(category.due)}</strong></div></div><div className={styles.split}><section><h3>{category.name} Bill</h3>{renderTable(category,"bill")}</section><section><h3>{category.name} Deposit</h3>{renderTable(category,"deposit")}</section></div><div className={styles.formula}><span>{money(category.gross)} − {money(category.discount)} − {money(category.paid)}</span><strong>= {money(category.due)}</strong></div></article>)}</section>
-          <section className={styles.grandSummary}><div><span>Total Bill</span><strong>{money(result.totals.gross)}</strong></div><div><span>Total Discount</span><strong>{money(result.totals.discount)}</strong></div><div><span>Total Deposited</span><strong>{money(result.totals.paid)}</strong></div><div className={styles.grandDue}><span>Grand Total Due</span><strong>{money(result.totals.due)}</strong></div></section>
-          <section className={styles.verificationBlock}><div><span className={styles.verificationLabel}>PROJECT QR</span><strong>{verificationUrl?"Permanent project verification":"Preparing project QR…"}</strong><p>{verificationUrl?"This same QR always opens the latest billing balance for this project.":verificationError||"A secure project verification link is being generated."}</p>{verificationUrl&&<a href={verificationUrl} target="_blank" rel="noreferrer">Open live billing ↗</a>}</div>{qrUrl&&<img className={styles.qrCode} src={qrUrl} alt={`Permanent QR code for ${result.id}`} width={132} height={132}/>}</section>
-        </main>
-
-        <section className={styles.printSheets}>
-          {engineering && <article className={styles.printPage}><PrintHeader page={1} title="Engineering Bill"/><section className={styles.portraitSection}><div className={styles.sheetMain}><h2>ENGINEERING <span>BILL</span></h2>{renderTable(engineering,"bill")}<h2 className={styles.depositHeading}>ENGINEERING <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(engineering,"deposit")}</div><aside className={styles.sheetSummary}><h3>ENGINEERING SUMMARY</h3><div><span>Total Bill</span><strong>{money(engineering.gross)}</strong></div><div><span>Discount</span><strong>{money(engineering.discount)}</strong></div><div><span>Total Deposit</span><strong>{money(engineering.paid)}</strong></div><div className={styles.sheetDue}><span>Due</span><strong>{money(engineering.due)}</strong></div></aside></section><footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer></article>}
-
-          {supervision && <article className={styles.printPage}><PrintHeader page={2} title="Supervision Bill"/><section className={styles.portraitSection}><div className={styles.sheetMain}><h2>SUPERVISION <span>BILL</span></h2>{renderTable(supervision,"bill")}<h2 className={styles.depositHeading}>SUPERVISION <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(supervision,"deposit")}</div><aside className={styles.sheetSummary}><h3>SUPERVISION SUMMARY</h3><div><span>Total Bill</span><strong>{money(supervision.gross)}</strong></div><div><span>Discount</span><strong>{money(supervision.discount)}</strong></div><div><span>Total Deposit</span><strong>{money(supervision.paid)}</strong></div><div className={styles.sheetDue}><span>Due</span><strong>{money(supervision.due)}</strong></div></aside></section><footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer></article>}
-
-          {others && <article className={styles.printPage}><PrintHeader page={3} title="Others Bill & Summary"/><section className={styles.portraitSection}><div className={styles.sheetMain}><h2>OTHERS <span>BILL</span></h2>{renderTable(others,"bill")}<h2 className={styles.depositHeading}>OTHERS <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(others,"deposit")}</div><aside className={styles.sheetSummary}><h3>OTHERS SUMMARY</h3><div><span>Total Bill</span><strong>{money(others.gross)}</strong></div><div><span>Discount</span><strong>{money(others.discount)}</strong></div><div><span>Total Deposit</span><strong>{money(others.paid)}</strong></div><div className={styles.sheetDue}><span>Others Due</span><strong>{money(others.due)}</strong></div><h3 className={styles.grandHeading}>GRAND SUMMARY</h3>{result.invoices.map(c=><div key={c.name}><span>{c.name} Due</span><strong>{money(c.due)}</strong></div>)}<div className={styles.sheetGrandDue}><span>GRAND TOTAL DUE</span><strong>{money(result.totals.due)}</strong></div></aside></section><div className={styles.sheetBottom}><div className={styles.sheetThanks}>Thank you for your trust in LAND VIEW.<br/>For any query, please contact us.</div><div className={styles.sheetSignature}>Authorized Signature<br/><strong>LAND VIEW</strong></div></div><footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer></article>}
-        </section>
-      </>}
+      {error && <div className={styles.error} role="alert">{error}</div>}
+      {busy && <div className={styles.loading} role="status">Pulling bill and deposit records…</div>}
+      {result && <ProjectBillingDocument result={result} verificationUrl={verificationUrl} verificationError={verificationError} />}
     </div>
   );
 }
