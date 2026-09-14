@@ -1,0 +1,35 @@
+name: Fix PDF brand build v9.1
+
+on:
+  push:
+    paths:
+      - 'scripts/fix_pdf_brand_build_v9_1.py'
+      - '.github/workflows/fix-pdf-brand-build-v9-1.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Repair PDF build syntax
+        run: python scripts/fix_pdf_brand_build_v9_1.py
+      - name: Commit repair
+        run: |
+          if git diff --quiet; then
+            echo "No repair required"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/accounts/page.tsx
+          git commit -m "Repair branded PDF export build"
+          git push
