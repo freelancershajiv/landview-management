@@ -1,0 +1,37 @@
+name: Patch PDF brand and names v9
+
+on:
+  push:
+    paths:
+      - 'scripts/patch_pdf_brand_and_names_v9.py'
+      - '.github/workflows/patch-pdf-brand-and-names-v9.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply PDF branding and naming fixes
+        run: python scripts/patch_pdf_brand_and_names_v9.py
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            echo "No changes required"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/finance/invoices/page.tsx app/admin/finance/invoices/invoice.module.css app/admin/accounts/page.tsx
+          git commit -m "Fix invoice PDF names and brand PDF exports"
+          git push
