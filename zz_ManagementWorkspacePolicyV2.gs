@@ -104,32 +104,49 @@ updateErpRecord = function(params) {
   return LV2_BASE_UPDATE_ERP_PIPELINE_(params);
 };
 
-/* Permission-aware certificate request processing for Employee accounts. */
-var LV2_BASE_CERT_PORTAL_LIST_ = certPortalAdminList_;
-var LV2_BASE_CERT_PORTAL_REVIEW_ = certPortalReview_;
-var LV2_BASE_CERT_PORTAL_LINK_ = certPortalLinkIssued_;
+/* Permission-aware certificate request processing for Employee accounts.
+ * IMPORTANT: CertificatePortal.gs can be deployed independently from this policy file.
+ * Never reference its functions unguarded at global initialization time because a partial
+ * Apps Script deployment would otherwise break the entire backend before any request runs.
+ */
+var LV2_BASE_CERT_PORTAL_LIST_ = typeof certPortalAdminList_ === "function" ? certPortalAdminList_ : null;
+var LV2_BASE_CERT_PORTAL_REVIEW_ = typeof certPortalReview_ === "function" ? certPortalReview_ : null;
+var LV2_BASE_CERT_PORTAL_LINK_ = typeof certPortalLinkIssued_ === "function" ? certPortalLinkIssued_ : null;
+
+function lv2RequireCertificatePortal_(fn, functionName) {
+  if (typeof fn !== "function") {
+    throw new Error("Certificate portal backend is not deployed. Add/deploy CertificatePortal.gs (missing " + functionName + ").");
+  }
+  return fn;
+}
 
 certPortalAdminList_ = function(session) {
-  if (lv2Role_(session) !== "employee") return LV2_BASE_CERT_PORTAL_LIST_(session);
+  const base = lv2RequireCertificatePortal_(LV2_BASE_CERT_PORTAL_LIST_, "certPortalAdminList_");
+  if (lv2Role_(session) !== "employee") return base(session);
   lv2Require_(session, "requests.view", "You do not have permission to view certificate requests.");
-  return lv2TemporarilyAdmin_(function() { return LV2_BASE_CERT_PORTAL_LIST_(session); });
+  return lv2TemporarilyAdmin_(function() { return base(session); });
 };
 
 certPortalReview_ = function(params, session) {
-  if (lv2Role_(session) !== "employee") return LV2_BASE_CERT_PORTAL_REVIEW_(params, session);
+  const base = lv2RequireCertificatePortal_(LV2_BASE_CERT_PORTAL_REVIEW_, "certPortalReview_");
+  if (lv2Role_(session) !== "employee") return base(params, session);
   lv2Require_(session, "certificates.process", "You do not have permission to approve or reject certificate requests.");
-  return lv2TemporarilyAdmin_(function() { return LV2_BASE_CERT_PORTAL_REVIEW_(params, session); });
+  return lv2TemporarilyAdmin_(function() { return base(params, session); });
 };
 
 certPortalLinkIssued_ = function(params, session) {
-  if (lv2Role_(session) !== "employee") return LV2_BASE_CERT_PORTAL_LINK_(params, session);
+  const base = lv2RequireCertificatePortal_(LV2_BASE_CERT_PORTAL_LINK_, "certPortalLinkIssued_");
+  if (lv2Role_(session) !== "employee") return base(params, session);
   lv2Require_(session, "certificates.issue", "You do not have permission to issue certificates.");
-  return lv2TemporarilyAdmin_(function() { return LV2_BASE_CERT_PORTAL_LINK_(params, session); });
+  return lv2TemporarilyAdmin_(function() { return base(params, session); });
 };
 
 /* Permission-aware central certificate registry for Employee accounts. */
-var LV2_BASE_CERT_REGISTRY_ = certificateRegistryFromGateway_;
+var LV2_BASE_CERT_REGISTRY_ = typeof certificateRegistryFromGateway_ === "function" ? certificateRegistryFromGateway_ : null;
 certificateRegistryFromGateway_ = function(params) {
+  if (typeof LV2_BASE_CERT_REGISTRY_ !== "function") {
+    throw new Error("Certificate registry backend is not deployed.");
+  }
   const requested = String((params && params._certificateRegistry) || "").trim();
   if (requested !== "1") return LV2_BASE_CERT_REGISTRY_(params);
   const session = requireSession(params || {});
