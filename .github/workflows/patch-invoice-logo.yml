@@ -1,0 +1,33 @@
+name: Patch invoice logo
+
+on:
+  push:
+    paths:
+      - 'scripts/patch_invoice_logo.py'
+      - '.github/workflows/patch-invoice-logo.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply invoice logo patch
+        run: python scripts/patch_invoice_logo.py
+      - name: Commit logo repair
+        run: |
+          if git diff --quiet -- app/admin/finance/invoices/page.tsx app/admin/finance/invoices/invoice.module.css; then
+            echo 'No invoice logo changes required.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/admin/finance/invoices/page.tsx app/admin/finance/invoices/invoice.module.css
+          git commit -m 'Restore LAND VIEW logo to printed invoices'
+          git push origin HEAD:main
