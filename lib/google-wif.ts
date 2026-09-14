@@ -5,6 +5,17 @@ type CachedToken = {
   expiresAt: number;
 };
 
+export type GoogleSheetValueRange = {
+  range?: string;
+  majorDimension?: string;
+  values?: string[][];
+};
+
+export type GoogleSheetBatchValues = {
+  spreadsheetId?: string;
+  valueRanges?: GoogleSheetValueRange[];
+};
+
 let cachedToken: CachedToken | null = null;
 
 const STS_URL = "https://sts.googleapis.com/v1/token";
@@ -131,4 +142,33 @@ export async function fetchGoogleSheetMetadata(spreadsheetId: string) {
     properties?: { title?: string };
     sheets?: Array<{ properties?: { title?: string } }>;
   }>;
+}
+
+export async function fetchGoogleSheetBatchValues(
+  spreadsheetId: string,
+  ranges: string[],
+): Promise<GoogleSheetBatchValues> {
+  if (!spreadsheetId.trim()) throw new Error("Google spreadsheet ID is required.");
+  if (!ranges.length) return { spreadsheetId, valueRanges: [] };
+
+  const accessToken = await getGoogleSheetsAccessToken();
+  const params = new URLSearchParams();
+  for (const range of ranges) params.append("ranges", range);
+  params.set("majorDimension", "ROWS");
+  params.set("valueRenderOption", "FORMATTED_VALUE");
+  params.set("dateTimeRenderOption", "FORMATTED_STRING");
+
+  const response = await fetch(
+    `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchGet?${params.toString()}`,
+    {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(await googleError(response, `Google Sheets batch read failed (${response.status}).`));
+  }
+
+  return response.json() as Promise<GoogleSheetBatchValues>;
 }
