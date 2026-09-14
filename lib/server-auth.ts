@@ -68,7 +68,7 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
 
   try {
     response = await fetch(
-      `${protocol}://${host}/api/landview?action=getSession`,
+      `${protocol}://${host}/api/session-fast`,
       {
         method: "GET",
         headers: { cookie: cookieHeader },
