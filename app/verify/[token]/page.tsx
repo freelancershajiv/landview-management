@@ -11,22 +11,49 @@ const money = (value: number) =>
     maximumFractionDigits: 0,
   }).format(Number(value || 0));
 
+function displayDate(value: string) {
+  const text = String(value || "").trim();
+  if (!text) return "—";
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return text;
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Dhaka",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function displayDateTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value || "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Dhaka",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
 type LiveBilling = {
   fileId: string;
   clientName: string;
   status: string;
   categories: Array<{ name: string; gross: number; discount: number; paid: number; due: number }>;
   totals: { gross: number; discount: number; paid: number; due: number };
+  lastPaymentDate: string;
   updatedAt: string;
 };
 
-async function loadLegacyLiveBilling(fileId: string): Promise<LiveBilling> {
+async function loadLiveBilling(fileId: string): Promise<LiveBilling> {
   const url = process.env.LAND_VIEW_API_URL || "";
   const proxySecret = process.env.LAND_VIEW_PROXY_SECRET || "";
   if (!url || !proxySecret) throw new Error("Verification service is not configured.");
 
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12000);
+  const timeout = setTimeout(() => controller.abort(), 15000);
   try {
     const response = await fetch(url, {
       method: "POST",
@@ -39,7 +66,9 @@ async function loadLegacyLiveBilling(fileId: string): Promise<LiveBilling> {
     const text = await response.text();
     let json: any;
     try { json = JSON.parse(text); } catch { throw new Error("Verification service returned an invalid response."); }
-    if (!response.ok || !json?.success || !json?.data) throw new Error(json?.error || "Billing record could not be loaded.");
+    if (!response.ok || !json?.success || !json?.data) {
+      throw new Error(json?.error || "Current billing record could not be loaded.");
+    }
     return json.data as LiveBilling;
   } finally {
     clearTimeout(timeout);
@@ -57,7 +86,7 @@ export default async function VerifyBillingPage({ params }: { params: Promise<{ 
           <div className={styles.brand}>LAND <span>VIEW</span></div>
           <div className={styles.invalidIcon}>!</div>
           <h1>Verification failed</h1>
-          <p>This project verification link is invalid or has been altered.</p>
+          <p>This project verification QR is invalid or has been altered.</p>
           <Link href="https://www.landview.com.bd">Visit LAND VIEW</Link>
         </section>
       </main>
@@ -65,35 +94,21 @@ export default async function VerifyBillingPage({ params }: { params: Promise<{ 
   }
 
   let record: LiveBilling;
-  let snapshotMode = false;
-
-  if (verified.snapshot) {
-    snapshotMode = true;
-    record = {
-      fileId: verified.fileId,
-      clientName: verified.snapshot.clientName,
-      status: verified.snapshot.totals.due > 0 ? "DUE" : verified.snapshot.totals.due < 0 ? "CREDIT" : "FULL PAID",
-      categories: verified.snapshot.categories,
-      totals: verified.snapshot.totals,
-      updatedAt: verified.snapshot.issueDate,
-    };
-  } else {
-    try {
-      record = await loadLegacyLiveBilling(verified.fileId);
-    } catch (error: any) {
-      return (
-        <main className={styles.shell}>
-          <section className={styles.card}>
-            <div className={styles.brand}>LAND <span>VIEW</span></div>
-            <div className={styles.invalidIcon}>!</div>
-            <h1>Billing verification needs a refreshed QR</h1>
-            <p>{error?.message || "The older live billing lookup is unavailable."}</p>
-            <p>This QR is valid for <strong>{verified.fileId}</strong>. Please regenerate the invoice once to receive the new public verification QR.</p>
-            <Link href="https://www.landview.com.bd">Visit LAND VIEW</Link>
-          </section>
-        </main>
-      );
-    }
+  try {
+    record = await loadLiveBilling(verified.fileId);
+  } catch (error: any) {
+    return (
+      <main className={styles.shell}>
+        <section className={styles.card}>
+          <div className={styles.brand}>LAND <span>VIEW</span></div>
+          <div className={styles.invalidIcon}>!</div>
+          <h1>Live billing temporarily unavailable</h1>
+          <p>{error?.message || "The current billing record could not be loaded. Please try again shortly."}</p>
+          <p>The QR itself is valid for <strong>{verified.fileId}</strong>.</p>
+          <Link href="https://www.landview.com.bd">Visit LAND VIEW</Link>
+        </section>
+      </main>
+    );
   }
 
   const status = record.totals.due > 0 ? "DUE" : record.totals.due < 0 ? "CREDIT" : "FULL PAID";
@@ -106,21 +121,21 @@ export default async function VerifyBillingPage({ params }: { params: Promise<{ 
             <div className={styles.brand}>LAND <span>VIEW</span></div>
             <small>Engineers and Architects</small>
           </div>
-          <div className={styles.verified}><b>✓</b><span>{snapshotMode ? "SIGNED & VERIFIED" : "LIVE & VERIFIED"}</span></div>
+          <div className={styles.verified}><b>✓</b><span>LIVE & VERIFIED</span></div>
         </header>
 
         <div className={styles.rule} />
 
         <section className={styles.hero}>
-          <span>OFFICIAL PROJECT BILLING</span>
+          <span>OFFICIAL LIVE PROJECT BILLING</span>
           <h1>{record.fileId}</h1>
-          <p>{snapshotMode ? "This public QR verifies the signed billing figures printed on the LAND VIEW invoice." : "This project QR displays the latest billing balance stored by LAND VIEW."}</p>
+          <p>This permanent project QR always shows the latest billing balance stored by LAND VIEW, regardless of which invoice it was printed on.</p>
         </section>
 
         <section className={styles.meta}>
           <div><span>Client</span><strong>{record.clientName || "—"}</strong></div>
-          <div><span>Issue Date</span><strong>{record.updatedAt || "—"}</strong></div>
-          <div><span>Verification</span><strong>{snapshotMode ? "Signed invoice snapshot" : "Live billing record"}</strong></div>
+          <div><span>Last Payment</span><strong>{displayDate(record.lastPaymentDate)}</strong></div>
+          <div><span>Last Checked</span><strong>{displayDateTime(record.updatedAt)}</strong></div>
           <div><span>Status</span><strong className={status === "FULL PAID" ? styles.paid : styles.due}>{status}</strong></div>
         </section>
 
@@ -143,7 +158,7 @@ export default async function VerifyBillingPage({ params }: { params: Promise<{ 
           <div className={styles.totalDue}><span>Grand Total Due</span><strong>{money(record.totals.due)}</strong></div>
         </section>
 
-        <p className={styles.notice}>{snapshotMode ? "Public read-only verification. This QR cannot edit billing, payments, projects or client records." : "Live billing verification."}</p>
+        <p className={styles.notice}>Public read-only live billing verification. New bills, discounts and payments are reflected here automatically; scanning this QR cannot edit any LAND VIEW record.</p>
 
         <footer>
           <strong>LAND VIEW — Engineers and Architects</strong>
