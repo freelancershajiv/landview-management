@@ -13,7 +13,7 @@ permissions:
   contents: write
 
 jobs:
-  patch:
+  patch-and-build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -24,7 +24,19 @@ jobs:
       - name: Add single-request project billing bundle
         run: python3 scripts/patch_project_billing_bundle.py
 
-      - name: Commit backend bundle
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and type-check Next.js
+        run: npm run build
+
+      - name: Commit backend bundle if needed
         run: |
           if git diff --quiet -- FinanceSheet.gs; then
             echo "FinanceSheet.gs already contains the project billing bundle"
