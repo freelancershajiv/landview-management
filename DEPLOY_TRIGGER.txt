@@ -1,3 +1,4 @@
 Production deployment retry requested by owner on 2026-09-14.
 Deploy latest main including local invoice QR generation and unified proposal/Finance PDF printing.
 This file is intentionally inert and triggers the existing Vercel Git integration.
+Owner requested another production deployment attempt after the previous rate-limit rejection.
