@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { fetchGoogleSheetBatchValues } from "@/lib/google-wif";
 
@@ -6,13 +6,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "landview_session";
+const SIGNED_USER_COOKIE = "landview_quick_user";
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 
-// Native Google Sheets mirrors used by the direct billing path.
 const FINANCE_WORKBOOK_ID = "1N4U5l7SqMXlCMND3se-J1GmU3SPI3xGyGaR2WR_Eodg";
 const FINANCE_LEDGER_ID = "1e51Mq3hOj9rUH9ugF8SiHe4SYJW3dJ3Bcw9JNgii_bs";
-const RECONCILIATION_RANGE = "'Auto Invoice Reconciliation'!A1:Z10000";
+const RECONCILIATION_RANGE = "'Auto Invoice Reconciliation'!A:P";
 
 const INVOICE_TABS = [
   "Summary",
@@ -37,9 +37,21 @@ type FinanceSheetData = {
   updatedAt: string;
 };
 
-type SessionCacheEntry = { expiresAt: number; role: string };
-const workspaceSessionCache = new Map<string, SessionCacheEntry>();
-const SESSION_CACHE_TTL_MS = 90 * 1000;
+type VerificationRecord = { verified: boolean; incomeId: string };
+type VerificationMaps = Record<
+  "Design Deposit" | "S Deposit" | "Others Bill Deposit",
+  Record<number, VerificationRecord>
+>;
+
+type DirectPayment = {
+  Payment_ID: string;
+  Project_ID: string;
+  Payment_Date: string;
+  Amount: string;
+  Payment_Method: string;
+  Reference: string;
+};
+
 const WORKSPACE_ROLES = new Set(["admin", "manager", "accounts"]);
 
 const TAB_WIDTHS: Record<InvoiceTab, number> = {
@@ -74,7 +86,6 @@ class RouteError extends Error {
 }
 
 function requiredEnv() {
-  if (!APPS_SCRIPT_URL) throw new Error("LAND_VIEW_API_URL is not configured.");
   if (!PROXY_SECRET) throw new Error("LAND_VIEW_PROXY_SECRET is not configured.");
 }
 
@@ -83,13 +94,55 @@ function normalizeProjectId(value: string | null | undefined) {
   return match ? `LV-${Number(match[1])}` : "";
 }
 
+function hmac(value: string) {
+  return createHmac("sha256", PROXY_SECRET).update(value).digest("hex");
+}
+
+function secureEqual(a: string, b: string) {
+  const aa = Buffer.from(String(a || ""), "utf8");
+  const bb = Buffer.from(String(b || ""), "utf8");
+  return aa.length === bb.length && timingSafeEqual(aa, bb);
+}
+
+function readSignedWorkspaceUser(request: NextRequest) {
+  const token = request.cookies.get(COOKIE_NAME)?.value || "";
+  if (!token) throw new RouteError(401, "Session expired.");
+
+  const signed = String(request.cookies.get(SIGNED_USER_COOKIE)?.value || "");
+  const dot = signed.lastIndexOf(".");
+  if (dot < 1) {
+    throw new RouteError(401, "Your secure local session is unavailable. Please sign in again.");
+  }
+
+  const payload = signed.slice(0, dot);
+  const signature = signed.slice(dot + 1);
+  if (!secureEqual(signature, hmac(`quick-user|${payload}`))) {
+    throw new RouteError(401, "Your secure local session is invalid. Please sign in again.");
+  }
+
+  let user: Record<string, unknown>;
+  try {
+    user = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>;
+  } catch {
+    throw new RouteError(401, "Your secure local session is invalid. Please sign in again.");
+  }
+
+  const role = String(user?.role || user?.Role || "").trim().toLowerCase();
+  if (!WORKSPACE_ROLES.has(role)) throw new RouteError(403, "Access denied.");
+  return { token, user, role };
+}
+
 function clientKey(request: NextRequest) {
   const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
   return createHmac("sha256", PROXY_SECRET).update(forwarded).digest("hex").slice(0, 32);
 }
 
-function sessionCacheKey(token: string) {
-  return createHmac("sha256", PROXY_SECRET).update(token).digest("hex");
+function commonPayload(request: NextRequest, token: string) {
+  return {
+    token,
+    proxySecret: PROXY_SECRET,
+    _clientKey: clientKey(request),
+  };
 }
 
 function billingHeaders(mode: string, durationMs: number) {
@@ -107,6 +160,7 @@ function logBillingResult(projectId: string, mode: string, durationMs: number, s
 }
 
 async function callBackend(payload: Record<string, unknown>) {
+  if (!APPS_SCRIPT_URL) throw new Error("Apps Script fallback is not configured.");
   const delays = [0, 250, 700];
   let lastError: Error | null = null;
 
@@ -141,42 +195,9 @@ async function callBackend(payload: Record<string, unknown>) {
   throw lastError || new Error("Unable to reach LAND VIEW backend.");
 }
 
-function commonPayload(request: NextRequest, token: string) {
-  return {
-    token,
-    proxySecret: PROXY_SECRET,
-    _clientKey: clientKey(request),
-  };
-}
-
 function authStatus(json: any) {
   const message = String(json?.error || json?.message || "");
   return /unauthorized|session expired|invalid session|authentication required/i.test(message) ? 401 : 502;
-}
-
-async function requireWorkspaceSession(common: Record<string, unknown>, token: string) {
-  const key = sessionCacheKey(token);
-  const cached = workspaceSessionCache.get(key);
-  if (cached && cached.expiresAt > Date.now()) return cached.role;
-
-  const { json } = await callBackend({ ...common, action: "getSession" });
-  if (!json?.success || !json?.data?.authenticated || !json?.data?.user) {
-    const status = authStatus(json);
-    throw new RouteError(status === 401 ? 401 : 502, String(json?.error || json?.message || "Could not validate session."));
-  }
-
-  const role = String(json.data.user.role || json.data.user.Role || "").trim().toLowerCase();
-  if (!WORKSPACE_ROLES.has(role)) throw new RouteError(403, "Access denied.");
-
-  workspaceSessionCache.set(key, { role, expiresAt: Date.now() + SESSION_CACHE_TTL_MS });
-  if (workspaceSessionCache.size > 500) {
-    const now = Date.now();
-    for (const [cacheKey, entry] of workspaceSessionCache.entries()) {
-      if (entry.expiresAt <= now) workspaceSessionCache.delete(cacheKey);
-    }
-  }
-
-  return role;
 }
 
 function padRow(row: unknown[] | undefined, width: number) {
@@ -205,47 +226,66 @@ function projectBillingTotals(summaryRows: string[][]) {
   return totals;
 }
 
-type VerificationRecord = { verified: boolean; incomeId: string };
-type VerificationMaps = Record<"Design Deposit" | "S Deposit" | "Others Bill Deposit", Record<number, VerificationRecord>>;
-
 function emptyVerificationMaps(): VerificationMaps {
   return { "Design Deposit": {}, "S Deposit": {}, "Others Bill Deposit": {} };
 }
 
-async function readVerificationMaps(): Promise<VerificationMaps> {
+async function readReconciliationData(projectId: string) {
   const maps = emptyVerificationMaps();
-  try {
-    const batch = await fetchGoogleSheetBatchValues(FINANCE_LEDGER_ID, [RECONCILIATION_RANGE]);
-    const values = batch.valueRanges?.[0]?.values || [];
-    if (values.length < 2) return maps;
+  const payments: DirectPayment[] = [];
 
-    const headers = values[0].map((value) => String(value || "").trim());
-    const sourceSheetIndex = headers.indexOf("Source_Sheet");
-    const sourceRowIndex = headers.indexOf("Source_Row");
-    const incomeIdIndex = headers.indexOf("Matched_Income_ID");
-    const matchStatusIndex = headers.indexOf("Match_Status");
-    const manualIndex = headers.indexOf("Manual_Verification");
-    if (sourceSheetIndex < 0 || sourceRowIndex < 0 || matchStatusIndex < 0) return maps;
+  const batch = await fetchGoogleSheetBatchValues(FINANCE_LEDGER_ID, [RECONCILIATION_RANGE]);
+  const values = batch.valueRanges?.[0]?.values || [];
+  if (values.length < 2) return { maps, payments };
 
-    for (const rawRow of values.slice(1)) {
-      const row = rawRow.map((value) => String(value ?? ""));
-      const sourceName = String(row[sourceSheetIndex] || "").trim() as keyof VerificationMaps;
-      if (!Object.prototype.hasOwnProperty.call(maps, sourceName)) continue;
-      const sourceRow = Number(row[sourceRowIndex] || 0);
-      if (!sourceRow) continue;
+  const headers = values[0].map((value) => String(value || "").trim());
+  const index = (name: string) => headers.indexOf(name);
+  const sourceKeyIndex = index("Source_Key");
+  const sourceSheetIndex = index("Source_Sheet");
+  const sourceRowIndex = index("Source_Row");
+  const fileIdIndex = index("File_ID");
+  const paymentDateIndex = index("Payment_Date");
+  const detailsIndex = index("Details");
+  const amountIndex = index("Amount");
+  const incomeIdIndex = index("Matched_Income_ID");
+  const matchStatusIndex = index("Match_Status");
+  const manualIndex = index("Manual_Verification");
 
-      const incomeId = incomeIdIndex >= 0 ? String(row[incomeIdIndex] || "").trim() : "";
-      const matchStatus = String(row[matchStatusIndex] || "").trim().toUpperCase();
-      const manual = manualIndex >= 0 ? String(row[manualIndex] || "").trim().toLowerCase() : "";
-      maps[sourceName][sourceRow] = {
-        verified: manual === "verified" || (manual !== "unverified" && matchStatus === "MATCHED_EXACT" && !!incomeId),
-        incomeId,
-      };
-    }
-  } catch (error) {
-    console.warn("Direct project billing reconciliation lookup unavailable:", error instanceof Error ? error.message : error);
+  if (sourceSheetIndex < 0 || sourceRowIndex < 0 || matchStatusIndex < 0) {
+    throw new Error("Auto Invoice Reconciliation headers are incomplete.");
   }
-  return maps;
+
+  for (const rawRow of values.slice(1)) {
+    const row = rawRow.map((value) => String(value ?? ""));
+    const sourceName = String(row[sourceSheetIndex] || "").trim() as keyof VerificationMaps;
+    const sourceRow = Number(row[sourceRowIndex] || 0);
+    const incomeId = incomeIdIndex >= 0 ? String(row[incomeIdIndex] || "").trim() : "";
+    const matchStatus = String(row[matchStatusIndex] || "").trim().toUpperCase();
+    const manual = manualIndex >= 0 ? String(row[manualIndex] || "").trim().toLowerCase() : "";
+    const verified = manual === "verified" || (manual !== "unverified" && matchStatus === "MATCHED_EXACT" && !!incomeId);
+
+    if (Object.prototype.hasOwnProperty.call(maps, sourceName) && sourceRow) {
+      maps[sourceName][sourceRow] = { verified, incomeId };
+    }
+
+    if (
+      verified &&
+      incomeId &&
+      fileIdIndex >= 0 &&
+      normalizeProjectId(row[fileIdIndex]) === projectId
+    ) {
+      payments.push({
+        Payment_ID: incomeId,
+        Project_ID: projectId,
+        Payment_Date: paymentDateIndex >= 0 ? String(row[paymentDateIndex] || "") : "",
+        Amount: amountIndex >= 0 ? String(row[amountIndex] || "") : "",
+        Payment_Method: detailsIndex >= 0 ? String(row[detailsIndex] || "") : "",
+        Reference: sourceKeyIndex >= 0 ? String(row[sourceKeyIndex] || "") : "",
+      });
+    }
+  }
+
+  return { maps, payments };
 }
 
 function verificationSource(tab: InvoiceTab): keyof VerificationMaps | "" {
@@ -257,9 +297,9 @@ function verificationSource(tab: InvoiceTab): keyof VerificationMaps | "" {
 
 async function readDirectProjectBilling(projectId: string) {
   const ranges = INVOICE_TABS.map((tab) => `'${tab}'!A1:${TAB_END_COLUMNS[tab]}10000`);
-  const [financeBatch, verificationMaps] = await Promise.all([
+  const [financeBatch, reconciliation] = await Promise.all([
     fetchGoogleSheetBatchValues(FINANCE_WORKBOOK_ID, ranges),
-    readVerificationMaps(),
+    readReconciliationData(projectId),
   ]);
 
   const valueRanges = financeBatch.valueRanges || [];
@@ -293,7 +333,7 @@ async function readDirectProjectBilling(projectId: string) {
 
     const source = verificationSource(tab);
     if (source) {
-      const map = verificationMaps[source] || {};
+      const map = reconciliation.maps[source] || {};
       headers = headers.concat(["Verification", "Linked Income ID"]);
       rows = rows.map((row, index) => {
         const verification = map[sourceRowNumbers[index]] || null;
@@ -319,7 +359,13 @@ async function readDirectProjectBilling(projectId: string) {
   const totals = projectBillingTotals(summaryData?.rows || []);
   for (const sheet of sheets) sheet.totals = totals;
 
-  return { projectId, sheets, updatedAt };
+  return {
+    projectId,
+    sheets,
+    payments: reconciliation.payments,
+    updatedAt,
+    mode: "direct-google-sheets",
+  };
 }
 
 async function appsScriptBundleFallback(common: Record<string, unknown>, projectId: string) {
@@ -365,10 +411,11 @@ async function appsScriptBundleFallback(common: Record<string, unknown>, project
 
 export async function GET(request: NextRequest) {
   const startedAt = Date.now();
-  let projectId = normalizeProjectId(request.nextUrl.searchParams.get("fileId"));
+  const projectId = normalizeProjectId(request.nextUrl.searchParams.get("fileId"));
 
   try {
     requiredEnv();
+
     if (!projectId) {
       const durationMs = Date.now() - startedAt;
       logBillingResult("invalid", "validation-error", durationMs, 400);
@@ -378,63 +425,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const token = request.cookies.get(COOKIE_NAME)?.value || "";
-    if (!token) {
-      const durationMs = Date.now() - startedAt;
-      logBillingResult(projectId, "unauthenticated", durationMs, 401);
-      return NextResponse.json(
-        { success: false, error: "Session expired." },
-        { status: 401, headers: billingHeaders("unauthenticated", durationMs) },
-      );
-    }
-
+    const { token } = readSignedWorkspaceUser(request);
     const common = commonPayload(request, token);
 
-    // Preserve the same workspace-only security boundary that getFinanceSheet uses.
-    await requireWorkspaceSession(common, token);
-
-    // Preferred path: the eight finance tabs are fetched in one Google Sheets API
-    // batch request. Reconciliation is read in parallel. Payments remain on the
-    // existing authenticated Apps Script endpoint until the management workbook
-    // itself is migrated to direct Sheets access.
-    const [directResult, paymentResult] = await Promise.allSettled([
-      readDirectProjectBilling(projectId),
-      callBackend({ ...common, action: "getPayments", projectId }),
-    ]);
-
-    if (directResult.status === "fulfilled" && paymentResult.status === "fulfilled") {
-      const paymentJson = paymentResult.value.json;
-      if (!paymentJson?.success) {
-        const status = authStatus(paymentJson);
-        if (status === 401) throw new RouteError(401, String(paymentJson?.error || paymentJson?.message || "Session expired."));
-      } else if (Array.isArray(paymentJson.data)) {
-        const mode = "direct-google-sheets";
-        const durationMs = Date.now() - startedAt;
-        logBillingResult(projectId, mode, durationMs);
-        return NextResponse.json(
-          {
-            success: true,
-            data: {
-              ...directResult.value,
-              payments: paymentJson.data,
-              mode,
-            },
-          },
-          { headers: billingHeaders(mode, durationMs) },
-        );
-      }
-    }
-
-    if (directResult.status === "rejected") {
+    try {
+      const direct = await readDirectProjectBilling(projectId);
+      const durationMs = Date.now() - startedAt;
+      logBillingResult(projectId, direct.mode, durationMs);
+      return NextResponse.json(
+        { success: true, data: direct },
+        { headers: billingHeaders(direct.mode, durationMs) },
+      );
+    } catch (directError) {
       console.warn(
         "Direct Google Sheets project billing failed; using Apps Script fallback:",
-        directResult.reason instanceof Error ? directResult.reason.message : directResult.reason,
-      );
-    }
-    if (paymentResult.status === "rejected") {
-      console.warn(
-        "Direct project billing payment lookup failed; using Apps Script fallback:",
-        paymentResult.reason instanceof Error ? paymentResult.reason.message : paymentResult.reason,
+        directError instanceof Error ? directError.message : directError,
       );
     }
 
@@ -452,7 +457,7 @@ export async function GET(request: NextRequest) {
       : /session expired|unauthorized/i.test(message)
         ? 401
         : 502;
-    const mode = status === 401 ? "auth-error" : "error";
+    const mode = status === 401 ? "auth-error" : status === 403 ? "access-denied" : "error";
     const durationMs = Date.now() - startedAt;
     logBillingResult(projectId || "unknown", mode, durationMs, status);
     return NextResponse.json(
