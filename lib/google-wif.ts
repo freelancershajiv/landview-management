@@ -17,6 +17,7 @@ export type GoogleSheetBatchValues = {
 };
 
 let cachedToken: CachedToken | null = null;
+let tokenPromise: Promise<string> | null = null;
 
 const STS_URL = "https://sts.googleapis.com/v1/token";
 const SHEETS_READ_SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
@@ -48,12 +49,8 @@ async function googleError(response: Response, fallback: string) {
   return fallback;
 }
 
-export async function getGoogleSheetsAccessToken() {
-  const now = Date.now();
-  if (cachedToken && cachedToken.expiresAt - now > 60_000) {
-    return cachedToken.accessToken;
-  }
-
+async function mintGoogleSheetsAccessToken() {
+  const startedAt = Date.now();
   const oidcToken = String(await getVercelOidcToken()).trim();
   if (!oidcToken) {
     throw new Error("Vercel OIDC token is unavailable.");
@@ -117,10 +114,25 @@ export async function getGoogleSheetsAccessToken() {
   const parsedExpiry = impersonated.expireTime ? Date.parse(impersonated.expireTime) : NaN;
   cachedToken = {
     accessToken: impersonated.accessToken,
-    expiresAt: Number.isFinite(parsedExpiry) ? parsedExpiry : now + 10 * 60_000,
+    expiresAt: Number.isFinite(parsedExpiry) ? parsedExpiry : startedAt + 10 * 60_000,
   };
 
   return cachedToken.accessToken;
+}
+
+export async function getGoogleSheetsAccessToken() {
+  const now = Date.now();
+  if (cachedToken && cachedToken.expiresAt - now > 60_000) {
+    return cachedToken.accessToken;
+  }
+
+  if (!tokenPromise) {
+    tokenPromise = mintGoogleSheetsAccessToken().finally(() => {
+      tokenPromise = null;
+    });
+  }
+
+  return tokenPromise;
 }
 
 export async function fetchGoogleSheetMetadata(spreadsheetId: string) {
