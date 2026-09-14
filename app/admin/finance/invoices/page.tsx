@@ -7,6 +7,7 @@ import {
   buildSheetInvoices,
   invoiceTabs,
   normalizeFileId,
+  verifySheetInvoicesWithPayments,
   type SheetInvoices,
 } from "@/lib/sheet-invoices";
 import styles from "./invoice.module.css";
@@ -111,7 +112,14 @@ export default function ProjectBillingPage() {
     const version = ++request.current;
     setBusy(true); setError(""); setResult(null); setVerificationUrl(""); setVerificationError("");
     try {
-      const billing = buildSheetInvoices(await loadFinanceTabs(), id);
+      const [financeTabs, databasePayments] = await Promise.all([
+        loadFinanceTabs(),
+        landViewApi.getPayments(`LV-${id}`).catch(() => [] as Record<string, unknown>[]),
+      ]);
+      const billing = verifySheetInvoicesWithPayments(
+        buildSheetInvoices(financeTabs, id),
+        databasePayments,
+      );
       if (version === request.current) {
         setResult(billing);
         setGenerated(statementDate());
