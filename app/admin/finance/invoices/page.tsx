@@ -16,17 +16,48 @@ import ProjectBillingDocument, {
 } from "@/components/project-billing-document";
 import styles from "./invoice.module.css";
 
-async function loadFinanceTabs() {
-  const results: FinanceSheetData[] = new Array(invoiceTabs.length);
-  let cursor = 0;
-  async function worker() {
-    while (cursor < invoiceTabs.length) {
-      const index = cursor++;
-      results[index] = await landViewApi.getFinanceSheet(invoiceTabs[index]);
+const BILLING_SNAPSHOT_PREFIX = "landview_billing_snapshot_v2:";
+const BILLING_SNAPSHOT_TTL_MS = 10 * 60 * 1000;
+
+type BillingSnapshot = {
+  savedAt: number;
+  billing: SheetInvoices;
+};
+
+function snapshotKey(id: string) {
+  return `${BILLING_SNAPSHOT_PREFIX}LV-${id}`;
+}
+
+function readBillingSnapshot(id: string): SheetInvoices | null {
+  try {
+    const raw = sessionStorage.getItem(snapshotKey(id));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as BillingSnapshot;
+    if (!parsed?.billing?.id || !parsed.savedAt || Date.now() - parsed.savedAt > BILLING_SNAPSHOT_TTL_MS) {
+      sessionStorage.removeItem(snapshotKey(id));
+      return null;
     }
+    return parsed.billing;
+  } catch {
+    return null;
   }
-  await Promise.all(Array.from({ length: 3 }, () => worker()));
-  return results;
+}
+
+function saveBillingSnapshot(id: string, billing: SheetInvoices) {
+  try {
+    sessionStorage.setItem(snapshotKey(id), JSON.stringify({ savedAt: Date.now(), billing } satisfies BillingSnapshot));
+  } catch {}
+}
+
+async function loadFinanceTabs(fileListSheet?: FinanceSheetData | null) {
+  // lib/api already limits LAND VIEW requests to four concurrent calls. Starting
+  // all tabs here lets that shared queue run at full capacity instead of adding
+  // another, slower three-worker bottleneck. Reuse File List when this page has
+  // already loaded it so generating a bill does not fetch that sheet twice.
+  return Promise.all(invoiceTabs.map((tab) => {
+    if (tab === "File List" && fileListSheet) return Promise.resolve(fileListSheet);
+    return landViewApi.getFinanceSheet(tab);
+  }));
 }
 
 type FileListProject = {
@@ -41,12 +72,14 @@ export default function ProjectBillingPage() {
   const [result, setResult] = useState<SheetInvoices | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [verificationUrl, setVerificationUrl] = useState("");
   const [verificationError, setVerificationError] = useState("");
   const [fileListProjects, setFileListProjects] = useState<FileListProject[]>([]);
   const [fileListLoading, setFileListLoading] = useState(true);
   const [fileListError, setFileListError] = useState("");
   const request = useRef(0);
+  const fileListSheet = useRef<FinanceSheetData | null>(null);
 
   useEffect(() => {
     let active = true;
@@ -56,6 +89,7 @@ export default function ProjectBillingPage() {
       try {
         const sheet = await landViewApi.getFinanceSheet("File List");
         if (!active) return;
+        fileListSheet.current = sheet;
         const projects = (sheet.rows || [])
           .map((row): FileListProject | null => {
             const normalized = normalizeFileId(String(row[0] || ""));
@@ -98,32 +132,64 @@ export default function ProjectBillingPage() {
     }
   }
 
+  async function fetchFreshBilling(id: string) {
+    const [financeTabs, databasePayments] = await Promise.all([
+      loadFinanceTabs(fileListSheet.current),
+      landViewApi.getPayments(`LV-${id}`).catch(() => [] as Record<string, unknown>[]),
+    ]);
+    return verifySheetInvoicesWithPayments(buildSheetInvoices(financeTabs, id), databasePayments);
+  }
+
+  async function refreshBilling(id: string, version: number, background: boolean) {
+    try {
+      const billing = await fetchFreshBilling(id);
+      if (version !== request.current) return;
+      saveBillingSnapshot(id, billing);
+      setResult(billing);
+      setVerificationUrl("");
+      setVerificationError("");
+      void createVerification(billing, version);
+      setError("");
+    } catch (err) {
+      if (version !== request.current) return;
+      if (!background) {
+        setError(err instanceof Error ? err.message : "Could not load project billing.");
+      }
+      // When a recent snapshot is already visible, a temporary refresh failure
+      // should not blank the bill the user is reading.
+    } finally {
+      if (version === request.current) {
+        setBusy(false);
+        setRefreshing(false);
+      }
+    }
+  }
+
   async function load(event: FormEvent) {
     event.preventDefault();
     const id = normalizeFileId(fileId);
     if (!id) return setError("Select a project from File List or enter a File ID such as LV-209.");
     const version = ++request.current;
-    setBusy(true);
     setError("");
-    setResult(null);
     setVerificationUrl("");
     setVerificationError("");
 
-    try {
-      const [financeTabs, databasePayments] = await Promise.all([
-        loadFinanceTabs(),
-        landViewApi.getPayments(`LV-${id}`).catch(() => [] as Record<string, unknown>[]),
-      ]);
-      const billing = verifySheetInvoicesWithPayments(buildSheetInvoices(financeTabs, id), databasePayments);
-      if (version === request.current) {
-        setResult(billing);
-        void createVerification(billing, version);
-      }
-    } catch (err) {
-      if (version === request.current) setError(err instanceof Error ? err.message : "Could not load project billing.");
-    } finally {
-      if (version === request.current) setBusy(false);
+    const snapshot = readBillingSnapshot(id);
+    if (snapshot) {
+      // Reopening a recently generated/fixed bill should feel instant. Display
+      // the snapshot first, then reconcile it with current Sheets data quietly.
+      setResult(snapshot);
+      setBusy(false);
+      setRefreshing(true);
+      void createVerification(snapshot, version);
+      void refreshBilling(id, version, true);
+      return;
     }
+
+    setResult(null);
+    setBusy(true);
+    setRefreshing(false);
+    await refreshBilling(id, version, false);
   }
 
   return (
@@ -153,6 +219,7 @@ export default function ProjectBillingPage() {
             setVerificationError("");
             request.current++;
             setBusy(false);
+            setRefreshing(false);
           }}
           required
           autoComplete="off"
@@ -160,7 +227,7 @@ export default function ProjectBillingPage() {
         <datalist id="billing-project-list">
           {fileListProjects.map((project) => <option key={project.id} value={project.id}>{[project.name, project.type, project.floor].filter(Boolean).join(" · ")}</option>)}
         </datalist>
-        <button disabled={busy}>{busy ? "Loading…" : "View billing"}</button>
+        <button disabled={busy}>{busy ? "Loading…" : refreshing ? "Refreshing…" : "View billing"}</button>
         <span style={{ width: "100%", fontSize: 10, color: fileListError ? "#ffb4aa" : "#94a3ad" }}>
           {fileListError ? `File List unavailable: ${fileListError}` : fileListLoading ? "Loading project register…" : `${fileListProjects.length} projects pulled from Finance → File List`}
         </span>
@@ -168,6 +235,7 @@ export default function ProjectBillingPage() {
 
       {error && <div className={styles.error} role="alert">{error}</div>}
       {busy && <div className={styles.loading} role="status">Pulling bill and deposit records…</div>}
+      {refreshing && result && <div className={styles.loading} role="status">Bill opened from recent snapshot · checking latest finance data in background…</div>}
       {result && <ProjectBillingDocument result={result} verificationUrl={verificationUrl} verificationError={verificationError} />}
     </div>
   );
