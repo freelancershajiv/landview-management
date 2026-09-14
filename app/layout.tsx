@@ -11,6 +11,7 @@ import "./action-feedback.css";
 import "./portal-experiences.css";
 import "./brand-logo-overrides.css";
 import "./top-portal-navigation.css";
+import "./typography-system.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
