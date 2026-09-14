@@ -1,5 +1,5 @@
-import EmployeePortalShell from "@/components/employee-portal-shell";
+import { redirect } from "next/navigation";
 
-export default function EmployeePortalPage() {
-  return <EmployeePortalShell />;
+export default function EmployeePortalPage(){
+  redirect("/admin");
 }
