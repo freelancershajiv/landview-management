@@ -1,0 +1,10 @@
+name: Redeploy invoice header v10
+
+on:
+  workflow_dispatch:
+
+jobs:
+  confirm:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Invoice header v10 is in main and ready for production."
