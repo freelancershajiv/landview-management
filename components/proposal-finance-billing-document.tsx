@@ -74,7 +74,7 @@ function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): SheetInvo
       name: group.name,
       items: group.items.map((item) => ({
         service: item.Description ? `${item.Service} — ${item.Description}` : item.Service,
-        price: Number(item.Rate) || 0,
+        price: String(Number(item.Rate) || 0),
         quantity: `${Number(item.Quantity) || 0}${item.Unit ? ` ${item.Unit}` : ""}`,
         amount: (Number(item.Quantity) || 0) * (Number(item.Rate) || 0),
       })),
@@ -103,7 +103,7 @@ function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): SheetInvo
       paid: 0,
       due: invoices.reduce((sum, item) => sum + item.due, 0),
     },
-  } as SheetInvoices;
+  };
 }
 
 export default function ProposalFinanceBillingDocument({ proposalId }: { proposalId: string }) {
