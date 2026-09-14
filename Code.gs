@@ -230,6 +230,15 @@ function handleAction(
     case "getSession":
       return getSession(params);
 
+    case "getModularDatabaseStatus":
+      return getModularDatabaseStatus_(params);
+
+    case "migrateModularDatabases":
+      return migrateModularDatabases(params);
+
+    case "disableModularDatabases":
+      return disableModularDatabases(params);
+
     case "initializeRoleSecurity":
       return initializeRoleSecurity();
 
