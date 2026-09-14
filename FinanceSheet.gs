@@ -51,6 +51,58 @@ function getFinanceWorkbook_() {
   return SpreadsheetApp.openById(FINANCE_WORKBOOK_ID_);
 }
 
+function financeDepositVerificationSource_(tab) {
+  if (tab === "Design Deposit") return "Design Deposit";
+  if (tab === "S Deposit") return "S Deposit";
+  if (tab === "Others Bill Deposit") return "Others Bill Deposit";
+  return "";
+}
+
+function financeDepositVerificationMap_(tab) {
+  var sourceName = financeDepositVerificationSource_(tab);
+  var result = {};
+  if (!sourceName) return result;
+
+  try {
+    var ledger = getLandViewFinanceLedger_();
+    var sheet = ledger.getSheetByName("Auto Invoice Reconciliation");
+    if (!sheet || sheet.getLastRow() < 2) return result;
+
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getDisplayValues()[0].map(function(value) {
+      return String(value || "").trim();
+    });
+    var sourceSheetIndex = headers.indexOf("Source_Sheet");
+    var sourceRowIndex = headers.indexOf("Source_Row");
+    var incomeIdIndex = headers.indexOf("Matched_Income_ID");
+    var matchStatusIndex = headers.indexOf("Match_Status");
+    var manualIndex = headers.indexOf("Manual_Verification");
+    if (sourceSheetIndex < 0 || sourceRowIndex < 0 || matchStatusIndex < 0) return result;
+
+    var rows = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getDisplayValues();
+    rows.forEach(function(row) {
+      if (String(row[sourceSheetIndex] || "").trim() !== sourceName) return;
+      var sourceRow = Number(row[sourceRowIndex] || 0);
+      if (!sourceRow) return;
+
+      var incomeId = incomeIdIndex >= 0 ? String(row[incomeIdIndex] || "").trim() : "";
+      var matchStatus = String(row[matchStatusIndex] || "").trim().toUpperCase();
+      var manual = manualIndex >= 0 ? String(row[manualIndex] || "").trim().toLowerCase() : "";
+      var verified = manual === "verified" || (manual !== "unverified" && matchStatus === "MATCHED_EXACT" && !!incomeId);
+
+      result[sourceRow] = {
+        verified: verified,
+        incomeId: incomeId,
+        matchStatus: matchStatus,
+        manual: manual
+      };
+    });
+  } catch (error) {
+    console.log("Invoice verification lookup unavailable: " + (error && error.message ? error.message : error));
+  }
+
+  return result;
+}
+
 function ensureFinanceWorkflowSheet_(ss) {
   const sheet = ss.getSheetByName("Workflow");
   if (!sheet) throw new Error('Finance worksheet "Workflow" was not found.');
@@ -323,18 +375,35 @@ function getFinanceSheet(params) {
   const readWidth = tab === "Summary" ? Math.max(18, Math.min(30, sheet.getLastColumn())) : widths[tab];
   const grid = sheet.getRange(1, 1, height, readWidth).getDisplayValues();
   let headers = tab === "Invoice" ? Array.from({ length: readWidth }, function(_, i) { return String.fromCharCode(65 + i); }) : grid[0];
-  let rows = (tab === "Invoice" ? grid : grid.slice(1)).filter(function(row) {
-    if (tab === "Invoice") return row.some(hasValue);
-    if (tab === "Summary") return !!populatedIds[String(row[0])];
-    if (tab === "File List") return hasValue(row[0]);
-    if (tab === "Workflow") return hasValue(row[0]) || hasValue(row[1]);
-    return row.slice(2).some(hasValue);
+  const sourceRowNumbers = [];
+  const sourceRows = tab === "Invoice" ? grid : grid.slice(1);
+  let rows = sourceRows.filter(function(row, index) {
+    var keep = false;
+    if (tab === "Invoice") keep = row.some(hasValue);
+    else if (tab === "Summary") keep = !!populatedIds[String(row[0])];
+    else if (tab === "File List") keep = hasValue(row[0]);
+    else if (tab === "Workflow") keep = hasValue(row[0]) || hasValue(row[1]);
+    else keep = row.slice(2).some(hasValue);
+    if (keep) sourceRowNumbers.push(tab === "Invoice" ? index + 1 : index + 2);
+    return keep;
   });
 
   if (tab !== "Summary" && !["Invoice", "File List", "Workflow"].includes(tab)) {
     const omit = 1;
     headers = headers.filter(function(_, i) { return i !== omit; });
     rows = rows.map(function(row) { return row.filter(function(_, i) { return i !== omit; }); });
+  }
+
+  if (financeDepositVerificationSource_(tab)) {
+    const verificationMap = financeDepositVerificationMap_(tab);
+    headers = headers.concat(["Verification", "Linked Income ID"]);
+    rows = rows.map(function(row, index) {
+      const verification = verificationMap[sourceRowNumbers[index]] || null;
+      return row.concat([
+        verification && verification.verified ? "Verified" : "Unverified",
+        verification && verification.incomeId ? verification.incomeId : ""
+      ]);
+    });
   }
 
   return {
