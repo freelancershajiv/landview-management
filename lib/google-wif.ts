@@ -1,3 +1,5 @@
+import { getVercelOidcToken } from "@vercel/oidc";
+
 type CachedToken = {
   accessToken: string;
   expiresAt: number;
@@ -41,7 +43,7 @@ export async function getGoogleSheetsAccessToken() {
     return cachedToken.accessToken;
   }
 
-  const oidcToken = String(process.env.VERCEL_OIDC_TOKEN || "").trim();
+  const oidcToken = String(await getVercelOidcToken()).trim();
   if (!oidcToken) {
     throw new Error("Vercel OIDC token is unavailable.");
   }
