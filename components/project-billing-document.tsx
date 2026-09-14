@@ -91,14 +91,14 @@ export function safePdfTitle(value: string) {
 let billingPrintPending = false;
 
 export async function printBillingPdf(result: SheetInvoices) {
-  if (billingPrintPending) return;
+  if (billingPrintPending) return false;
   const root = Array.from(document.querySelectorAll<HTMLElement>("[data-billing-id]"))
     .find((element) => element.dataset.billingId === result.id);
-  if (!root) return;
+  if (!root) return false;
   const qrImage = root.querySelector<HTMLImageElement>("img[data-billing-qr]");
   if (/^LV-\d+$/.test(result.id) && !qrImage) {
     window.alert("The invoice QR is not ready. Wait for verification to finish, or reload the billing statement and try again.");
-    return;
+    return false;
   }
 
   billingPrintPending = true;
@@ -111,10 +111,10 @@ export async function printBillingPdf(result: SheetInvoices) {
         timer = setTimeout(() => reject(new Error("Invoice images did not load.")), 10000);
       }),
     ]);
-    if (!root.isConnected || root.dataset.billingId !== result.id || qrImage?.src !== qrSource) return;
+    if (!root.isConnected || root.dataset.billingId !== result.id || qrImage?.src !== qrSource) return false;
   } catch {
     window.alert("The invoice images could not load. Reload the billing statement before saving the PDF.");
-    return;
+    return false;
   } finally {
     clearTimeout(timer);
     billingPrintPending = false;
@@ -132,8 +132,14 @@ export async function printBillingPdf(result: SheetInvoices) {
 
   document.title = pdfTitle;
   window.addEventListener("afterprint", restoreTitle, { once: true });
-  window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()));
   window.setTimeout(restoreTitle, 60000);
+  await new Promise<void>((resolve) => {
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+      window.print();
+      resolve();
+    }));
+  });
+  return true;
 }
 
 type Props = {
