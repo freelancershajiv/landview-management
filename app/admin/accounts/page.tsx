@@ -267,71 +267,139 @@ function clip(value: string, max: number) {
 }
 
 function buildPdf(title: string, rows: LedgerRow[], summary: MoneySummary, filterText: string) {
-  const lines: string[] = [];
-  lines.push(`Generated: ${new Date().toLocaleString("en-GB")}`);
-  if (filterText) lines.push(`Filters: ${filterText}`);
-  lines.push(`Income: BDT ${summary.income.toLocaleString("en-US", { maximumFractionDigits: 2 })}`);
-  lines.push(`Approved expense: BDT ${summary.expense.toLocaleString("en-US", { maximumFractionDigits: 2 })}`);
-  lines.push(`Pending expense: BDT ${summary.pending.toLocaleString("en-US", { maximumFractionDigits: 2 })}`);
-  lines.push(`Net: BDT ${summary.net.toLocaleString("en-US", { maximumFractionDigits: 2 })}`);
-  lines.push(`Transactions: ${rows.length}`);
-  lines.push("");
-  lines.push("DATE | TYPE | FILE | CATEGORY | AMOUNT | STATUS");
-  rows.forEach((row) => {
-    lines.push(
-      clip(
-        `${displayDate(row.date)} | ${row.type.toUpperCase()} | ${row.fileId || "-"} | ${row.category} | BDT ${row.amount.toLocaleString("en-US", { maximumFractionDigits: 2 })} | ${row.status}`,
-        105,
-      ),
-    );
-    lines.push(
-      clip(
-        `  ${row.description}${row.type === "Expense" && row.paidTo ? ` | Paid to: ${row.paidTo}` : ""}${row.type === "Income" && row.receivedFrom ? ` | From: ${row.receivedFrom}` : ""}${row.allocationNote ? ` | ${row.allocationNote}` : ""}`,
-        110,
-      ),
-    );
-  });
+  const RED = "0.882 0.169 0.192";
+  const RED_DARK = "0.710 0.090 0.122";
+  const BLACK = "0.090 0.098 0.106";
+  const DARK = "0.145 0.157 0.169";
+  const MID = "0.360 0.390 0.410";
+  const LIGHT = "0.965 0.968 0.970";
+  const BORDER = "0.820 0.830 0.840";
+  const WHITE = "1 1 1";
 
-  const printable = lines.map(ascii);
-  const perPage = 43;
-  const pages: string[][] = [];
-  for (let i = 0; i < printable.length; i += perPage) pages.push(printable.slice(i, i + perPage));
-  if (!pages.length) pages.push(["No matching transactions."]);
+  const pdfText = (value: unknown, max = 120) => pdfEscape(clip(ascii(value), max));
+  const textCmd = (x: number, y: number, font: "F1" | "F2", size: number, color: string, value: unknown, max = 120) =>
+    `BT /${font} ${size} Tf ${color} rg ${x} ${y} Td (${pdfText(value, max)}) Tj ET
+`;
+  const fillRect = (x: number, y: number, w: number, h: number, color: string) => `${color} rg ${x} ${y} ${w} ${h} re f
+`;
+  const strokeRect = (x: number, y: number, w: number, h: number, color: string, width = 0.6) => `${color} RG ${width} w ${x} ${y} ${w} ${h} re S
+`;
+  const line = (x1: number, y1: number, x2: number, y2: number, color: string, width = 0.8) => `${color} RG ${width} w ${x1} ${y1} m ${x2} ${y2} l S
+`;
+  const moneyText = (value: number) => `BDT ${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}`;
+
+  const firstPageCount = 17;
+  const laterPageCount = 21;
+  const pages: LedgerRow[][] = [];
+  pages.push(rows.slice(0, firstPageCount));
+  for (let i = firstPageCount; i < rows.length; i += laterPageCount) pages.push(rows.slice(i, i + laterPageCount));
+  if (!rows.length) pages[0] = [];
 
   const objects: string[] = [""];
   objects[1] = "<< /Type /Catalog /Pages 2 0 R >>";
   objects[3] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
   objects[4] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>";
   const pageIds: number[] = [];
-  pages.forEach((pageLines, pageIndex) => {
+
+  pages.forEach((pageRows, pageIndex) => {
     const pageId = 5 + pageIndex * 2;
     const contentId = pageId + 1;
     pageIds.push(pageId);
-    let stream = "BT\n/F2 16 Tf\n50 798 Td\n";
-    stream += `(${pdfEscape("LAND VIEW ENGINEERS & ARCHITECTS")}) Tj\n0 -22 Td\n/F2 12 Tf\n(${pdfEscape(clip(ascii(title), 78))}) Tj\n`;
-    stream += "0 -18 Td\n/F1 8.5 Tf\n";
-    pageLines.forEach((line, lineIndex) => {
-      if (lineIndex) stream += "0 -15 Td\n";
-      stream += `(${pdfEscape(clip(line, 118))}) Tj\n`;
-    });
-    stream += `0 -19 Td\n/F1 7 Tf\n(Page ${pageIndex + 1} of ${pages.length}) Tj\nET`;
-    objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`;
-    objects[contentId] = `<< /Length ${new TextEncoder().encode(stream).length} >>\nstream\n${stream}\nendstream`;
-  });
-  objects[2] = `<< /Type /Pages /Count ${pageIds.length} /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] >>`;
+    let stream = "";
 
-  let pdf = "%PDF-1.4\n";
+    // Header / brand
+    stream += textCmd(42, 804, "F2", 19, BLACK, "LAND", 20);
+    stream += textCmd(101, 804, "F2", 19, RED, "VIEW", 20);
+    stream += textCmd(42, 788, "F2", 7.5, DARK, "ENGINEERS & ARCHITECTS", 40);
+    stream += textCmd(553, 806, "F1", 7, MID, `Page ${pageIndex + 1} of ${pages.length}`, 30);
+    stream += line(42, 777, 553, 777, RED, 2.2);
+    stream += textCmd(42, 754, "F2", 14, BLACK, title, 78);
+    if (pageIndex === 0) {
+      stream += textCmd(42, 738, "F1", 7.3, MID, `Generated: ${new Date().toLocaleString("en-GB")}`, 70);
+      if (filterText) stream += textCmd(300, 738, "F1", 7.3, MID, `Filters: ${filterText}`, 68);
+
+      const cards = [
+        ["INCOME", moneyText(summary.income)],
+        ["APPROVED EXPENSE", moneyText(summary.expense)],
+        ["PENDING", moneyText(summary.pending)],
+        ["NET", moneyText(summary.net)],
+      ];
+      cards.forEach(([label, value], index) => {
+        const x = 42 + index * 128;
+        const bg = index === 3 ? RED : LIGHT;
+        const labelColor = index === 3 ? WHITE : MID;
+        const valueColor = index === 3 ? WHITE : BLACK;
+        stream += fillRect(x, 684, 119, 43, bg);
+        stream += strokeRect(x, 684, 119, 43, index === 3 ? RED_DARK : BORDER, 0.7);
+        stream += textCmd(x + 8, 712, "F2", 6.3, labelColor, label, 24);
+        stream += textCmd(x + 8, 694, "F2", 9.2, valueColor, value, 24);
+      });
+      stream += textCmd(42, 671, "F1", 7.2, MID, `Transactions: ${rows.length}`, 35);
+    }
+
+    const headerY = pageIndex === 0 ? 644 : 724;
+    stream += fillRect(42, headerY, 511, 22, DARK);
+    stream += line(42, headerY, 553, headerY, RED, 1.4);
+    const cols = [
+      [48, "DATE"], [120, "TYPE"], [172, "FILE"], [223, "CATEGORY"], [420, "AMOUNT"], [505, "STATUS"],
+    ] as const;
+    cols.forEach(([x, label]) => { stream += textCmd(x, headerY + 8, "F2", 6.5, WHITE, label, 28); });
+
+    let y = headerY - 23;
+    if (!pageRows.length) {
+      stream += textCmd(48, y, "F1", 9, MID, "No matching transactions.", 80);
+    }
+
+    pageRows.forEach((row, index) => {
+      if (index % 2 === 1) stream += fillRect(42, y - 12, 511, 27, LIGHT);
+      stream += line(42, y - 13, 553, y - 13, BORDER, 0.35);
+      const typeColor = row.type === "Income" ? "0.125 0.435 0.250" : RED_DARK;
+      stream += textCmd(48, y, "F1", 7.1, BLACK, displayDate(row.date), 15);
+      stream += textCmd(120, y, "F2", 6.8, typeColor, row.type.toUpperCase(), 10);
+      stream += textCmd(172, y, "F1", 7.0, BLACK, row.fileId || "-", 12);
+      stream += textCmd(223, y, "F1", 7.0, BLACK, row.category, 31);
+      stream += textCmd(420, y, "F2", 7.0, BLACK, moneyText(row.amount), 18);
+      stream += textCmd(505, y, "F1", 6.7, BLACK, row.status, 12);
+      const detail = `${row.description}${row.type === "Expense" && row.paidTo ? ` | Paid to: ${row.paidTo}` : ""}${row.type === "Income" && row.receivedFrom ? ` | From: ${row.receivedFrom}` : ""}`;
+      stream += textCmd(48, y - 11, "F1", 6.5, MID, detail, 104);
+      y -= 28;
+    });
+
+    stream += line(42, 34, 553, 34, RED, 1.1);
+    stream += textCmd(42, 20, "F2", 6.8, BLACK, "LAND VIEW", 25);
+    stream += textCmd(101, 20, "F1", 6.5, MID, "Building a safer tomorrow", 45);
+    stream += textCmd(475, 20, "F1", 6.5, MID, `Page ${pageIndex + 1} / ${pages.length}`, 25);
+
+    objects[pageId] = `<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`;
+    objects[contentId] = `<< /Length ${new TextEncoder().encode(stream).length} >>
+stream
+${stream}
+endstream`;
+  });
+
+  objects[2] = `<< /Type /Pages /Count ${pageIds.length} /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] >>`;
+  let pdf = "%PDF-1.4
+";
   const offsets: number[] = [0];
   for (let i = 1; i < objects.length; i++) {
     offsets[i] = new TextEncoder().encode(pdf).length;
-    pdf += `${i} 0 obj\n${objects[i]}\nendobj\n`;
+    pdf += `${i} 0 obj
+${objects[i]}
+endobj
+`;
   }
   const xref = new TextEncoder().encode(pdf).length;
-  pdf += `xref\n0 ${objects.length}\n0000000000 65535 f \n`;
-  for (let i = 1; i < objects.length; i++) {
-    pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n \n`;
-  }
-  pdf += `trailer\n<< /Size ${objects.length} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  pdf += `xref
+0 ${objects.length}
+0000000000 65535 f 
+`;
+  for (let i = 1; i < objects.length; i++) pdf += `${String(offsets[i]).padStart(10, "0")} 00000 n 
+`;
+  pdf += `trailer
+<< /Size ${objects.length} /Root 1 0 R >>
+startxref
+${xref}
+%%EOF`;
   return new Blob([pdf], { type: "application/pdf" });
 }
 

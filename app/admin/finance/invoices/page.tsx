@@ -19,6 +19,17 @@ function statementDate() {
   return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", day: "2-digit", month: "short", year: "numeric" }).format(new Date());
 }
 
+
+function safePdfTitle(value: string) {
+  return value
+    .normalize("NFKD")
+    .replace(/[^A-Za-z0-9._ -]+/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "") || "LAND-VIEW-Project-Billing-Statement";
+}
+
 async function loadFinanceTabs() {
   const results: FinanceSheetData[] = new Array(invoiceTabs.length);
   let cursor = 0;
@@ -146,6 +157,26 @@ export default function ProjectBillingPage() {
         ? "Unverified"
         : "Partially Verified";
 
+
+  function printInvoice() {
+    if (!result) return;
+    const displayProjectName = result.client.name || result.id || "Project";
+    const pdfTitle = safePdfTitle(`${result.id}-${displayProjectName}-Billing-Statement`);
+    const previousTitle = document.title;
+    let restored = false;
+    const restoreTitle = () => {
+      if (restored) return;
+      restored = true;
+      document.title = previousTitle;
+      window.removeEventListener("afterprint", restoreTitle);
+    };
+
+    document.title = pdfTitle;
+    window.addEventListener("afterprint", restoreTitle, { once: true });
+    window.requestAnimationFrame(() => window.requestAnimationFrame(() => window.print()));
+    window.setTimeout(restoreTitle, 60000);
+  }
+
   const renderTable = (category: SheetInvoices["invoices"][number], type: "bill" | "deposit") => {
     if (type === "bill") {
       if (!category.items.length) return <p className={styles.empty}>No bill records.</p>;
@@ -248,7 +279,7 @@ export default function ProjectBillingPage() {
     <div className={styles.workspace}>
       <div className={styles.header}>
         <div><Link href="/admin/finance">← Finance</Link><span className={styles.eyebrow}>LAND VIEW / ACCOUNTS</span><h1>LV-Auto Invoice</h1><p>Select a project pulled directly from Finance → File List, then load its live billing statement.</p></div>
-        {result && <button className={styles.printButton} type="button" onClick={() => window.print()}>Print / Save PDF</button>}
+        {result && <button className={styles.printButton} type="button" onClick={printInvoice}>Print / Save PDF</button>}
       </div>
 
       <form className={styles.lookup} onSubmit={load}>

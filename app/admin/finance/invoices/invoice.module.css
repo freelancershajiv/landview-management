@@ -799,3 +799,44 @@
   .verificationUnverified { color: #b6131b !important; }
 }
 /* End invoice red/black theme sync v8 */
+
+
+/* LAND VIEW invoice red/black hard override v9 */
+.workspace{--inv-red:#e12b31;--inv-red-dark:#b8171f;--inv-black:#0b0d0f;--inv-panel:#11161a;--inv-panel-2:#171d22;--inv-border:#343b40;--inv-text:#f3f5f6;--inv-muted:#9aa3a9;color:var(--inv-text)!important}
+.header a,.verificationLabel,.verificationBlock a,.formula strong,.totalDueCard strong,.metrics>div:last-child strong{color:#ff5359!important}
+.printButton,.lookup button{background:linear-gradient(180deg,#ef343b,#c91e26)!important;color:#fff!important;border:1px solid #f14a50!important;box-shadow:0 8px 22px rgba(225,43,49,.18)!important}
+.printButton:hover,.lookup button:hover:not(:disabled){background:linear-gradient(180deg,#f54047,#d5222a)!important}
+.lookup,.category,.verificationBlock{background:linear-gradient(145deg,#14191d,#0d1114)!important;border-color:#343b40!important}
+.lookup input{background:#090c0e!important;border-color:#41484d!important;color:#fff!important}
+.projectCard>div{background:linear-gradient(145deg,#171c20,#0d1013)!important;border-color:#343b40!important}
+.totalDueCard{border-top-color:#e12b31!important}
+.categoryHeader,.metrics,.formula{border-color:#30363b!important}
+.tableWrap{border-color:#353c41!important}
+.tableWrap th{background:#24292d!important;color:#fff!important;border-bottom:2px solid #e12b31!important}
+.tableWrap td{border-top-color:#2d3338!important;color:#edf0f2!important}
+.formula{background:#090c0e!important}
+.grandSummary{background:#0b0e10!important;border-color:#343b40!important}
+.grandSummary>div{border-color:#343b40!important}
+.grandDue{background:linear-gradient(145deg,#e12b31,#b8171f)!important}
+.grandDue span,.grandDue strong{color:#fff!important}
+.qrCode{box-shadow:0 0 0 1px rgba(225,43,49,.55)!important}
+
+@media print{
+  .printPage{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .sheetHeader{border-bottom-color:#e12b31!important}
+  .sheetBrandWords>strong{color:#15171a!important}
+  .sheetBrandWords>strong span,.sheetTitle strong,.sheetMain h2 span,.sheetQr>div:last-child strong{color:#e12b31!important}
+  .sheetTitle b{border-top-color:#e12b31!important}
+  .sheetInfoBoard{border-color:#e12b31!important}
+  .sheetMetaPair span,.sheetPanelTitles strong,.sheetInfoRow span{background:#232629!important;color:#fff!important}
+  .sheetMetaPair span,.sheetMetaPair strong,.sheetPanelTitles strong,.sheetInfoRow span,.sheetInfoRow strong{border-color:#e12b31!important}
+  .sheetPanelTitles strong:first-child{border-right-color:#e12b31!important}
+  .sheetMain th{background:#25282b!important;color:#fff!important;border-bottom:.55mm solid #e12b31!important}
+  .sheetMain td{background:#fff!important;color:#111!important;border-color:#cfd3d6!important}
+  .sheetSummary{border-color:#e0b7b9!important}
+  .sheetSummary h3{background:#fff2f2!important;color:#c91e26!important;border-bottom-color:#e9c5c7!important}
+  .sheetDue,.sheetGrandDue{background:#e12b31!important;color:#fff!important}
+  .sheetDue span,.sheetDue strong,.sheetGrandDue span,.sheetGrandDue strong{color:#fff!important}
+  .sheetFooter{border-top-color:#e12b31!important}
+  .sheetQr{border-color:#e12b31!important}
+}
