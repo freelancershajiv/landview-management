@@ -1,0 +1,267 @@
+/* LAND VIEW admin-wide brand theme — black / charcoal / white / signature red. */
+@media screen {
+  .portal-admin {
+    --lv-black: #07080a;
+    --lv-black-2: #0d0f12;
+    --lv-black-3: #161a1f;
+    --lv-paper: #090b0e;
+    --lv-surface: #101319;
+    --lv-white: #15191f;
+    --lv-text: #f5f7fa;
+    --lv-muted: #9ba3ad;
+    --lv-muted-2: #6f7781;
+    --lv-border: #292f37;
+    --lv-border-strong: #3a424c;
+    --lv-accent: #d61f26;
+    --lv-accent-dark: #aa1218;
+    --lv-danger: #ff5d63;
+    --lv-warning: #d99b3d;
+    --lv-good: #58b77b;
+    --lv-shadow: 0 18px 48px rgba(0,0,0,.28);
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at 92% 0%, rgba(214,31,38,.12), transparent 28%),
+      radial-gradient(circle at 4% 82%, rgba(255,255,255,.025), transparent 24%),
+      #090b0e !important;
+    color: #f5f7fa !important;
+  }
+
+  .portal-admin .masthead {
+    background: #090b0e !important;
+    border-bottom: 1px solid #272c33 !important;
+    box-shadow: 0 8px 26px rgba(0,0,0,.28) !important;
+  }
+
+  .portal-admin .utility-bar,
+  .portal-admin .utility-inner {
+    background: linear-gradient(180deg,#0d1014,#090b0e) !important;
+  }
+
+  .portal-admin .masthead-brand {
+    color: #fff !important;
+  }
+
+  .portal-admin .masthead-brand img {
+    background: #fff !important;
+    border: 1px solid rgba(255,255,255,.16) !important;
+    border-radius: 12px !important;
+    padding: 5px !important;
+    box-shadow: 0 8px 22px rgba(0,0,0,.34), 0 0 0 1px rgba(214,31,38,.15) !important;
+  }
+
+  .portal-admin .masthead-brand strong {
+    color: #fff !important;
+  }
+
+  .portal-admin .masthead-brand span {
+    color: #9ca5af !important;
+  }
+
+  .portal-admin .utility-item b,
+  .portal-admin .utility-avatar {
+    color: #ff5960 !important;
+  }
+
+  .portal-admin .utility-avatar {
+    background: rgba(214,31,38,.13) !important;
+    border-color: rgba(214,31,38,.38) !important;
+  }
+
+  .portal-admin .utility-item small {
+    color: #767f89 !important;
+  }
+
+  .portal-admin .utility-logout,
+  .portal-admin .mobile-menu {
+    border-color: #353b44 !important;
+    background: #14181e !important;
+    color: #f3f5f7 !important;
+  }
+
+  .portal-admin .utility-logout:hover,
+  .portal-admin .mobile-menu:hover {
+    border-color: #d61f26 !important;
+    background: rgba(214,31,38,.10) !important;
+  }
+
+  .portal-admin .primary-nav {
+    background: #0f1216 !important;
+    border-top: 1px solid #1c2026 !important;
+    border-bottom: 1px solid #292e35 !important;
+  }
+
+  .portal-admin .primary-nav a {
+    color: #a9b0b8 !important;
+    border-color: transparent !important;
+  }
+
+  .portal-admin .primary-nav a:hover {
+    color: #fff !important;
+    background: rgba(214,31,38,.07) !important;
+  }
+
+  .portal-admin .primary-nav a.active,
+  .portal-admin .primary-nav a[aria-current="page"] {
+    color: #fff !important;
+    background: linear-gradient(180deg,rgba(214,31,38,.16),rgba(214,31,38,.06)) !important;
+    box-shadow: inset 0 -3px #d61f26 !important;
+  }
+
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main,
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    background: transparent !important;
+    color: #f5f7fa !important;
+  }
+
+  .portal-admin :where(h1,h2,h3,h4,h5,h6) {
+    color: #f7f8fa !important;
+  }
+
+  .portal-admin :where(p,small,label) {
+    color: #9da6b0;
+  }
+
+  .portal-admin :where(a):hover {
+    color: #ff5b61;
+  }
+
+  .portal-admin :where(input,select,textarea) {
+    border-color: #343b44 !important;
+    background: #0a0d11 !important;
+    color: #f5f7fa !important;
+    box-shadow: none !important;
+  }
+
+  .portal-admin :where(input,select,textarea):focus {
+    border-color: #d61f26 !important;
+    outline: none !important;
+    box-shadow: 0 0 0 3px rgba(214,31,38,.12) !important;
+  }
+
+  .portal-admin :where(input,textarea)::placeholder {
+    color: #68717c !important;
+  }
+
+  .portal-admin :where(button,.btn,[class*="button" i]) {
+    transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease !important;
+  }
+
+  .portal-admin :where(.btn-primary,.btn-accent,button[type="submit"],[class*="primaryButton" i],[class*="printButton" i]) {
+    border-color: #e22d34 !important;
+    background: linear-gradient(180deg,#e53138,#bd171e) !important;
+    color: #fff !important;
+    box-shadow: 0 9px 24px rgba(214,31,38,.20) !important;
+  }
+
+  .portal-admin :where(.btn-primary,.btn-accent,button[type="submit"],[class*="primaryButton" i],[class*="printButton" i]):hover:not(:disabled) {
+    background: linear-gradient(180deg,#f03c43,#cc1b22) !important;
+    transform: translateY(-1px) !important;
+  }
+
+  .portal-admin :where([class*="hero" i],[class*="banner" i]) {
+    border-color: #30363e !important;
+    background:
+      radial-gradient(circle at 92% 0%,rgba(214,31,38,.14),transparent 30%),
+      linear-gradient(145deg,#13171c,#0c0f13 72%) !important;
+    color: #f6f7f9 !important;
+  }
+
+  .portal-admin :where([class*="eyebrow" i],[class*="kicker" i]) {
+    color: #ff6267 !important;
+  }
+
+  .portal-admin :where([class*="card" i],[class*="panel" i],[class*="tile" i],[class*="metric" i],[class*="summary" i]) {
+    border-color: #2d333b !important;
+  }
+
+  .portal-admin :where([class*="card" i],[class*="panel" i],[class*="tile" i],[class*="metric" i]) {
+    background: linear-gradient(150deg,#13171c,#0e1115) !important;
+    color: #f1f4f6 !important;
+  }
+
+  .portal-admin :where([class*="card" i],[class*="panel" i],[class*="tile" i],[class*="metric" i]):hover {
+    border-color: #444b55 !important;
+  }
+
+  .portal-admin :where(table) {
+    border-color: #303740 !important;
+    color: #eef1f4 !important;
+  }
+
+  .portal-admin :where(thead th) {
+    border-color: #353c45 !important;
+    background: #191e24 !important;
+    color: #b6bec7 !important;
+  }
+
+  .portal-admin :where(tbody td) {
+    border-color: #272d34 !important;
+    color: #e5e9ed !important;
+  }
+
+  .portal-admin :where(tbody tr:nth-child(even) td) {
+    background: rgba(255,255,255,.012);
+  }
+
+  .portal-admin :where(tbody tr:hover td) {
+    background: #151a20 !important;
+  }
+
+  .portal-admin :where(dialog,[role="dialog"],[class*="modal" i]) {
+    border-color: #333a43 !important;
+    background: #11151a !important;
+    color: #f5f7fa !important;
+  }
+
+  .portal-admin :where([class*="tabs" i]) {
+    border-color: #2d343c !important;
+    background: #0d1014 !important;
+  }
+
+  .portal-admin :where([class*="tabs" i]) button:hover {
+    color: #fff !important;
+    background: rgba(214,31,38,.08) !important;
+  }
+
+  .portal-admin :where([class*="tabs" i]) button[class*="active" i] {
+    color: #fff !important;
+    border-color: rgba(214,31,38,.45) !important;
+    background: rgba(214,31,38,.13) !important;
+    box-shadow: inset 0 -2px #d61f26 !important;
+  }
+
+  .portal-admin :where([class*="totalDueCard" i]) {
+    border-top-color: #d61f26 !important;
+  }
+
+  .portal-admin :where([class*="totalDueCard" i]) strong,
+  .portal-admin :where([class*="formula" i]) strong,
+  .portal-admin :where([class*="accent" i]) {
+    color: #ff555c !important;
+  }
+
+  .portal-admin :where([class*="grandDue" i],[class*="dueBadge" i]) {
+    border-color: rgba(214,31,38,.48) !important;
+    background: rgba(214,31,38,.15) !important;
+    color: #ff777b !important;
+  }
+
+  .portal-admin ::selection {
+    background: #d61f26;
+    color: #fff;
+  }
+
+  /* Keep semantic success/warning colors distinct from the brand accent. */
+  .portal-admin :where([class*="success" i],[class*="paid" i],[class*="good" i]) {
+    color: #7bd49b !important;
+  }
+
+  @media (max-width: 760px) {
+    .portal-admin .masthead-brand img {
+      border-radius: 10px !important;
+      padding: 4px !important;
+    }
+  }
+}
