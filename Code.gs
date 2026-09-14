@@ -6816,7 +6816,7 @@ function getDashboard(params) {
 function getSheet(name) {
 
   const ss =
-    getSpreadsheet();
+    getSpreadsheetForSheet_(name);
 
 
   let sheet =

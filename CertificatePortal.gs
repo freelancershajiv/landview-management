@@ -24,7 +24,7 @@ function certPortalClean_(value, maxLength) {
 }
 
 function certPortalEnsureRequestSheet_() {
-  const ss = getFinanceWorkbook_();
+  const ss = getCertificateDatabase_();
   let sheet = ss.getSheetByName(CERT_PORTAL_REQUEST_SHEET_);
   if (!sheet) sheet = ss.insertSheet(CERT_PORTAL_REQUEST_SHEET_);
   const width = Math.max(sheet.getLastColumn(), CERT_PORTAL_REQUEST_HEADERS_.length, 1);

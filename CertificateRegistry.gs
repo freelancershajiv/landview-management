@@ -14,7 +14,7 @@ const CERTIFICATE_REGISTRY_HEADERS_ = [
 ];
 
 function ensureCertificateRegistrySheet_() {
-  const ss = getFinanceWorkbook_();
+  const ss = getCertificateDatabase_();
   let sheet = ss.getSheetByName(CERTIFICATE_REGISTRY_SHEET_);
   if (!sheet) sheet = ss.insertSheet(CERTIFICATE_REGISTRY_SHEET_);
   const width = Math.max(sheet.getLastColumn(), CERTIFICATE_REGISTRY_HEADERS_.length, 1);
