@@ -6,6 +6,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 const COOKIE_NAME = "landview_session";
+const QUICK_USER_COOKIE = "landview_quick_user";
 const DEVICE_COOKIE = "landview_device";
 const COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;
 const DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
@@ -22,6 +23,15 @@ function cookieOptions(maxAge: number) {
     maxAge,
     priority: "high" as const,
   };
+}
+
+function hmac(value: string) {
+  return createHmac("sha256", PROXY_SECRET).update(value).digest("hex");
+}
+
+function signQuickUser(user: Record<string, unknown>) {
+  const payload = Buffer.from(JSON.stringify(user), "utf8").toString("base64url");
+  return `${payload}.${hmac(`quick-user|${payload}`)}`;
 }
 
 function allowedOrigin(request: NextRequest) {
@@ -146,6 +156,7 @@ export async function POST(request: NextRequest) {
       headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" },
     });
     response.cookies.set(COOKIE_NAME, token, cookieOptions(COOKIE_MAX_AGE_SECONDS));
+    response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user as Record<string, unknown>), cookieOptions(COOKIE_MAX_AGE_SECONDS));
     if (!existingDeviceId) response.cookies.set(DEVICE_COOKIE, deviceId, cookieOptions(DEVICE_MAX_AGE_SECONDS));
     return response;
   } catch (error: any) {
