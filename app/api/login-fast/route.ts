@@ -1,11 +1,13 @@
-import { createHmac } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "landview_session";
-const COOKIE_MAX_AGE_SECONDS = 12 * 60 * 60;
+const DEVICE_COOKIE = "landview_device";
+const COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;
+const DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 
@@ -31,9 +33,42 @@ function allowedOrigin(request: NextRequest) {
   }
 }
 
+function rawIp(request: NextRequest) {
+  return request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || request.headers.get("x-real-ip")
+    || "unknown";
+}
+
 function clientKey(request: NextRequest) {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  return createHmac("sha256", PROXY_SECRET).update(forwarded).digest("hex").slice(0, 32);
+  return createHmac("sha256", PROXY_SECRET).update(rawIp(request)).digest("hex").slice(0, 32);
+}
+
+function parseDevice(userAgent: string) {
+  const ua = userAgent || "";
+  const os = /Windows NT 10/i.test(ua) ? "Windows 10/11"
+    : /Android/i.test(ua) ? "Android"
+    : /iPhone|iPad|iPod/i.test(ua) ? "iOS/iPadOS"
+    : /Mac OS X/i.test(ua) ? "macOS"
+    : /Linux/i.test(ua) ? "Linux"
+    : "Unknown OS";
+  const browser = /Edg\//i.test(ua) ? "Microsoft Edge"
+    : /OPR\//i.test(ua) ? "Opera"
+    : /Chrome\//i.test(ua) ? "Chrome"
+    : /Firefox\//i.test(ua) ? "Firefox"
+    : /Safari\//i.test(ua) ? "Safari"
+    : "Unknown browser";
+  const deviceName = /Mobile|Android|iPhone|iPad/i.test(ua) ? `${os} mobile device` : `${os} computer`;
+  return { os, browser, deviceName };
+}
+
+function geo(request: NextRequest) {
+  return {
+    city: request.headers.get("x-vercel-ip-city") || "",
+    region: request.headers.get("x-vercel-ip-country-region") || "",
+    country: request.headers.get("x-vercel-ip-country") || "",
+    latitude: request.headers.get("x-vercel-ip-latitude") || "",
+    longitude: request.headers.get("x-vercel-ip-longitude") || "",
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -57,6 +92,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Enter your User ID and password." }, { status: 400 });
   }
 
+  const existingDeviceId = request.cookies.get(DEVICE_COOKIE)?.value?.trim();
+  const deviceId = existingDeviceId || `LVD-${randomUUID()}`;
+  const userAgent = request.headers.get("user-agent") || "";
+  const device = parseDevice(userAgent);
+  const location = geo(request);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 18000);
   try {
@@ -69,6 +110,13 @@ export async function POST(request: NextRequest) {
         password,
         proxySecret: PROXY_SECRET,
         _clientKey: clientKey(request),
+        ipAddress: rawIp(request),
+        deviceId,
+        deviceName: device.deviceName,
+        browser: device.browser,
+        os: device.os,
+        userAgent: userAgent.slice(0, 500),
+        ...location,
       }),
       cache: "no-store",
       redirect: "follow",
@@ -96,6 +144,7 @@ export async function POST(request: NextRequest) {
       headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" },
     });
     response.cookies.set(COOKIE_NAME, token, cookieOptions(COOKIE_MAX_AGE_SECONDS));
+    if (!existingDeviceId) response.cookies.set(DEVICE_COOKIE, deviceId, cookieOptions(DEVICE_MAX_AGE_SECONDS));
     return response;
   } catch (error: any) {
     const timedOut = error?.name === "AbortError";
