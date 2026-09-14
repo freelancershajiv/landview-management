@@ -88,7 +88,7 @@ function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): SheetInvo
       items: group.items.map((item) => ({
         service: item.Description ? `${item.Service} — ${item.Description}` : item.Service,
         price: String(Number(item.Rate) || 0),
-        quantity: `${Number(item.Quantity) || 0}${item.Unit ? ` ${item.Unit}` : ""}`,
+        quantity: String(Number(item.Quantity) || 0),
         amount: (Number(item.Quantity) || 0) * (Number(item.Rate) || 0),
       })),
       payments: [],
