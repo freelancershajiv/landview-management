@@ -1,0 +1,32 @@
+name: Patch invoice brand grid v5
+
+on:
+  push:
+    paths:
+      - 'scripts/patch_invoice_brand_grid_v5.py'
+      - '.github/workflows/patch-invoice-brand-grid-v5.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Patch invoice brand grid
+        run: python scripts/patch_invoice_brand_grid_v5.py
+      - name: Commit patched invoice files
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add app/admin/finance/invoices/page.tsx app/admin/finance/invoices/invoice.module.css
+          if git diff --cached --quiet; then
+            echo 'No invoice changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Align invoice grid and apply LAND VIEW brand palette'
+          git push
