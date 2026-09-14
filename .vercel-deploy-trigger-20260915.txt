@@ -1,1 +1,2 @@
 Production redeploy trigger for LAND VIEW modular database changes.
+Retry requested on 2026-09-15 after Vercel rate-limit window.
