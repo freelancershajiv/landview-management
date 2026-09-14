@@ -46,7 +46,7 @@ function trustedHosts() {
   );
 }
 
-function loginRedirect() {
+function loginRedirect(): never {
   redirect("/login");
 }
 
@@ -112,7 +112,7 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
   }
 
   if (validation.kind === "auth") loginRedirect();
-  if (validation.kind === "transient") {
+  if (validation.kind !== "ok") {
     throw new Error("LAND VIEW could not validate the current session temporarily. Your sign-in has been preserved; refresh this page to retry.");
   }
 
