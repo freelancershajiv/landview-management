@@ -225,7 +225,7 @@ export default function ProjectBillingPage() {
         </div>
         <div className={styles.sheetInfoRow}>
           <span>Verification</span><strong className={invoiceVerification === "Verified" ? styles.statusVerified : invoiceVerification === "Partially Verified" ? styles.statusPartial : styles.statusUnverified}>{invoiceVerification}</strong>
-          <span>Receipts verified</span><strong>{verifiedPayments}/{allPayments.length}{unverifiedPayments > 0 ? ` · ${unverifiedPayments} pending` : ""}</strong>
+          <span>Receipts</span><strong>{verifiedPayments}/{allPayments.length} verified{unverifiedPayments > 0 ? ` · ${unverifiedPayments} pending` : ""}</strong>
         </div>
       </section>
     </>
