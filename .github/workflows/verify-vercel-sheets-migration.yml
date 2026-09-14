@@ -1,0 +1,21 @@
+name: Verify Vercel Sheets migration
+
+on:
+  push:
+    branches:
+      - vercel-sheets-migration
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run build
