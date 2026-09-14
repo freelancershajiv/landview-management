@@ -1,3 +1,4 @@
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -24,6 +25,9 @@ type ValidationResult =
   | { kind: "auth" }
   | { kind: "transient" };
 
+const QUICK_USER_COOKIE = "landview_quick_user";
+const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
+
 function normalizeHost(value: string | null | undefined) {
   return String(value || "")
     .split(":")[0]
@@ -48,6 +52,44 @@ function trustedHosts() {
 
 function loginRedirect(): never {
   redirect("/login");
+}
+
+function roleOf(user: SessionUser | null | undefined) {
+  return String(user?.role || user?.Role || "").trim().toLowerCase() as PortalRole;
+}
+
+function redirectForRole(role: PortalRole): never {
+  if (role === "employee") redirect("/employee");
+  if (role === "client") redirect("/client");
+  if (role === "admin" || role === "manager" || role === "accounts") redirect("/admin");
+  loginRedirect();
+}
+
+function hmac(value: string) {
+  return createHmac("sha256", PROXY_SECRET).update(value).digest("hex");
+}
+
+function secureEqual(a: string, b: string) {
+  const aa = Buffer.from(String(a || ""), "utf8");
+  const bb = Buffer.from(String(b || ""), "utf8");
+  return aa.length === bb.length && timingSafeEqual(aa, bb);
+}
+
+function readSignedWorkspaceUser(value: string | undefined): SessionUser | null {
+  if (!PROXY_SECRET) return null;
+  const text = String(value || "");
+  const dot = text.lastIndexOf(".");
+  if (dot < 1) return null;
+  const payload = text.slice(0, dot);
+  const signature = text.slice(dot + 1);
+  if (!secureEqual(signature, hmac(`quick-user|${payload}`))) return null;
+  try {
+    const user = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SessionUser;
+    const role = roleOf(user);
+    return ["admin", "manager", "accounts", "employee", "client"].includes(role) ? user : null;
+  } catch {
+    return null;
+  }
 }
 
 function isExplicitAuthFailure(response: Response, json: SessionPayload) {
@@ -90,6 +132,18 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
   const sessionCookie = cookieStore.get("landview_session")?.value;
   if (!sessionCookie) loginRedirect();
 
+  // Fast path: normal login and Quick PIN login both mint this server-signed,
+  // HttpOnly identity cookie. Verify it locally instead of making another
+  // Apps Script round trip on every page navigation.
+  const signedUser = readSignedWorkspaceUser(cookieStore.get(QUICK_USER_COOKIE)?.value);
+  if (signedUser) {
+    const role = roleOf(signedUser);
+    if (allowedRoles.includes(role)) return { user: signedUser, role };
+    redirectForRole(role);
+  }
+
+  // Compatibility path for sessions created before the signed identity cookie
+  // existed. It preserves existing users until their next normal sign-in.
   const incomingHost = normalizeHost(requestHeaders.get("host"));
   const host = trustedHosts().has(incomingHost)
     ? incomingHost
@@ -103,9 +157,6 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
     .map(({ name, value }) => `${name}=${encodeURIComponent(value)}`)
     .join("; ");
 
-  // Fast validation normally comes from its short server cache. If that service
-  // is temporarily unavailable, fall back to the fully retried API route.
-  // Transport failures must never be interpreted as a logout.
   let validation = await validateSession(`${origin}/api/session-fast`, cookieHeader);
   if (validation.kind === "transient") {
     validation = await validateSession(`${origin}/api/landview?action=getSession`, cookieHeader);
@@ -118,16 +169,8 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
 
   const json = validation.json;
   const user = json.data!.user!;
-  const role = String(user?.role || user?.Role || "")
-    .trim()
-    .toLowerCase() as PortalRole;
+  const role = roleOf(user);
 
-  if (!allowedRoles.includes(role)) {
-    if (role === "employee") redirect("/employee");
-    if (role === "client") redirect("/client");
-    if (role === "admin" || role === "manager" || role === "accounts") redirect("/admin");
-    loginRedirect();
-  }
-
+  if (!allowedRoles.includes(role)) redirectForRole(role);
   return { user, role };
 }
