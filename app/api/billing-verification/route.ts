@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { signProjectVerification } from "@/lib/billing-verification";
+import { signProjectVerification, type VerificationSnapshot } from "@/lib/billing-verification";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,8 +35,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid File ID." }, { status: 400 });
     }
 
-    // Deterministic token: the same project always receives the same QR/link.
-    const token = signProjectVerification(fileId);
+    const billing = input?.billing as VerificationSnapshot | undefined;
+    if (!billing || !Array.isArray(billing?.categories) || !billing?.totals) {
+      return NextResponse.json({ success: false, error: "Billing snapshot is required for verification." }, { status: 400 });
+    }
+
+    // The public QR contains a signed, read-only billing snapshot. Scanners do not
+    // need a LAND VIEW login and cannot use the token to edit any project data.
+    const token = signProjectVerification(fileId, billing);
     const origin = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
     const url = `${origin}/verify/${encodeURIComponent(token)}`;
 
