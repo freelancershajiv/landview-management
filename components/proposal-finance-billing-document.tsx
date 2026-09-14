@@ -17,6 +17,11 @@ const ENGINEERING_SERVICES = new Set([
   "plan approval design",
 ]);
 
+const SUPERVISION_SERVICES = new Set([
+  "site supervision",
+  "supervision",
+]);
+
 const OTHER_SERVICES = new Set([
   "soil test",
   "digital survey",
@@ -33,10 +38,16 @@ function isEngineering(item: ProposalItem) {
   return category === "engineering" || ENGINEERING_SERVICES.has(service);
 }
 
+function isSupervision(item: ProposalItem) {
+  const service = normalize(item.Service);
+  const category = normalize(item.Category);
+  return category === "supervision" || SUPERVISION_SERVICES.has(service);
+}
+
 function isOtherService(item: ProposalItem) {
   const service = normalize(item.Service);
   const category = normalize(item.Category);
-  return OTHER_SERVICES.has(service) || category === "others" || !isEngineering(item);
+  return OTHER_SERVICES.has(service) || category === "others" || (!isEngineering(item) && !isSupervision(item));
 }
 
 function allocateDiscount(gross: number, totalGross: number, totalDiscount: number, remainder: number, isLast: boolean) {
@@ -48,10 +59,12 @@ function allocateDiscount(gross: number, totalGross: number, totalDiscount: numb
 function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): SheetInvoices {
   const proposal = bundle.proposal;
   const engineeringItems = bundle.items.filter(isEngineering);
+  const supervisionItems = bundle.items.filter(isSupervision);
   const otherItems = bundle.items.filter(isOtherService);
 
   const sourceGroups = [
     { name: "Engineering", items: engineeringItems },
+    { name: "Supervision", items: supervisionItems },
     { name: "Others", items: otherItems },
   ].filter((group) => group.items.length > 0);
 
@@ -151,7 +164,7 @@ export default function ProposalFinanceBillingDocument({ proposalId }: { proposa
         }
       `}</style>
       <p className="proposal-note">
-        Proposal stage: this uses the exact Finance billing invoice component. The QR position is reserved but no QR is issued until the proposal becomes a real project.
+        Proposal stage: Engineering, Supervision and Other Services use the exact Finance billing invoice component. The QR position is reserved but no QR is issued until the proposal becomes a real project.
       </p>
       <ProjectBillingDocument result={financeInvoice} verificationUrl="" verificationError="" />
     </section>
