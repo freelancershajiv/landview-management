@@ -92,6 +92,20 @@ function sessionCacheKey(token: string) {
   return createHmac("sha256", PROXY_SECRET).update(token).digest("hex");
 }
 
+function billingHeaders(mode: string, durationMs: number) {
+  return {
+    "Cache-Control": "no-store, max-age=0",
+    Pragma: "no-cache",
+    "X-Landview-Billing-Mode": mode,
+    "X-Landview-Billing-Duration-Ms": String(durationMs),
+    "Server-Timing": `project-billing;dur=${durationMs}`,
+  };
+}
+
+function logBillingResult(projectId: string, mode: string, durationMs: number, status = 200) {
+  console.info(`[project-billing] project=${projectId} mode=${mode} status=${status} durationMs=${durationMs}`);
+}
+
 async function callBackend(payload: Record<string, unknown>) {
   const delays = [0, 250, 700];
   let lastError: Error | null = null;
@@ -350,16 +364,28 @@ async function appsScriptBundleFallback(common: Record<string, unknown>, project
 }
 
 export async function GET(request: NextRequest) {
+  const startedAt = Date.now();
+  let projectId = normalizeProjectId(request.nextUrl.searchParams.get("fileId"));
+
   try {
     requiredEnv();
-    const projectId = normalizeProjectId(request.nextUrl.searchParams.get("fileId"));
     if (!projectId) {
-      return NextResponse.json({ success: false, error: "Enter a valid File ID such as LV-209." }, { status: 400 });
+      const durationMs = Date.now() - startedAt;
+      logBillingResult("invalid", "validation-error", durationMs, 400);
+      return NextResponse.json(
+        { success: false, error: "Enter a valid File ID such as LV-209." },
+        { status: 400, headers: billingHeaders("validation-error", durationMs) },
+      );
     }
 
     const token = request.cookies.get(COOKIE_NAME)?.value || "";
     if (!token) {
-      return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
+      const durationMs = Date.now() - startedAt;
+      logBillingResult(projectId, "unauthenticated", durationMs, 401);
+      return NextResponse.json(
+        { success: false, error: "Session expired." },
+        { status: 401, headers: billingHeaders("unauthenticated", durationMs) },
+      );
     }
 
     const common = commonPayload(request, token);
@@ -382,16 +408,19 @@ export async function GET(request: NextRequest) {
         const status = authStatus(paymentJson);
         if (status === 401) throw new RouteError(401, String(paymentJson?.error || paymentJson?.message || "Session expired."));
       } else if (Array.isArray(paymentJson.data)) {
+        const mode = "direct-google-sheets";
+        const durationMs = Date.now() - startedAt;
+        logBillingResult(projectId, mode, durationMs);
         return NextResponse.json(
           {
             success: true,
             data: {
               ...directResult.value,
               payments: paymentJson.data,
-              mode: "direct-google-sheets",
+              mode,
             },
           },
-          { headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" } },
+          { headers: billingHeaders(mode, durationMs) },
         );
       }
     }
@@ -410,8 +439,11 @@ export async function GET(request: NextRequest) {
     }
 
     const fallback = await appsScriptBundleFallback(common, projectId);
+    const mode = String(fallback.data?.mode || "apps-script-fallback");
+    const durationMs = Date.now() - startedAt;
+    logBillingResult(projectId, mode, durationMs);
     return NextResponse.json(fallback, {
-      headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" },
+      headers: billingHeaders(mode, durationMs),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load project billing.";
@@ -420,6 +452,12 @@ export async function GET(request: NextRequest) {
       : /session expired|unauthorized/i.test(message)
         ? 401
         : 502;
-    return NextResponse.json({ success: false, error: message }, { status });
+    const mode = status === 401 ? "auth-error" : "error";
+    const durationMs = Date.now() - startedAt;
+    logBillingResult(projectId || "unknown", mode, durationMs, status);
+    return NextResponse.json(
+      { success: false, error: message },
+      { status, headers: billingHeaders(mode, durationMs) },
+    );
   }
 }
