@@ -1,0 +1,2 @@
+Deploy invoice header QR/contact-footer layout v10.
+Includes bbfd0bf7804115841722258d1723a20480f373e6.
