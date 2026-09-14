@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import ProjectBillingDocument, { printBillingPdf } from "@/components/project-billing-document";
-import { getProposal, updateProposalAction, type ProposalBundle, type ProposalItem } from "@/lib/proposal-api";
+import { useMemo } from "react";
+import ProjectBillingDocument from "@/components/project-billing-document";
+import { type ProposalBundle, type ProposalItem } from "@/lib/proposal-api";
 import type { SheetInvoices } from "@/lib/sheet-invoices";
 import styles from "@/app/admin/finance/invoices/invoice.module.css";
 
@@ -56,7 +56,7 @@ function allocateDiscount(gross: number, totalGross: number, totalDiscount: numb
   return Math.min(gross, Math.round(totalDiscount * (gross / totalGross)));
 }
 
-function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): SheetInvoices {
+export function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): SheetInvoices {
   const proposal = bundle.proposal;
   const engineeringItems = bundle.items.filter(isEngineering);
   const supervisionItems = bundle.items.filter(isSupervision);
@@ -119,77 +119,24 @@ function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): SheetInvo
   };
 }
 
-export default function ProposalFinanceBillingDocument({ proposalId }: { proposalId: string }) {
-  const [bundle, setBundle] = useState<ProposalBundle | null>(null);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    let live = true;
-    void getProposal(proposalId)
-      .then((data) => {
-        if (live) setBundle(data);
-      })
-      .catch((err) => {
-        if (live) setError(err instanceof Error ? err.message : "Could not load proposal billing.");
-      });
-    return () => {
-      live = false;
-    };
-  }, [proposalId]);
-
+export default function ProposalFinanceBillingDocument({ bundle }: { bundle: ProposalBundle }) {
   const financeInvoice = useMemo(
-    () => (bundle ? toFinanceInvoice(bundle, proposalId) : null),
-    [bundle, proposalId],
+    () => toFinanceInvoice(bundle, bundle.proposal.Proposal_ID || ""),
+    [bundle],
   );
-
-  useEffect(() => {
-    if (!financeInvoice) return;
-
-    const printNow = () => printBillingPdf(financeInvoice);
-    const onRequested = () => printNow();
-    const onCaptureClick = (event: MouseEvent) => {
-      const target = event.target instanceof Element ? event.target.closest("button.pw-btn.primary") : null;
-      if (!target || !String(target.textContent || "").includes("Print / Save PDF")) return;
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation();
-      void updateProposalAction(proposalId, "print")
-        .catch(() => null)
-        .finally(printNow);
-    };
-
-    window.addEventListener("landview:print-proposal-billing", onRequested);
-    document.addEventListener("click", onCaptureClick, true);
-    return () => {
-      window.removeEventListener("landview:print-proposal-billing", onRequested);
-      document.removeEventListener("click", onCaptureClick, true);
-    };
-  }, [financeInvoice, proposalId]);
-
-  if (error) {
-    return (
-      <div style={{ marginTop: 16, padding: 12, border: "1px solid #73363a", borderRadius: 8, color: "#ffaaa5", background: "#351b1d" }}>
-        {error}
-      </div>
-    );
-  }
-
-  if (!bundle || !financeInvoice || financeInvoice.invoices.length === 0) return null;
 
   return (
     <section className="proposal-finance-billing" id="proposal-preview">
       <style>{`
-        .proposal-workspace .proposal-print-root{display:none!important}
         .proposal-finance-billing{margin-top:18px}
         .proposal-finance-billing .proposal-note{margin:0 0 10px;padding:10px 12px;border:1px solid #35414a;border-radius:8px;background:#101820;color:#9aa6af;font-size:10px}
         .proposal-finance-billing .${styles.verificationBlock}{display:none!important}
         @media print{
           .proposal-finance-billing .proposal-note{display:none!important}
-          .proposal-finance-billing,.proposal-finance-billing *{visibility:visible!important}
         }
       `}</style>
       <p className="proposal-note">
-        Proposal stage: Engineering, Supervision and Other Services use the exact Finance billing invoice component. The QR position is reserved but no QR is issued until the proposal becomes a real project.
+        Review the saved proposal below before printing. A verification QR is issued once the proposal becomes a project.
       </p>
       <ProjectBillingDocument result={financeInvoice} verificationUrl="" verificationError="" />
     </section>
