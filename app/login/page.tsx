@@ -1,8 +1,7 @@
 "use client";
 
 import { FormEvent, KeyboardEvent, useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import { clearStoredSession, landViewApi, saveSessionCache } from "@/lib/api";
+import { clearStoredSession, saveSessionCache } from "@/lib/api";
 
 type PortalType = "admin" | "employee" | "client";
 const PORTAL_KEY = "land_view_portal_type";
@@ -33,6 +32,17 @@ async function quickPost(action:string, body:Record<string,unknown> = {}){
   return json.data || {};
 }
 
+async function fastStaffLogin(userId:string,password:string){
+  const response = await fetch("/api/login-fast", {
+    method:"POST", headers:{"Content-Type":"application/json"}, cache:"no-store", credentials:"same-origin",
+    body:JSON.stringify({userId,password}),
+  });
+  let json:any;
+  try { json = await response.json(); } catch { throw new Error("The login service returned an invalid response."); }
+  if(!response.ok || !json?.success) throw new Error(String(json?.error || json?.message || "Sign in failed."));
+  return json.data || {};
+}
+
 async function clientLogin(projectId:string,mobile:string){
   const response = await fetch("/api/client-access", {
     method:"POST", headers:{"Content-Type":"application/json"}, cache:"no-store", credentials:"same-origin",
@@ -45,7 +55,6 @@ async function clientLogin(projectId:string,mobile:string){
 }
 
 export default function LoginPage(){
-  const router = useRouter();
   const [portal,setPortal] = useState<PortalType>("employee");
   const [userId,setUserId] = useState("");
   const [password,setPassword] = useState("");
@@ -88,7 +97,7 @@ export default function LoginPage(){
 
     setLoading(true); setError(""); clearStoredSession();
     try{
-      const result = portal === "client" ? await clientLogin(id,clientMobile.trim()) : await landViewApi.login(id,password);
+      const result = portal === "client" ? await clientLogin(id,clientMobile.trim()) : await fastStaffLogin(id,password);
       const role = normalizeRole(result?.user?.role || result?.user?.Role);
       const rolePortal = portalForRole(role);
       if(portal === "employee" && rolePortal === "admin"){
