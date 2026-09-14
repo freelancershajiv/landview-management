@@ -840,3 +840,54 @@
   .sheetFooter{border-top-color:#e12b31!important}
   .sheetQr{border-color:#e12b31!important}
 }
+
+
+/* LAND VIEW print header QR + footer contacts v10 */
+@media print{
+  .sheetHeader{
+    grid-template-columns:minmax(0,1.55fr) minmax(0,1fr) 25mm!important;
+    align-items:center!important;
+    gap:4mm!important;
+    padding:0 0 3mm!important;
+    margin-bottom:3mm!important;
+    border-bottom:.8mm solid #e12b31!important;
+  }
+  .sheetBrand{margin-left:4mm!important;align-self:center!important}
+  .sheetBrandLockup{align-items:center!important;gap:2.8mm!important}
+  .sheetBrandLogo{width:18mm!important;height:18mm!important;flex:0 0 18mm!important;object-fit:contain!important}
+  .sheetBrandWords>strong{font-size:16.5pt!important;line-height:1!important}
+  .sheetBrandWords small{font-size:8.2pt!important;letter-spacing:.8px!important;margin-top:1mm!important}
+  .sheetBrand>em{margin-left:20.8mm!important;margin-top:.8mm!important;font-size:8.2pt!important;color:#555!important}
+  .sheetTitle{align-self:center!important;justify-self:end!important;min-width:0!important}
+  .sheetTitle small{font-size:8.2pt!important;margin-bottom:1mm!important}
+  .sheetTitle b{font-size:10.5pt!important;border-top:0!important;padding-top:0!important;color:#111!important;white-space:nowrap!important}
+  .sheetTitle strong{font-size:13pt!important;margin-top:.8mm!important;color:#e12b31!important}
+  .sheetHeaderQr{display:flex!important;flex-direction:column!important;align-items:center!important;justify-content:center!important;gap:.7mm!important}
+  .sheetHeaderQrImage,.sheetHeaderQrPlaceholder{width:22mm!important;height:22mm!important;box-sizing:border-box!important}
+  .sheetHeaderQrImage{display:block!important;background:#fff!important;border:1px solid #d7dadd!important;padding:.8mm!important}
+  .sheetHeaderQrPlaceholder{display:grid!important;place-items:center!important;border:1px dashed #bbb!important;color:#777!important;font-size:8pt!important}
+  .sheetHeaderQr small{font-size:7.6pt!important;color:#555!important;white-space:nowrap!important}
+  .sheetContact{display:none!important}
+
+  /* Red is an accent, not a frame around every cell. */
+  .sheetInfoBoard{border:.35mm solid #333!important}
+  .sheetMetaPair span,.sheetMetaPair strong,.sheetPanelTitles strong,.sheetInfoRow span,.sheetInfoRow strong{border-color:#cfd3d6!important}
+  .sheetPanelTitles strong:first-child{border-right-color:#cfd3d6!important}
+  .sheetMetaPair span,.sheetPanelTitles strong,.sheetInfoRow span{background:#232629!important;color:#fff!important}
+  .sheetMain .tableWrap{border:1px solid #c9ced2!important;border-top:0!important}
+  .sheetMain th{background:#25282b!important;color:#fff!important;border:0!important;border-bottom:.6mm solid #e12b31!important;box-shadow:none!important}
+  .sheetMain thead tr{border-top:0!important}
+  .sheetMain table{border-top:0!important}
+
+  .sheetFooter{
+    left:10mm!important;right:10mm!important;bottom:4.5mm!important;
+    display:grid!important;grid-template-columns:auto 1fr!important;gap:4mm!important;
+    align-items:center!important;border-top:.55mm solid #e12b31!important;padding-top:1.7mm!important;
+    font-size:8.2pt!important;color:#4b4f52!important;
+  }
+  .sheetFooter strong{font-size:8.8pt!important;color:#111!important;white-space:nowrap!important}
+  .sheetFooter span{text-align:right!important;white-space:nowrap!important}
+  .sheetBottom{grid-template-columns:1fr .85fr!important;right:10mm!important;bottom:17mm!important;gap:9mm!important}
+  .sheetThanks,.sheetSignature{font-size:8.5pt!important}
+  .sheetQr{display:none!important}
+}
