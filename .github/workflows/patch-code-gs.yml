@@ -12,6 +12,7 @@ on:
       - scripts/patch_backend_retry.py
       - scripts/patch_employee_login_transition.py
       - scripts/patch_accounting_database_id.py
+      - scripts/patch_invoice_verification.py
       - ChairmanPendingExpenses.gs
   workflow_dispatch:
 
@@ -38,6 +39,8 @@ jobs:
         run: python3 scripts/patch_employee_login_transition.py
       - name: Switch to clean accounting database
         run: python3 scripts/patch_accounting_database_id.py
+      - name: Patch invoice verification linkage
+        run: python3 scripts/patch_invoice_verification.py
       - name: Publish patched application files
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -55,11 +58,14 @@ jobs:
           allowed = {
               "Code.gs",
               "FinanceLedger.gs",
+              "FinanceSheet.gs",
               "ZZ_AccountingFinance.gs",
               "lib/api.ts",
+              "lib/sheet-invoices.ts",
               "app/api/landview/route.ts",
               "app/login/page.tsx",
               "app/admin/accounts/page.tsx",
+              "app/admin/finance/invoices/page.tsx",
               "components/chairman-expense-approval.tsx",
               "components/employee-portal-shell.tsx",
           }
@@ -95,7 +101,7 @@ jobs:
                       raise
 
               payload = {
-                  "message": "Apply LAND VIEW accounting database switch",
+                  "message": "Apply LAND VIEW application patches",
                   "content": base64.b64encode(open(path, "rb").read()).decode("ascii"),
                   "branch": "main",
               }
