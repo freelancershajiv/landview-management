@@ -21,6 +21,7 @@ export default function SessionExpiryGuard() {
   const pathname = usePathname();
   const lastWrite = useRef(0);
   const loggingOut = useRef(false);
+  const validating = useRef(false);
 
   useEffect(() => {
     if (!protectedPortal(pathname)) return;
@@ -58,6 +59,32 @@ export default function SessionExpiryGuard() {
       window.location.replace(`/login?expired=${encodeURIComponent(reason)}`);
     };
 
+    const confirmExpired = async (reason: string) => {
+      if (validating.current || loggingOut.current) return;
+      validating.current = true;
+      try {
+        const response = await fetch("/api/session-fast", {
+          method: "GET",
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        const json = await response.json().catch(() => null);
+        if (response.ok && json?.success && json?.data?.authenticated) {
+          const time = Date.now();
+          try {
+            localStorage.setItem(LOGIN_AT_KEY, String(time));
+            localStorage.setItem(LAST_ACTIVITY_KEY, String(time));
+          } catch {}
+          return;
+        }
+        await logout(reason);
+      } catch {
+        // Do not sign users out only because a validation request temporarily failed.
+      } finally {
+        validating.current = false;
+      }
+    };
+
     const check = () => {
       const time = Date.now();
       let loginAt = time;
@@ -66,8 +93,8 @@ export default function SessionExpiryGuard() {
         loginAt = Number(localStorage.getItem(LOGIN_AT_KEY)) || time;
         lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY)) || loginAt;
       } catch {}
-      if (time - loginAt >= ABSOLUTE_MS) void logout("Maximum session duration");
-      else if (time - lastActivity >= IDLE_MS) void logout("Idle timeout");
+      if (time - loginAt >= ABSOLUTE_MS) void confirmExpired("Maximum session duration");
+      else if (time - lastActivity >= IDLE_MS) void confirmExpired("Idle timeout");
     };
 
     const events: Array<keyof WindowEventMap> = ["pointerdown", "keydown", "scroll", "touchstart"];
