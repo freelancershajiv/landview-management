@@ -1,0 +1,35 @@
+name: Patch invoice header QR v10
+
+on:
+  push:
+    paths:
+      - 'scripts/patch_invoice_header_qr_v10.py'
+      - '.github/workflows/patch-invoice-header-qr-v10.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Apply invoice header QR layout
+        run: python scripts/patch_invoice_header_qr_v10.py
+      - name: Commit invoice layout update
+        run: |
+          if git diff --quiet; then
+            echo "No changes required"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/finance/invoices/page.tsx app/admin/finance/invoices/invoice.module.css
+          git commit -m "Move invoice QR to header and contact details to footer"
+          git push
