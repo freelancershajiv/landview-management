@@ -71,7 +71,7 @@ function getModularDatabaseStatus_(params) {
 
 function copySheetToModule_(sourceSs, targetSs, sheetName) {
   const source = sourceSs.getSheetByName(sheetName);
-  if (!source) return { sheet: sheetName, status: "missing-source" };
+  if (!source) return { sheet: sheetName, status: "not-used-in-source" };
 
   const old = targetSs.getSheetByName(sheetName);
   const temporaryName = "__LV_MIGRATE__" + new Date().getTime() + "__" + sheetName.slice(0, 30);
@@ -96,7 +96,9 @@ function migrateModularDatabases(params) {
       try {
         const result = copySheetToModule_(master, target, sheetName);
         results[moduleName].push(result);
-        if (result.status !== "copied") failures.push(moduleName + ":" + sheetName + ":" + result.status);
+        // A sheet that never existed in the legacy master is not an error: the
+        // empty module tab remains ready for future records. Only actual copy
+        // exceptions block activation.
       } catch (error) {
         const message = error && error.message ? error.message : String(error);
         results[moduleName].push({ sheet: sheetName, status: "error", error: message });
@@ -134,7 +136,7 @@ function migrateModularDatabases(params) {
       results: results,
       failures: failures
     },
-    error: failures.length ? "Migration completed with missing or failed sheets. Modular mode was not activated." : ""
+    error: failures.length ? "Migration completed with one or more copy errors. Modular mode was not activated." : ""
   };
 }
 
