@@ -378,8 +378,7 @@ endstream`;
   });
 
   objects[2] = `<< /Type /Pages /Count ${pageIds.length} /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] >>`;
-  let pdf = "%PDF-1.4
-";
+  let pdf = "%PDF-1.4\n";
   const offsets: number[] = [0];
   for (let i = 1; i < objects.length; i++) {
     offsets[i] = new TextEncoder().encode(pdf).length;
