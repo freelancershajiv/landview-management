@@ -1,0 +1,178 @@
+/* LAND VIEW screen typography system.
+   Keeps print/invoice paper sizing untouched while replacing tiny 7–10px UI text
+   with a consistent, readable scale across public, admin, employee, client and login screens. */
+
+@media screen {
+  :root {
+    --lv-type-xs: 11px;
+    --lv-type-sm: 12px;
+    --lv-type-md: 14px;
+    --lv-type-lg: 16px;
+    --lv-type-h3: 18px;
+    --lv-type-h2: 24px;
+    --lv-type-h1: clamp(30px, 4vw, 52px);
+  }
+
+  body {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* Public website */
+  .public-site { font-size: var(--lv-type-md); line-height: 1.6; }
+  .public-site p,
+  .public-site li { font-size: 14px !important; line-height: 1.7 !important; }
+  .public-site small { font-size: var(--lv-type-xs) !important; line-height: 1.45 !important; }
+  .public-site button,
+  .public-site input,
+  .public-site select,
+  .public-site textarea,
+  .public-site .lv-btn { font-size: 13px !important; }
+  .public-site input,
+  .public-site select,
+  .public-site textarea { font-size: 14px !important; }
+  .public-site nav a { font-size: 13px !important; }
+  .public-site .lv-eyebrow,
+  .public-site [class*="kicker"],
+  .public-site [class*="label"],
+  .public-site [class*="index"] { font-size: var(--lv-type-xs) !important; line-height: 1.35 !important; }
+  .public-site .lv-section-head > p,
+  .public-site [class*="description"] { font-size: 14px !important; }
+  .public-site h2 { line-height: 1.12 !important; }
+  .public-site h3 { line-height: 1.25 !important; }
+
+  /* Shared login */
+  .lv-login { font-size: var(--lv-type-md); }
+  .lv-login .brand span,
+  .lv-login .meta,
+  .lv-login .kicker,
+  .lv-login .info small,
+  .lv-login .summary small,
+  .lv-login .cardhead small,
+  .lv-login .session,
+  .lv-login .fieldrow span,
+  .lv-login .show,
+  .lv-login .submit,
+  .lv-login .note,
+  .lv-login .footer,
+  .lv-login .trust,
+  .lv-login .pinhelp { font-size: var(--lv-type-xs) !important; line-height: 1.4 !important; }
+  .lv-login .tab span,
+  .lv-login .info strong,
+  .lv-login .summary p,
+  .lv-login .error strong,
+  .lv-login .error p { font-size: var(--lv-type-sm) !important; line-height: 1.5 !important; }
+  .lv-login .copy > p { font-size: 14px !important; }
+  .lv-login .field input,
+  .lv-login .pinfield { font-size: 14px !important; }
+  .lv-login .cardhead h2 { font-size: 21px !important; }
+
+  /* Admin / management and employee workspace */
+  .portal-admin,
+  .portal-employee { font-size: var(--lv-type-md); line-height: 1.55; }
+  .portal-admin p,
+  .portal-admin li,
+  .portal-admin td,
+  .portal-employee p,
+  .portal-employee li,
+  .portal-employee td { font-size: 13px !important; line-height: 1.55 !important; }
+  .portal-admin th,
+  .portal-employee th { font-size: 12px !important; line-height: 1.4 !important; }
+  .portal-admin small,
+  .portal-employee small { font-size: var(--lv-type-xs) !important; line-height: 1.4 !important; }
+  .portal-admin button,
+  .portal-admin a,
+  .portal-employee button,
+  .portal-employee a { font-size: 12.5px !important; }
+  .portal-admin input,
+  .portal-admin select,
+  .portal-admin textarea,
+  .portal-employee input,
+  .portal-employee select,
+  .portal-employee textarea { font-size: 14px !important; line-height: 1.45 !important; }
+  .portal-admin .primary-nav a,
+  .portal-admin .portal-navigation a,
+  .portal-employee .primary-nav a,
+  .portal-employee .portal-navigation a { font-size: 13px !important; }
+  .portal-admin [class*="kicker"],
+  .portal-admin [class*="label"],
+  .portal-employee [class*="kicker"],
+  .portal-employee [class*="label"] { font-size: var(--lv-type-xs) !important; line-height: 1.35 !important; }
+  .portal-admin h1,
+  .portal-employee h1 { line-height: 1.12 !important; }
+  .portal-admin h2,
+  .portal-employee h2 { line-height: 1.18 !important; }
+  .portal-admin h3,
+  .portal-employee h3 { line-height: 1.25 !important; }
+  .portal-admin .utility-item,
+  .portal-admin .utility-logout,
+  .portal-admin .masthead-brand span { font-size: var(--lv-type-xs) !important; }
+  .portal-admin .utility-item small { font-size: 10.5px !important; }
+
+  /* Client shell and all client routes, including billing */
+  .lv-client-shell { font-size: var(--lv-type-md); line-height: 1.55; }
+  .lv-client-shell p,
+  .lv-client-shell li,
+  .lv-client-shell td { font-size: 13px !important; line-height: 1.55 !important; }
+  .lv-client-shell th { font-size: 12px !important; line-height: 1.4 !important; }
+  .lv-client-shell small { font-size: var(--lv-type-xs) !important; line-height: 1.4 !important; }
+  .lv-client-shell button,
+  .lv-client-shell a { font-size: 12.5px !important; }
+  .lv-client-shell input,
+  .lv-client-shell select,
+  .lv-client-shell textarea { font-size: 14px !important; line-height: 1.45 !important; }
+  .lv-client-shell .lv-client-nav a { font-size: 14px !important; }
+  .lv-client-shell .lv-client-brand small,
+  .lv-client-shell .lv-client-user small,
+  .lv-client-shell .lv-client-foot { font-size: var(--lv-type-xs) !important; }
+  .lv-client-shell .lv-client-help p { font-size: 12px !important; }
+  .lv-client-shell [class*="eyebrow"],
+  .lv-client-shell [class*="kicker"],
+  .lv-client-shell [class*="label"] { font-size: var(--lv-type-xs) !important; line-height: 1.35 !important; }
+  .lv-client-shell h1,
+  .lv-client-shell h2,
+  .lv-client-shell h3 { line-height: 1.2 !important; }
+
+  /* Shared controls outside a portal root */
+  .modal,
+  .login-loading,
+  .loading-panel { font-size: var(--lv-type-md); }
+  .modal input,
+  .modal select,
+  .modal textarea,
+  .modal button,
+  .login-loading button { font-size: 13px !important; }
+  .modal small,
+  .loading-panel small { font-size: var(--lv-type-xs) !important; }
+
+  @media (max-width: 640px) {
+    .public-site p,
+    .public-site li,
+    .portal-admin p,
+    .portal-admin li,
+    .portal-employee p,
+    .portal-employee li,
+    .lv-client-shell p,
+    .lv-client-shell li { font-size: 13px !important; }
+
+    .public-site button,
+    .public-site input,
+    .public-site select,
+    .public-site textarea,
+    .portal-admin button,
+    .portal-admin input,
+    .portal-admin select,
+    .portal-employee button,
+    .portal-employee input,
+    .portal-employee select,
+    .lv-client-shell button,
+    .lv-client-shell input,
+    .lv-client-shell select { font-size: 14px !important; }
+
+    .public-site small,
+    .portal-admin small,
+    .portal-employee small,
+    .lv-client-shell small,
+    .lv-login small { font-size: 11px !important; }
+  }
+}
