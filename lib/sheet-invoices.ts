@@ -52,6 +52,8 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
       date: row[1],
       details: row[2],
       amount: sheetAmount(row[3]),
+      verification: row[4] === "Verified" ? "Verified" : "Unverified",
+      incomeId: String(row[5] || "").trim(),
     }));
 
     const gross = items.reduce((total, row) => total + row.amount, 0);
