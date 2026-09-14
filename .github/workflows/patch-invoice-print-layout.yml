@@ -1,0 +1,35 @@
+name: Patch invoice print layout
+
+on:
+  push:
+    paths:
+      - ".invoice-print-fix-trigger"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - name: Apply invoice print/PDF fixes
+        run: python scripts/patch_invoice_print_layout.py
+      - name: Commit patched invoice files
+        run: |
+          if git diff --quiet -- app/admin/finance/invoices/page.tsx app/admin/finance/invoices/invoice.module.css; then
+            echo "No invoice print changes needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/finance/invoices/page.tsx app/admin/finance/invoices/invoice.module.css
+          git commit -m "Repair invoice verification and print layout"
+          git push origin main
