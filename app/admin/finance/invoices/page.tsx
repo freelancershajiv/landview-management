@@ -137,15 +137,58 @@ export default function ProjectBillingPage() {
   const projectStatus = result ? (result.totals.due > 0 ? "Partial / Due" : "Full Paid") : "—";
   const allPayments = result ? result.invoices.flatMap((category) => category.payments) : [];
   const verifiedPayments = allPayments.filter((payment) => payment.verification === "Verified").length;
-  const invoiceVerification = allPayments.length > 0 && verifiedPayments === allPayments.length ? "Verified" : "Unverified";
+  const unverifiedPayments = Math.max(0, allPayments.length - verifiedPayments);
+  const invoiceVerification = allPayments.length === 0
+    ? "Unverified"
+    : verifiedPayments === allPayments.length
+      ? "Verified"
+      : verifiedPayments === 0
+        ? "Unverified"
+        : "Partially Verified";
 
   const renderTable = (category: SheetInvoices["invoices"][number], type: "bill" | "deposit") => {
     if (type === "bill") {
       if (!category.items.length) return <p className={styles.empty}>No bill records.</p>;
-      return <div className={styles.tableWrap}><table><thead><tr><th>SL.</th><th>Description</th><th>Rate</th><th>Qty.</th><th>Amount</th></tr></thead><tbody>{category.items.map((item,index)=><tr key={index}><td>{index+1}</td><td>{item.service||"—"}</td><td>{item.price||"—"}</td><td>{item.quantity||"—"}</td><td>{money(item.amount)}</td></tr>)}</tbody></table></div>;
+
+      if (category.name === "Supervision") {
+        return (
+          <div className={styles.tableWrap}>
+            <table className={styles.supervisionBillTable}>
+              <thead><tr><th>SL.</th><th>Description</th><th>Amount</th></tr></thead>
+              <tbody>{category.items.map((item,index)=><tr key={index}><td>{index+1}</td><td>{item.service||"—"}</td><td className={styles.moneyCell}>{money(item.amount)}</td></tr>)}</tbody>
+            </table>
+          </div>
+        );
+      }
+
+      return (
+        <div className={styles.tableWrap}>
+          <table className={styles.billTable}>
+            <thead><tr><th>SL.</th><th>Description</th><th>Rate</th><th>Qty.</th><th>Amount</th></tr></thead>
+            <tbody>{category.items.map((item,index)=><tr key={index}><td>{index+1}</td><td>{item.service||"—"}</td><td>{item.price||"—"}</td><td>{item.quantity||"—"}</td><td className={styles.moneyCell}>{money(item.amount)}</td></tr>)}</tbody>
+          </table>
+        </div>
+      );
     }
+
     if (!category.payments.length) return <p className={styles.empty}>No deposit records.</p>;
-    return <div className={styles.tableWrap}><table><thead><tr><th>SL.</th><th>Date</th><th>Details</th><th>Amount</th><th>Verification</th></tr></thead><tbody>{category.payments.map((payment,index)=><tr key={index}><td>{index+1}</td><td>{payment.date||"—"}</td><td>{payment.details||"—"}</td><td>{money(payment.amount)}</td><td><strong style={{color:payment.verification==="Verified"?"#9be0b1":"#ff9b91"}}>{payment.verification||"Unverified"}</strong>{payment.incomeId&&<small style={{display:"block",opacity:.7,marginTop:3}}>{payment.incomeId}</small>}</td></tr>)}</tbody></table></div>;
+    return (
+      <div className={styles.tableWrap}>
+        <table className={styles.depositTable}>
+          <thead><tr><th>SL.</th><th>Date</th><th>Details</th><th>Amount</th><th>Verification</th></tr></thead>
+          <tbody>{category.payments.map((payment,index)=><tr key={index}>
+            <td>{index+1}</td>
+            <td className={styles.dateCell}>{payment.date||"—"}</td>
+            <td className={styles.detailsCell}>{payment.details||"—"}</td>
+            <td className={styles.moneyCell}>{money(payment.amount)}</td>
+            <td className={styles.verificationCell}>
+              <strong className={payment.verification === "Verified" ? styles.verificationVerified : styles.verificationUnverified}>{payment.verification||"Unverified"}</strong>
+              {payment.incomeId&&<small className={styles.verificationRef}>Ref: {payment.incomeId}</small>}
+            </td>
+          </tr>)}</tbody>
+        </table>
+      </div>
+    );
   };
 
   const PrintHeader = ({ page, title }: { page: number; title: string }) => (
@@ -181,8 +224,8 @@ export default function ProjectBillingPage() {
           <span>Status</span><strong>{projectStatus}</strong>
         </div>
         <div className={styles.sheetInfoRow}>
-          <span>Verification</span><strong>{invoiceVerification}</strong>
-          <span>Verified receipts</span><strong>{verifiedPayments}/{allPayments.length}</strong>
+          <span>Verification</span><strong className={invoiceVerification === "Verified" ? styles.statusVerified : invoiceVerification === "Partially Verified" ? styles.statusPartial : styles.statusUnverified}>{invoiceVerification}</strong>
+          <span>Receipts verified</span><strong>{verifiedPayments}/{allPayments.length}{unverifiedPayments > 0 ? ` · ${unverifiedPayments} pending` : ""}</strong>
         </div>
       </section>
     </>
