@@ -194,7 +194,16 @@ export default function ProjectBillingPage() {
   const PrintHeader = ({ page, title }: { page: number; title: string }) => (
     <>
       <header className={styles.sheetHeader}>
-        <div className={styles.sheetBrand}><strong>LAND <span>VIEW</span></strong><small>ENGINEERS AND ARCHITECTS</small><em>Building a safer tomorrow</em></div>
+        <div className={styles.sheetBrand}>
+          <div className={styles.sheetBrandLockup}>
+            <img className={styles.sheetBrandLogo} src="/land-view-logo.svg" alt="LAND VIEW logo" />
+            <div className={styles.sheetBrandWords}>
+              <strong>LAND <span>VIEW</span></strong>
+              <small>ENGINEERS AND ARCHITECTS</small>
+            </div>
+          </div>
+          <em>Building a safer tomorrow</em>
+        </div>
         <div className={styles.sheetContact}><span>Feni Sadar, Feni, Bangladesh</span><span>+88 01902 500 400</span><span>landviewcivil@gmail.com</span><span>www.landview.com.bd</span></div>
         <div className={styles.sheetTitle}><small>Page {page} of 3</small><b>Project Billing Statement</b><strong>{title}</strong></div>
       </header>
