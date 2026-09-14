@@ -39,6 +39,7 @@ const pick = (row: Row, keys: string[]) => {
   for (const key of keys) if (text(row?.[key])) return row[key];
   return "";
 };
+const supplied = (value: unknown) => value !== undefined && value !== null && text(value) !== "";
 
 function rowsFor(billing: Record<string, Row[]> | undefined, names: string[]) {
   if (!billing) return [];
@@ -56,9 +57,9 @@ function buildClientBilling(project: ClientProject): SheetInvoices {
   const finance = project.finance || {};
   const billing = project.billing || {};
   const specs = [
-    { name: "Engineering", billNames: ["Design Bill", "Engineering Bill"], payNames: ["Design Deposit", "Engineering Deposit"], gross: num(finance.engineeringBill), paid: num(finance.engineeringPaid), due: num(finance.engineeringDue) },
-    { name: "Supervision", billNames: ["Supervision Bill"], payNames: ["S Deposit", "Supervision Deposit"], gross: num(finance.supervisionBill), paid: num(finance.supervisionPaid), due: num(finance.supervisionDue) },
-    { name: "Others", billNames: ["Others Bill", "Other Bill"], payNames: ["Others Bill Deposit", "Others Deposit"], gross: num(finance.othersBill), paid: num(finance.othersPaid), due: num(finance.othersDue) },
+    { name: "Engineering", billNames: ["Design Bill", "Engineering Bill"], payNames: ["Design Deposit", "Engineering Deposit"], grossRaw: finance.engineeringBill, paidRaw: finance.engineeringPaid, dueRaw: finance.engineeringDue },
+    { name: "Supervision", billNames: ["Supervision Bill"], payNames: ["S Deposit", "Supervision Deposit"], grossRaw: finance.supervisionBill, paidRaw: finance.supervisionPaid, dueRaw: finance.supervisionDue },
+    { name: "Others", billNames: ["Others Bill", "Other Bill"], payNames: ["Others Bill Deposit", "Others Deposit"], grossRaw: finance.othersBill, paidRaw: finance.othersPaid, dueRaw: finance.othersDue },
   ];
 
   const invoices = specs.map((spec) => {
@@ -79,17 +80,16 @@ function buildClientBilling(project: ClientProject): SheetInvoices {
 
     const detailGross = items.reduce((sum, row) => sum + row.amount, 0);
     const detailPaid = payments.reduce((sum, row) => sum + row.amount, 0);
-    const gross = spec.gross || detailGross;
-    const paid = spec.paid || detailPaid;
-    const due = spec.due || Math.max(0, gross - paid);
+    const gross = supplied(spec.grossRaw) ? num(spec.grossRaw) : detailGross;
+    const paid = supplied(spec.paidRaw) ? num(spec.paidRaw) : detailPaid;
+    const due = supplied(spec.dueRaw) ? num(spec.dueRaw) : Math.max(0, gross - paid);
     const discount = Math.max(0, gross - paid - due);
     return { name: spec.name, items, payments, gross, discount, paid, due };
   });
 
-  const gross = num(finance.totalBill) || invoices.reduce((sum, row) => sum + row.gross, 0);
-  const paid = num(finance.totalPaid) || invoices.reduce((sum, row) => sum + row.paid, 0);
-  const suppliedDue = num(finance.due);
-  const due = suppliedDue || invoices.reduce((sum, row) => sum + row.due, 0);
+  const gross = supplied(finance.totalBill) ? num(finance.totalBill) : invoices.reduce((sum, row) => sum + row.gross, 0);
+  const paid = supplied(finance.totalPaid) ? num(finance.totalPaid) : invoices.reduce((sum, row) => sum + row.paid, 0);
+  const due = supplied(finance.due) ? num(finance.due) : invoices.reduce((sum, row) => sum + row.due, 0);
   const discount = Math.max(0, gross - paid - due);
   const normalized = normalizeFileId(text(project.projectId));
 
@@ -106,6 +106,17 @@ function buildClientBilling(project: ClientProject): SheetInvoices {
     invoices,
     totals: { gross, discount, paid, due },
   };
+}
+
+function mergeProjectDetails(billing: SheetInvoices, detail: Record<string, unknown>) {
+  const next = { ...billing, client: { ...billing.client } };
+  next.client.name = text(pick(detail, ["Client_Name", "Client Name", "Name"])) || next.client.name;
+  next.client.address = text(pick(detail, ["Location", "Address", "Project_Location", "Project Location"])) || next.client.address;
+  next.client.phone = text(pick(detail, ["Phone_Number", "Phone Number", "Contact", "Mobile"])) || next.client.phone;
+  next.client.floor = text(pick(detail, ["Floors", "Floor", "Floor_Story", "Floor/Story", "Number_of_Stories"])) || next.client.floor;
+  next.client.type = text(pick(detail, ["Project_Type", "Project Type", "Type", "Project_Name", "Project Name"])) || next.client.type;
+  next.client.area = text(pick(detail, ["Plot_Area", "Plot Area", "Land_Area", "Land Area", "Project_Area"])) || next.client.area;
+  return next;
 }
 
 export default function ClientBillingPage() {
@@ -136,10 +147,16 @@ export default function ClientBillingPage() {
 
         let billing = buildClientBilling(project);
         try {
-          const databasePayments = await landViewApi.getPayments(billing.id);
-          billing = verifySheetInvoicesWithPayments(billing, databasePayments as Record<string, unknown>[]);
+          const detail = await landViewApi.getProject(billing.id);
+          billing = mergeProjectDetails(billing, detail);
         } catch {
-          // The client-safe feed still renders even when the reconciliation lookup is unavailable.
+          // Auto Invoice data remains the source of truth if the management project record is unavailable.
+        }
+        try {
+          const databasePayments = await landViewApi.getPayments(billing.id);
+          billing = verifySheetInvoicesWithPayments(billing, databasePayments);
+        } catch {
+          // The statement still renders safely; unavailable matches remain Unverified.
         }
 
         if (!active) return;
@@ -149,15 +166,10 @@ export default function ClientBillingPage() {
           const verificationResponse = await fetch("/api/billing-verification", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              fileId: billing.id,
-              billing: billingVerificationSnapshot(billing),
-            }),
+            body: JSON.stringify({ fileId: billing.id, billing: billingVerificationSnapshot(billing) }),
           });
           const verificationJson = await verificationResponse.json();
-          if (!verificationResponse.ok || !verificationJson?.success || !verificationJson?.url) {
-            throw new Error(verificationJson?.error || "Could not create verification link.");
-          }
+          if (!verificationResponse.ok || !verificationJson?.success || !verificationJson?.url) throw new Error(verificationJson?.error || "Could not create verification link.");
           if (active) setVerificationUrl(String(verificationJson.url));
         } catch (err) {
           if (active) setVerificationError(err instanceof Error ? err.message : "Could not create verification link.");
