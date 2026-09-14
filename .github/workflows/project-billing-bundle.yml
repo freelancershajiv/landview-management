@@ -30,20 +30,23 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Synchronize package lock
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Build and type-check Next.js
         run: npm run build
 
-      - name: Commit backend bundle if needed
+      - name: Commit generated source if needed
         run: |
-          if git diff --quiet -- FinanceSheet.gs; then
-            echo "FinanceSheet.gs already contains the project billing bundle"
+          if git diff --quiet -- FinanceSheet.gs package-lock.json; then
+            echo "Generated backend and package lock are already current"
             exit 0
           fi
           git config user.name "LAND VIEW Automation"
           git config user.email "actions@users.noreply.github.com"
-          git add FinanceSheet.gs
-          git commit -m "Add single-request project billing backend"
+          git add FinanceSheet.gs package-lock.json
+          git commit -m "Sync project billing backend and dependency lock"
           git push origin HEAD:main
