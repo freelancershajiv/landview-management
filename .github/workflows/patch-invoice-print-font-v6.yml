@@ -1,0 +1,42 @@
+name: Patch invoice print font v6
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/patch_invoice_print_font_v6.py'
+      - '.github/workflows/patch-invoice-print-font-v6.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Apply universal print typography
+        run: python scripts/patch_invoice_print_font_v6.py
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          if git diff --quiet -- app/admin/finance/invoices/invoice.module.css; then
+            echo "No invoice typography changes needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/finance/invoices/invoice.module.css
+          git commit -m "Increase printed invoice font size for readability"
+          git push
