@@ -32,7 +32,7 @@ const nav: NavItem[] = [
   { href: "/admin/proposals", label: "Proposals", permission: "proposals.view" },
 ];
 
-const SESSION_WATCHDOG_MS = 15000;
+const SESSION_WATCHDOG_MS = 8000;
 
 function roleOf(user?: SessionUser | null) {
   return String(user?.role || user?.Role || "").trim().toLowerCase();
@@ -82,11 +82,34 @@ export default function ManagementShellV2({ children }: { children: React.ReactN
     const cached = readSessionCache();
     const cachedRole = roleOf(cached?.user);
     const hasCache = Boolean(cached?.authenticated && cached?.user && isWorkspaceRole(cachedRole));
-    if (hasCache) setUser(cached!.user);
 
+    // The server layout has already authenticated this request. A successful
+    // login also stores the same user in the browser cache. Use that immediately
+    // instead of blocking the whole workspace on a second Apps Script session call.
+    if (hasCache) {
+      setUser(cached!.user);
+      if (cachedRole === "admin" || cachedRole === "manager") setAccess({ all: true });
+      setReady(true);
+      setError("");
+
+      // Permissions are supplementary for Admin/Manager and can refresh in the
+      // background. Backend routes remain authoritative for protected actions.
+      void getWorkspaceAccess()
+        .then((permissionData) => {
+          if (!cancelled) setAccess(permissionData);
+        })
+        .catch(() => {
+          // Do not replace a valid authenticated workspace with an Apps Script
+          // error screen. A later navigation/request can retry naturally.
+        });
+
+      return () => { cancelled = true; };
+    }
+
+    // Compatibility path for old browser sessions with no local cache.
     const watchdog = window.setTimeout(() => {
-      if (cancelled || ready) return;
-      setError("The backend did not validate the workspace session. Check the Apps Script deployment.");
+      if (cancelled) return;
+      setError("Session validation is taking too long. Refresh once or sign in again to upgrade this session.");
     }, SESSION_WATCHDOG_MS);
 
     void Promise.all([landViewApi.getSession(), getWorkspaceAccess()])
