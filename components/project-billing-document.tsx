@@ -176,10 +176,9 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
           <PrintHeader page={index + 1} title={`${category.name} Bill`}/>
           <section className={styles.portraitSection}>
             <div className={styles.sheetMain}><h2>{category.name.toUpperCase()} <span>BILL</span></h2>{renderTable(category,"bill")}<h2 className={styles.depositHeading}>{category.name.toUpperCase()} <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(category,"deposit")}</div>
-            <aside className={styles.sheetSummary}><h3>{category.name.toUpperCase()} SUMMARY</h3><div><span>Total Bill</span><strong>{money(category.gross)}</strong></div><div><span>Discount</span><strong>{money(category.discount)}</strong></div><div><span>Total Deposit</span><strong>{money(category.paid)}</strong></div><div className={styles.sheetDue}><span>Due</span><strong>{money(category.due)}</strong></div>{last&&<><h3 className={styles.grandHeading}>GRAND SUMMARY</h3><div className={styles.sheetGrandDue}><span>GRAND TOTAL DUE</span><strong>{money(result.totals.due)}</strong></div></>}</aside>
+            <aside className={styles.sheetSummary}><h3>{category.name.toUpperCase()} SUMMARY</h3><div><span>Total Bill</span><strong>{money(category.gross)}</strong></div><div><span>Discount</span><strong>{money(category.discount)}</strong></div><div><span>Total Deposit</span><strong>{money(category.paid)}</strong></div><div className={styles.sheetDue}><span>Due</span><strong>{money(category.due)}</strong></div></aside>
           </section>
-          {last&&<div className={styles.sheetBottom}><div className={styles.sheetThanks}>Thank you for your trust in LAND VIEW.<br/>For any query, please contact us.</div><div className={styles.sheetSignature}>Authorized Signature<br/><strong>LAND VIEW</strong></div></div>}
-          <footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer>
+          <footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>{last ? `Grand Total Due: ${money(result.totals.due)} · ` : ""}Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer>
         </article>;
       })}
     </section>
