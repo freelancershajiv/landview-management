@@ -4,7 +4,7 @@ import { fetchGoogleSheetMetadata } from "@/lib/google-wif";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FINANCE_WORKBOOK_ID = "1-JoPQqqntxP7NMVNHSYN-RYkHLWMQf4K";
+const FINANCE_WORKBOOK_ID = "1N4U5l7SqMXlCMND3se-J1GmU3SPI3xGyGaR2WR_Eodg";
 const BILLING_TABS = [
   "Summary",
   "File List",
