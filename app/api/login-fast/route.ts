@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const COOKIE_NAME = "landview_session";
 const DEVICE_COOKIE = "landview_device";
@@ -10,6 +11,7 @@ const COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;
 const DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
+const LOGIN_UPSTREAM_TIMEOUT_MS = 55_000;
 
 function cookieOptions(maxAge: number) {
   return {
@@ -99,7 +101,7 @@ export async function POST(request: NextRequest) {
   const location = geo(request);
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 18000);
+  const timer = setTimeout(() => controller.abort(), LOGIN_UPSTREAM_TIMEOUT_MS);
   try {
     const upstream = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
@@ -149,7 +151,12 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     const timedOut = error?.name === "AbortError";
     return NextResponse.json(
-      { success: false, error: timedOut ? "Login took too long. Please try again." : "Could not reach the LAND VIEW login service." },
+      {
+        success: false,
+        error: timedOut
+          ? "The authentication server is responding slowly. Please try again in a moment."
+          : "Could not reach the LAND VIEW login service.",
+      },
       { status: timedOut ? 504 : 502 },
     );
   } finally {
