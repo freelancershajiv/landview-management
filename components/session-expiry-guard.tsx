@@ -17,6 +17,20 @@ function protectedPortal(pathname: string) {
     pathname === "/client" || pathname.startsWith("/client/");
 }
 
+function explicitAuthFailure(response: Response, json: any) {
+  if (response.status === 401) return true;
+  const message = String(json?.error || json?.message || "").trim().toLowerCase();
+  return json?.success === false && [
+    "unauthorized",
+    "session expired.",
+    "session expired",
+    "invalid session.",
+    "invalid session",
+    "authentication required.",
+    "authentication required",
+  ].includes(message);
+}
+
 export default function SessionExpiryGuard() {
   const pathname = usePathname();
   const lastWrite = useRef(0);
@@ -39,18 +53,9 @@ export default function SessionExpiryGuard() {
       try { localStorage.setItem(LAST_ACTIVITY_KEY, String(time)); } catch {}
     };
 
-    const logout = async (reason: string) => {
+    const expireLocally = (reason: string) => {
       if (loggingOut.current) return;
       loggingOut.current = true;
-      try {
-        await fetch("/api/landview", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          cache: "no-store",
-          body: JSON.stringify({ action: "logout", logoutReason: reason }),
-        });
-      } catch {}
       clearStoredSession();
       try {
         localStorage.removeItem(LOGIN_AT_KEY);
@@ -77,9 +82,13 @@ export default function SessionExpiryGuard() {
           } catch {}
           return;
         }
-        await logout(reason);
+
+        // Only a confirmed authentication failure may end the browser session.
+        // 5xx, timeouts, malformed upstream responses, or other temporary
+        // backend failures must preserve the current login and be retried later.
+        if (explicitAuthFailure(response, json)) expireLocally(reason);
       } catch {
-        // Do not sign users out only because a validation request temporarily failed.
+        // Network failures are transient. Preserve the login and retry later.
       } finally {
         validating.current = false;
       }
