@@ -1,0 +1,36 @@
+name: Center certificate QR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/center_certificate_qr_remove_signature_seal.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply certificate cleanup
+        run: python3 scripts/center_certificate_qr_remove_signature_seal.py
+
+      - name: Commit certificate changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/certificate-document.tsx
+          if git diff --cached --quiet; then
+            echo "Certificate cleanup already applied."
+            exit 0
+          fi
+          git commit -m "Simplify and center certificate QR"
+          git push
