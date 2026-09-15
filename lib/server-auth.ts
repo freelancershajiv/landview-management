@@ -95,8 +95,17 @@ function readSignedWorkspaceUser(value: string | undefined): SessionUser | null 
 function isExplicitAuthFailure(response: Response, json: SessionPayload) {
   if (response.status === 401) return true;
   if (json?.data?.authenticated === false) return true;
-  const message = String(json?.error || json?.message || "");
-  return json?.success === false && /unauthorized|session\s+expired|invalid\s+session|authentication\s+required/i.test(message);
+  if (json?.success !== false) return false;
+  const message = String(json?.error || json?.message || "").trim().toLowerCase();
+  return [
+    "unauthorized",
+    "session expired",
+    "session expired.",
+    "invalid session",
+    "invalid session.",
+    "authentication required",
+    "authentication required.",
+  ].includes(message);
 }
 
 async function validateSession(url: string, cookieHeader: string): Promise<ValidationResult> {
