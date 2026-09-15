@@ -22,38 +22,73 @@ jobs:
           from pathlib import Path
           import re
 
+          CORE_ID = "1wEY2VmZimjIeU7ex13sMf1oyhLapawYMJeoquuPR44s"
+
           code = Path('Code.gs')
           text = code.read_text()
           original = text
 
-          # Route the central getSheet helper through the module database router.
-          pattern = r'(function\s+getSheet\s*\(\s*name\s*\)\s*\{.*?const\s+ss\s*=\s*)getSpreadsheet\(\)(\s*;)'
-          text, count = re.subn(pattern, r'\1getSpreadsheetForSheet_(name)\2', text, count=1, flags=re.S)
+          # The authoritative LAND VIEW master database is now Core. Do not depend
+          # on a stale LAND_VIEW_SPREADSHEET_ID Script Property for core traffic.
+          get_spreadsheet_pattern = r'function\s+getSpreadsheet\s*\(\s*\)\s*\{.*?\n\}'
+          get_spreadsheet_replacement = f'''function getSpreadsheet() {{
+  // LAND VIEW DB — Core (authoritative management database).
+  return SpreadsheetApp.openById("{CORE_ID}");
+}}'''
+          text, count = re.subn(
+              get_spreadsheet_pattern,
+              get_spreadsheet_replacement,
+              text,
+              count=1,
+              flags=re.S,
+          )
           if count != 1:
-              raise SystemExit('Could not patch getSheet(name) in Code.gs')
+              raise SystemExit('Could not patch getSpreadsheet() in Code.gs')
+
+          # Route the central getSheet helper through the module database router.
+          if 'getSpreadsheetForSheet_(name)' not in text:
+              pattern = r'(function\s+getSheet\s*\(\s*name\s*\)\s*\{.*?const\s+ss\s*=\s*)getSpreadsheet\(\)(\s*;)'
+              text, count = re.subn(pattern, r'\1getSpreadsheetForSheet_(name)\2', text, count=1, flags=re.S)
+              if count != 1:
+                  raise SystemExit('Could not patch getSheet(name) in Code.gs')
 
           code.write_text(text)
 
-          # Certificate registry/request traffic should always use the dedicated
-          # certificate database once this Apps Script source is deployed.
+          # Make modular routing active by default. An explicit Script Property
+          # value of 0 may still disable it for emergency rollback.
+          router = Path('ModularDatabaseRouter.gs')
+          router_text = router.read_text()
+          router_pattern = r'function\s+modularDatabaseEnabled_\s*\(\s*\)\s*\{.*?\n\}'
+          router_replacement = '''function modularDatabaseEnabled_() {
+  const value = String(PropertiesService.getScriptProperties().getProperty("LAND_VIEW_MODULAR_DB_ACTIVE") || "").trim();
+  return value !== "0";
+}'''
+          router_text, count = re.subn(router_pattern, router_replacement, router_text, count=1, flags=re.S)
+          if count != 1:
+              raise SystemExit('Could not patch modularDatabaseEnabled_()')
+          router.write_text(router_text)
+
+          # Certificate registry/request traffic belongs in the certificate DB.
           for filename in ['CertificateRegistry.gs', 'CertificatePortal.gs']:
               p = Path(filename)
               s = p.read_text()
+              if 'getCertificateDatabase_()' in s:
+                  continue
               s2 = s.replace('const ss = getFinanceWorkbook_();', 'const ss = getCertificateDatabase_();', 1)
               if s2 == s:
                   raise SystemExit(f'Could not patch certificate database in {filename}')
               p.write_text(s2)
 
-          print('Modular routing patch applied.')
+          print('Core + modular routing patch applied.')
           PY
       - name: Commit routing patch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add Code.gs CertificateRegistry.gs CertificatePortal.gs
+          git add Code.gs ModularDatabaseRouter.gs CertificateRegistry.gs CertificatePortal.gs
           if git diff --cached --quiet; then
             echo "No routing changes required."
             exit 0
           fi
-          git commit -m "Route Apps Script data by module database"
+          git commit -m "Use Core as Apps Script management database"
           git push
