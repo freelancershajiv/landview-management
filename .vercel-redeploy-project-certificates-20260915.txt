@@ -1,0 +1,1 @@
+Redeploy marker for detailed project certificate information after Vercel build-rate-limit rejection of commit 542f2f931f720032d1ab239a8f354ecc7ab4ca18.
