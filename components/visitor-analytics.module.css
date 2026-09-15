@@ -1,0 +1,93 @@
+.prompt {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 10000;
+  width: min(420px, calc(100vw - 32px));
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  background: rgba(13, 18, 24, 0.96);
+  box-shadow: 0 20px 55px rgba(0, 0, 0, 0.38);
+  color: #f7f8fa;
+  backdrop-filter: blur(18px);
+}
+
+.eyebrow {
+  margin: 0 0 7px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #f1c75b;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 800;
+  line-height: 1.35;
+}
+
+.copy {
+  margin: 8px 0 0;
+  color: rgba(247, 248, 250, 0.76);
+  font-size: 0.88rem;
+  line-height: 1.55;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.button,
+.secondaryButton {
+  min-height: 42px;
+  flex: 1;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.button {
+  background: #f1c75b;
+  color: #151515;
+}
+
+.secondaryButton {
+  border-color: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #f7f8fa;
+}
+
+.button:disabled,
+.secondaryButton:disabled {
+  cursor: wait;
+  opacity: 0.66;
+}
+
+.note {
+  margin: 10px 0 0;
+  color: rgba(247, 248, 250, 0.56);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+@media (max-width: 560px) {
+  .prompt {
+    right: 16px;
+    bottom: 16px;
+    left: 16px;
+    width: auto;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+}
