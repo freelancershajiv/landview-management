@@ -2,12 +2,8 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { CertificateDocument, printCertificate } from "@/components/certificate-document";
-import { landViewApi, type FinanceSheetData } from "@/lib/api";
 
 type CertificateType = "project" | "employee" | "building";
-type ProjectCategory = "Running" | "Paused" | "Completed";
-type Row = Record<string, any>;
-type DriveIndexResponse = { bulk: true; category?: string; projects: Record<string, any> };
 
 type CertificateRecord = {
   certificateId: string;
@@ -51,74 +47,15 @@ const meta: Record<CertificateType, { label: string; position: string; statement
 };
 
 const text = (value: unknown) => String(value ?? "").trim();
-function pick(row: Row, keys: string[]) { for (const key of keys) if (text(row?.[key])) return row[key]; return ""; }
-function normalizeProjectId(value: unknown) { const raw = text(value).toUpperCase(); const digits = raw.replace(/\D/g, ""); return digits ? `LV-${Number(digits)}` : raw; }
-function projectId(row: Row) { return normalizeProjectId(pick(row, ["FILE ID", "File ID", "File_ID", "Project_ID", "Project ID", "ProjectId"])); }
-function employeeId(row: Row) { return text(pick(row, ["Employee_ID", "Employee ID", "EmployeeId"])); }
 function localDate(value?: string) { if (!value) return ""; const d = new Date(value); if (Number.isNaN(d.getTime())) return ""; const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000); return local.toISOString().slice(0, 10); }
 function today() { return localDate(new Date().toISOString()); }
 function displayDate(value?: string) { if (!value) return "—"; const d = new Date(value); return Number.isNaN(d.getTime()) ? value : d.toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" }); }
 
-function recordsFromFinance(data: FinanceSheetData): Row[] {
-  return (data.rows || []).map((row) => Object.fromEntries((data.headers || []).map((header, index) => [text(header), row[index] ?? ""]).filter(([key]) => key)));
-}
-
-function folderDisplayName(folderName: string, id: string) {
-  const escaped = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return text(folderName).replace(new RegExp(`^${escaped.replace("-", "[- _]?")}\\s*[-–—:]?\\s*`, "i"), "").trim() || id;
-}
-
-function projectLabel(row: Row) {
-  const id = projectId(row);
-  const client = text(pick(row, ["Client Name", "Client_Name", "Name", "Client"]));
-  const project = text(pick(row, ["Project Name", "Project_Name", "Project Type", "Project_Type"]));
-  const location = text(pick(row, ["Location", "Project Location", "Project_Location", "Address"]));
-  return [id, client || project, location].filter(Boolean).join(" · ");
-}
-
-async function getDriveIndex(category: ProjectCategory): Promise<DriveIndexResponse> {
-  const url = new URL("/api/landview", window.location.origin);
-  url.searchParams.set("action", "getProjectServiceFolders");
-  url.searchParams.set("bulk", "1");
-  url.searchParams.set("category", category);
-  const response = await fetch(url.toString(), { cache: "no-store", credentials: "same-origin" });
-  const json = await response.json();
-  if (!response.ok || !json?.success) throw new Error(json?.error || `Could not load ${category} projects.`);
-  return json.data as DriveIndexResponse;
-}
-
-function visibleProjects(fileList: FinanceSheetData, indexes: DriveIndexResponse[]) {
-  const fileMap = new Map<string, Row>();
-  recordsFromFinance(fileList).forEach((row) => { const id = projectId(row); if (id) fileMap.set(id, row); });
-  const map = new Map<string, Row>();
-  indexes.forEach((index) => Object.entries(index.projects || {}).forEach(([rawId, item]) => {
-    const id = normalizeProjectId(rawId || item?.projectId); if (!id) return;
-    const row = fileMap.get(id) || {};
-    const folder = text(item?.projectFolderName);
-    const fallback = folderDisplayName(folder, id);
-    map.set(id, {
-      ...row,
-      "FILE ID": id,
-      Project_ID: id,
-      Project_Name: text(pick(row, ["Project Name", "Project_Name", "Project Type", "Project_Type"])) || fallback,
-      "Project Name": text(pick(row, ["Project Name", "Project_Name", "Project Type", "Project_Type"])) || fallback,
-      "Client Name": text(pick(row, ["Client Name", "Client_Name", "Name", "Client"])) || fallback,
-      Status: index.category || item?.category,
-      Drive_Folder_Name: folder,
-    });
-  }));
-  return [...map.values()].sort((a, b) => Number(projectId(b).replace(/\D/g, "")) - Number(projectId(a).replace(/\D/g, "")));
-}
-
 export default function CertificatesPage() {
   const [type, setType] = useState<CertificateType>("project");
-  const [projects, setProjects] = useState<Row[]>([]);
-  const [employees, setEmployees] = useState<Row[]>([]);
   const [records, setRecords] = useState<CertificateRecord[]>([]);
   const [registryError, setRegistryError] = useState("");
-  const [sourceError, setSourceError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [loadingSources, setLoadingSources] = useState(true);
   const [loadingRegistry, setLoadingRegistry] = useState(true);
   const [issued, setIssued] = useState<CertificateRecord | null>(null);
   const [reissueOf, setReissueOf] = useState("");
@@ -145,46 +82,11 @@ export default function CertificatesPage() {
   }
 
   useEffect(() => {
-    let cancelled = false;
     void loadRegistry();
-    (async () => {
-      const [file, running, paused, completed, employee] = await Promise.allSettled([
-        landViewApi.getFinanceSheet("File List"),
-        getDriveIndex("Running"),
-        getDriveIndex("Paused"),
-        getDriveIndex("Completed"),
-        landViewApi.getEmployees(),
-      ]);
-      if (cancelled) return;
-      if (employee.status === "fulfilled") setEmployees(employee.value || []);
-      if (file.status === "fulfilled") {
-        const indexes = [running, paused, completed].filter((x): x is PromiseFulfilledResult<DriveIndexResponse> => x.status === "fulfilled").map((x) => x.value);
-        if (indexes.length) setProjects(visibleProjects(file.value, indexes)); else setSourceError("Could not load visible projects.");
-      } else setSourceError("Could not load File List project details.");
-      setLoadingSources(false);
-    })();
-    return () => { cancelled = true; };
   }, []);
 
   function resetForm(next: CertificateType = type) {
     setType(next); setName(""); setAddress(""); setPosition(meta[next].position); setSubject(""); setReference(""); setDescription(meta[next].statement); setIssueDate(today()); setExpiryDate(""); setReissueOf(""); setIssued(null); setError("");
-  }
-
-  function selectProject(id: string) {
-    const normalized = normalizeProjectId(id); const row = projects.find((item) => projectId(item) === normalized); if (!row) return;
-    const client = text(pick(row, ["Client Name", "Client_Name", "Name", "Client"]));
-    const project = text(pick(row, ["Project Name", "Project_Name", "Project Type", "Project_Type", "Drive_Folder_Name"]));
-    setReference(normalized); setName(client || project || normalized); setSubject(project || `Project ${normalized}`); setAddress(text(pick(row, ["Location", "Project Location", "Project_Location", "Address"]))); setPosition("Project / Client");
-  }
-
-  function selectEmployee(id: string) {
-    const row = employees.find((item) => employeeId(item) === id); if (!row) return;
-    setReference(id);
-    setName(text(pick(row, ["Employee_Name", "Employee Name", "Name"])));
-    setAddress(text(pick(row, ["Address", "Present_Address", "Present Address", "Location"])));
-    setPosition(text(pick(row, ["Position", "Designation", "Department"])) || "Employee");
-    setSubject("Experience Certificate");
-    setDescription(meta.employee.statement);
   }
 
   function editReissue(item: CertificateRecord) {
@@ -247,7 +149,7 @@ export default function CertificatesPage() {
       @media(max-width:950px){.cert-layout{grid-template-columns:1fr}.cert-stats{grid-template-columns:1fr 1fr}}@media(max-width:620px){.cert-grid{grid-template-columns:1fr}.cert-field.full{grid-column:auto}.cert-tabs{grid-template-columns:1fr}}
     `}</style>
 
-    <header className="cert-hero"><small>OFFICIAL DOCUMENTS</small><h1>Certificate center.</h1><p>Issue, reissue, revoke and withdraw QR-verifiable LAND VIEW certificates.</p></header>
+    <header className="cert-hero"><small>OFFICIAL DOCUMENTS</small><h1>Certificate center.</h1><p>Issue, reissue, revoke and withdraw QR-verifiable LAND VIEW certificates. Project and employee details are entered manually.</p></header>
 
     <section className="cert-stats">
       <article className="cert-stat"><span>TOTAL REGISTRY</span><strong>{stats.total}</strong></article>
@@ -263,10 +165,7 @@ export default function CertificatesPage() {
         <form className="cert-form" onSubmit={issue}>
           {reissueOf && <div className="cert-reissue">Editing an issued certificate creates a new revision. The old QR will remain traceable and show SUPERSEDED.</div>}
           {error && <div className="cert-alert">{error}</div>}
-          {sourceError && type === "project" && <div className="cert-alert">{sourceError}</div>}
           <div className="cert-grid">
-            {type === "project" && <label className="cert-field full"><span>SELECT VISIBLE PROJECT ({projects.length})</span><select value={reference} onChange={(e) => selectProject(e.target.value)} disabled={loadingSources}><option value="">{loadingSources ? "Loading visible projects…" : "Choose project"}</option>{projects.map((row) => <option key={projectId(row)} value={projectId(row)}>{projectLabel(row)}</option>)}</select></label>}
-            {type === "employee" && <label className="cert-field full"><span>SELECT EMPLOYEE ({employees.length})</span><select value={reference} onChange={(e) => selectEmployee(e.target.value)} disabled={loadingSources}><option value="">Choose employee</option>{employees.map((row) => <option key={employeeId(row)} value={employeeId(row)}>{employeeId(row)} · {text(pick(row, ["Employee_Name", "Employee Name", "Name"]))}</option>)}</select></label>}
             <label className="cert-field"><span>NAME / OWNER / CLIENT</span><input value={name} onChange={(e) => setName(e.target.value)} /></label>
             <label className="cert-field"><span>POSITION / DESIGNATION</span><input value={position} onChange={(e) => setPosition(e.target.value)} /></label>
             <label className="cert-field full"><span>ADDRESS</span><input value={address} onChange={(e) => setAddress(e.target.value)} /></label>
