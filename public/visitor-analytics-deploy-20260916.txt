@@ -1,0 +1,2 @@
+LAND VIEW visitor analytics deployment trigger — 2026-09-16
+Includes anonymous visitor/session IDs, page-view logs, IP geolocation, and opt-in browser geolocation.
