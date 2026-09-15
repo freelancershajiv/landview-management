@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 const COOKIE_NAME = "landview_session";
+const BACKEND_TIMEOUT_MS = 10_000;
+const RETRY_DELAYS_MS = [0, 250, 700];
 
 function clean(value: unknown, max = 500) { return String(value ?? "").trim().slice(0, max); }
 function sameOrigin(request: NextRequest) {
@@ -14,21 +16,53 @@ function sameOrigin(request: NextRequest) {
   try { return new URL(origin).host === request.nextUrl.host; } catch { return false; }
 }
 
+function statusForMessage(message: string) {
+  const normalized = String(message || "").trim().toLowerCase();
+  if (["unauthorized", "session expired", "session expired.", "invalid session", "invalid session.", "authentication required", "authentication required."].includes(normalized)) return 401;
+  if (/^access denied\b|permission required|access is required/.test(normalized)) return 403;
+  return 502;
+}
+
+async function fetchAppsScript(payload: Record<string, unknown>) {
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt += 1) {
+    const delay = RETRY_DELAYS_MS[attempt];
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+    try {
+      const response = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        cache: "no-store",
+        redirect: "follow",
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
+      });
+      const raw = await response.text();
+      let json: any;
+      try { json = JSON.parse(raw); }
+      catch {
+        lastError = new Error(/^\s*</.test(raw) ? "Apps Script returned HTML instead of JSON." : "Certificate portal returned invalid JSON.");
+        if (attempt < RETRY_DELAYS_MS.length - 1) continue;
+        throw lastError;
+      }
+      if (response.status >= 500 && attempt < RETRY_DELAYS_MS.length - 1) {
+        lastError = new Error(`Apps Script returned HTTP ${response.status}.`);
+        continue;
+      }
+      return json;
+    } catch (error: any) {
+      lastError = error instanceof Error ? error : new Error(String(error || "Certificate portal backend failed."));
+      if (attempt >= RETRY_DELAYS_MS.length - 1) throw lastError;
+    }
+  }
+  throw lastError || new Error("Certificate portal backend failed.");
+}
+
 async function callAppsScript(request: NextRequest, body: Record<string, unknown>) {
   if (!APPS_SCRIPT_URL || !PROXY_SECRET) throw new Error("Certificate portal backend is not configured.");
   const token = request.cookies.get(COOKIE_NAME)?.value || "";
   if (!token) throw new Error("Session expired.");
-  const response = await fetch(APPS_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    cache: "no-store",
-    redirect: "follow",
-    body: JSON.stringify({ action: "getPublicProjects", proxySecret: PROXY_SECRET, token, ...body }),
-  });
-  const raw = await response.text();
-  let json: any;
-  try { json = JSON.parse(raw); }
-  catch { throw new Error(/^\s*</.test(raw) ? "Apps Script returned HTML instead of JSON." : "Certificate portal returned invalid JSON."); }
+  const json = await fetchAppsScript({ action: "getPublicProjects", proxySecret: PROXY_SECRET, token, ...body });
   if (!json?.success) throw new Error(String(json?.error || json?.message || "Certificate portal request failed."));
   let data = json.data;
   for (let depth = 0; depth < 2 && data?.success === true && data?.data; depth++) data = data.data;
@@ -80,7 +114,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ success: true, data }, { headers });
   } catch (error: any) {
     const message = error?.message || "Could not load certificate portal.";
-    return NextResponse.json({ success: false, error: message }, { status: /session|access|unauthorized/i.test(message) ? 401 : 502, headers });
+    return NextResponse.json({ success: false, error: message }, { status: statusForMessage(message), headers });
   }
 }
 
@@ -127,6 +161,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: false, error: "Unknown certificate portal action." }, { status: 400 });
   } catch (error: any) {
-    return NextResponse.json({ success: false, error: error?.message || "Certificate portal request failed." }, { status: 500 });
+    const message = error?.message || "Certificate portal request failed.";
+    return NextResponse.json({ success: false, error: message }, { status: statusForMessage(message) });
   }
 }
