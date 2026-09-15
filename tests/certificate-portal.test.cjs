@@ -47,7 +47,9 @@ function fixture(options = {}) {
   const operations=[];
   const module = {exports:{}};
   let calls = 0;
-  const sandbox = vm.createContext({module,exports:module.exports,require,console,URL,
+  const sandbox = vm.createContext({
+    module,exports:module.exports,require,console,URL,
+    setTimeout,clearTimeout,AbortController,AbortSignal,
     process:{env:{LAND_VIEW_API_URL:'https://backend.example/exec',LAND_VIEW_PROXY_SECRET:'test-only',NODE_ENV:'test'}},
     fetch: async (_url,fetchOptions) => {
       calls++;
@@ -59,9 +61,9 @@ function fixture(options = {}) {
           : options.legacy ? {success:true,data:{projects:[]}} : gs.certificatePortalFromGateway_(params);
         if(options.ambiguous && params.clientOp==='requestCertificate') result={success:true,data:{}};
         if(options.nested) result={success:true,data:result};
-        return {text:async()=>JSON.stringify(result)};
+        return {ok:true,status:200,text:async()=>JSON.stringify(result)};
       }
-      catch(error) { return {text:async()=>JSON.stringify({success:false,error:error.message})}; }
+      catch(error) { return {ok:true,status:200,text:async()=>JSON.stringify({success:false,error:error.message})}; }
     },
   });
   const code = ts.transpileModule(fs.readFileSync('app/api/certificate-portal/route.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020}}).outputText;
@@ -135,9 +137,8 @@ test('client certificate center renders one project-scoped form with all support
   assert.match(html,/value="LV-1"/);
   assert.match(html,/SUBJECT \/ PURPOSE/);
   assert.match(html,/DETAILS FOR LAND VIEW/);
-  assert.match(html,/<fieldset disabled=""/); // Loading must not allow an unverified submission.
+  assert.match(html,/<fieldset disabled=""/);
 });
-
 
 test('legacy gateway restores scoped requests and admin review without claiming issued details',async()=>{
   const f=fixture({legacy:true});

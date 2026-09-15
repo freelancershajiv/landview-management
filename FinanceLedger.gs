@@ -1,20 +1,14 @@
-/**
- * LAND VIEW — Income & Expense Ledger Sync
+/** LAND VIEW — CANONICAL FINANCE LEDGER
  *
- * Mirrors the authoritative LAND VIEW app records into the dedicated
- * accounting workbook without changing login, billing or permission flows.
+ * Payments/Expenses/Transfers are source events.
+ * Transactions is the append/upsert accounting journal.
+ * Accounts balances are derived from posted Transactions.
  *
- * Source of truth:
- *   - CONFIG.SHEETS.PAYMENTS -> Income
- *   - CONFIG.SHEETS.EXPENSES -> Expenses
- *   - CONFIG.SHEETS.PROJECTS -> project/client labels
- *
- * Destination workbook:
- *   LAND VIEW Income & Expense Database
+ * No legacy Income/Accounting Expenses mirrors are created or modified.
  */
 
 function getLegacyAccountingLedger_() {
-  return SpreadsheetApp.openById("1e51Mq3hOj9rUH9ugF8SiHe4SYJW3dJ3Bcw9JNgii_bs");
+  throw new Error("Legacy accounting ledger is retired.");
 }
 
 function getLandViewFinanceLedger_() {
@@ -22,33 +16,69 @@ function getLandViewFinanceLedger_() {
 }
 
 function landViewLedgerText_(value) {
-  if (value === null || value === undefined) return "";
-  return String(value).trim();
+  return String(value == null ? "" : value).trim();
 }
 
 function landViewLedgerFirst_(record, keys) {
   if (!record) return "";
-  for (var i = 0; i < keys.length; i++) {
-    var key = keys[i];
+  for (let i = 0; i < keys.length; i += 1) {
+    const key = keys[i];
     if (Object.prototype.hasOwnProperty.call(record, key)) {
-      var value = record[key];
+      const value = record[key];
       if (value !== null && value !== undefined && String(value).trim() !== "") return value;
     }
   }
   return "";
 }
 
-function landViewLedgerEnsureHeaders_(sheet, requiredHeaders) {
-  var lastColumn = Math.max(1, sheet.getLastColumn());
-  var headers = sheet.getLastRow() > 0
-    ? sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(value) { return String(value || "").trim(); })
-    : [];
+function landViewLedgerNumber_(value) {
+  const n = Number(String(value == null ? 0 : value).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
+  return isFinite(n) ? n : 0;
+}
 
-  if (!headers.length || headers.every(function(value) { return !value; })) {
+function landViewLedgerRecords_(sheet) {
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  const width = Math.max(1, sheet.getLastColumn());
+  const values = sheet.getRange(1, 1, sheet.getLastRow(), width).getValues();
+  const headers = values[0].map(function(value) { return landViewLedgerText_(value); });
+  return values.slice(1).map(function(row) {
+    const record = {};
+    headers.forEach(function(header, index) { if (header) record[header] = row[index]; });
+    return record;
+  }).filter(function(record) {
+    return Object.keys(record).some(function(key) { return landViewLedgerText_(record[key]) !== ""; });
+  });
+}
+
+function landViewLedgerPaymentEffective_(payment) {
+  if (typeof lvCanonicalPaymentEffective_ === "function") return lvCanonicalPaymentEffective_(payment);
+  const type = landViewLedgerText_(landViewLedgerFirst_(payment, ["Transaction_Type", "Transaction Type"])).toLowerCase();
+  if (type === "personal income") return false;
+  const impact = landViewLedgerText_(landViewLedgerFirst_(payment, ["Affects_Business_Balance", "Affects Business Balance"])).toLowerCase();
+  if (["false", "no", "0"].indexOf(impact) >= 0) return false;
+  const status = landViewLedgerText_(landViewLedgerFirst_(payment, ["Approval_Status", "Approval Status", "Status"])).toLowerCase().replace(/[_-]+/g, " ");
+  return !status || ["approved", "received", "paid", "verified", "complete", "completed", "full paid", "fully paid"].indexOf(status) >= 0;
+}
+
+function landViewLedgerExpenseEffective_(expense) {
+  if (typeof lvCanonicalExpenseEffective_ === "function") return lvCanonicalExpenseEffective_(expense);
+  const status = landViewLedgerText_(landViewLedgerFirst_(expense, ["Approval_Status", "Approval Status", "Status"])).toLowerCase().replace(/[_-]+/g, " ");
+  return !status || ["approved", "paid", "complete", "completed"].indexOf(status) >= 0;
+}
+
+function landViewLedgerTransferEffective_(transfer) {
+  const status = landViewLedgerText_(landViewLedgerFirst_(transfer, ["Status", "Approval_Status", "Approval Status"])).toLowerCase().replace(/[_-]+/g, " ");
+  return !status || ["approved", "completed", "complete", "posted", "transferred"].indexOf(status) >= 0;
+}
+
+function landViewLedgerEnsureHeaders_(sheet, requiredHeaders) {
+  let headers = sheet.getLastRow() > 0
+    ? sheet.getRange(1, 1, 1, Math.max(1, sheet.getLastColumn())).getDisplayValues()[0].map(landViewLedgerText_)
+    : [];
+  if (!headers.some(Boolean)) {
     sheet.getRange(1, 1, 1, requiredHeaders.length).setValues([requiredHeaders]);
     return requiredHeaders.slice();
   }
-
   requiredHeaders.forEach(function(header) {
     if (headers.indexOf(header) < 0) {
       headers.push(header);
@@ -58,295 +88,221 @@ function landViewLedgerEnsureHeaders_(sheet, requiredHeaders) {
   return headers;
 }
 
-function landViewLedgerExistingRows_(sheet, headers, idHeader) {
-  var map = {};
-  var idColumn = headers.indexOf(idHeader);
-  if (idColumn < 0 || sheet.getLastRow() < 2) return map;
-
-  sheet.getRange(2, idColumn + 1, sheet.getLastRow() - 1, 1).getValues().forEach(function(row, index) {
-    var id = landViewLedgerText_(row[0]);
-    if (id) map[id] = index + 2;
-  });
-  return map;
+function landViewLedgerAccountRows_(ss) {
+  const sheet = ss.getSheetByName("Accounts");
+  if (!sheet) throw new Error('Finance worksheet "Accounts" was not found.');
+  const headers = landViewLedgerEnsureHeaders_(sheet, LAND_VIEW_FINANCE_SETUP_SHEETS_["Accounts"]);
+  return { sheet: sheet, headers: headers, records: landViewLedgerRecords_(sheet) };
 }
 
-function landViewLedgerUpsert_(sheet, headers, idHeader, records) {
-  var existing = landViewLedgerExistingRows_(sheet, headers, idHeader);
-  var created = 0;
-  var updated = 0;
+function landViewLedgerEnsureAccount_(accountState, requested, paymentMethod) {
+  const raw = landViewLedgerText_(requested);
+  const method = landViewLedgerText_(paymentMethod).toLowerCase();
+  const wanted = raw || (method.indexOf("cash") >= 0 ? "Cash" : "Bank Account");
+  const lower = wanted.toLowerCase();
+  let found = accountState.records.find(function(record) {
+    return landViewLedgerText_(record.Account_ID).toLowerCase() === lower || landViewLedgerText_(record.Account_Name).toLowerCase() === lower;
+  });
+  if (found) return landViewLedgerText_(found.Account_ID);
+  if (lower === "cash") {
+    found = accountState.records.find(function(record) { return landViewLedgerText_(record.Account_ID) === "ACC-CASH"; });
+    if (found) return "ACC-CASH";
+  }
+  if (lower === "bank" || lower === "bank account") {
+    found = accountState.records.find(function(record) { return landViewLedgerText_(record.Account_ID) === "ACC-BANK"; });
+    if (found) return "ACC-BANK";
+  }
+  const id = "ACC-" + Utilities.getUuid().split("-")[0].toUpperCase();
+  const now = new Date().toISOString();
+  const record = {
+    Account_ID: id,
+    Account_Name: wanted,
+    Account_Type: method.indexOf("cash") >= 0 ? "Cash" : "Bank",
+    Opening_Balance: 0,
+    Current_Balance: 0,
+    Currency: "BDT",
+    Status: "Active",
+    Notes: "Created automatically from a posted transaction.",
+    Created_At: now,
+    Updated_At: now
+  };
+  accountState.sheet.appendRow(accountState.headers.map(function(header) { return record[header] === undefined ? "" : record[header]; }));
+  accountState.records.push(record);
+  return id;
+}
 
-  records.forEach(function(record) {
-    var id = landViewLedgerText_(record[idHeader]);
+function landViewLedgerPaymentTransaction_(payment, accountState) {
+  if (!landViewLedgerPaymentEffective_(payment)) return null;
+  const id = landViewLedgerText_(landViewLedgerFirst_(payment, ["Payment_ID", "Payment ID", "PaymentId"]));
+  const amount = landViewLedgerNumber_(landViewLedgerFirst_(payment, ["Amount", "Payment_Amount", "Payment Amount"]));
+  if (!id || !(amount > 0)) return null;
+  const method = landViewLedgerFirst_(payment, ["Payment_Method", "Payment Method", "Method"]);
+  const account = landViewLedgerEnsureAccount_(accountState, landViewLedgerFirst_(payment, ["Account_ID", "Deposit_Account", "Deposit Account", "Account"]), method);
+  const category = typeof lvCanonicalCategory_ === "function" ? lvCanonicalCategory_(payment) : landViewLedgerFirst_(payment, ["Income_Category", "Income Category", "Category"]);
+  return {
+    Transaction_ID: "TXN-PAY-" + id,
+    Transaction_Date: landViewLedgerFirst_(payment, ["Payment_Date", "Payment Date", "Date"]),
+    Transaction_Type: "Income",
+    Direction: "CREDIT",
+    Account_ID: account,
+    Project_ID: landViewLedgerFirst_(payment, ["Project_ID", "Project ID", "ProjectId"]),
+    Source_Type: "Payment",
+    Source_ID: id,
+    Category: category,
+    Description: landViewLedgerFirst_(payment, ["Payment_For", "Payment For", "Description"]) || "Client payment",
+    Amount: amount,
+    Payment_Method: method,
+    Reference_No: landViewLedgerFirst_(payment, ["Reference_No", "Reference No", "Reference"]),
+    Status: "Posted",
+    Created_At: landViewLedgerFirst_(payment, ["Approved_At", "Created_At", "Created At"]) || new Date().toISOString(),
+    Created_By: landViewLedgerFirst_(payment, ["Approved_By", "Created_By", "Created By"])
+  };
+}
+
+function landViewLedgerExpenseTransaction_(expense, accountState) {
+  if (!landViewLedgerExpenseEffective_(expense)) return null;
+  const id = landViewLedgerText_(landViewLedgerFirst_(expense, ["Expense_ID", "Expense ID", "ExpenseId"]));
+  const amount = landViewLedgerNumber_(landViewLedgerFirst_(expense, ["Amount", "Expense_Amount", "Expense Amount"]));
+  if (!id || !(amount > 0)) return null;
+  const method = landViewLedgerFirst_(expense, ["Payment_Method", "Payment Method", "Method"]);
+  const account = landViewLedgerEnsureAccount_(accountState, landViewLedgerFirst_(expense, ["Account_ID", "Paid_From_Account", "Paid From Account", "Account"]), method);
+  return {
+    Transaction_ID: "TXN-EXP-" + id,
+    Transaction_Date: landViewLedgerFirst_(expense, ["Expense_Date", "Expense Date", "Date"]),
+    Transaction_Type: "Expense",
+    Direction: "DEBIT",
+    Account_ID: account,
+    Project_ID: landViewLedgerFirst_(expense, ["Project_ID", "Project ID", "ProjectId"]),
+    Source_Type: "Expense",
+    Source_ID: id,
+    Category: landViewLedgerFirst_(expense, ["Category", "Expense_Category", "Expense Category"]),
+    Description: landViewLedgerFirst_(expense, ["Description", "Particulars", "Expense"]) || "Expense",
+    Amount: amount,
+    Payment_Method: method,
+    Reference_No: landViewLedgerFirst_(expense, ["Reference_No", "Reference No", "Reference"]),
+    Status: "Posted",
+    Created_At: landViewLedgerFirst_(expense, ["Approved_At", "Created_At", "Created At"]) || new Date().toISOString(),
+    Created_By: landViewLedgerFirst_(expense, ["Approved_By", "Created_By", "Created By"])
+  };
+}
+
+function landViewLedgerTransferTransactions_(transfer, accountState) {
+  if (!landViewLedgerTransferEffective_(transfer)) return [];
+  const id = landViewLedgerText_(landViewLedgerFirst_(transfer, ["Transfer_ID", "Transfer ID"]));
+  const amount = landViewLedgerNumber_(landViewLedgerFirst_(transfer, ["Amount"]));
+  if (!id || !(amount > 0)) return [];
+  const from = landViewLedgerEnsureAccount_(accountState, landViewLedgerFirst_(transfer, ["From_Account_ID", "From Account ID"]), "");
+  const to = landViewLedgerEnsureAccount_(accountState, landViewLedgerFirst_(transfer, ["To_Account_ID", "To Account ID"]), "");
+  const date = landViewLedgerFirst_(transfer, ["Transfer_Date", "Transfer Date", "Date"]);
+  const reference = landViewLedgerFirst_(transfer, ["Reference_No", "Reference No", "Reference"]);
+  const createdAt = landViewLedgerFirst_(transfer, ["Created_At", "Created At"]) || new Date().toISOString();
+  const createdBy = landViewLedgerFirst_(transfer, ["Created_By", "Created By"]);
+  return [
+    { Transaction_ID: "TXN-TRF-" + id + "-OUT", Transaction_Date: date, Transaction_Type: "Transfer", Direction: "DEBIT", Account_ID: from, Project_ID: "", Source_Type: "Transfer", Source_ID: id, Category: "Internal Transfer", Description: "Transfer to " + to, Amount: amount, Payment_Method: "Internal Transfer", Reference_No: reference, Status: "Posted", Created_At: createdAt, Created_By: createdBy },
+    { Transaction_ID: "TXN-TRF-" + id + "-IN", Transaction_Date: date, Transaction_Type: "Transfer", Direction: "CREDIT", Account_ID: to, Project_ID: "", Source_Type: "Transfer", Source_ID: id, Category: "Internal Transfer", Description: "Transfer from " + from, Amount: amount, Payment_Method: "Internal Transfer", Reference_No: reference, Status: "Posted", Created_At: createdAt, Created_By: createdBy }
+  ];
+}
+
+function landViewLedgerSyncTransactions_(ss, transactions) {
+  const sheet = ss.getSheetByName("Transactions");
+  if (!sheet) throw new Error('Finance worksheet "Transactions" was not found.');
+  const headers = landViewLedgerEnsureHeaders_(sheet, LAND_VIEW_FINANCE_SETUP_SHEETS_["Transactions"]);
+  const idIndex = headers.indexOf("Transaction_ID");
+  const existingRows = landViewLedgerRecords_(sheet);
+  const existingById = {};
+  existingRows.forEach(function(record, index) {
+    const id = landViewLedgerText_(record.Transaction_ID);
+    if (id) existingById[id] = index + 2;
+  });
+  const keep = {};
+  let created = 0;
+  let updated = 0;
+  transactions.forEach(function(record) {
+    const id = landViewLedgerText_(record.Transaction_ID);
     if (!id) return;
-    var values = headers.map(function(header) {
-      return record[header] === undefined || record[header] === null ? "" : record[header];
-    });
-    var rowIndex = existing[id];
-    if (rowIndex) {
-      sheet.getRange(rowIndex, 1, 1, headers.length).setValues([values]);
-      updated++;
+    keep[id] = true;
+    const values = headers.map(function(header) { return record[header] === undefined ? "" : record[header]; });
+    if (existingById[id]) {
+      sheet.getRange(existingById[id], 1, 1, headers.length).setValues([values]);
+      updated += 1;
     } else {
       sheet.appendRow(values);
-      existing[id] = sheet.getLastRow();
-      created++;
+      created += 1;
     }
   });
-
-  return { created: created, updated: updated, total: records.length };
-}
-
-function landViewProjectLookup_() {
-  var map = {};
-  readSheet(CONFIG.SHEETS.PROJECTS).forEach(function(project) {
-    var id = landViewLedgerText_(landViewLedgerFirst_(project, ["Project_ID", "Project ID", "ProjectId", "FILE ID", "File ID"]));
-    if (!id) return;
-    map[id] = {
-      projectName: landViewLedgerText_(landViewLedgerFirst_(project, ["Project_Name", "Project Name", "Name"])),
-      clientName: landViewLedgerText_(landViewLedgerFirst_(project, ["Client_Name", "Client Name", "Client"]))
-    };
-  });
-  return map;
-}
-
-function landViewIncomeCategory_(payment) {
-  var explicit = landViewLedgerText_(landViewLedgerFirst_(payment, ["Income_Category", "Income Category", "Category"]));
-  if (explicit) return explicit;
-
-  var text = landViewLedgerText_(landViewLedgerFirst_(payment, ["Payment_For", "Payment For", "Description", "Service", "Particulars"])).toLowerCase();
-  var categories = [
-    "Design Bill", "Supervision Bill", "Soil Test", "Digital Survey", "3D Design",
-    "Estimate & Costing", "Plan Approval", "Site Visit", "Municipality / Approval",
-    "Rent Income", "Material / Product Sale", "Printing / Documentation",
-    "Certificate / Documentation", "Commission / Reimbursement", "Commission Income",
-    "Owner / Internal Transfer", "Loan / Recovery", "Rental / Deposit Recovery",
-    "Project Advance / Deposit", "Reimbursement / Recovery", "Eng Rony Income / Recovery"
-  ];
-
-  for (var i = 0; i < categories.length; i++) {
-    if (text.indexOf(categories[i].toLowerCase()) >= 0) return categories[i];
-  }
-  if (text.indexOf("supervision") >= 0) return "Supervision Bill";
-  if (text.indexOf("soil test") >= 0) return "Soil Test";
-  if (text.indexOf("digital survey") >= 0 || text.indexOf("survey") >= 0) return "Digital Survey";
-  if (text.indexOf("3d") >= 0) return "3D Design";
-  if (text.indexOf("estimate") >= 0 || text.indexOf("costing") >= 0) return "Estimate & Costing";
-  if (text.indexOf("plan approval") >= 0 || text.indexOf("municipality") >= 0) return "Plan Approval";
-  if (text.indexOf("design") >= 0) return "Design Bill";
-  return "Other Income";
-}
-
-function landViewIncomeLedgerRows_(projects) {
-  return readSheet(CONFIG.SHEETS.PAYMENTS).map(function(payment) {
-    var projectId = landViewLedgerText_(landViewLedgerFirst_(payment, ["Project_ID", "Project ID", "ProjectId", "FILE ID", "File ID"]));
-    var project = projects[projectId] || { projectName: "", clientName: "" };
-    return {
-      Income_ID: landViewLedgerText_(landViewLedgerFirst_(payment, ["Payment_ID", "Payment ID", "PaymentId"])),
-      Payment_Date: landViewLedgerFirst_(payment, ["Payment_Date", "Payment Date", "Date"]),
-      File_ID: projectId,
-      Project_Name: project.projectName,
-      Client_Name: project.clientName,
-      Payment_For: landViewLedgerFirst_(payment, ["Payment_For", "Payment For", "Category", "Description", "Service", "Particulars"]),
-      Amount: landViewLedgerFirst_(payment, ["Amount", "Payment_Amount", "Payment Amount"]),
-      Payment_Method: landViewLedgerFirst_(payment, ["Payment_Method", "Payment Method", "Method"]),
-      Reference_No: landViewLedgerFirst_(payment, ["Reference_No", "Reference No", "Reference", "Transaction_ID", "Transaction ID"]),
-      Received_From: landViewLedgerFirst_(payment, ["Received_From", "Received From", "Payer", "Paid_By", "Paid By"]) || project.clientName,
-      Received_By: landViewLedgerFirst_(payment, ["Received_By", "Received By", "Created_By", "Created By"]),
-      Deposit_Account: landViewLedgerFirst_(payment, ["Deposit_Account", "Deposit Account", "Account", "Account_Name", "Account Name"]),
-      Receipt_URL: landViewLedgerFirst_(payment, ["Receipt_URL", "Receipt URL", "Receipt", "Document_URL", "Document URL"]),
-      Notes: landViewLedgerFirst_(payment, ["Notes", "Remarks"]),
-      Created_At: landViewLedgerFirst_(payment, ["Created_At", "Created At", "Timestamp"]),
-      Created_By: landViewLedgerFirst_(payment, ["Created_By", "Created By", "Received_By", "Received By"]),
-      Income_Category: landViewIncomeCategory_(payment)
-    };
-  }).filter(function(row) { return !!row.Income_ID; });
-}
-
-function landViewExpenseLedgerRows_(projects) {
-  return readSheet(CONFIG.SHEETS.EXPENSES).map(function(expense) {
-    var projectId = landViewLedgerText_(landViewLedgerFirst_(expense, ["Project_ID", "Project ID", "ProjectId", "FILE ID", "File ID"]));
-    var project = projects[projectId] || { projectName: "" };
-    var requestedBy = landViewLedgerFirst_(expense, ["Requested_By", "Requested By", "Created_By", "Created By", "Employee_ID", "Employee ID"]);
-    var requestedAt = landViewLedgerFirst_(expense, ["Requested_At", "Requested At", "Created_At", "Created At"]);
-    var approvedBy = landViewLedgerFirst_(expense, ["Approved_By", "Approved By", "Reviewed_By", "Reviewed By"]);
-    var approvedAt = landViewLedgerFirst_(expense, ["Approved_At", "Approved At", "Reviewed_At", "Reviewed At"]);
-    return {
-      Expense_ID: landViewLedgerText_(landViewLedgerFirst_(expense, ["Expense_ID", "Expense ID", "ExpenseId"])),
-      Expense_Date: landViewLedgerFirst_(expense, ["Expense_Date", "Expense Date", "Date"]),
-      File_ID: projectId,
-      Project_Name: project.projectName,
-      Category: landViewLedgerFirst_(expense, ["Category", "Expense_Category", "Expense Category"]),
-      Description: landViewLedgerFirst_(expense, ["Description", "Particulars", "Expense"]),
-      Amount: landViewLedgerFirst_(expense, ["Amount", "Expense_Amount", "Expense Amount"]),
-      Requested_By: requestedBy,
-      Requested_At: requestedAt,
-      Approval_Status: landViewLedgerFirst_(expense, ["Approval_Status", "Approval Status", "Status"]) || "Pending",
-      Approved_By: approvedBy,
-      Approved_At: approvedAt,
-      Paid_To: landViewLedgerFirst_(expense, ["Paid_To", "Paid To", "Payee", "Vendor"]),
-      Payment_Method: landViewLedgerFirst_(expense, ["Payment_Method", "Payment Method", "Method"]),
-      Reference_No: landViewLedgerFirst_(expense, ["Reference_No", "Reference No", "Reference", "Transaction_ID", "Transaction ID"]),
-      Receipt_URL: landViewLedgerFirst_(expense, ["Receipt_URL", "Receipt URL", "Receipt", "Document_URL", "Document URL"]),
-      Notes: landViewLedgerFirst_(expense, ["Notes", "Review_Notes", "Review Notes", "Remarks"]),
-      Created_At: landViewLedgerFirst_(expense, ["Created_At", "Created At"]),
-      Created_By: landViewLedgerFirst_(expense, ["Created_By", "Created By", "Employee_ID", "Employee ID"])
-    };
-  }).filter(function(row) { return !!row.Expense_ID; });
-}
-
-function landViewEnsureChairmanExpensePermissions_() {
-  var ss = getSpreadsheetForSheet_(CONFIG.SHEETS.PERMISSIONS);
-  var sheet = ss.getSheetByName(CONFIG.SHEETS.PERMISSIONS) || ss.insertSheet(CONFIG.SHEETS.PERMISSIONS);
-  var headers = landViewLedgerEnsureHeaders_(sheet, [
-    "Permission_ID", "User_ID", "Role", "Permission", "Status", "Created_At", "Created_By"
-  ]);
-  var existing = [];
+  let removed = 0;
   if (sheet.getLastRow() > 1) {
-    existing = sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).getValues().map(function(row) {
-      var record = {};
-      headers.forEach(function(header, index) { record[header] = row[index]; });
-      return record;
-    });
+    const values = sheet.getRange(2, idIndex + 1, sheet.getLastRow() - 1, 1).getDisplayValues();
+    for (let i = values.length - 1; i >= 0; i -= 1) {
+      const id = landViewLedgerText_(values[i][0]);
+      if (/^TXN-(PAY|EXP|TRF)-/.test(id) && !keep[id]) {
+        sheet.deleteRow(i + 2);
+        removed += 1;
+      }
+    }
   }
-
-  var granted = [];
-  ["expenses.submit", "expenses.approve"].forEach(function(permission) {
-    var alreadyConfigured = existing.some(function(record) {
-      return landViewLedgerText_(record.User_ID).toUpperCase() === "EMP-0001" &&
-        landViewLedgerText_(record.Permission) === permission;
-    });
-    if (alreadyConfigured) return;
-
-    var record = {
-      Permission_ID: "CHAIRMAN-EMP-0001-" + permission.replace(/[^A-Za-z0-9]+/g, "-").toUpperCase(),
-      User_ID: "EMP-0001",
-      Role: "Chairman",
-      Permission: permission,
-      Status: "Active",
-      Created_At: new Date().toISOString(),
-      Created_By: "System Setup — Chairman Authorization"
-    };
-    sheet.appendRow(headers.map(function(header) { return record[header] === undefined ? "" : record[header]; }));
-    existing.push(record);
-    granted.push(permission);
-  });
-
-  return { userId: "EMP-0001", granted: granted };
+  return { created: created, updated: updated, removed: removed, total: transactions.length };
 }
 
-function landViewRemoveKnownTestExpense_(ledger) {
-  var removedSource = 0;
-  var removedLedger = 0;
-  var sourceSheet = getSpreadsheetForSheet_(CONFIG.SHEETS.EXPENSES).getSheetByName(CONFIG.SHEETS.EXPENSES);
-
-  function rowMatches(headers, row) {
-    function cell(names) {
-      for (var n = 0; n < names.length; n++) {
-        var index = headers.indexOf(names[n]);
-        if (index >= 0) return row[index];
-      }
-      return "";
-    }
-    var id = landViewLedgerText_(cell(["Expense_ID", "Expense ID", "ExpenseId"]));
-    var amount = Number(String(cell(["Amount", "Expense_Amount", "Expense Amount"]) || 0).replace(/[^0-9.-]/g, ""));
-    var owner = landViewLedgerText_(cell(["Created_By", "Created By", "Requested_By", "Requested By", "Employee_ID", "Employee ID"])).toUpperCase();
-    var description = landViewLedgerText_(cell(["Description", "Particulars", "Expense"])).toLowerCase();
-    return id === "EXP-0001" && amount === 100 && owner === "EMP-0001" && description === "office nasta";
+function landViewLedgerRecalculateAccounts_(ss) {
+  const accountState = landViewLedgerAccountRows_(ss);
+  const transactionSheet = ss.getSheetByName("Transactions");
+  const transactions = landViewLedgerRecords_(transactionSheet);
+  const totals = {};
+  transactions.forEach(function(transaction) {
+    if (landViewLedgerText_(transaction.Status).toLowerCase() !== "posted") return;
+    const accountId = landViewLedgerText_(transaction.Account_ID);
+    if (!accountId) return;
+    const amount = landViewLedgerNumber_(transaction.Amount);
+    if (!totals[accountId]) totals[accountId] = 0;
+    totals[accountId] += landViewLedgerText_(transaction.Direction).toUpperCase() === "DEBIT" ? -amount : amount;
+  });
+  const idIndex = accountState.headers.indexOf("Account_ID");
+  const openingIndex = accountState.headers.indexOf("Opening_Balance");
+  const currentIndex = accountState.headers.indexOf("Current_Balance");
+  const updatedIndex = accountState.headers.indexOf("Updated_At");
+  if (accountState.sheet.getLastRow() < 2 || idIndex < 0 || currentIndex < 0) return { updated: 0 };
+  const values = accountState.sheet.getRange(2, 1, accountState.sheet.getLastRow() - 1, accountState.headers.length).getValues();
+  let updated = 0;
+  for (let i = 0; i < values.length; i += 1) {
+    const id = landViewLedgerText_(values[i][idIndex]);
+    if (!id) continue;
+    const opening = openingIndex >= 0 ? landViewLedgerNumber_(values[i][openingIndex]) : 0;
+    const balance = opening + (totals[id] || 0);
+    accountState.sheet.getRange(i + 2, currentIndex + 1).setValue(balance);
+    if (updatedIndex >= 0) accountState.sheet.getRange(i + 2, updatedIndex + 1).setValue(new Date().toISOString());
+    updated += 1;
   }
-
-  if (sourceSheet && sourceSheet.getLastRow() > 1) {
-    var sourceHeaders = sourceSheet.getRange(1, 1, 1, sourceSheet.getLastColumn()).getValues()[0].map(function(value) { return String(value || "").trim(); });
-    var sourceRows = sourceSheet.getRange(2, 1, sourceSheet.getLastRow() - 1, sourceHeaders.length).getValues();
-    for (var i = sourceRows.length - 1; i >= 0; i--) {
-      if (rowMatches(sourceHeaders, sourceRows[i])) {
-        sourceSheet.deleteRow(i + 2);
-        removedSource++;
-      }
-    }
-  }
-
-  var expenseSheet = ledger.getSheetByName("Accounting Expenses");
-  if (expenseSheet && expenseSheet.getLastRow() > 1) {
-    var ledgerHeaders = expenseSheet.getRange(1, 1, 1, expenseSheet.getLastColumn()).getValues()[0].map(function(value) { return String(value || "").trim(); });
-    var ledgerRows = expenseSheet.getRange(2, 1, expenseSheet.getLastRow() - 1, ledgerHeaders.length).getValues();
-    for (var j = ledgerRows.length - 1; j >= 0; j--) {
-      if (rowMatches(ledgerHeaders, ledgerRows[j])) {
-        expenseSheet.deleteRow(j + 2);
-        removedLedger++;
-      }
-    }
-  }
-
-  return { source: removedSource, ledger: removedLedger };
+  return { updated: updated };
 }
 
 function syncLandViewIncomeExpenseLedger() {
-  var lock = LockService.getScriptLock();
+  const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    var chairmanPermissions = landViewEnsureChairmanExpensePermissions_();
-    var ledger = getLandViewFinanceLedger_();
-    var testCleanup = landViewRemoveKnownTestExpense_(ledger);
-    var incomeSheet = ledger.getSheetByName("Income") || ledger.insertSheet("Income");
-    var expenseSheet = ledger.getSheetByName("Accounting Expenses") || ledger.insertSheet("Accounting Expenses");
-
-    var incomeHeaders = landViewLedgerEnsureHeaders_(incomeSheet, [
-      "Income_ID", "Payment_Date", "File_ID", "Project_Name", "Client_Name", "Payment_For", "Amount",
-      "Payment_Method", "Reference_No", "Received_From", "Received_By", "Deposit_Account", "Receipt_URL",
-      "Notes", "Created_At", "Created_By", "Income_Category"
-    ]);
-    var expenseHeaders = landViewLedgerEnsureHeaders_(expenseSheet, [
-      "Expense_ID", "Expense_Date", "File_ID", "Project_Name", "Category", "Description", "Amount",
-      "Requested_By", "Requested_At", "Approval_Status", "Approved_By", "Approved_At", "Paid_To",
-      "Payment_Method", "Reference_No", "Receipt_URL", "Notes", "Created_At", "Created_By"
-    ]);
-
-    var projects = landViewProjectLookup_();
-    var incomeResult = landViewLedgerUpsert_(incomeSheet, incomeHeaders, "Income_ID", landViewIncomeLedgerRows_(projects));
-    var expenseResult = landViewLedgerUpsert_(expenseSheet, expenseHeaders, "Expense_ID", landViewExpenseLedgerRows_(projects));
-
+    if (typeof setupLandViewFinanceDatabaseFromEditor === "function") setupLandViewFinanceDatabaseFromEditor();
+    const ss = getFinanceDatabase_();
+    const accounts = landViewLedgerAccountRows_(ss);
+    const payments = landViewLedgerRecords_(ss.getSheetByName("Payments"));
+    const expenses = landViewLedgerRecords_(ss.getSheetByName("Expenses"));
+    const transfers = landViewLedgerRecords_(ss.getSheetByName("Transfers"));
+    let transactions = [];
+    payments.forEach(function(payment) { const transaction = landViewLedgerPaymentTransaction_(payment, accounts); if (transaction) transactions.push(transaction); });
+    expenses.forEach(function(expense) { const transaction = landViewLedgerExpenseTransaction_(expense, accounts); if (transaction) transactions.push(transaction); });
+    transfers.forEach(function(transfer) { transactions = transactions.concat(landViewLedgerTransferTransactions_(transfer, accounts)); });
+    const journal = landViewLedgerSyncTransactions_(ss, transactions);
+    const balances = landViewLedgerRecalculateAccounts_(ss);
     SpreadsheetApp.flush();
-    return {
-      success: true,
-      spreadsheetId: ledger.getId(),
-      spreadsheetUrl: ledger.getUrl(),
-      income: incomeResult,
-      expenses: expenseResult,
-      chairmanPermissions: chairmanPermissions,
-      testExpenseCleanup: testCleanup,
-      syncedAt: new Date().toISOString()
-    };
+    return { success: true, data: { payments: payments.length, expenses: expenses.length, transfers: transfers.length, journal: journal, balances: balances, syncedAt: new Date().toISOString() } };
   } finally {
     lock.releaseLock();
   }
 }
 
-function installLandViewFinanceLedgerTrigger() {
-  var handler = "syncLandViewIncomeExpenseLedger";
+function installLandViewLedgerSyncTrigger() {
   ScriptApp.getProjectTriggers().forEach(function(trigger) {
-    if (trigger.getHandlerFunction() === handler) ScriptApp.deleteTrigger(trigger);
+    if (trigger.getHandlerFunction() === "syncLandViewIncomeExpenseLedger") ScriptApp.deleteTrigger(trigger);
   });
-
-  ScriptApp.newTrigger(handler)
-    .timeBased()
-    .everyMinutes(5)
-    .create();
-
-  var firstSync = syncLandViewIncomeExpenseLedger();
-  return {
-    success: true,
-    trigger: "Every 5 minutes",
-    firstSync: firstSync
-  };
-}
-
-function removeLandViewFinanceLedgerTrigger() {
-  var handler = "syncLandViewIncomeExpenseLedger";
-  var removed = 0;
-  ScriptApp.getProjectTriggers().forEach(function(trigger) {
-    if (trigger.getHandlerFunction() === handler) {
-      ScriptApp.deleteTrigger(trigger);
-      removed++;
-    }
-  });
-  return { success: true, removed: removed };
+  ScriptApp.newTrigger("syncLandViewIncomeExpenseLedger").timeBased().everyMinutes(5).create();
+  return { success: true, message: "Canonical finance ledger sync trigger installed." };
 }

@@ -23,15 +23,28 @@ test('portals and verification records are noindex but marketing pages remain in
  for(const path of ['/','/services','/contact','/projects','/team']) assert.equal(route(path).headers.get('x-robots-tag'),null);
 });
 
+function loadTsModule(filename){
+ const m={exports:{}};
+ const customRequire=name=>{
+  if(name==='@/components/public-header') return {default:()=>null};
+  if(name==='next/navigation') return {useParams:()=>({projectId:'LV-PUBLIC'})};
+  if(name==='@/lib/public-services') return loadTsModule('lib/public-services.ts');
+  return require(name);
+ };
+ vm.runInNewContext(
+  ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2020,jsx:ts.JsxEmit.ReactJSX}}).outputText,
+  {module:m,exports:m.exports,require:customRequire,URL,console,setTimeout,clearTimeout}
+ );
+ return m.exports;
+}
+
 test('published portfolio records render in initial HTML without a browser fetch',()=>{
  const React=require('react');
  const {renderToStaticMarkup}=require('react-dom/server');
  const project={projectId:'LV-PUBLIC',title:'Published Feni residence',description:'A coordinated building project',category:'Residential'};
  for(const [filename,props] of [['public-project-list',{initialProjects:[project]}],['public-project-detail',{initialProject:project}]]){
-  const m={exports:{}};
-  const customRequire=name=>name==='@/components/public-header'?{default:()=>null}:name==='next/navigation'?{useParams:()=>({projectId:'LV-PUBLIC'})}:require(name);
-  vm.runInNewContext(ts.transpileModule(fs.readFileSync(`components/${filename}.tsx`,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,jsx:ts.JsxEmit.ReactJSX}}).outputText,{module:m,exports:m.exports,require:customRequire,URL,console});
-  const html=renderToStaticMarkup(React.createElement(m.exports.default,props));
+  const component=loadTsModule(`components/${filename}.tsx`);
+  const html=renderToStaticMarkup(React.createElement(component.default,props));
   assert.match(html,/Published Feni residence/);
   assert.doesNotMatch(html,/Loading project/);
  }
