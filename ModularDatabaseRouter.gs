@@ -67,7 +67,8 @@ function getOperationsDatabase_() { return getModuleSpreadsheet_("operations"); 
 function getDocumentsDatabase_() { return getModuleSpreadsheet_("documents"); }
 
 function modularDatabaseEnabled_() {
-  return String(PropertiesService.getScriptProperties().getProperty("LAND_VIEW_MODULAR_DB_ACTIVE") || "") === "1";
+  const value = String(PropertiesService.getScriptProperties().getProperty("LAND_VIEW_MODULAR_DB_ACTIVE") || "").trim();
+  return value !== "0";
 }
 
 function getSpreadsheetForSheet_(sheetName) {
@@ -121,7 +122,6 @@ function copySheetToModule_(sourceSs, targetSs, sheetName, targetName) {
 function copyCertificateSheetIfPopulated_(sourceSs, targetSs, sheetName) {
   const source = sourceSs.getSheetByName(sheetName);
   if (!source) return { sheet: sheetName, status: "not-used-in-source" };
-  // Do not replace the richer new certificate schema with an old header-only sheet.
   if (source.getLastRow() <= 1) return { sheet: sheetName, status: "header-only-source-skipped" };
   return copySheetToModule_(sourceSs, targetSs, sheetName, sheetName);
 }
@@ -143,7 +143,6 @@ function migrateModularDatabasesCore_(activateWhenSuccessful) {
     failures.push(label + ":" + (error && error.message ? error.message : String(error)));
   };
 
-  // 1) Legacy main management spreadsheet -> Core / Finance / Operations / Documents.
   const master = getSpreadsheet();
   ["Users", "Projects", "Employees", "Clients", "Permissions", "Audit Log", "Login Sessions", "Lookup Lists", "Database Map"].forEach(function(name) {
     try { results.core.push(copySheetToModule_(master, getCoreDatabase_(), name)); } catch (e) { fail("master:core:" + name, e); }
@@ -158,7 +157,6 @@ function migrateModularDatabasesCore_(activateWhenSuccessful) {
     try { results.documents.push(copySheetToModule_(master, getDocumentsDatabase_(), name)); } catch (e) { fail("master:documents:" + name, e); }
   });
 
-  // 2) Old Auto Invoice Source -> new Finance + Certificates.
   try {
     const autoInvoice = SpreadsheetApp.openById(LAND_VIEW_LEGACY_DATABASES_.autoInvoice);
     ["Summary", "Invoice", "File List", "Design Bill", "Design Deposit", "Supervision Bill", "S Deposit", "Others Bill", "Others Bill Deposit", "Workflow"].forEach(function(name) {
@@ -169,7 +167,6 @@ function migrateModularDatabasesCore_(activateWhenSuccessful) {
     });
   } catch (e) { fail("auto-invoice-workbook", e); }
 
-  // 3) Old Income & Expense DB -> new Finance DB.
   try {
     const accounting = SpreadsheetApp.openById(LAND_VIEW_LEGACY_DATABASES_.incomeExpense);
     const map = {
@@ -189,8 +186,6 @@ function migrateModularDatabasesCore_(activateWhenSuccessful) {
     });
   } catch (e) { fail("income-expense-workbook", e); }
 
-  // 4) Preserve every tab from remaining legacy databases. Prefixing avoids
-  // collisions while retaining all historical data in the new modular system.
   try {
     copyAllLegacySheets_(SpreadsheetApp.openById(LAND_VIEW_LEGACY_DATABASES_.proposals), getDocumentsDatabase_(), "Legacy Proposal - ", results.documents);
   } catch (e) { fail("proposal-database", e); }
@@ -217,8 +212,6 @@ function migrateModularDatabases(params) {
   return migrateModularDatabasesCore_(true);
 }
 
-// Run this directly once from the Apps Script editor after you paste the updated files.
-// It is intended for the script owner and does not require a web-app session token.
 function migrateModularDatabasesFromEditor() {
   return migrateModularDatabasesCore_(true);
 }
