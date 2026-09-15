@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 const COOKIE_NAME = "landview_session";
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
+const BACKEND_TIMEOUT_MS = 10_000;
 const INVOICE_TABS = [
   "Summary",
   "File List",
@@ -46,13 +47,16 @@ async function callBackend(payload: Record<string, unknown>) {
         body: JSON.stringify(payload),
         cache: "no-store",
         redirect: "follow",
+        signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
       });
       const text = await response.text();
       let json: any;
       try {
         json = JSON.parse(text);
       } catch {
-        throw new Error(/^\s*</.test(text) ? "Apps Script returned HTML instead of JSON." : "Apps Script returned invalid JSON.");
+        lastError = new Error(/^\s*</.test(text) ? "Apps Script returned HTML instead of JSON." : "Apps Script returned invalid JSON.");
+        if (attempt < delays.length - 1) continue;
+        throw lastError;
       }
       if (response.status >= 500 && attempt < delays.length - 1) {
         lastError = new Error(`Apps Script returned HTTP ${response.status}.`);
@@ -76,9 +80,26 @@ function commonPayload(request: NextRequest, token: string) {
   };
 }
 
-function authStatus(json: any) {
-  const message = String(json?.error || json?.message || "");
-  return /unauthorized|session expired|invalid session|authentication required/i.test(message) ? 401 : 502;
+function isExplicitSessionFailure(json: any) {
+  if (json?.data?.authenticated === false) return true;
+  if (json?.success !== false) return false;
+  const message = String(json?.error || json?.message || "").trim().toLowerCase();
+  return [
+    "unauthorized",
+    "session expired",
+    "session expired.",
+    "invalid session",
+    "invalid session.",
+    "authentication required",
+    "authentication required.",
+  ].includes(message);
+}
+
+function statusForError(message: string) {
+  const normalized = String(message || "").trim().toLowerCase();
+  if (["unauthorized", "session expired", "session expired.", "invalid session", "invalid session.", "authentication required", "authentication required."].includes(normalized)) return 401;
+  if (/^access denied\b|permission required|access is required/.test(normalized)) return 403;
+  return 502;
 }
 
 export async function GET(request: NextRequest) {
@@ -110,16 +131,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!bundled.json?.success) {
-      const status = authStatus(bundled.json);
-      if (status === 401) {
-        return NextResponse.json({ success: false, error: String(bundled.json?.error || "Session expired.") }, { status });
-      }
+    if (!bundled.json?.success && isExplicitSessionFailure(bundled.json)) {
+      return NextResponse.json(
+        { success: false, error: String(bundled.json?.error || bundled.json?.message || "Session expired.") },
+        { status: 401 },
+      );
     }
 
     const sheetRequests = INVOICE_TABS.map(async (tab) => {
       const { json } = await callBackend({ ...common, action: "getFinanceSheet", tab });
-      if (!json?.success || !json?.data) throw new Error(String(json?.error || `Could not load ${tab}.`));
+      if (!json?.success || !json?.data) throw new Error(String(json?.error || json?.message || `Could not load ${tab}.`));
       return json.data;
     });
     const paymentsRequest = callBackend({ ...common, action: "getPayments", projectId })
@@ -146,6 +167,6 @@ export async function GET(request: NextRequest) {
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load project billing.";
-    return NextResponse.json({ success: false, error: message }, { status: /session expired|unauthorized/i.test(message) ? 401 : 502 });
+    return NextResponse.json({ success: false, error: message }, { status: statusForError(message) });
   }
 }
