@@ -1,0 +1,36 @@
+name: Apply certificate employee identity layout
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/apply_certificate_employee_identity_layout.py
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply certificate identity and layout changes
+        run: python3 scripts/apply_certificate_employee_identity_layout.py
+
+      - name: Commit certificate website changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/certificates/page.tsx app/api/certificates/route.ts app/certificate/verify/[token]/page.tsx components/certificate-document.tsx lib/certificate-verification.ts
+          if git diff --cached --quiet; then
+            echo "Certificate identity layout already applied."
+            exit 0
+          fi
+          git commit -m "Apply professional employee certificate layout"
+          git push
