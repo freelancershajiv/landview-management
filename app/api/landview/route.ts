@@ -8,13 +8,14 @@ const COOKIE_NAME = "landview_session";
 const QUICK_USER_COOKIE = "landview_quick_user";
 const QUICK_LOCK_COOKIE = "landview_quick_locked";
 const TRUSTED_DEVICE_COOKIE = "landview_trusted_device";
-const COOKIE_MAX_AGE_SECONDS = 12 * 60 * 60;
+const COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;
 const QUICK_META_MAX_AGE_SECONDS = 3650 * 24 * 60 * 60;
 const TRUSTED_DEVICE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
 const QUICK_PIN_PREFIX = "QPIN_V1";
 
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
+const BACKEND_ATTEMPT_TIMEOUT_MS = 12_000;
 
 const GET_ACTIONS = new Set([
   "getFinanceSheet",
@@ -145,6 +146,7 @@ async function callBackend(payload: Record<string, unknown>) {
         body: JSON.stringify(payload),
         cache: "no-store",
         redirect: "follow",
+        signal: AbortSignal.timeout(BACKEND_ATTEMPT_TIMEOUT_MS),
       });
       const text = await response.text();
       let json: any;
@@ -188,6 +190,34 @@ function backendResponse(status: number, json: any) {
     status,
     headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" },
   });
+}
+
+function backendMessage(json: any) {
+  return String(json?.error || json?.message || "").trim();
+}
+
+function explicitSessionFailure(json: any) {
+  if (json?.data?.authenticated === false) return true;
+  if (json?.success !== false) return false;
+  const message = backendMessage(json).toLowerCase();
+  return [
+    "unauthorized",
+    "session expired.",
+    "session expired",
+    "invalid session.",
+    "invalid session",
+    "authentication required.",
+    "authentication required",
+  ].includes(message);
+}
+
+function responseStatus(backend: Response, json: any) {
+  if (!backend.ok) return backend.status;
+  if (json?.success) return 200;
+  if (explicitSessionFailure(json)) return 401;
+  const message = backendMessage(json);
+  if (/^access denied\b|permission required/i.test(message)) return 403;
+  return 502;
 }
 
 function cookieOptions(maxAge: number) {
@@ -326,6 +356,23 @@ async function backendForSession(request: NextRequest, action: string, extra: Re
     _clientKey: clientKey(request),
   });
   return json;
+}
+
+async function confirmBackendSession(request: NextRequest, token: string) {
+  if (!token) return "expired" as const;
+  try {
+    const { json } = await callBackend({
+      action: "getSession",
+      token,
+      proxySecret: PROXY_SECRET,
+      _clientKey: clientKey(request),
+    });
+    if (json?.success && json?.data?.authenticated) return "valid" as const;
+    if (explicitSessionFailure(json)) return "expired" as const;
+    return "transient" as const;
+  } catch {
+    return "transient" as const;
+  }
 }
 
 async function currentAdminUser(request: NextRequest) {
@@ -554,19 +601,61 @@ async function handle(request: NextRequest, method: "GET" | "POST") {
     if (token && action !== "login") payload.token = token;
 
     const { response: backend, json } = await callBackend(payload);
-    const out = backendResponse(backend.ok ? 200 : backend.status, json);
     const returnedToken = String(json?.data?.token || "");
+    const returnedUser = json?.data?.user as Record<string, unknown> | undefined;
+    const authFailure = explicitSessionFailure(json);
+    let status = responseStatus(backend, json);
+    let confirmedExpired = false;
+
+    if (authFailure && action !== "login" && action !== "logout") {
+      const confirmation = await confirmBackendSession(request, token);
+      if (confirmation === "expired") {
+        confirmedExpired = true;
+        status = 401;
+      } else {
+        // A valid or temporarily unverifiable session must never be destroyed by
+        // an unrelated action response. Report the operation failure and keep
+        // the browser token intact so the user can retry without signing in.
+        status = confirmation === "valid" ? 502 : 503;
+        console.warn("LAND VIEW preserved session after backend auth-like failure", {
+          action,
+          confirmation,
+          message: backendMessage(json).slice(0, 180),
+        });
+      }
+    }
+
+    const out = backendResponse(status, json);
 
     if (json?.success && returnedToken && (action === "login" || action === "changeOwnPassword")) {
       setSessionCookie(out, returnedToken);
+      if (returnedUser) response.cookies?.set;
+      if (returnedUser) out.cookies.set(QUICK_USER_COOKIE, signQuickUser(returnedUser), cookieOptions(COOKIE_MAX_AGE_SECONDS));
       clearLockCookie(out);
     }
-    if (action === "logout" || (!json?.success && /unauthorized|session expired/i.test(String(json?.error || json?.message || "")))) {
+
+    if (action === "logout") {
       clearSessionCookie(out);
-      if (action === "logout") clearQuickMetaCookies(out);
+      clearQuickMetaCookies(out);
+    } else if (confirmedExpired) {
+      clearSessionCookie(out);
+      clearQuickMetaCookies(out);
     }
+
+    if (!json?.success && !authFailure) {
+      console.warn("LAND VIEW backend action failed without ending session", {
+        action,
+        status,
+        message: backendMessage(json).slice(0, 180),
+      });
+    }
+
     return out;
   } catch (error: any) {
+    console.warn("LAND VIEW API request failed; preserving browser session", {
+      name: String(error?.name || "Error"),
+      message: String(error?.message || "Unable to reach LAND VIEW backend.").slice(0, 180),
+    });
     return NextResponse.json({ success: false, error: error?.message || "Unable to reach LAND VIEW backend." }, { status: 502 });
   }
 }
