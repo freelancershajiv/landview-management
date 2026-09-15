@@ -86,12 +86,62 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
 
 export type SheetInvoices = ReturnType<typeof buildSheetInvoices>;
 
-function paymentRecordValue(record: Record<string, unknown>, keys: string[]) {
+type InvoiceCategoryName = "Engineering" | "Supervision" | "Others";
+
+function recordValue(record: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
     const value = record[key];
     if (value !== undefined && value !== null && String(value).trim() !== "") return value;
   }
   return "";
+}
+
+function categoryFromWorkspaceValue(value: unknown): InvoiceCategoryName | "" {
+  const text = String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  if (text === "engineering bill" || text === "engineering") return "Engineering";
+  if (text === "supervision bill" || text === "supervision") return "Supervision";
+  if (text === "other services bill" || text === "others bill" || text === "other services" || text === "others") return "Others";
+  return "";
+}
+
+function recalculateBilling(billing: SheetInvoices) {
+  for (const category of billing.invoices) {
+    category.gross = category.items.reduce((sum, item) => sum + item.amount, 0);
+    category.paid = category.payments.reduce((sum, payment) => sum + payment.amount, 0);
+    category.due = category.gross - category.discount - category.paid;
+  }
+  billing.totals.gross = billing.invoices.reduce((sum, category) => sum + category.gross, 0);
+  billing.totals.discount = billing.invoices.reduce((sum, category) => sum + category.discount, 0);
+  billing.totals.paid = billing.invoices.reduce((sum, category) => sum + category.paid, 0);
+  billing.totals.due = billing.invoices.reduce((sum, category) => sum + category.due, 0);
+  return billing;
+}
+
+export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills: Record<string, unknown>[]) {
+  for (const record of databaseBills || []) {
+    const status = String(recordValue(record, ["Status", "Bill_Status", "Bill Status"])).trim().toLowerCase();
+    if (["cancelled", "canceled", "void", "voided", "rejected"].includes(status)) continue;
+
+    const description = String(recordValue(record, ["Description", "Service", "Particulars"])).trim();
+    const prefix = description.match(/^\[(Engineering Bill|Supervision Bill|Other Services Bill)\]\s*/i);
+    const notes = String(recordValue(record, ["Notes", "Created_Via", "Created Via"]));
+    const explicitCategory = recordValue(record, ["Billing_Category", "Billing Category", "Category"]);
+    const workspaceEntry = Boolean(prefix) || /billing workspace/i.test(notes) || /billing workspace/i.test(String(recordValue(record, ["Created_Via", "Created Via"])));
+    if (!workspaceEntry) continue;
+
+    const categoryName = categoryFromWorkspaceValue(explicitCategory || prefix?.[1] || "");
+    const category = billing.invoices.find((item) => item.name === categoryName);
+    const billAmount = Number(String(recordValue(record, ["Amount", "Bill_Amount", "Bill Amount"]) || 0).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
+    if (!category || !Number.isFinite(billAmount) || billAmount <= 0) continue;
+
+    category.items.push({
+      service: description.replace(/^\[(Engineering Bill|Supervision Bill|Other Services Bill)\]\s*/i, "").trim() || "Service",
+      price: "",
+      quantity: "",
+      amount: billAmount,
+    });
+  }
+  return recalculateBilling(billing);
 }
 
 function verificationDateKey(value: unknown) {
@@ -110,33 +160,31 @@ function verificationDateKey(value: unknown) {
 
   const parsed = new Date(text);
   if (!Number.isFinite(parsed.getTime())) return text.toLowerCase();
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(parsed);
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(parsed);
   const part = (type: string) => parts.find((item) => item.type === type)?.value || "";
   return `${part("year")}-${part("month")}-${part("day")}`;
 }
 
 function verificationAmount(value: unknown) {
-  try {
-    return sheetAmount(String(value ?? ""));
-  } catch {
-    return Number.NaN;
-  }
+  try { return sheetAmount(String(value ?? "")); }
+  catch { return Number.NaN; }
 }
 
-export function verifySheetInvoicesWithPayments(
-  billing: SheetInvoices,
-  databasePayments: Record<string, unknown>[],
-) {
+function workspacePaymentIsEffective(record: Record<string, unknown>) {
+  const status = String(recordValue(record, ["Approval_Status", "Approval Status", "Status"])).trim().toLowerCase().replace(/[_-]+/g, " ");
+  if (!status) return true;
+  return ["approved", "received", "paid", "verified", "complete", "completed", "full paid", "fully paid"].includes(status);
+}
+
+export function verifySheetInvoicesWithPayments(billing: SheetInvoices, databasePayments: Record<string, unknown>[]) {
   const candidates = databasePayments.map((record, index) => ({
     index,
-    date: verificationDateKey(paymentRecordValue(record, ["Payment_Date", "Payment Date", "Date"])),
-    amount: verificationAmount(paymentRecordValue(record, ["Amount", "Payment_Amount", "Payment Amount"])),
-    id: String(paymentRecordValue(record, ["Payment_ID", "Payment ID", "PaymentId", "Income_ID", "Income ID"])).trim(),
+    record,
+    date: verificationDateKey(recordValue(record, ["Payment_Date", "Payment Date", "Date"])),
+    rawDate: String(recordValue(record, ["Payment_Date", "Payment Date", "Date"])).trim(),
+    amount: verificationAmount(recordValue(record, ["Amount", "Payment_Amount", "Payment Amount"])),
+    id: String(recordValue(record, ["Payment_ID", "Payment ID", "PaymentId", "Income_ID", "Income ID"])).trim(),
+    category: categoryFromWorkspaceValue(recordValue(record, ["Payment_For", "Payment For", "Income_Category", "Income Category", "Category"])),
   }));
   const used = new Set<number>();
 
@@ -146,14 +194,7 @@ export function verifySheetInvoicesWithPayments(
       const date = verificationDateKey(payment.date);
       if (!date || !Number.isFinite(payment.amount)) continue;
 
-      const matches = candidates.filter((candidate) =>
-        !used.has(candidate.index) &&
-        !!candidate.id &&
-        candidate.date === date &&
-        Number.isFinite(candidate.amount) &&
-        Math.abs(candidate.amount - payment.amount) < 0.01
-      );
-
+      const matches = candidates.filter((candidate) => !used.has(candidate.index) && !!candidate.id && candidate.date === date && Number.isFinite(candidate.amount) && Math.abs(candidate.amount - payment.amount) < 0.01);
       if (matches.length === 1) {
         const match = matches[0];
         used.add(match.index);
@@ -163,5 +204,22 @@ export function verifySheetInvoicesWithPayments(
     }
   }
 
-  return billing;
+  for (const candidate of candidates) {
+    if (used.has(candidate.index) || !candidate.id || !candidate.category || !Number.isFinite(candidate.amount) || candidate.amount <= 0) continue;
+    if (!workspacePaymentIsEffective(candidate.record)) continue;
+    const category = billing.invoices.find((item) => item.name === candidate.category);
+    if (!category) continue;
+    const method = String(recordValue(candidate.record, ["Payment_Method", "Payment Method", "Method"])).trim();
+    const reference = String(recordValue(candidate.record, ["Reference_No", "Reference No", "Reference"])).trim();
+    category.payments.push({
+      date: candidate.rawDate || candidate.date,
+      details: [method, reference].filter(Boolean).join(" · ") || "Client Payment",
+      amount: candidate.amount,
+      verification: "Verified",
+      incomeId: candidate.id,
+    });
+    used.add(candidate.index);
+  }
+
+  return recalculateBilling(billing);
 }
