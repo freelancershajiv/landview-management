@@ -296,6 +296,12 @@ function handleAction(
     case "getPublicProjects":
       return getPublicProjects(params);
 
+    case "trackVisitorEvent":
+      return trackVisitorEvent(params);
+
+    case "getVisitorAnalytics":
+      return getVisitorAnalytics(params);
+
     case "getEmployees":
       return getEmployees(params);
 
@@ -498,7 +504,8 @@ function authorizeActionRequest(action, params) {
   "login",
   "getPublicTeam",
   "getPublicProjects",
-  "getPublicBillingVerification"
+  "getPublicBillingVerification",
+  "trackVisitorEvent"
 ];
   if (publicActions.includes(action)) return null;
 
