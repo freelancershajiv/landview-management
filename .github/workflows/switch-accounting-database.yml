@@ -32,6 +32,7 @@ jobs:
           repo = os.environ["GITHUB_REPOSITORY"]
           token = os.environ["GITHUB_TOKEN"]
           allowed = {
+              "FinanceSheet.gs",
               "FinanceLedger.gs",
               "ZZ_AccountingFinance.gs",
               "app/admin/accounts/page.tsx",
@@ -39,8 +40,8 @@ jobs:
           changed = set(subprocess.check_output(["git", "diff", "--name-only"], text=True).splitlines())
           files = sorted(changed & allowed)
           if not files:
-              print("Accounting references already point to the clean database")
-              raise SystemExit(0)
+            print("Accounting references already point to the clean database")
+            raise SystemExit(0)
 
           headers = {
               "Authorization": f"Bearer {token}",
