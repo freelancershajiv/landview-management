@@ -1,0 +1,38 @@
+name: Install LAND VIEW visitor analytics routing
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/patch_visitor_analytics_router.py
+      - VisitorAnalytics.gs
+      - .github/workflows/install-visitor-analytics.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch Apps Script router
+        run: python3 scripts/patch_visitor_analytics_router.py
+
+      - name: Commit router changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add Code.gs
+          if git diff --cached --quiet; then
+            echo "Visitor analytics routing already installed."
+            exit 0
+          fi
+          git commit -m "Install visitor analytics Apps Script routing"
+          git push
