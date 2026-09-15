@@ -613,9 +613,6 @@ async function handle(request: NextRequest, method: "GET" | "POST") {
         confirmedExpired = true;
         status = 401;
       } else {
-        // A valid or temporarily unverifiable session must never be destroyed by
-        // an unrelated action response. Report the operation failure and keep
-        // the browser token intact so the user can retry without signing in.
         status = confirmation === "valid" ? 502 : 503;
         console.warn("LAND VIEW preserved session after backend auth-like failure", {
           action,
@@ -629,7 +626,6 @@ async function handle(request: NextRequest, method: "GET" | "POST") {
 
     if (json?.success && returnedToken && (action === "login" || action === "changeOwnPassword")) {
       setSessionCookie(out, returnedToken);
-      if (returnedUser) response.cookies?.set;
       if (returnedUser) out.cookies.set(QUICK_USER_COOKIE, signQuickUser(returnedUser), cookieOptions(COOKIE_MAX_AGE_SECONDS));
       clearLockCookie(out);
     }
