@@ -1,0 +1,23 @@
+name: Improve certificate print
+on:
+  push:
+    paths:
+      - '.certificate-print-improve-trigger'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply print improvements
+        run: python scripts/improve_certificate_print_qr.py
+      - name: Commit changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/certificate-document.tsx app/api/certificates/route.ts app/certificate/verify/'[token]'/page.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Improve certificate print QR and footer legibility"
+          git push
