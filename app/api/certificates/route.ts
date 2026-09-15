@@ -29,7 +29,14 @@ async function gatewayRequest(request:NextRequest,flags:Record<string,unknown>,p
 function registryRequest(request:NextRequest,payload:Record<string,unknown>){return gatewayRequest(request,{_certificateRegistry:"1"},payload);}
 function portalRequest(request:NextRequest,payload:Record<string,unknown>){return gatewayRequest(request,{_certificatePortal:"1"},payload);}
 
-function certificateUrls(request:NextRequest,token:string,certificateId=""){if(!token)return{verificationUrl:"",qrUrl:""};const origin=`${request.nextUrl.protocol}//${request.nextUrl.host}`;const verificationUrl=`${origin}/certificate/verify/${encodeURIComponent(token)}`;const qrUrl=`${origin}/api/billing-verification/qr?data=${encodeURIComponent(verificationUrl)}`;return{verificationUrl,qrUrl};}
+function certificateUrls(request:NextRequest,token:string,certificateId=""){
+  if(!token)return{verificationUrl:"",qrUrl:""};
+  const origin=`${request.nextUrl.protocol}//${request.nextUrl.host}`;
+  const verificationKey=certificateId||token;
+  const verificationUrl=`${origin}/certificate/verify/${encodeURIComponent(verificationKey)}`;
+  const qrUrl=`${origin}/api/billing-verification/qr?data=${encodeURIComponent(verificationUrl)}`;
+  return{verificationUrl,qrUrl};
+}
 function validateType(value:unknown){const type=clean(value,20).toLowerCase() as CertificateType;if(!["project","employee","building"].includes(type))throw new Error("Invalid certificate type.");return type;}
 
 export async function GET(request:NextRequest){try{if(!request.cookies.get(SESSION_COOKIE)?.value)return NextResponse.json({success:false,error:"Unauthorized."},{status:401});const data=await registryRequest(request,{registryOp:"list"});const certificates=(Array.isArray(data?.certificates)?data.certificates:[]).map((item:any)=>{const signed=clean(item?.token,5000);const verified=signed?verifyCertificate(signed):null;return{...item,fatherName:clean(item?.fatherName||item?.Father_Name||verified?.f,120),motherName:clean(item?.motherName||item?.Mother_Name||verified?.m,120),nidNo:clean(item?.nidNo||item?.NID_No||item?.NID||verified?.nid,40),...certificateUrls(request,signed,clean(item?.certificateId||item?.Certificate_ID,60)),token:undefined};});return NextResponse.json({success:true,data:{...data,certificates}},{headers:{"Cache-Control":"no-store, max-age=0"}});}catch(error:any){return NextResponse.json({success:false,error:error?.message||"Could not load certificate registry."},{status:502});}}
