@@ -47,8 +47,12 @@ function canonicalWorkflowService_(value, category) {
   return "";
 }
 
-function getFinanceWorkbook_() {
+function getLegacyFinanceWorkbook_() {
   return SpreadsheetApp.openById(FINANCE_WORKBOOK_ID_);
+}
+
+function getFinanceWorkbook_() {
+  return getFinanceDatabase_();
 }
 
 function financeDepositVerificationSource_(tab) {
