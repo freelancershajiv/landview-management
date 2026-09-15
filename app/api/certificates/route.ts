@@ -5,10 +5,13 @@ import { CertificateType, signCertificate } from "@/lib/certificate-verification
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 const SESSION_COOKIE = "landview_session";
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
+const GATEWAY_TIMEOUT_MS = 50_000;
+const REDIRECT_RETRY_DELAYS_MS = [0, 250, 700];
 
 function clean(value: unknown, max = 240) { return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, max); }
 function sameOrigin(request: NextRequest) {
@@ -30,18 +33,117 @@ function inferCategory(type: CertificateType, subject: string, explicit: unknown
   return "project";
 }
 
+function safeUpstreamUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return `${url.hostname}${url.pathname}`;
+  } catch {
+    return "invalid-upstream-url";
+  }
+}
+
+function safeBodyPreview(text: string) {
+  return text.replace(/\s+/g, " ").slice(0, 180);
+}
+
+type ParsedGatewayResponse = {
+  response: Response;
+  raw: string;
+  json: any | null;
+};
+
+async function parseGatewayResponse(response: Response, phase: string): Promise<ParsedGatewayResponse> {
+  const raw = await response.text();
+  let json: any | null = null;
+  try {
+    json = JSON.parse(raw);
+  } catch {
+    console.error("certificate gateway returned non-JSON", {
+      phase,
+      status: response.status,
+      contentType: response.headers.get("content-type") || "",
+      upstream: safeUpstreamUrl(response.url || APPS_SCRIPT_URL),
+      bodyPreview: safeBodyPreview(raw),
+    });
+  }
+  return { response, raw, json };
+}
+
+async function followContentServiceRedirect(location: string, signal: AbortSignal): Promise<ParsedGatewayResponse> {
+  let last: ParsedGatewayResponse | null = null;
+
+  for (let index = 0; index < REDIRECT_RETRY_DELAYS_MS.length; index += 1) {
+    const delay = REDIRECT_RETRY_DELAYS_MS[index];
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+
+    const response = await fetch(location, {
+      method: "GET",
+      cache: "no-store",
+      redirect: "follow",
+      signal,
+    });
+    const parsed = await parseGatewayResponse(response, `redirect-${index + 1}`);
+    last = parsed;
+    if (parsed.json !== null) return parsed;
+
+    const retryable = response.status === 404 || response.status === 429 || response.status >= 500;
+    if (!retryable) return parsed;
+  }
+
+  return last!;
+}
+
+async function postGateway(payload: Record<string, unknown>): Promise<ParsedGatewayResponse> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GATEWAY_TIMEOUT_MS);
+
+  try {
+    // Apps Script ContentService normally responds to POST with a redirect to
+    // script.googleusercontent.com. Follow that redirect ourselves so a
+    // temporary 404/5xx can be retried without repeating the original POST.
+    // This is especially important for certificate creation because replaying
+    // the POST could create duplicate audit records.
+    const initial = await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      cache: "no-store",
+      redirect: "manual",
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+
+    if ([301, 302, 303, 307, 308].includes(initial.status)) {
+      const location = initial.headers.get("location") || "";
+      if (!location) return parseGatewayResponse(initial, "redirect-missing-location");
+      return followContentServiceRedirect(location, controller.signal);
+    }
+
+    return parseGatewayResponse(initial, "initial");
+  } catch (error: any) {
+    const timedOut = error?.name === "AbortError";
+    console.error("certificate gateway request failed", {
+      timedOut,
+      error: String(error?.message || error || "Unknown error").slice(0, 180),
+    });
+    throw new Error(timedOut ? "The certificate server is responding slowly. Please try again." : "Certificate backend is temporarily unavailable.");
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function gatewayRequest(request: NextRequest, flags: Record<string, unknown>, payload: Record<string, unknown>) {
   requireGatewayConfig();
   const token = request.cookies.get(SESSION_COOKIE)?.value || "";
   if (!token) throw new Error("Session expired.");
-  const backend = await fetch(APPS_SCRIPT_URL, {
-    method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, cache: "no-store", redirect: "follow",
-    body: JSON.stringify({ action: "getPublicProjects", token, proxySecret: PROXY_SECRET, ...flags, ...payload }),
-  });
-  const raw = await backend.text();
-  let json: any;
-  try { json = JSON.parse(raw); }
-  catch { throw new Error(/^\s*</.test(raw) ? "Apps Script returned HTML instead of JSON." : "Certificate backend returned invalid JSON."); }
+
+  const parsed = await postGateway({ action: "getPublicProjects", token, proxySecret: PROXY_SECRET, ...flags, ...payload });
+  const json = parsed.json;
+  if (json === null) {
+    throw new Error(/^\s*</.test(parsed.raw) ? "Certificate server returned a temporary HTML response. Please retry." : "Certificate backend returned invalid JSON.");
+  }
+  if (!parsed.response.ok && !json?.success) {
+    throw new Error(String(json?.error || json?.message || `Certificate backend returned HTTP ${parsed.response.status}.`));
+  }
   if (!json?.success) throw new Error(String(json?.error || json?.message || "Certificate request failed."));
   return json.data || {};
 }
@@ -119,7 +221,6 @@ export async function POST(request: NextRequest) {
 
     const signedToken = signCertificate({ id: certificateId, t: type, n: name, a: address, p: position, s: subject, r: reference, d: description, i: issuedAt, x: expiresAt || undefined });
     const urls = certificateUrls(request, signedToken);
-    // Confirm that verification is printable before creating the audit record.
     if (urls.verificationUrl.length > 4096) throw new Error("Certificate content is too long for its verification QR.");
     billingQrSvg(urls.verificationUrl);
     await registryRequest(request, {
