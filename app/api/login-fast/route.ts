@@ -12,8 +12,9 @@ const COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;
 const DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
-const LOGIN_ATTEMPT_TIMEOUT_MS = 25_000;
+const LOGIN_ATTEMPT_TIMEOUT_MS = 50_000;
 const LOGIN_ATTEMPTS = 2;
+const REDIRECT_RETRY_DELAYS_MS = [0, 250, 700];
 
 function cookieOptions(maxAge: number) {
   return {
@@ -103,35 +104,73 @@ type UpstreamResult = {
   json: any | null;
 };
 
+async function parseUpstreamResponse(upstream: Response, attempt: number, phase: string): Promise<UpstreamResult> {
+  const text = await upstream.text();
+  let json: any | null = null;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    console.error("login-fast upstream returned non-JSON", {
+      attempt,
+      phase,
+      status: upstream.status,
+      contentType: upstream.headers.get("content-type") || "",
+      upstream: safeUpstreamUrl(upstream.url || APPS_SCRIPT_URL),
+      bodyPreview: safeBodyPreview(text),
+    });
+  }
+  return { upstream, text, json };
+}
+
+async function followAppsScriptRedirect(location: string, attempt: number, signal: AbortSignal): Promise<UpstreamResult> {
+  let lastResult: UpstreamResult | null = null;
+
+  for (let index = 0; index < REDIRECT_RETRY_DELAYS_MS.length; index += 1) {
+    const delay = REDIRECT_RETRY_DELAYS_MS[index];
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+
+    const response = await fetch(location, {
+      method: "GET",
+      cache: "no-store",
+      redirect: "follow",
+      signal,
+    });
+    const result = await parseUpstreamResponse(response, attempt, `redirect-${index + 1}`);
+    lastResult = result;
+
+    if (result.json !== null) return result;
+    const retryable = response.status === 404 || response.status === 429 || response.status >= 500;
+    if (!retryable) return result;
+  }
+
+  return lastResult!;
+}
+
 async function callLoginUpstream(payload: Record<string, unknown>, attempt: number): Promise<UpstreamResult> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), LOGIN_ATTEMPT_TIMEOUT_MS);
 
   try {
-    const upstream = await fetch(APPS_SCRIPT_URL, {
+    // Apps Script ContentService normally answers with a redirect to
+    // script.googleusercontent.com/macros/echo. Following it ourselves lets us
+    // retry a transient 404 from that response endpoint without re-running the
+    // expensive password verification and creating duplicate login sessions.
+    const initial = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
       body: JSON.stringify(payload),
       cache: "no-store",
-      redirect: "follow",
+      redirect: "manual",
       signal: controller.signal,
     });
 
-    const text = await upstream.text();
-    let json: any | null = null;
-    try {
-      json = JSON.parse(text);
-    } catch {
-      console.error("login-fast upstream returned non-JSON", {
-        attempt,
-        status: upstream.status,
-        contentType: upstream.headers.get("content-type") || "",
-        upstream: safeUpstreamUrl(upstream.url || APPS_SCRIPT_URL),
-        bodyPreview: safeBodyPreview(text),
-      });
+    if ([301, 302, 303].includes(initial.status)) {
+      const location = initial.headers.get("location") || "";
+      if (!location) return parseUpstreamResponse(initial, attempt, "redirect-missing-location");
+      return followAppsScriptRedirect(location, attempt, controller.signal);
     }
 
-    return { upstream, text, json };
+    return parseUpstreamResponse(initial, attempt, "initial");
   } finally {
     clearTimeout(timer);
   }
@@ -193,7 +232,7 @@ export async function POST(request: NextRequest) {
       if (result.json !== null) break;
 
       if (attempt < LOGIN_ATTEMPTS) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
     } catch (error: any) {
       lastFailureWasTimeout = error?.name === "AbortError";
@@ -203,8 +242,13 @@ export async function POST(request: NextRequest) {
         error: String(error?.message || error || "Unknown error").slice(0, 180),
       });
 
+      // A timeout likely means Apps Script is still doing the expensive password
+      // verification. Starting the same login again immediately only doubles the
+      // load, so preserve the full 50-second window and fail cleanly instead.
+      if (lastFailureWasTimeout) break;
+
       if (attempt < LOGIN_ATTEMPTS) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) => setTimeout(resolve, 300));
         continue;
       }
     }
@@ -215,7 +259,7 @@ export async function POST(request: NextRequest) {
       {
         success: false,
         error: lastFailureWasTimeout
-          ? "The authentication server is responding slowly. Please try again in a moment."
+          ? "The authentication server is still processing the sign-in request. Please try once more."
           : "The login service returned an invalid response.",
       },
       { status: lastFailureWasTimeout ? 504 : 502 },
