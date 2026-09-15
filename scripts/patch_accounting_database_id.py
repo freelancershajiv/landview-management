@@ -90,3 +90,4 @@ if p.exists():
         changed.append(str(p))
 
 print("Modular finance cutover prepared in:", ", ".join(changed) if changed else "no files")
+# Trigger: modular cutover workflow v2
