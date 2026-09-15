@@ -7,6 +7,7 @@ const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 const SESSION_COOKIE = "landview_session";
 const RETRY_DELAYS = [0, 250, 700];
+const BACKEND_TIMEOUT_MS = 10_000;
 
 type BackendJson = {
   success?: boolean;
@@ -14,6 +15,21 @@ type BackendJson = {
   error?: string;
   message?: string;
 };
+
+function explicitSessionFailure(json: BackendJson) {
+  if (json?.data?.authenticated === false) return true;
+  if (json?.success !== false) return false;
+  const message = String(json?.message || json?.error || "").trim().toLowerCase();
+  return [
+    "unauthorized",
+    "session expired.",
+    "session expired",
+    "invalid session.",
+    "invalid session",
+    "authentication required.",
+    "authentication required",
+  ].includes(message);
+}
 
 async function callBackend(payload: Record<string, unknown>): Promise<BackendJson> {
   let lastError: Error | null = null;
@@ -30,6 +46,7 @@ async function callBackend(payload: Record<string, unknown>): Promise<BackendJso
         body: JSON.stringify(payload),
         cache: "no-store",
         redirect: "follow",
+        signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
       });
 
       const text = await backend.text();
@@ -83,7 +100,7 @@ function ok(data: any) {
 export async function GET(request: NextRequest) {
   try {
     if (!APPS_SCRIPT_URL || !PROXY_SECRET) {
-      return NextResponse.json({ success: false, error: "LAND VIEW backend is not configured." }, { status: 500 });
+      return NextResponse.json({ success: false, error: "LAND VIEW backend is not configured." }, { status: 503 });
     }
 
     const token = request.cookies.get(SESSION_COOKIE)?.value || "";
@@ -94,13 +111,21 @@ export async function GET(request: NextRequest) {
     const base = { token, proxySecret: PROXY_SECRET };
 
     // Validate the same session used by the rest of the portal before loading
-    // the specialized employee workbook bridge.
+    // the specialized employee workbook bridge. This route never deletes the
+    // browser cookie; /api/session-fast is the sole authority for that decision.
     const sessionJson = await callBackend({ ...base, action: "getSession" });
     const sessionUser = sessionJson?.data?.user;
-    if (!sessionJson?.success || !sessionJson?.data?.authenticated || roleOf(sessionUser) !== "employee") {
-      const response = NextResponse.json({ success: false, error: "Employee session expired." }, { status: 401 });
-      response.cookies.set(SESSION_COOKIE, "", { path: "/", maxAge: 0 });
-      return response;
+    if (!sessionJson?.success || !sessionJson?.data?.authenticated) {
+      if (explicitSessionFailure(sessionJson)) {
+        return NextResponse.json({ success: false, error: "Employee session expired." }, { status: 401 });
+      }
+      return NextResponse.json(
+        { success: false, error: String(sessionJson?.error || sessionJson?.message || "Could not validate employee session.") },
+        { status: 503 }
+      );
+    }
+    if (roleOf(sessionUser) !== "employee") {
+      return NextResponse.json({ success: false, error: "Employee access is required." }, { status: 403 });
     }
 
     const employeeId = employeeIdOf(sessionUser);
