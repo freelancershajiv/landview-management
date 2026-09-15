@@ -1,0 +1,92 @@
+name: Add structured project certificate details
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/add-project-certificate-details.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch project certificate form and document title
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('app/admin/certificates/page.tsx')
+          text = page.read_text()
+
+          text = text.replace(
+          '''    label: "Load Bearing Certificate",
+              subject: "Load Bearing Certificate",
+              position: "Owner / Client",
+              statement: "This is to certify that the building / project described above has been reviewed by LAND VIEW — Engineering & Architectural Consultancy for the load-bearing scope stated in this certificate."''',
+          '''    label: "Load Bearing Certificate",
+              subject: "Load Bearing & Construction Works Certificate",
+              position: "Owner / Client",
+              statement: "The structural design and construction works described in this certificate have been reviewed for the stated project scope."''')
+
+          marker = '''function kindFromSubject(subject: string, type: CertificateType): CertificateKind { const s = (subject || "").toLowerCase(); if (s.includes("load bearing")) return "load_bearing"; if (s.includes("construction supervision")) return "construction_supervision"; if (s.includes("construction completion")) return "construction_completion"; if (s.includes("salary")) return "salary"; return type === "employee" ? "experience" : "load_bearing"; }\n'''
+          helper = marker + '''\nfunction projectCertificateStatement(kind: CertificateKind, values: { name: string; buildingStories: string; buildingUse: string; saDag: string; bsDag: string; jlNo: string; mouza: string; landArea: string; ps: string; district: string; structuralDesigner: string; soilTestCompany: string; soilTestDate: string; constructionProgress: string; }) {\n  const owner = values.name.trim();\n  const stories = values.buildingStories.trim();\n  const use = values.buildingUse.trim();\n  const location = `Dag No.: S.A. – ${values.saDag.trim()}, B.S. – ${values.bsDag.trim()}; J.L. No. – ${values.jlNo.trim()}, Mouza – ${values.mouza.trim()}; Area of Land – ${values.landArea.trim()} decimal; P.S. – ${values.ps.trim()}, District – ${values.district.trim()}`;\n\n  if (kind === "load_bearing") {\n    return `This is to certify that the structural design of the proposed ${stories} Storied ${use} Building of ${owner} at ${location} has been prepared by ${values.structuralDesigner.trim()}. The design of the foundation, columns, grade beams, roof beams, roof slabs, stairs and other structural members has been reviewed and checked by the undersigned and is considered adequate to bear the design loads of the proposed building, subject to construction in accordance with the approved drawings, specifications and design assumptions.\\n\\nThe foundation design has been prepared considering the soil test report provided by ${values.soilTestCompany.trim()}, dated ${values.soilTestDate.trim()}. The structural design has also been prepared considering the applicable earthquake loads and provisions of the Bangladesh National Building Code (BNBC).\\n\\nThe construction works up to ${values.constructionProgress.trim()} have been carried out under direct supervision in accordance with the approved drawings and design. Further construction works of this building shall continue under professional supervision.`;\n  }\n\n  const scope = kind === "construction_supervision"\n    ? "Construction supervision has been provided for the project in accordance with the approved drawings, structural design, applicable specifications and site records."\n    : "The construction work for the project has been completed to the extent stated in this certificate in accordance with the approved drawings, structural design, applicable specifications and available supervision records.";\n  return `This is to certify that the proposed ${stories} Storied ${use} Building of ${owner} at ${location} was structurally designed by ${values.structuralDesigner.trim()}. The foundation design considered the soil test report provided by ${values.soilTestCompany.trim()}, dated ${values.soilTestDate.trim()}, and the structural design considered the applicable earthquake provisions of the Bangladesh National Building Code (BNBC).\\n\\n${scope}\\n\\nRecorded construction stage: ${values.constructionProgress.trim()}.`;\n}\n'''
+          if marker not in text:
+              raise SystemExit('kindFromSubject marker not found')
+          text = text.replace(marker, helper, 1)
+
+          states = '''  const [serviceFrom, setServiceFrom] = useState(""); const [serviceTo, setServiceTo] = useState("");\n'''
+          new_states = states + '''  const [buildingStories, setBuildingStories] = useState("07 (Seven)"); const [buildingUse, setBuildingUse] = useState("Residential");\n  const [saDag, setSaDag] = useState(""); const [bsDag, setBsDag] = useState(""); const [jlNo, setJlNo] = useState(""); const [mouza, setMouza] = useState("");\n  const [landArea, setLandArea] = useState(""); const [ps, setPs] = useState(""); const [district, setDistrict] = useState("Feni");\n  const [structuralDesigner, setStructuralDesigner] = useState(""); const [soilTestCompany, setSoilTestCompany] = useState(""); const [soilTestDate, setSoilTestDate] = useState("");\n  const [constructionProgress, setConstructionProgress] = useState("ground floor casting including the foundation");\n'''
+          if states not in text:
+              raise SystemExit('state marker not found')
+          text = text.replace(states, new_states, 1)
+
+          old_select = '''if (clearIdentity) { setName(""); setAddress(""); setFatherName(""); setMotherName(""); setNidNo(""); setReference(""); setIssueDate(today()); setExpiryDate(""); setReissueOf(""); setIssued(null); }'''
+          new_select = '''if (clearIdentity) { setName(""); setAddress(""); setFatherName(""); setMotherName(""); setNidNo(""); setReference(""); setBuildingStories("07 (Seven)"); setBuildingUse("Residential"); setSaDag(""); setBsDag(""); setJlNo(""); setMouza(""); setLandArea(""); setPs(""); setDistrict("Feni"); setStructuralDesigner(""); setSoilTestCompany(""); setSoilTestDate(""); setConstructionProgress("ground floor casting including the foundation"); setIssueDate(today()); setExpiryDate(""); setReissueOf(""); setIssued(null); }'''
+          if old_select not in text:
+              raise SystemExit('selectKind reset marker not found')
+          text = text.replace(old_select, new_select, 1)
+
+          validation = '''    if (kind === "experience" && serviceFrom > serviceTo) { setError("Service To date cannot be earlier than Service From date."); return; }\n'''
+          new_validation = validation + '''    if (type === "project" && [buildingStories, buildingUse, saDag, bsDag, jlNo, mouza, landArea, ps, district, structuralDesigner, soilTestCompany, soilTestDate, constructionProgress].some((value) => !value.trim())) { setError("Complete all project, land, structural design, soil test and construction-stage fields before issuing a Project Certificate."); return; }\n'''
+          if validation not in text:
+              raise SystemExit('validation marker not found')
+          text = text.replace(validation, new_validation, 1)
+
+          final_line = '''      const finalDescription = kind === "experience" ? `Service Period: ${ordinalDate(serviceFrom)} to ${ordinalDate(serviceTo)}\\n\\n${cleanDescription}` : cleanDescription;'''
+          replacement_line = '''      const finalDescription = type === "project"\n        ? projectCertificateStatement(kind, { name, buildingStories, buildingUse, saDag, bsDag, jlNo, mouza, landArea, ps, district, structuralDesigner, soilTestCompany, soilTestDate, constructionProgress })\n        : kind === "experience" ? `Service Period: ${ordinalDate(serviceFrom)} to ${ordinalDate(serviceTo)}\\n\\n${cleanDescription}` : cleanDescription;'''
+          if final_line not in text:
+              raise SystemExit('finalDescription marker not found')
+          text = text.replace(final_line, replacement_line, 1)
+
+          form_marker = '''        {type === "employee" && <><label className="cert-field"><span>FATHER'S NAME</span><input value={fatherName} onChange={(e) => setFatherName(e.target.value)} /></label><label className="cert-field"><span>MOTHER'S NAME</span><input value={motherName} onChange={(e) => setMotherName(e.target.value)} /></label><label className="cert-field full"><span>NID NO.</span><input inputMode="numeric" value={nidNo} onChange={(e) => setNidNo(e.target.value)} /></label>{kind === "experience" && <><label className="cert-field"><span>SERVICE FROM</span><input type="date" value={serviceFrom} onChange={(e) => setServiceFrom(e.target.value)} required /></label><label className="cert-field"><span>SERVICE TO</span><input type="date" value={serviceTo} onChange={(e) => setServiceTo(e.target.value)} required /></label></>}</>}\n'''
+          project_fields = form_marker + '''        {type === "project" && <><label className="cert-field"><span>BUILDING STORIES</span><input value={buildingStories} onChange={(e) => setBuildingStories(e.target.value)} placeholder="07 (Seven)" /></label><label className="cert-field"><span>BUILDING USE</span><input value={buildingUse} onChange={(e) => setBuildingUse(e.target.value)} placeholder="Residential" /></label><label className="cert-field"><span>S.A. DAG NO.</span><input value={saDag} onChange={(e) => setSaDag(e.target.value)} placeholder="3887, 3888, 3889" /></label><label className="cert-field"><span>B.S. DAG NO.</span><input value={bsDag} onChange={(e) => setBsDag(e.target.value)} placeholder="10058" /></label><label className="cert-field"><span>J.L. NO.</span><input value={jlNo} onChange={(e) => setJlNo(e.target.value)} placeholder="42" /></label><label className="cert-field"><span>MOUZA</span><input value={mouza} onChange={(e) => setMouza(e.target.value)} placeholder="Rampur" /></label><label className="cert-field"><span>LAND AREA (DECIMAL)</span><input value={landArea} onChange={(e) => setLandArea(e.target.value)} placeholder="4.65" /></label><label className="cert-field"><span>P.S. / UPAZILA</span><input value={ps} onChange={(e) => setPs(e.target.value)} placeholder="Feni Sadar" /></label><label className="cert-field"><span>DISTRICT</span><input value={district} onChange={(e) => setDistrict(e.target.value)} /></label><label className="cert-field"><span>STRUCTURAL DESIGNER</span><input value={structuralDesigner} onChange={(e) => setStructuralDesigner(e.target.value)} placeholder="Md. Ali Akbar Siam" /></label><label className="cert-field"><span>SOIL TEST COMPANY</span><input value={soilTestCompany} onChange={(e) => setSoilTestCompany(e.target.value)} placeholder="UNIVERSAL ENGINEERS" /></label><label className="cert-field"><span>SOIL TEST REPORT DATE</span><input value={soilTestDate} onChange={(e) => setSoilTestDate(e.target.value)} placeholder="September 2022" /></label><label className="cert-field full"><span>CONSTRUCTION STAGE / PROGRESS</span><input value={constructionProgress} onChange={(e) => setConstructionProgress(e.target.value)} placeholder="ground floor casting including the foundation" /></label></>}\n'''
+          if form_marker not in text:
+              raise SystemExit('employee form marker not found')
+          text = text.replace(form_marker, project_fields, 1)
+
+          page.write_text(text)
+
+          doc = Path('components/certificate-document.tsx')
+          d = doc.read_text()
+          d = d.replace('if (subject.includes("load bearing")) return "Load Bearing";', 'if (subject.includes("load bearing")) return "Load Bearing & Construction Works";', 1)
+          doc.write_text(d)
+          PY
+
+      - name: Commit project certificate upgrade
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/certificates/page.tsx components/certificate-document.tsx
+          if git diff --cached --quiet; then
+            echo "No project certificate changes required."
+            exit 0
+          fi
+          git commit -m "Add detailed project certificate information"
+          git push
