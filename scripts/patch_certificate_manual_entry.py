@@ -39,3 +39,4 @@ text = text.replace('<header className="cert-hero"><small>OFFICIAL DOCUMENTS</sm
 
 path.write_text(text)
 print('Patched certificate center for manual-only project and employee entry.')
+# workflow trigger
