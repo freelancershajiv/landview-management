@@ -12,7 +12,7 @@ export const certificateStyles = `
 .lv-cert-scroll{overflow-x:auto;width:100%}
 .lv-cert{box-sizing:border-box!important;position:relative;isolation:isolate;width:794px;min-height:1123px;margin:0 auto;background:#fff!important;color:#171717!important;border:3px solid #d71920;padding:186px 48px 124px;font:14px/1.5 Arial,Helvetica,"Certificate Bengali",sans-serif!important;box-shadow:0 18px 60px #0004;overflow:hidden;color-scheme:light}
 .lv-cert *{box-sizing:border-box;color:inherit!important;font-family:inherit;letter-spacing:normal;text-shadow:none!important}
-.lv-cert p{font-size:14.2px!important;line-height:1.52!important;margin:0 0 14px;text-align:left;font-weight:400}
+.lv-cert p{font-size:14.2px!important;line-height:1.55!important;margin:0 0 14px;text-align:justify;text-justify:inter-word;font-weight:400}
 .lv-cert strong{font-weight:700!important}
 .lv-cert .lv-cert-corner{position:absolute;z-index:-1;top:0;right:0;width:440px;height:217px;background:#df1920;clip-path:polygon(0 0,100% 0,100% 100%)}
 .lv-cert .lv-cert-corner:before{content:"";position:absolute;inset:0 0 8px;background:linear-gradient(125deg,#191919e6,#090909ec),repeating-linear-gradient(90deg,transparent 0 27px,#777 28px 30px),repeating-linear-gradient(0deg,#333 0 24px,#888 25px 27px);clip-path:polygon(0 0,100% 0,100% 100%)}
@@ -38,7 +38,7 @@ export const certificateStyles = `
 .lv-cert .lv-cert-body>p:last-child{margin-bottom:0}
 .lv-cert .lv-cert-duty{display:grid;grid-template-columns:14px 1fr;gap:10px;margin:0 0 5px}
 .lv-cert .lv-cert-duty:before{content:"";width:8px;height:8px;border:2px solid #df111c;border-radius:50%;margin:7px 0 0 2px}
-.lv-cert .lv-cert-duty p{margin:0}
+.lv-cert .lv-cert-duty p{margin:0;text-align:justify;text-justify:inter-word}
 .lv-cert .lv-cert-space{height:0}.lv-cert .lv-cert-duty + .lv-cert-space{height:11px}
 .lv-cert .lv-cert-identity{display:grid;grid-template-columns:1fr 1fr;border:1px solid #d6d9dc;border-radius:5px;overflow:hidden;margin:13px 0 15px;background:#fafafa}
 .lv-cert .lv-cert-identity div{display:grid;grid-template-columns:112px 1fr;gap:8px;padding:7px 10px;border-bottom:1px solid #e1e3e5;font-size:11.5px;line-height:1.25}
@@ -49,11 +49,12 @@ export const certificateStyles = `
 .lv-cert .lv-cert-verify img{display:block;width:124px;height:124px;padding:6px;background:#fff;object-fit:contain;margin:0 auto 8px;image-rendering:auto}
 .lv-cert .lv-cert-verify strong{display:block;font-size:11px;font-weight:800}.lv-cert .lv-cert-verify span{display:block;color:#555!important;line-height:1.25;margin-top:2px;font-size:9px}
 .lv-cert .lv-cert-watermark{position:absolute;z-index:-1;right:-8px;bottom:115px;width:175px;height:500px;opacity:.04;transform:skewY(-17deg);border:7px solid #111;background:repeating-linear-gradient(90deg,#111 0 2px,transparent 2px 27px),repeating-linear-gradient(0deg,#111 0 2px,transparent 2px 36px)}
-.lv-cert .lv-cert-footer{position:absolute;bottom:0;left:0;right:0;height:106px;display:grid;grid-template-columns:1fr 1.15fr 1.15fr;gap:16px;align-items:end;padding:0 38px 16px;color:#fff!important;background:linear-gradient(165deg,#c81018 0 25%,#2a2a2a 25% 41%,#101010 41%);clip-path:polygon(0 18%,43% 58%,100% 18%,100% 100%,0 100%);font-size:10.5px;font-weight:700}
+.lv-cert .lv-cert-footer{position:absolute;bottom:0;left:0;right:0;height:118px;display:grid;grid-template-columns:1fr 1.1fr 1.2fr 1.35fr;gap:16px;align-items:end;padding:0 34px 18px;color:#fff!important;background:linear-gradient(165deg,#c81018 0 25%,#2a2a2a 25% 41%,#101010 41%);clip-path:polygon(0 18%,43% 58%,100% 18%,100% 100%,0 100%);font-size:10.5px;font-weight:700}
 .lv-cert .lv-cert-footer div{min-width:0;line-height:1.28}
 .lv-cert .lv-cert-footer strong{display:block;color:#fff!important;font-size:10.5px!important;white-space:nowrap}
-.lv-cert .lv-cert-footer small{display:block;font-size:7px;line-height:1.25;letter-spacing:.35px;color:#ddd!important;margin-top:3px;font-weight:500;white-space:nowrap}
-@media print{@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important}.lv-cert-scroll{overflow:visible}.lv-cert{width:210mm!important;min-height:297mm!important;margin:0!important;box-shadow:none!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.lv-cert .lv-cert-verify img{width:32mm!important;height:32mm!important;padding:1.5mm!important}.lv-cert .lv-cert-footer{font-size:10.5px!important}.lv-cert .lv-cert-footer small{font-size:7px!important}}
+.lv-cert .lv-cert-footer small{display:block;font-size:7px;line-height:1.3;letter-spacing:.35px;color:#ddd!important;margin-top:3px;font-weight:500;white-space:nowrap}
+.lv-cert .lv-cert-footer .lv-cert-phone{line-height:1.35;white-space:normal}
+@media print{@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important}.lv-cert-scroll{overflow:visible}.lv-cert{width:210mm!important;min-height:297mm!important;margin:0!important;box-shadow:none!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.lv-cert .lv-cert-verify img{width:32mm!important;height:32mm!important;padding:1.5mm!important}.lv-cert .lv-cert-footer{font-size:10.5px!important;gap:12px!important;padding:0 30px 16px!important}.lv-cert .lv-cert-footer small{font-size:6.8px!important}}
 `;
 
 function EmphasizedText({ value, issued }: { value: string; issued: Certificate }) {
@@ -101,7 +102,7 @@ export function CertificateDocument({ issued }: { issued: Certificate }) {
     <div className="lv-cert-signatures">
       <div className="lv-cert-verify">{issued.qrUrl && <img src={issued.qrUrl} alt="Certificate verification QR"/>}<strong>Verify Certificate</strong><span>Scan to verify.</span></div>
     </div>
-    <footer className="lv-cert-footer"><div><strong>● &nbsp; Feni, Bangladesh</strong><small>LOCAL EXPERTISE · SAFER TOMORROW</small></div><div><strong>◎ &nbsp; www.landview.com.bd</strong><small>ENGINEERING &amp; ARCHITECTURAL CONSULTANCY</small></div><div><strong>✉ &nbsp; info@landview.com.bd</strong><small>DESIGN · ENGINEER · SUPERVISE</small></div></footer>
+    <footer className="lv-cert-footer"><div><strong>● &nbsp; Feni, Bangladesh</strong><small>LOCAL EXPERTISE · SAFER TOMORROW</small></div><div><strong>◎ &nbsp; www.landview.com.bd</strong><small>ENGINEERING &amp; ARCHITECTURAL CONSULTANCY</small></div><div><strong>✉ &nbsp; info@landview.com.bd</strong><small>DESIGN · ENGINEER · SUPERVISE</small></div><div className="lv-cert-phone"><strong>☎ &nbsp; +88 0140 80 80 400</strong><small>+88 01902 500 400</small></div></footer>
   </article></div>;
 }
 
