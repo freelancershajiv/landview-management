@@ -1,3 +1,4 @@
+import { deflateRawSync, inflateRawSync } from "node:zlib";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 export type CertificateType = "project" | "employee" | "building";
@@ -23,11 +24,13 @@ function secret() {
 }
 
 function encode(value: string) {
-  return Buffer.from(value, "utf8").toString("base64url");
+  return "z_" + deflateRawSync(Buffer.from(value, "utf8")).toString("base64url");
 }
 
 function decode(value: string) {
-  return Buffer.from(value, "base64url").toString("utf8");
+  return value.startsWith("z_")
+    ? inflateRawSync(Buffer.from(value.slice(2), "base64url"), { maxOutputLength: 32768 }).toString("utf8")
+    : Buffer.from(value, "base64url").toString("utf8");
 }
 
 function clean(value: unknown, max = 240) {
@@ -44,11 +47,12 @@ export function signCertificate(input: Omit<CertificatePayload, "v">) {
     p: clean(input.p, 120),
     s: clean(input.s, 140),
     r: clean(input.r, 80),
-    d: clean(input.d, 900),
+    d: String(input.d ?? "").trim().replace(/\r\n?/g, "\n"),
     i: clean(input.i, 40),
     ...(input.x ? { x: clean(input.x, 40) } : {}),
   };
 
+  if (payload.d.length > 3000) throw new Error("Certificate statement exceeds 3,000 characters.");
   if (!/^LVC-[A-Z]{3}-\d{8}-[A-Z0-9]{6}$/.test(payload.id)) throw new Error("Invalid certificate ID.");
   if (!["project", "employee", "building"].includes(payload.t)) throw new Error("Invalid certificate type.");
   if (!payload.n) throw new Error("Certificate name is required.");

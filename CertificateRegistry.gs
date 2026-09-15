@@ -53,6 +53,12 @@ function certificateRegistryRows_(sheet) {
 
 function certificateRegistryClean_(value, maxLength) { return String(value == null ? "" : value).trim().replace(/\s+/g, " ").slice(0, maxLength || 900); }
 
+function certificateRegistryDescription_(value) {
+  const description = String(value == null ? "" : value).trim().replace(/\r\n?/g, "\n");
+  if (description.length > 3000) throw new Error("Certificate statement exceeds 3,000 characters.");
+  return description;
+}
+
 function certificateRegistryFind_(sheet, certificateId) {
   const id = certificateRegistryClean_(certificateId, 60).toUpperCase();
   if (!id) return null;
@@ -139,7 +145,7 @@ function certificateRegistryFromGateway_(params) {
       Position: certificateRegistryClean_(params.Position || params.position, 120),
       Subject: certificateRegistryClean_(params.Subject || params.subject, 140),
       Reference: certificateRegistryClean_(params.Reference || params.reference, 80),
-      Description: certificateRegistryClean_(params.Description || params.description, 900),
+      Description: certificateRegistryDescription_(params.Description || params.description),
       Issued_At: certificateRegistryClean_(params.Issued_At || params.issuedAt, 40),
       Expires_At: certificateRegistryClean_(params.Expires_At || params.expiresAt, 40),
       Status: "Active",

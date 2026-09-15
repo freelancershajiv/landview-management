@@ -1,3 +1,4 @@
+import { billingQrSvg } from "@/lib/billing-qr";
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { CertificateType, signCertificate } from "@/lib/certificate-verification";
@@ -87,7 +88,8 @@ export async function POST(request: NextRequest) {
     const position = clean(input?.position, 120);
     const subject = clean(input?.subject, 140);
     const reference = clean(input?.reference, 80);
-    const description = clean(input?.description, 900);
+    const description = String(input?.description ?? "").trim().replace(/\r\n?/g, "\n");
+    if (description.length > 3000) return NextResponse.json({ success: false, error: "Certificate statement must be 3,000 characters or fewer." }, { status: 400 });
     const expiresAt = clean(input?.expiresAt, 40);
     const category = inferCategory(type, subject, input?.category);
     let requestId = clean(input?.requestId, 80);
@@ -117,6 +119,9 @@ export async function POST(request: NextRequest) {
 
     const signedToken = signCertificate({ id: certificateId, t: type, n: name, a: address, p: position, s: subject, r: reference, d: description, i: issuedAt, x: expiresAt || undefined });
     const urls = certificateUrls(request, signedToken);
+    // Confirm that verification is printable before creating the audit record.
+    if (urls.verificationUrl.length > 4096) throw new Error("Certificate content is too long for its verification QR.");
+    billingQrSvg(urls.verificationUrl);
     await registryRequest(request, {
       registryOp: "create", Certificate_ID: certificateId, Type: type, Category: category, Request_ID: requestId,
       Name: name, Address: address, Position: position, Subject: subject, Reference: reference, Description: description,
