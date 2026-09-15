@@ -6,7 +6,7 @@
 const LAND_VIEW_ACCOUNTING_LEDGER_ID_ = "1e51Mq3hOj9rUH9ugF8SiHe4SYJW3dJ3Bcw9JNgii_bs";
 const LAND_VIEW_ACCOUNTING_TABS_ = {
   "Accounting Income": { sheetName: "Income", width: 17 },
-  "Accounting Expenses": { sheetName: "Expenses", width: 19 }
+  "Accounting Expenses": { sheetName: "Accounting Expenses", width: 19 }
 };
 
 function landViewIsAccountingTab_(tab) {
@@ -27,7 +27,7 @@ function landViewGetAccountingSheet_(tab, session) {
   const config = LAND_VIEW_ACCOUNTING_TABS_[tab];
   if (!config) throw new Error("Unknown accounting worksheet.");
 
-  const ss = SpreadsheetApp.openById(LAND_VIEW_ACCOUNTING_LEDGER_ID_);
+  const ss = getFinanceDatabase_();
   const sheet = ss.getSheetByName(config.sheetName);
   if (!sheet) throw new Error('Accounting worksheet "' + config.sheetName + '" was not found.');
   if (sheet.getLastRow() > 10000) throw new Error("Accounting worksheet exceeds the 10,000-row reading limit.");
