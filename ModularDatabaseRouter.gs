@@ -8,7 +8,7 @@
 
 const LAND_VIEW_MODULE_DATABASES_ = {
   core: "1wEY2VmZimjIeU7ex13sMf1oyhLapawYMJeoquuPR44s",
-  finance: "11NY1kI7Ewr0FsMRI3jN4zcVY2XxbGVc2fWPM6UpByCs",
+  finance: "1RDbzIr4aaysiB-UTZQKRK6m60HLg3zSZVzNrdgnGHBc",
   certificates: "1_IPav88olW2g7f_aM722IOLIqbtPwPzGIlYzW6wxEBU",
   operations: "1x9-g4L8dzVOR4GYcge8CshUFciB8DLKYRzw82k_zO5o",
   documents: "1hj5WJZjIMNX6FGuaHOsrXHPlZ5isrAMGvCQ7juUUOOg"
