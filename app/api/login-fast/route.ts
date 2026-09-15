@@ -12,7 +12,8 @@ const COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;
 const DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
-const LOGIN_UPSTREAM_TIMEOUT_MS = 55_000;
+const LOGIN_ATTEMPT_TIMEOUT_MS = 25_000;
+const LOGIN_ATTEMPTS = 2;
 
 function cookieOptions(maxAge: number) {
   return {
@@ -83,6 +84,59 @@ function geo(request: NextRequest) {
   };
 }
 
+function safeUpstreamUrl(value: string) {
+  try {
+    const url = new URL(value);
+    return `${url.hostname}${url.pathname}`;
+  } catch {
+    return "invalid-upstream-url";
+  }
+}
+
+function safeBodyPreview(text: string) {
+  return text.replace(/\s+/g, " ").slice(0, 180);
+}
+
+type UpstreamResult = {
+  upstream: Response;
+  text: string;
+  json: any | null;
+};
+
+async function callLoginUpstream(payload: Record<string, unknown>, attempt: number): Promise<UpstreamResult> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), LOGIN_ATTEMPT_TIMEOUT_MS);
+
+  try {
+    const upstream = await fetch(APPS_SCRIPT_URL, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      redirect: "follow",
+      signal: controller.signal,
+    });
+
+    const text = await upstream.text();
+    let json: any | null = null;
+    try {
+      json = JSON.parse(text);
+    } catch {
+      console.error("login-fast upstream returned non-JSON", {
+        attempt,
+        status: upstream.status,
+        contentType: upstream.headers.get("content-type") || "",
+        upstream: safeUpstreamUrl(upstream.url || APPS_SCRIPT_URL),
+        bodyPreview: safeBodyPreview(text),
+      });
+    }
+
+    return { upstream, text, json };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function POST(request: NextRequest) {
   if (!allowedOrigin(request)) {
     return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
@@ -110,67 +164,79 @@ export async function POST(request: NextRequest) {
   const device = parseDevice(userAgent);
   const location = geo(request);
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), LOGIN_UPSTREAM_TIMEOUT_MS);
-  try {
-    const upstream = await fetch(APPS_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        action: "login",
-        userId,
-        password,
-        proxySecret: PROXY_SECRET,
-        _clientKey: clientKey(request),
-        ipAddress: rawIp(request),
-        deviceId,
-        deviceName: device.deviceName,
-        browser: device.browser,
-        os: device.os,
-        userAgent: userAgent.slice(0, 500),
-        ...location,
-      }),
-      cache: "no-store",
-      redirect: "follow",
-      signal: controller.signal,
-    });
+  const payload = {
+    action: "login",
+    userId,
+    password,
+    proxySecret: PROXY_SECRET,
+    _clientKey: clientKey(request),
+    ipAddress: rawIp(request),
+    deviceId,
+    deviceName: device.deviceName,
+    browser: device.browser,
+    os: device.os,
+    userAgent: userAgent.slice(0, 500),
+    ...location,
+  };
 
-    const text = await upstream.text();
-    let json: any;
+  let lastFailureWasTimeout = false;
+  let lastResult: UpstreamResult | null = null;
+
+  for (let attempt = 1; attempt <= LOGIN_ATTEMPTS; attempt += 1) {
     try {
-      json = JSON.parse(text);
-    } catch {
-      return NextResponse.json({ success: false, error: "The login service returned an invalid response." }, { status: 502 });
-    }
+      const result = await callLoginUpstream(payload, attempt);
+      lastResult = result;
+      lastFailureWasTimeout = false;
 
-    const token = String(json?.data?.token || json?.token || "").trim();
-    const user = json?.data?.user || json?.user;
-    if (!upstream.ok || !json?.success || !token || !user) {
-      return NextResponse.json(
-        { success: false, error: String(json?.error || json?.message || "Invalid User ID or password.") },
-        { status: 401 },
-      );
-    }
+      // A valid JSON response means Apps Script executed correctly. Do not retry
+      // authentication failures because that could unnecessarily increase lockout counters.
+      if (result.json !== null) break;
 
-    const response = NextResponse.json({ success: true, data: { user } }, {
-      headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" },
-    });
-    response.cookies.set(COOKIE_NAME, token, cookieOptions(COOKIE_MAX_AGE_SECONDS));
-    response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user as Record<string, unknown>), cookieOptions(COOKIE_MAX_AGE_SECONDS));
-    if (!existingDeviceId) response.cookies.set(DEVICE_COOKIE, deviceId, cookieOptions(DEVICE_MAX_AGE_SECONDS));
-    return response;
-  } catch (error: any) {
-    const timedOut = error?.name === "AbortError";
+      if (attempt < LOGIN_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    } catch (error: any) {
+      lastFailureWasTimeout = error?.name === "AbortError";
+      console.error("login-fast upstream request failed", {
+        attempt,
+        timedOut: lastFailureWasTimeout,
+        error: String(error?.message || error || "Unknown error").slice(0, 180),
+      });
+
+      if (attempt < LOGIN_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        continue;
+      }
+    }
+  }
+
+  if (!lastResult || lastResult.json === null) {
     return NextResponse.json(
       {
         success: false,
-        error: timedOut
+        error: lastFailureWasTimeout
           ? "The authentication server is responding slowly. Please try again in a moment."
-          : "Could not reach the LAND VIEW login service.",
+          : "The login service returned an invalid response.",
       },
-      { status: timedOut ? 504 : 502 },
+      { status: lastFailureWasTimeout ? 504 : 502 },
     );
-  } finally {
-    clearTimeout(timer);
   }
+
+  const { upstream, json } = lastResult;
+  const token = String(json?.data?.token || json?.token || "").trim();
+  const user = json?.data?.user || json?.user;
+  if (!upstream.ok || !json?.success || !token || !user) {
+    return NextResponse.json(
+      { success: false, error: String(json?.error || json?.message || "Invalid User ID or password.") },
+      { status: 401 },
+    );
+  }
+
+  const response = NextResponse.json({ success: true, data: { user } }, {
+    headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" },
+  });
+  response.cookies.set(COOKIE_NAME, token, cookieOptions(COOKIE_MAX_AGE_SECONDS));
+  response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user as Record<string, unknown>), cookieOptions(COOKIE_MAX_AGE_SECONDS));
+  if (!existingDeviceId) response.cookies.set(DEVICE_COOKIE, deviceId, cookieOptions(DEVICE_MAX_AGE_SECONDS));
+  return response;
 }
