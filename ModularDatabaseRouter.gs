@@ -71,11 +71,15 @@ function modularDatabaseEnabled_() {
 }
 
 function getSpreadsheetForSheet_(sheetName) {
-  const moduleName = landViewModuleForSheet_(sheetName);
+  const wanted = String(sheetName || "").trim();
+  const moduleName = landViewModuleForSheet_(wanted);
   if (!moduleName || !modularDatabaseEnabled_()) return getSpreadsheet();
+
   const moduleSs = getModuleSpreadsheet_(moduleName);
-  if (moduleSs.getSheetByName(String(sheetName || "").trim())) return moduleSs;
-  return getSpreadsheet();
+  if (!moduleSs.getSheetByName(wanted)) {
+    throw new Error('Modular database routing error: mapped sheet "' + wanted + '" is missing from the ' + moduleName + ' database.');
+  }
+  return moduleSs;
 }
 
 function getModularDatabaseStatus_(params) {
