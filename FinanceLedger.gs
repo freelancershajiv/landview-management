@@ -13,8 +13,12 @@
  *   LAND VIEW Income & Expense Database
  */
 
-function getLandViewFinanceLedger_() {
+function getLegacyAccountingLedger_() {
   return SpreadsheetApp.openById("1e51Mq3hOj9rUH9ugF8SiHe4SYJW3dJ3Bcw9JNgii_bs");
+}
+
+function getLandViewFinanceLedger_() {
+  return getFinanceDatabase_();
 }
 
 function landViewLedgerText_(value) {
@@ -190,7 +194,7 @@ function landViewExpenseLedgerRows_(projects) {
 }
 
 function landViewEnsureChairmanExpensePermissions_() {
-  var ss = getSpreadsheet();
+  var ss = getSpreadsheetForSheet_(CONFIG.SHEETS.PERMISSIONS);
   var sheet = ss.getSheetByName(CONFIG.SHEETS.PERMISSIONS) || ss.insertSheet(CONFIG.SHEETS.PERMISSIONS);
   var headers = landViewLedgerEnsureHeaders_(sheet, [
     "Permission_ID", "User_ID", "Role", "Permission", "Status", "Created_At", "Created_By"
@@ -232,7 +236,7 @@ function landViewEnsureChairmanExpensePermissions_() {
 function landViewRemoveKnownTestExpense_(ledger) {
   var removedSource = 0;
   var removedLedger = 0;
-  var sourceSheet = getSpreadsheet().getSheetByName(CONFIG.SHEETS.EXPENSES);
+  var sourceSheet = getSpreadsheetForSheet_(CONFIG.SHEETS.EXPENSES).getSheetByName(CONFIG.SHEETS.EXPENSES);
 
   function rowMatches(headers, row) {
     function cell(names) {
@@ -260,7 +264,7 @@ function landViewRemoveKnownTestExpense_(ledger) {
     }
   }
 
-  var expenseSheet = ledger.getSheetByName("Expenses");
+  var expenseSheet = ledger.getSheetByName("Accounting Expenses");
   if (expenseSheet && expenseSheet.getLastRow() > 1) {
     var ledgerHeaders = expenseSheet.getRange(1, 1, 1, expenseSheet.getLastColumn()).getValues()[0].map(function(value) { return String(value || "").trim(); });
     var ledgerRows = expenseSheet.getRange(2, 1, expenseSheet.getLastRow() - 1, ledgerHeaders.length).getValues();
@@ -283,7 +287,7 @@ function syncLandViewIncomeExpenseLedger() {
     var ledger = getLandViewFinanceLedger_();
     var testCleanup = landViewRemoveKnownTestExpense_(ledger);
     var incomeSheet = ledger.getSheetByName("Income") || ledger.insertSheet("Income");
-    var expenseSheet = ledger.getSheetByName("Expenses") || ledger.insertSheet("Expenses");
+    var expenseSheet = ledger.getSheetByName("Accounting Expenses") || ledger.insertSheet("Accounting Expenses");
 
     var incomeHeaders = landViewLedgerEnsureHeaders_(incomeSheet, [
       "Income_ID", "Payment_Date", "File_ID", "Project_Name", "Client_Name", "Payment_For", "Amount",
