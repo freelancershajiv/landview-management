@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 const COOKIE_NAME = "landview_session";
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
+const BACKEND_TIMEOUT_MS = 10_000;
 
 function normalizeHost(value: string | null | undefined) {
   return String(value || "").split(":")[0].trim().toLowerCase();
@@ -39,22 +40,62 @@ function clientKey(request: NextRequest) {
   return createHmac("sha256", PROXY_SECRET).update(forwarded).digest("hex").slice(0, 32);
 }
 
+function isExplicitSessionFailure(json: any) {
+  if (json?.data?.authenticated === false) return true;
+  if (json?.success !== false) return false;
+  const message = String(json?.error || json?.message || "").trim().toLowerCase();
+  return [
+    "unauthorized",
+    "session expired",
+    "session expired.",
+    "invalid session",
+    "invalid session.",
+    "authentication required",
+    "authentication required.",
+  ].includes(message);
+}
+
+function statusForMessage(message: string) {
+  const normalized = String(message || "").trim().toLowerCase();
+  if (["unauthorized", "session expired", "session expired.", "invalid session", "invalid session.", "authentication required", "authentication required."].includes(normalized)) return 401;
+  if (/^access denied\b|permission required|access is required/.test(normalized)) return 403;
+  return 400;
+}
+
 async function callBackend(payload: Record<string, unknown>) {
-  const response = await fetch(APPS_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-    redirect: "follow",
-  });
-  const text = await response.text();
-  let json: any;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    throw new Error(/^\s*</.test(text) ? "Apps Script returned HTML instead of JSON." : "Apps Script returned invalid JSON.");
+  const delays = [0, 250, 700];
+  let lastError: Error | null = null;
+  for (let attempt = 0; attempt < delays.length; attempt += 1) {
+    if (delays[attempt]) await new Promise((resolve) => setTimeout(resolve, delays[attempt]));
+    try {
+      const response = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+        redirect: "follow",
+        signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
+      });
+      const text = await response.text();
+      let json: any;
+      try {
+        json = JSON.parse(text);
+      } catch {
+        lastError = new Error(/^\s*</.test(text) ? "Apps Script returned HTML instead of JSON." : "Apps Script returned invalid JSON.");
+        if (attempt < delays.length - 1) continue;
+        throw lastError;
+      }
+      if (response.status >= 500 && attempt < delays.length - 1) {
+        lastError = new Error(`Apps Script returned HTTP ${response.status}.`);
+        continue;
+      }
+      return { response, json };
+    } catch (error: any) {
+      lastError = error instanceof Error ? error : new Error(String(error || "Backend request failed."));
+      if (attempt >= delays.length - 1) throw lastError;
+    }
   }
-  return { response, json };
+  throw lastError || new Error("Unable to reach LAND VIEW backend.");
 }
 
 function cleanProjectSeed(projectId: string, source: any, drive: any) {
@@ -104,8 +145,14 @@ export async function POST(request: NextRequest) {
     };
 
     const sessionCheck = await callBackend({ action: "getSession", ...commonAuth });
-    if (!sessionCheck.json?.success) {
-      return NextResponse.json({ success: false, error: "Your backend session has expired. Sign in again." }, { status: 401 });
+    if (!sessionCheck.json?.success || !sessionCheck.json?.data?.authenticated) {
+      if (isExplicitSessionFailure(sessionCheck.json)) {
+        return NextResponse.json({ success: false, error: "Your backend session has expired. Sign in again." }, { status: 401 });
+      }
+      return NextResponse.json(
+        { success: false, error: String(sessionCheck.json?.error || sessionCheck.json?.message || "Could not validate your session.") },
+        { status: 503 }
+      );
     }
 
     const role = String(sessionCheck.json?.data?.user?.role || sessionCheck.json?.data?.user?.Role || "").trim().toLowerCase();
@@ -149,7 +196,7 @@ export async function POST(request: NextRequest) {
       });
       if (!created.json?.success) {
         const message = String(created.json?.error || created.json?.message || `Could not register ${projectId} for portal controls.`);
-        return NextResponse.json({ success: false, error: message }, { status: 400 });
+        return NextResponse.json({ success: false, error: message }, { status: statusForMessage(message) });
       }
 
       result = await callBackend(updatePayload);
@@ -157,8 +204,7 @@ export async function POST(request: NextRequest) {
 
     if (!result.json?.success) {
       const message = String(result.json?.error || result.json?.message || "Could not update public visibility.");
-      const status = /unauthorized|session expired/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : 400;
-      return NextResponse.json({ success: false, error: message }, { status });
+      return NextResponse.json({ success: false, error: message }, { status: statusForMessage(message) });
     }
 
     return NextResponse.json(
