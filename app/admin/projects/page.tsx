@@ -4,7 +4,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import { ErrorState, LoadingState, PageHeader, StatusBadge, pick } from "@/components/lv-ui";
 
-type ProjectCategory = "Running" | "Paused" | "Completed";
+type ProjectCategory = "Running" | "Paused" | "Completed" | "Cancelled";
 type ProjectRow = Record<string, unknown> & {
   Project_ID?: string;
   Project_Name?: string;
@@ -46,9 +46,16 @@ function truthy(value: unknown) {
 }
 function normalizeCategory(value: unknown): ProjectCategory {
   const text = String(value || "").trim().toLowerCase();
+  if (/cancel|cancelled|canceled|abandon/.test(text)) return "Cancelled";
   if (/complete|completed|done|closed|finish/.test(text)) return "Completed";
-  if (/pause|paused|hold|inactive|cancel/.test(text)) return "Paused";
+  if (/pause|paused|hold|inactive/.test(text)) return "Paused";
   return "Running";
+}
+function projectStatusLabel(value: unknown) {
+  const status = normalizeCategory(value);
+  if (status === "Running") return "Ongoing";
+  if (status === "Paused") return "On Hold";
+  return status;
 }
 function financeRows(data: FinanceSheetData) {
   return (data.rows || []).map((row) => {
@@ -95,6 +102,7 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [savingPublic, setSavingPublic] = useState("");
+  const [savingStatus, setSavingStatus] = useState("");
   const [savingTask, setSavingTask] = useState("");
   const canManage = role === "admin" || role === "manager";
 
@@ -151,7 +159,7 @@ export default function ProjectsPage() {
           if (current) {
             map.set(id, {
               ...current,
-              Status: driveCategory,
+              Status: String(current.Status || pick(existingDb, ["Status", "status"], driveCategory) || driveCategory),
               Drive_Folder_Name: String(item?.projectFolderName || current.Drive_Folder_Name || ""),
               Drive_Folder_URL: String(item?.projectFolderUrl || current.Drive_Folder_URL || ""),
             });
@@ -173,7 +181,7 @@ export default function ProjectsPage() {
             Location: String(pick(existingDb, ["Location", "Project_Location", "Project Location"], "")),
             Project_Area: String(pick(existingDb, ["Project_Area", "Project Area", "Land_Area", "Land Area"], "")),
             Number_of_Stories: String(pick(existingDb, ["Number_of_Stories", "Number of Stories", "Floors"], "")),
-            Status: driveCategory,
+            Status: String(pick(existingDb, ["Status", "status"], driveCategory) || driveCategory),
             Public_Display: existingDb.Public_Display ?? existingDb["Public Display"] ?? false,
             Drive_Folder_Name: folderName,
             Drive_Folder_URL: String(item?.projectFolderUrl || pick(existingDb, ["Drive_Folder_URL", "Drive Folder URL"], "")),
@@ -207,6 +215,7 @@ export default function ProjectsPage() {
     Running: projects.filter((p) => normalizeCategory(p.Status) === "Running").length,
     Paused: projects.filter((p) => normalizeCategory(p.Status) === "Paused").length,
     Completed: projects.filter((p) => normalizeCategory(p.Status) === "Completed").length,
+    Cancelled: projects.filter((p) => normalizeCategory(p.Status) === "Cancelled").length,
   }), [projects]);
 
   const filtered = useMemo(() => {
@@ -270,6 +279,49 @@ export default function ProjectsPage() {
     }
   }
 
+  async function setProjectStatus(project: ProjectRow, next: ProjectCategory) {
+    const id = normalizeProjectId(project.Project_ID);
+    if (!canManage || !id || savingStatus) return;
+    setSavingStatus(id);
+    setError("");
+    try {
+      try {
+        await landViewApi.updateProject(id, { Status: next });
+      } catch (initialError: any) {
+        if (!/project not found/i.test(String(initialError?.message || initialError))) throw initialError;
+        const seedResponse = await fetch("/api/project-public-visibility", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "same-origin",
+          cache: "no-store",
+          body: JSON.stringify({
+            projectId: id,
+            publicDisplay: truthy(project.Public_Display),
+            project: {
+              Legacy_File_ID: project.Legacy_File_ID || id.replace("LV-", ""),
+              Project_Name: project.Project_Name || "",
+              Client_Name: project.Client_Name || project.Project_Name || "",
+              Phone_Number: project.Phone_Number || "",
+              Project_Type: project.Project_Type || "",
+              Location: project.Location || "",
+              Project_Area: project.Project_Area || "",
+              Number_of_Stories: project.Number_of_Stories || "",
+              Drive_Folder_URL: project.Drive_Folder_URL || "",
+            },
+          }),
+        });
+        const seedJson = await seedResponse.json().catch(() => null);
+        if (!seedResponse.ok || !seedJson?.success) throw new Error(String(seedJson?.error || `Could not register ${id} for status control.`));
+        await landViewApi.updateProject(id, { Status: next });
+      }
+      setProjects((rows) => rows.map((row) => normalizeProjectId(row.Project_ID) === id ? { ...row, Status: next } : row));
+    } catch (e: any) {
+      setError(e?.message || `Could not update ${id} status.`);
+    } finally {
+      setSavingStatus("");
+    }
+  }
+
   async function assignService(task: TaskRow, employeeId: string) {
     if (!canManage) return;
     const taskId = String(pick(task, ["Task_ID", "Task ID", "TaskId"], "")).trim();
@@ -296,7 +348,7 @@ export default function ProjectsPage() {
       {error && <div className="error-inline">{error}</div>}
       <div className="projects-toolbar">
         <div className="projects-toolbar-left">
-          {(["All","Running","Paused","Completed"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${category===item?"active":""}`} onClick={() => setCategory(item)}>{item} · {counts[item]}</button>)}
+          {(["All","Running","Paused","Completed","Cancelled"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${category===item?"active":""}`} onClick={() => setCategory(item)}>{item === "All" ? "All" : projectStatusLabel(item)} · {counts[item]}</button>)}
         </div>
         <input className="projects-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search ID, client, folder, type, location, area or floor" />
       </div>
@@ -319,7 +371,7 @@ export default function ProjectsPage() {
                     <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{name}</strong>{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}</div></div></td>
                     <td>{String(project.Project_Type || "—")}</td>
                     <td><div>{String(project.Location || "—")}</div>{details && <div className="muted" style={{marginTop:4}}>{details}</div>}</td>
-                    <td><StatusBadge value={normalizeCategory(project.Status)} /></td>
+                    <td>{canManage ? <select aria-label={`Status for ${id}`} value={normalizeCategory(project.Status)} disabled={savingStatus===id} onChange={(e)=>void setProjectStatus(project,e.target.value as ProjectCategory)} style={{height:34,minWidth:112,border:"1px solid rgba(255,255,255,.14)",borderRadius:7,background:"#111b24",color:"#eef2f5",padding:"0 9px",fontSize:11,fontWeight:800}}><option value="Running">Ongoing</option><option value="Paused">On Hold</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select> : <StatusBadge value={projectStatusLabel(project.Status)} />}</td>
                     <td><div className="service-summary"><span><b>{assignedCount}</b>/{projectTasks.length || 0} assigned</span><button className="team-button" type="button" onClick={() => setExpanded(isExpanded?"":id)}>{isExpanded?"Close":"Assign team"}</button></div></td>
                     <td>{driveUrl ? <a className="drive-link" href={driveUrl} target="_blank" rel="noreferrer">Open Drive ↗</a> : <span className="muted">—</span>}</td>
                     <td className="public-cell"><div className="public-wrap"><span>{publicOn?"Shown":"Hidden"}</span><button type="button" className={`toggle ${publicOn?"on":""}`} role="switch" aria-checked={publicOn} aria-label={`${publicOn?"Hide":"Show"} ${id} on the public website`} disabled={!canManage || savingPublic===id} onClick={() => void togglePublic(project)} /></div></td>
@@ -344,7 +396,7 @@ export default function ProjectsPage() {
           </table>
         </div>
         {!filtered.length && <div className="team-empty" style={{margin:16}}>No projects match this view.</div>}
-        <div className="register-note">Project register = Auto Invoice populated projects + every LV project folder found under Running, Paused and Completed in Google Drive. Auto Invoice supplies project details when available; Drive-only projects remain fully usable for team assignment and Public Website control.</div>
+        <div className="register-note">Project status is controlled here: Ongoing projects are eligible for new bills, while Completed, On Hold and Cancelled projects are hidden from Add Bill. Projects with money due remain eligible for payment regardless of operational status. Drive folders continue to supply project files and details.</div>
       </section>
     </div>
   </>;
