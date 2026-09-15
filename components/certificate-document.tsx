@@ -44,13 +44,13 @@ export const certificateStyles = `
 .lv-cert .lv-cert-identity div:nth-child(odd){border-right:1px solid #e1e3e5}.lv-cert .lv-cert-identity div:nth-last-child(-n+2){border-bottom:0}
 .lv-cert .lv-cert-identity b{font-weight:800}
 .lv-cert .lv-cert-signatures{position:relative;display:flex;justify-content:center;align-items:center;margin-top:28px;break-inside:avoid;text-align:center}
-.lv-cert .lv-cert-verify{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:10px;min-width:150px}
-.lv-cert .lv-cert-verify img{display:block;width:96px;height:96px;padding:5px;background:#fff;object-fit:contain;margin:0 auto 7px;image-rendering:auto}
+.lv-cert .lv-cert-verify{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:10px;min-width:180px}
+.lv-cert .lv-cert-verify img{display:block;width:124px;height:124px;padding:6px;background:#fff;object-fit:contain;margin:0 auto 8px;image-rendering:auto}
 .lv-cert .lv-cert-verify strong{display:block;font-size:11px;font-weight:800}.lv-cert .lv-cert-verify span{display:block;color:#555!important;line-height:1.25;margin-top:2px;font-size:9px}
 .lv-cert .lv-cert-watermark{position:absolute;z-index:-1;right:-8px;bottom:130px;width:175px;height:510px;opacity:.045;transform:skewY(-17deg);border:7px solid #111;background:repeating-linear-gradient(90deg,#111 0 2px,transparent 2px 27px),repeating-linear-gradient(0deg,#111 0 2px,transparent 2px 36px)}
 .lv-cert .lv-cert-footer{position:absolute;bottom:0;left:0;right:0;height:114px;display:grid;grid-template-columns:1fr 1.2fr 1.2fr;gap:22px;align-items:end;padding:0 45px 18px;color:#fff!important;background:linear-gradient(165deg,#ba1018 0 26%,#272727 26% 42%,#111 42%);clip-path:polygon(0 0,43% 48%,100% 0,100% 100%,0 100%);font-size:11px;font-weight:600}
 .lv-cert .lv-cert-footer small{display:block;font-size:7px;line-height:1.25;letter-spacing:.45px;color:#ddd!important;margin-top:4px;font-weight:500}
-@media print{@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important}.lv-cert-scroll{overflow:visible}.lv-cert{width:210mm!important;min-height:297mm!important;margin:0!important;box-shadow:none!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.lv-cert .lv-cert-verify img{width:25mm!important;height:25mm!important;padding:1.2mm!important}.lv-cert .lv-cert-footer{font-size:11px!important}.lv-cert .lv-cert-footer small{font-size:7px!important}}
+@media print{@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important}.lv-cert-scroll{overflow:visible}.lv-cert{width:210mm!important;min-height:297mm!important;margin:0!important;box-shadow:none!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.lv-cert .lv-cert-verify img{width:32mm!important;height:32mm!important;padding:1.5mm!important}.lv-cert .lv-cert-footer{font-size:11px!important}.lv-cert .lv-cert-footer small{font-size:7px!important}}
 `;
 
 function BrandMark() {
