@@ -64,10 +64,20 @@ function EmphasizedText({ value, issued }: { value: string; issued: Certificate 
   return <>{value.split(pattern).map((part, index) => index % 2 ? <strong key={index}>{part}</strong> : part)}</>;
 }
 
+function certificateTitle(issued: Certificate) {
+  const subject = (issued.subject || "").toLowerCase();
+  if (subject.includes("load bearing")) return "Load Bearing";
+  if (subject.includes("construction supervision")) return "Construction Supervision";
+  if (subject.includes("construction completion")) return "Construction Completion";
+  if (subject.includes("salary")) return "Salary";
+  if (subject.includes("experience")) return "Experience";
+  return issued.type === "employee" ? "Employee" : issued.type === "project" ? "Project" : "Building";
+}
+
 export function CertificateDocument({ issued }: { issued: Certificate }) {
   const content = certificateContent(issued);
   const date = new Date(issued.issuedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric", timeZone: "Asia/Dhaka" });
-  const title = issued.type === "employee" ? "Experience" : issued.type === "project" ? "Project" : "Building";
+  const title = certificateTitle(issued);
   return <div className="lv-cert-scroll"><article className="lv-cert" id="landview-certificate-document">
     <style>{certificateStyles}</style>
     <div className="lv-cert-corner"/><div className="lv-cert-watermark"/>
@@ -94,7 +104,6 @@ export function CertificateDocument({ issued }: { issued: Certificate }) {
   </article></div>;
 }
 
-// Print an isolated document so dashboard styles and layout cannot affect the PDF.
 export async function printCertificate() {
   const source = document.getElementById("landview-certificate-document");
   if (!source) throw new Error("Open a certificate before printing.");
@@ -106,7 +115,6 @@ export async function printCertificate() {
   try {
     await Promise.all(Array.from(popup.document.images).map(image => image.decode()));
     await popup.document.fonts.ready;
-    // Keep the certificate, including long statements, together on one A4 page.
     const paper = popup.document.getElementById("landview-certificate-document")!;
     const height = paper.getBoundingClientRect().height;
     if (height > 1123) {
