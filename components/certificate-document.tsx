@@ -66,7 +66,7 @@ function EmphasizedText({ value, issued }: { value: string; issued: Certificate 
 
 function certificateTitle(issued: Certificate) {
   const subject = (issued.subject || "").toLowerCase();
-  if (subject.includes("load bearing")) return "Load Bearing";
+  if (subject.includes("load bearing")) return "Load Bearing & Construction Works";
   if (subject.includes("construction supervision")) return "Construction Supervision";
   if (subject.includes("construction completion")) return "Construction Completion";
   if (subject.includes("salary")) return "Salary";
