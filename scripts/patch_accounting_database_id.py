@@ -79,15 +79,21 @@ if s2 != s:
     p.write_text(s2, encoding="utf-8")
     changed.append(str(p))
 
-# If the admin page still contains the pre-cleanup accounting ID, point it at modular Finance.
-OLD_ID = "1E1hCMKn3fGl7LUov1FS60IJNVnZTJUlf6CCO4pFMQw4"
+# Keep the admin Accounts "Open database" link on the current modular Finance DB.
+# Replace every known legacy/cleanup accounting workbook ID so re-running this patch is idempotent.
 p = Path("app/admin/accounts/page.tsx")
 if p.exists():
     s = p.read_text(encoding="utf-8")
-    s2 = s.replace(OLD_ID, MODULAR_FINANCE_ID)
+    legacy_ids = {
+        LEGACY_ACCOUNTING_ID,
+        "1E1hCMKn3fGl7LUov1FS60IJNVnZTJUlf6CCO4pFMQw4",
+    }
+    s2 = s
+    for old_id in legacy_ids:
+        s2 = s2.replace(old_id, MODULAR_FINANCE_ID)
     if s2 != s:
         p.write_text(s2, encoding="utf-8")
         changed.append(str(p))
 
 print("Modular finance cutover prepared in:", ", ".join(changed) if changed else "no files")
-# Trigger: modular cutover workflow v2
+# Trigger: modular cutover workflow v3
