@@ -1,7 +1,7 @@
 import { billingQrSvg } from "@/lib/billing-qr";
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { CertificateType, signCertificate } from "@/lib/certificate-verification";
+import { CertificateType, signCertificate, verifyCertificate } from "@/lib/certificate-verification";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -168,7 +168,18 @@ export async function GET(request: NextRequest) {
   try {
     if (!request.cookies.get(SESSION_COOKIE)?.value) return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
     const data = await registryRequest(request, { registryOp: "list" });
-    const certificates = (Array.isArray(data?.certificates) ? data.certificates : []).map((item: any) => ({ ...item, ...certificateUrls(request, clean(item?.token, 5000)), token: undefined }));
+    const certificates = (Array.isArray(data?.certificates) ? data.certificates : []).map((item: any) => {
+      const signed = clean(item?.token, 5000);
+      const verified = signed ? verifyCertificate(signed) : null;
+      return {
+        ...item,
+        fatherName: clean(item?.fatherName || item?.Father_Name || verified?.f, 120),
+        motherName: clean(item?.motherName || item?.Mother_Name || verified?.m, 120),
+        nidNo: clean(item?.nidNo || item?.NID_No || item?.NID || verified?.nid, 40),
+        ...certificateUrls(request, signed),
+        token: undefined,
+      };
+    });
     return NextResponse.json({ success: true, data: { ...data, certificates } }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message || "Could not load certificate registry." }, { status: 502 });
@@ -187,6 +198,9 @@ export async function POST(request: NextRequest) {
     const certificateId = `LVC-${prefix(type)}-${key}-${code}`;
     const name = clean(input?.name, 120);
     const address = clean(input?.address, 220);
+    const fatherName = clean(input?.fatherName, 120);
+    const motherName = clean(input?.motherName, 120);
+    const nidNo = clean(input?.nidNo, 40);
     const position = clean(input?.position, 120);
     const subject = clean(input?.subject, 140);
     const reference = clean(input?.reference, 80);
@@ -219,19 +233,19 @@ export async function POST(request: NextRequest) {
       parentId = clean(previous.parentId || previous.certificateId, 60).toUpperCase();
     }
 
-    const signedToken = signCertificate({ id: certificateId, t: type, n: name, a: address, p: position, s: subject, r: reference, d: description, i: issuedAt, x: expiresAt || undefined });
+    const signedToken = signCertificate({ id: certificateId, t: type, n: name, a: address, p: position, s: subject, r: reference, d: description, f: fatherName || undefined, m: motherName || undefined, nid: nidNo || undefined, i: issuedAt, x: expiresAt || undefined });
     const urls = certificateUrls(request, signedToken);
     if (urls.verificationUrl.length > 4096) throw new Error("Certificate content is too long for its verification QR.");
     billingQrSvg(urls.verificationUrl);
     await registryRequest(request, {
       registryOp: "create", Certificate_ID: certificateId, Type: type, Category: category, Request_ID: requestId,
-      Name: name, Address: address, Position: position, Subject: subject, Reference: reference, Description: description,
+      Name: name, Address: address, Father_Name: fatherName, Mother_Name: motherName, NID_No: nidNo, Position: position, Subject: subject, Reference: reference, Description: description,
       Issued_At: issuedAt, Expires_At: expiresAt, Revision: revision, Parent_ID: parentId, Token: signedToken,
     });
     if (reissueOf) await registryRequest(request, { registryOp: "supersede", certificateId: reissueOf, supersededBy: certificateId });
     if (requestId) await portalRequest(request, { certificatePortalOp: "linkIssued", requestId, certificateId });
 
-    return NextResponse.json({ success: true, data: { certificateId, ...urls, issuedAt, type, category, requestId, name, address, position, subject, reference, description, expiresAt: expiresAt || undefined, status: "Active", revision, parentId } }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    return NextResponse.json({ success: true, data: { certificateId, ...urls, issuedAt, type, category, requestId, name, address, fatherName, motherName, nidNo, position, subject, reference, description, expiresAt: expiresAt || undefined, status: "Active", revision, parentId } }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error: any) {
     return NextResponse.json({ success: false, error: error?.message || "Could not issue certificate." }, { status: 500 });
   }

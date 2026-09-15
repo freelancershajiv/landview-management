@@ -4,7 +4,7 @@ type Certificate = {
   type: "employee" | "project" | "building";
   name: string; address: string; position: string; subject: string;
   reference: string; certificateId: string; issuedAt: string;
-  description: string; qrUrl?: string; verificationUrl?: string;
+  description: string; fatherName?: string; motherName?: string; nidNo?: string; qrUrl?: string; verificationUrl?: string;
 };
 
 export const certificateStyles = `
@@ -39,19 +39,23 @@ export const certificateStyles = `
 .lv-cert .lv-cert-duty p{margin:0}
 .lv-cert .lv-cert-space{height:0}.lv-cert .lv-cert-duty + .lv-cert-space{height:10px}
 .lv-cert .lv-cert-subject{font-weight:700;border-left:3px solid #d71920;padding-left:10px}
-.lv-cert .lv-cert-signatures{position:relative;display:grid;grid-template-columns:1.8fr 1fr .85fr;gap:22px;align-items:end;margin-top:20px;break-inside:avoid}
-.lv-cert .lv-cert-signature{font-size:11px;line-height:1.4}
-.lv-cert .lv-cert-authorized{font:italic 24px/1.5 Georgia,serif;min-height:43px}
-.lv-cert .lv-cert-signature-line{border-top:1px solid #171717;width:230px;padding-top:4px;font-size:14px;font-weight:700}
-.lv-cert .lv-cert-firm{display:block;font-size:19px;font-weight:800;color:#bc1118!important}
-.lv-cert .lv-cert-seal{width:132px;height:132px;border:3px double #154b9b;border-radius:50%;padding:9px;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#154b9b!important;outline:1px solid #154b9b;outline-offset:3px;text-align:center;font-size:9px;font-weight:800;transform:rotate(-8deg)}
-.lv-cert .lv-cert-seal b{font-size:16px;letter-spacing:1px;white-space:nowrap}
-.lv-cert .lv-cert-seal .lv-cert-mark{width:38px;height:43px;margin:4px 0}
-.lv-cert .lv-cert-verify{text-align:center;font-size:10px;justify-self:end}
-.lv-cert .lv-cert-motto{border-left:1px solid #111;padding-left:10px;text-align:left;letter-spacing:1px;font-size:9px;line-height:1.25;margin-bottom:14px}
-.lv-cert .lv-cert-motto:after{content:"";display:block;width:38px;height:2px;background:#d71920;margin-top:7px}
-.lv-cert .lv-cert-verify img{display:block;width:90px;height:90px;padding:3px;background:white;object-fit:contain;margin-bottom:3px}
-.lv-cert .lv-cert-verify strong{display:block}
+.lv-cert .lv-cert-identity{display:grid;grid-template-columns:1fr 1fr;border:1px solid #d6d9dc;border-radius:5px;overflow:hidden;margin:13px 0 15px;background:#fafafa}
+.lv-cert .lv-cert-identity div{display:grid;grid-template-columns:112px 1fr;gap:8px;padding:7px 10px;border-bottom:1px solid #e1e3e5;font-size:11.5px;line-height:1.25}
+.lv-cert .lv-cert-identity div:nth-child(odd){border-right:1px solid #e1e3e5}.lv-cert .lv-cert-identity div:nth-last-child(-n+2){border-bottom:0}
+.lv-cert .lv-cert-identity b{font-weight:800}
+.lv-cert .lv-cert-signatures{position:relative;display:grid;grid-template-columns:118px 285px 1fr;gap:24px;align-items:start;margin-top:26px;break-inside:avoid}
+.lv-cert .lv-cert-verify{text-align:left;font-size:9px;padding-top:4px}
+.lv-cert .lv-cert-verify img{display:block;width:78px;height:78px;padding:2px;background:white;object-fit:contain;margin:0 0 5px}
+.lv-cert .lv-cert-verify strong{display:block;font-size:10px}.lv-cert .lv-cert-verify span{display:block;color:#555!important;line-height:1.25;margin-top:2px}
+.lv-cert .lv-cert-signature{font-size:11px;line-height:1.35;padding-top:10px}
+.lv-cert .lv-cert-authorized{font:italic 23px/1.2 Georgia,serif;min-height:46px;display:flex;align-items:flex-end}
+.lv-cert .lv-cert-signature-line{border-top:1px solid #171717;width:245px;padding-top:5px;font-size:12px;font-weight:700}
+.lv-cert .lv-cert-firm{display:block;font-size:17px;font-weight:800;color:#bc1118!important;margin-top:1px}
+.lv-cert .lv-cert-seal{position:relative;width:116px;height:116px;border:2px solid #174c91;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#174c91!important;text-align:center;font-size:7px;font-weight:800;margin-top:11px;margin-left:55px;background:radial-gradient(circle at center,#fff 0 46%,transparent 47%)}
+.lv-cert .lv-cert-seal:before,.lv-cert .lv-cert-seal:after{content:"";position:absolute;border:1px solid #174c91;border-radius:50%}.lv-cert .lv-cert-seal:before{inset:5px}.lv-cert .lv-cert-seal:after{inset:11px}
+.lv-cert .lv-cert-seal b{font-size:14px;letter-spacing:1.2px;white-space:nowrap;z-index:1}.lv-cert .lv-cert-seal small{font-size:6px;letter-spacing:.7px;z-index:1}.lv-cert .lv-cert-seal .lv-cert-mark{width:31px;height:35px;margin:3px 0;z-index:1}
+.lv-cert .lv-cert-signature-block{display:flex;flex-direction:column;align-items:flex-start}
+.lv-cert .lv-cert-signature-note{font-size:8px;color:#666!important;margin-top:3px}
 .lv-cert .lv-cert-watermark{position:absolute;z-index:-1;right:-8px;bottom:130px;width:175px;height:510px;opacity:.045;transform:skewY(-17deg);border:7px solid #111;background:repeating-linear-gradient(90deg,#111 0 2px,transparent 2px 27px),repeating-linear-gradient(0deg,#111 0 2px,transparent 2px 36px)}
 .lv-cert .lv-cert-footer{position:absolute;bottom:0;left:0;right:0;height:114px;display:grid;grid-template-columns:1fr 1.2fr 1.2fr;gap:18px;align-items:end;padding:0 45px 17px;color:#fff!important;background:linear-gradient(165deg,#ba1018 0 26%,#272727 26% 42%,#111 42%);clip-path:polygon(0 0,43% 48%,100% 0,100% 100%,0 100%);font-size:9px}
 .lv-cert .lv-cert-footer small{display:block;font-size:5.7px;letter-spacing:.6px;color:#ccc!important;margin-top:5px}
@@ -83,10 +87,20 @@ export function CertificateDocument({ issued }: { issued: Certificate }) {
     <div className="lv-cert-concern">TO WHOM IT MAY CONCERN</div>
     <div className="lv-cert-body">
       {content.opening !== "complete" && <p>This is to certify that <strong>{issued.name}</strong>{issued.address && <>, of {issued.address}</>}{content.opening === "continuation" ? <>, <EmphasizedText value={content.continuation} issued={issued}/></> : issued.type === "employee" ? <>, has served in the capacity of <strong>{issued.position}</strong> at <strong>LAND VIEW — Engineering &amp; Architectural Consultancy</strong>.</> : <> is the {issued.position.toLowerCase()} associated with the subject stated below.</>}</p>}
+      {issued.type === "employee" && (issued.fatherName || issued.motherName || issued.nidNo) && <div className="lv-cert-identity">
+        <div><b>Father's Name:</b><span>{issued.fatherName || "—"}</span></div>
+        <div><b>Mother's Name:</b><span>{issued.motherName || "—"}</span></div>
+        <div><b>NID No:</b><span>{issued.nidNo || "—"}</span></div>
+        <div><b>Employee ID:</b><span>{issued.reference || "—"}</span></div>
+      </div>}
       {issued.type !== "employee" && <p className="lv-cert-subject">{issued.subject}</p>}
       {content.lines.map((line, i) => !line ? <div className="lv-cert-space" key={i}/> : /^[•●▪-]\s*/.test(line) ? <div className="lv-cert-duty" key={i}><p><EmphasizedText value={line.replace(/^[•●▪-]\s*/, "")} issued={issued}/></p></div> : <p key={i}><EmphasizedText value={line} issued={issued}/></p>)}
     </div>
-    <div className="lv-cert-signatures"><div className="lv-cert-signature"><div className="lv-cert-authorized">Authorized</div><div className="lv-cert-signature-line">Managing Director &amp; CEO</div><b className="lv-cert-firm">LAND VIEW</b><span>Engineering &amp; Architectural Consultancy</span></div><div className="lv-cert-seal"><b>LAND VIEW</b><BrandMark/><span>BUILD<br/>SAFER SPACES</span></div><div className="lv-cert-verify"><div className="lv-cert-motto">PEOPLE<br/>PLANS<br/>PLACES<br/>POSSIBILITIES</div>{issued.qrUrl && <img src={issued.qrUrl} alt="Certificate verification QR"/>}<strong>Verify Certificate</strong></div></div>
+    <div className="lv-cert-signatures">
+      <div className="lv-cert-verify">{issued.qrUrl && <img src={issued.qrUrl} alt="Certificate verification QR"/>}<strong>Verify Certificate</strong><span>Scan to verify this certificate.</span></div>
+      <div className="lv-cert-signature-block"><div className="lv-cert-signature"><div className="lv-cert-authorized">Authorized</div><div className="lv-cert-signature-line">Managing Director &amp; CEO</div><b className="lv-cert-firm">LAND VIEW</b><span>Engineering &amp; Architectural Consultancy</span><div className="lv-cert-signature-note">Sign above the line · Official seal below</div></div><div className="lv-cert-seal"><b>LAND VIEW</b><BrandMark/><small>ENGINEERING &amp; ARCHITECTURAL</small><small>CONSULTANCY</small></div></div>
+      <div/>
+    </div>
     <footer className="lv-cert-footer"><div>● &nbsp; Feni, Bangladesh<small>LOCAL EXPERTISE. A SAFER TOMORROW.</small></div><div>◎ &nbsp; www.landview.com.bd<small>BUILDING BETTER SPACES TOGETHER</small></div><div>✉ &nbsp; info@landview.com.bd<small>DESIGN | ENGINEER | SUPERVISE</small></div></footer>
   </article></div>;
 }

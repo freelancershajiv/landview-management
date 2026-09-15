@@ -130,6 +130,9 @@ export default async function CertificateVerificationPage({ params }: { params: 
           <div><span>Revision</span><strong>{registry.certificate?.revision || 1}</strong></div>
           <div><span>Issued To / Name</span><strong>{certificate.n}</strong></div>
           <div><span>Address</span><strong>{certificate.a || "—"}</strong></div>
+          {certificate.t === "employee" && <div><span>Father's Name</span><strong>{certificate.f || "—"}</strong></div>}
+          {certificate.t === "employee" && <div><span>Mother's Name</span><strong>{certificate.m || "—"}</strong></div>}
+          {certificate.t === "employee" && <div><span>NID No.</span><strong>{certificate.nid || "—"}</strong></div>}
           <div><span>Position / Designation</span><strong>{certificate.p || "—"}</strong></div>
           <div><span>Subject / Project / Building</span><strong>{certificate.s || "—"}</strong></div>
           <div><span>Reference</span><strong>{certificate.r || "—"}</strong></div>

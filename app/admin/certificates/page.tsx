@@ -17,6 +17,9 @@ type CertificateRecord = {
   subject: string;
   reference: string;
   description: string;
+  fatherName?: string;
+  motherName?: string;
+  nidNo?: string;
   expiresAt?: string;
   status?: string;
   revision?: number;
@@ -61,6 +64,9 @@ export default function CertificatesPage() {
   const [reissueOf, setReissueOf] = useState("");
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
+  const [fatherName, setFatherName] = useState("");
+  const [motherName, setMotherName] = useState("");
+  const [nidNo, setNidNo] = useState("");
   const [position, setPosition] = useState(meta.project.position);
   const [subject, setSubject] = useState("");
   const [reference, setReference] = useState("");
@@ -86,11 +92,11 @@ export default function CertificatesPage() {
   }, []);
 
   function resetForm(next: CertificateType = type) {
-    setType(next); setName(""); setAddress(""); setPosition(meta[next].position); setSubject(""); setReference(""); setDescription(meta[next].statement); setIssueDate(today()); setExpiryDate(""); setReissueOf(""); setIssued(null); setError("");
+    setType(next); setName(""); setAddress(""); setFatherName(""); setMotherName(""); setNidNo(""); setPosition(meta[next].position); setSubject(""); setReference(""); setDescription(meta[next].statement); setIssueDate(today()); setExpiryDate(""); setReissueOf(""); setIssued(null); setError("");
   }
 
   function editReissue(item: CertificateRecord) {
-    setType(item.type); setName(item.name || ""); setAddress(item.address || ""); setPosition(item.position || meta[item.type].position); setSubject(item.subject || ""); setReference(item.reference || ""); setDescription(item.description || meta[item.type].statement); setIssueDate(today()); setExpiryDate(localDate(item.expiresAt)); setReissueOf(item.certificateId); setIssued(null); setError(""); window.scrollTo({ top: 0, behavior: "smooth" });
+    setType(item.type); setName(item.name || ""); setAddress(item.address || ""); setFatherName(item.fatherName || ""); setMotherName(item.motherName || ""); setNidNo(item.nidNo || ""); setPosition(item.position || meta[item.type].position); setSubject(item.subject || ""); setReference(item.reference || ""); setDescription(item.description || meta[item.type].statement); setIssueDate(today()); setExpiryDate(localDate(item.expiresAt)); setReissueOf(item.certificateId); setIssued(null); setError(""); window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   async function issue(e: FormEvent) {
@@ -102,7 +108,7 @@ export default function CertificatesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
-        body: JSON.stringify({ type, name, address, position, subject, reference, description, reissueOf, issuedAt: new Date(`${issueDate}T12:00:00+06:00`).toISOString(), expiresAt: expiryDate ? new Date(`${expiryDate}T23:59:59+06:00`).toISOString() : "" }),
+        body: JSON.stringify({ type, name, address, fatherName, motherName, nidNo, position, subject, reference, description, reissueOf, issuedAt: new Date(`${issueDate}T12:00:00+06:00`).toISOString(), expiresAt: expiryDate ? new Date(`${expiryDate}T23:59:59+06:00`).toISOString() : "" }),
       });
       const json = await response.json(); if (!response.ok || !json?.success) throw new Error(json?.error || "Could not issue certificate.");
       setIssued(json.data); setReissueOf(""); await loadRegistry();
@@ -169,6 +175,11 @@ export default function CertificatesPage() {
             <label className="cert-field"><span>NAME / OWNER / CLIENT</span><input value={name} onChange={(e) => setName(e.target.value)} /></label>
             <label className="cert-field"><span>POSITION / DESIGNATION</span><input value={position} onChange={(e) => setPosition(e.target.value)} /></label>
             <label className="cert-field full"><span>ADDRESS</span><input value={address} onChange={(e) => setAddress(e.target.value)} /></label>
+            {type === "employee" && <>
+              <label className="cert-field"><span>FATHER'S NAME</span><input value={fatherName} onChange={(e) => setFatherName(e.target.value)} /></label>
+              <label className="cert-field"><span>MOTHER'S NAME</span><input value={motherName} onChange={(e) => setMotherName(e.target.value)} /></label>
+              <label className="cert-field full"><span>NID NO.</span><input inputMode="numeric" value={nidNo} onChange={(e) => setNidNo(e.target.value)} /></label>
+            </>}
             <label className="cert-field full"><span>CERTIFICATE SUBJECT</span><input value={subject} onChange={(e) => setSubject(e.target.value)} /></label>
             <label className="cert-field"><span>REFERENCE / FILE ID</span><input value={reference} onChange={(e) => setReference(e.target.value)} /></label>
             <label className="cert-field"><span>ISSUE DATE</span><input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} /></label>

@@ -13,6 +13,9 @@ export type CertificatePayload = {
   s: string;
   r: string;
   d: string;
+  f?: string;
+  m?: string;
+  nid?: string;
   i: string;
   x?: string;
 };
@@ -48,6 +51,9 @@ export function signCertificate(input: Omit<CertificatePayload, "v">) {
     s: clean(input.s, 140),
     r: clean(input.r, 80),
     d: String(input.d ?? "").trim().replace(/\r\n?/g, "\n"),
+    ...(input.f ? { f: clean(input.f, 120) } : {}),
+    ...(input.m ? { m: clean(input.m, 120) } : {}),
+    ...(input.nid ? { nid: clean(input.nid, 40) } : {}),
     i: clean(input.i, 40),
     ...(input.x ? { x: clean(input.x, 40) } : {}),
   };
