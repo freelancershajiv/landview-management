@@ -24,6 +24,11 @@ function details(input: RequestInfo | URL, init?: RequestInit) {
   };
 }
 
+function isAuthoritativeSessionCheck(url: URL) {
+  return url.pathname === "/api/session-fast" ||
+    (url.pathname === "/api/landview" && url.searchParams.get("action") === "getSession");
+}
+
 function dataPlan(portal: PortalType, role: string, access: Access): string[] {
   const urls = new Set<string>();
   const api = (action: string, params: Record<string, string> = {}) =>
@@ -121,11 +126,15 @@ export default function PortalPreloader({ portal }: { portal: PortalType }) {
       foreground += 1;
       try {
         const response = await network(input, init);
-        if (response.status === 401) {
+        // A 401 from a feature route can mean permission/access failure and is
+        // not authoritative proof that the login cookie is dead. Only dedicated
+        // session endpoints are allowed to poison the preloader session state.
+        if (response.status === 401 && isAuthoritativeSessionCheck(info.url)) {
           sessionExpired = true;
           invalidate();
+        } else if (response.status === 401 || response.status === 403) {
+          invalidate();
         }
-        if (response.status === 403) invalidate();
         return response;
       } finally {
         foreground -= 1;
@@ -140,7 +149,8 @@ export default function PortalPreloader({ portal }: { portal: PortalType }) {
     window.fetch = wrappedFetch;
 
     async function read(url: string) {
-      const key = details(url).key;
+      const info = details(url);
+      const key = info.key;
       const controller = new AbortController();
       const version = generation;
       background.set(key, controller);
@@ -149,7 +159,7 @@ export default function PortalPreloader({ portal }: { portal: PortalType }) {
         const response = await network(url, {
           credentials: "same-origin", cache: "no-store", signal: controller.signal,
         });
-        if (response.status === 401) {
+        if (response.status === 401 && isAuthoritativeSessionCheck(info.url)) {
           sessionExpired = true;
           invalidate();
           return null;
