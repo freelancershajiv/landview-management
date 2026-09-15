@@ -12,7 +12,7 @@ export function sheetAmount(value: string | undefined) {
   if (!text || text === "-" || text === "—") return 0;
   const clean = text.replace(/BDT|Tk\.?|৳|,/gi, "").replace(/\s/g, "");
   const number = Number(/^\(.*\)$/.test(clean) ? `-${clean.slice(1, -1)}` : clean);
-  if (!Number.isFinite(number)) throw new Error("A billing amount is invalid. Check the Google Sheet.");
+  if (!Number.isFinite(number)) throw new Error("A billing amount is invalid. Check the billing database.");
   return number;
 }
 
@@ -29,7 +29,7 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
   const files = matching("File List");
   const summaries = matching("Summary");
   if (files.length !== 1) {
-    throw new Error(files.length > 1 ? "Duplicate File ID in File List." : `File LV-${id} was not found in File List.`);
+    throw new Error(files.length > 1 ? "Duplicate File ID in project data." : `File LV-${id} was not found.`);
   }
 
   const file = files[0];
@@ -117,6 +117,19 @@ function recalculateBilling(billing: SheetInvoices) {
   return billing;
 }
 
+function normalizedBillDescription(value: unknown) {
+  return String(value || "")
+    .replace(/^\[(Engineering Bill|Supervision Bill|Other Services Bill)\]\s*/i, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Compatibility safeguard for sessions backed by an older Apps Script bundle.
+ * Canonical project-billing responses already contain the Bills rows, so this
+ * function must never append the same service/amount a second time.
+ */
 export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills: Record<string, unknown>[]) {
   for (const record of databaseBills || []) {
     const status = String(recordValue(record, ["Status", "Bill_Status", "Bill Status"])).trim().toLowerCase();
@@ -134,12 +147,13 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     const billAmount = Number(String(recordValue(record, ["Amount", "Bill_Amount", "Bill Amount"]) || 0).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
     if (!category || !Number.isFinite(billAmount) || billAmount <= 0) continue;
 
-    category.items.push({
-      service: description.replace(/^\[(Engineering Bill|Supervision Bill|Other Services Bill)\]\s*/i, "").trim() || "Service",
-      price: "",
-      quantity: "",
-      amount: billAmount,
-    });
+    const service = description.replace(/^\[(Engineering Bill|Supervision Bill|Other Services Bill)\]\s*/i, "").trim() || "Service";
+    const alreadyIncluded = category.items.some((item) =>
+      normalizedBillDescription(item.service) === normalizedBillDescription(service) && Math.abs(item.amount - billAmount) < 0.01,
+    );
+    if (alreadyIncluded) continue;
+
+    category.items.push({ service, price: "", quantity: "", amount: billAmount });
   }
   return recalculateBilling(billing);
 }
@@ -171,6 +185,10 @@ function verificationAmount(value: unknown) {
 }
 
 function workspacePaymentIsEffective(record: Record<string, unknown>) {
+  const type = String(recordValue(record, ["Transaction_Type", "Transaction Type"])).trim().toLowerCase();
+  if (type === "personal income") return false;
+  const impact = String(recordValue(record, ["Affects_Business_Balance", "Affects Business Balance"])).trim().toLowerCase();
+  if (["false", "no", "0"].includes(impact)) return false;
   const status = String(recordValue(record, ["Approval_Status", "Approval Status", "Status"])).trim().toLowerCase().replace(/[_-]+/g, " ");
   if (!status) return true;
   return ["approved", "received", "paid", "verified", "complete", "completed", "full paid", "fully paid"].includes(status);
@@ -190,11 +208,27 @@ export function verifySheetInvoicesWithPayments(billing: SheetInvoices, database
 
   for (const category of billing.invoices) {
     for (const payment of category.payments) {
+      // Canonical compatibility rows carry the Payment_ID directly. Mark that
+      // source record consumed even when the row is already verified.
+      if (payment.incomeId) {
+        const exactIndex = candidates.findIndex((candidate) => !used.has(candidate.index) && candidate.id === payment.incomeId);
+        if (exactIndex >= 0) {
+          used.add(candidates[exactIndex].index);
+          payment.verification = "Verified";
+          continue;
+        }
+      }
       if (payment.verification === "Verified") continue;
+
       const date = verificationDateKey(payment.date);
       if (!date || !Number.isFinite(payment.amount)) continue;
-
-      const matches = candidates.filter((candidate) => !used.has(candidate.index) && !!candidate.id && candidate.date === date && Number.isFinite(candidate.amount) && Math.abs(candidate.amount - payment.amount) < 0.01);
+      const matches = candidates.filter((candidate) =>
+        !used.has(candidate.index) &&
+        !!candidate.id &&
+        candidate.date === date &&
+        Number.isFinite(candidate.amount) &&
+        Math.abs(candidate.amount - payment.amount) < 0.01,
+      );
       if (matches.length === 1) {
         const match = matches[0];
         used.add(match.index);
