@@ -5,6 +5,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "landview_session";
+const QUICK_USER_COOKIE = "landview_quick_user";
+const QUICK_LOCK_COOKIE = "landview_quick_locked";
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 const CACHE_TTL_MS = 90 * 1000;
@@ -23,23 +25,32 @@ function clientKey(request: NextRequest) {
   return createHmac("sha256", PROXY_SECRET).update(forwarded).digest("hex").slice(0, 32);
 }
 
-function clearCookie(response: NextResponse) {
-  response.cookies.set(COOKIE_NAME, "", {
+function clearAuthCookies(response: NextResponse) {
+  const options = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
-    sameSite: "lax",
+    sameSite: "lax" as const,
     path: "/",
     maxAge: 0,
-  });
+  };
+  response.cookies.set(COOKIE_NAME, "", options);
+  response.cookies.set(QUICK_USER_COOKIE, "", options);
+  response.cookies.set(QUICK_LOCK_COOKIE, "", options);
 }
 
 function explicitSessionFailure(json: any) {
   if (json?.data?.authenticated === false) return true;
-  if (json?.success === false) {
-    const message = String(json?.message || json?.error || "");
-    return /unauthorized|session\s+expired|invalid\s+session|authentication\s+required/i.test(message);
-  }
-  return false;
+  if (json?.success !== false) return false;
+  const message = String(json?.message || json?.error || "").trim().toLowerCase();
+  return [
+    "unauthorized",
+    "session expired.",
+    "session expired",
+    "invalid session.",
+    "invalid session",
+    "authentication required.",
+    "authentication required",
+  ].includes(message);
 }
 
 async function fetchSession(request: NextRequest, token: string) {
@@ -74,10 +85,12 @@ async function fetchSession(request: NextRequest, token: string) {
         throw lastError;
       }
 
-      // An explicit authentication failure is authoritative and should not be retried.
+      // Only exact session-expiry responses are authoritative. Messages such as
+      // "Unauthorized gateway" are infrastructure/configuration failures and
+      // must never delete a valid browser session.
       if (explicitSessionFailure(json)) return { upstream, json };
 
-      // Retry temporary upstream/server failures without touching the browser cookie.
+      // Retry temporary upstream/server failures without touching browser cookies.
       if ((!upstream.ok || !json?.success || !json?.data?.authenticated) && attempt < UPSTREAM_RETRY_DELAYS_MS.length - 1) {
         lastError = new Error(String(json?.message || json?.error || `Session service returned HTTP ${upstream.status}.`));
         continue;
@@ -125,9 +138,14 @@ export async function GET(request: NextRequest) {
         { success: false, error: json?.message || json?.error || "Session expired." },
         { status: 401 },
       );
-      clearCookie(response);
+      clearAuthCookies(response);
       return response;
     }
+
+    console.warn("LAND VIEW session validation preserved after transient backend result", {
+      upstreamStatus: upstream.status,
+      message: String(json?.message || json?.error || "Unknown session validation result").slice(0, 180),
+    });
 
     // A temporary or malformed backend result must never destroy a valid session.
     return NextResponse.json(
@@ -135,6 +153,10 @@ export async function GET(request: NextRequest) {
       { status: upstream.status >= 500 ? 503 : 502 },
     );
   } catch (error: any) {
+    console.warn("LAND VIEW session validation request failed; preserving session", {
+      name: String(error?.name || "Error"),
+      message: String(error?.message || "Could not validate session.").slice(0, 180),
+    });
     return NextResponse.json(
       {
         success: false,
