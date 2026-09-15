@@ -4,6 +4,7 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import ContactMapEnhancer from "@/components/contact-map-enhancer";
 import GlobalActionFeedback from "@/components/global-action-feedback";
 import SessionExpiryGuard from "@/components/session-expiry-guard";
+import VisitorAnalytics from "@/components/visitor-analytics";
 import "./globals.css";
 import "./premium-theme.css";
 import "./team-overrides.css";
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en-BD">
       <body>
         {children}
+        <VisitorAnalytics />
         <SessionExpiryGuard />
         <Analytics />
         <SpeedInsights />
