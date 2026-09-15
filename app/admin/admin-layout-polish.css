@@ -1,0 +1,32 @@
+/* Final LAND VIEW admin alignment overrides. Loaded after admin-brand-theme.css. */
+@media screen {
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main {
+    width: 100% !important;
+    margin: 0 !important;
+  }
+
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    width: min(1500px, calc(100% - 56px)) !important;
+    max-width: 1500px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  @media (max-width: 900px) {
+    .portal-admin .content-wrap,
+    .portal-admin .tmg-content-wrap {
+      width: calc(100% - 28px) !important;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .portal-admin .content-wrap,
+    .portal-admin .tmg-content-wrap {
+      width: calc(100% - 20px) !important;
+    }
+  }
+}

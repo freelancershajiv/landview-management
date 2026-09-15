@@ -3,6 +3,7 @@ import PortalPreloader from "@/components/portal-preloader";
 import { requirePortalSession } from "@/lib/server-auth";
 import "./accounts-ledger-overrides.css";
 import "./admin-brand-theme.css";
+import "./admin-layout-polish.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   await requirePortalSession(["admin", "manager", "accounts", "employee"]);
