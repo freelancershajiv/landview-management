@@ -151,11 +151,14 @@ async function gatewayRequest(request: NextRequest, flags: Record<string, unknow
 function registryRequest(request: NextRequest, payload: Record<string, unknown>) { return gatewayRequest(request, { _certificateRegistry: "1" }, payload); }
 function portalRequest(request: NextRequest, payload: Record<string, unknown>) { return gatewayRequest(request, { _certificatePortal: "1" }, payload); }
 
-function certificateUrls(request: NextRequest, token: string) {
+function certificateUrls(request: NextRequest, token: string, certificateId = "") {
   if (!token) return { verificationUrl: "", qrUrl: "" };
   const origin = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
   const verificationUrl = `${origin}/certificate/verify/${encodeURIComponent(token)}`;
-  const qrUrl = `${origin}/api/billing-verification/qr?data=${encodeURIComponent(verificationUrl)}`;
+  // Keep the printed QR compact like invoice QRs. The short certificate-ID URL
+  // is resolved against the live registry; the full signed link remains available.
+  const qrTarget = certificateId ? `${origin}/certificate/verify/${encodeURIComponent(certificateId)}` : verificationUrl;
+  const qrUrl = `${origin}/api/billing-verification/qr?data=${encodeURIComponent(qrTarget)}`;
   return { verificationUrl, qrUrl };
 }
 function validateType(value: unknown) {
@@ -176,7 +179,7 @@ export async function GET(request: NextRequest) {
         fatherName: clean(item?.fatherName || item?.Father_Name || verified?.f, 120),
         motherName: clean(item?.motherName || item?.Mother_Name || verified?.m, 120),
         nidNo: clean(item?.nidNo || item?.NID_No || item?.NID || verified?.nid, 40),
-        ...certificateUrls(request, signed),
+        ...certificateUrls(request, signed, clean(item?.certificateId || item?.Certificate_ID, 60)),
         token: undefined,
       };
     });
@@ -234,7 +237,7 @@ export async function POST(request: NextRequest) {
     }
 
     const signedToken = signCertificate({ id: certificateId, t: type, n: name, a: address, p: position, s: subject, r: reference, d: description, f: fatherName || undefined, m: motherName || undefined, nid: nidNo || undefined, i: issuedAt, x: expiresAt || undefined });
-    const urls = certificateUrls(request, signedToken);
+    const urls = certificateUrls(request, signedToken, certificateId);
     if (urls.verificationUrl.length > 4096) throw new Error("Certificate content is too long for its verification QR.");
     billingQrSvg(urls.verificationUrl);
     await registryRequest(request, {

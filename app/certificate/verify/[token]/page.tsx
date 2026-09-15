@@ -13,6 +13,7 @@ type RegistryCertificate = {
   revokedReason?: string;
   deletedAt?: string;
   deletedReason?: string;
+  token?: string; Token?: string; type?: string; Type?: string; name?: string; Name?: string; address?: string; Address?: string; position?: string; Position?: string; subject?: string; Subject?: string; reference?: string; Reference?: string; description?: string; Description?: string; issuedAt?: string; Issued_At?: string; expiresAt?: string; Expires_At?: string; fatherName?: string; Father_Name?: string; motherName?: string; Mother_Name?: string; nidNo?: string; NID_No?: string;
 };
 
 function label(type: string) {
@@ -65,7 +66,21 @@ async function registryStatus(certificateId: string): Promise<{ available: boole
 
 export default async function CertificateVerificationPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const certificate = verifyCertificate(decodeURIComponent(token || ""));
+  const decoded = decodeURIComponent(token || "");
+  const shortId = /^LVC-(?:EMP|PRJ|BLD)-/i.test(decoded) ? decoded.toUpperCase() : "";
+  const shortRegistry = shortId ? await registryStatus(shortId) : null;
+  const row: any = shortRegistry?.certificate || {};
+  const storedToken = String(row.token || row.Token || "").trim();
+  let certificate: any = storedToken ? verifyCertificate(storedToken) : verifyCertificate(decoded);
+  if (!certificate && shortRegistry?.found) {
+    certificate = {
+      id: shortId, t: String(row.type || row.Type || "project").toLowerCase(),
+      n: row.name || row.Name || "LAND VIEW certificate holder", a: row.address || row.Address || "",
+      p: row.position || row.Position || "", s: row.subject || row.Subject || "", r: row.reference || row.Reference || "",
+      d: row.description || row.Description || "", i: row.issuedAt || row.Issued_At || "", x: row.expiresAt || row.Expires_At || "",
+      f: row.fatherName || row.Father_Name || "", m: row.motherName || row.Mother_Name || "", nid: row.nidNo || row.NID_No || ""
+    };
+  }
 
   if (!certificate) {
     return (
@@ -81,7 +96,7 @@ export default async function CertificateVerificationPage({ params }: { params: 
     );
   }
 
-  const registry = await registryStatus(certificate.id);
+  const registry = shortRegistry || await registryStatus(certificate.id);
   const liveStatus = String(registry.certificate?.status || "").trim().toLowerCase();
   const expired = certificate.x ? new Date(certificate.x).getTime() < Date.now() : false;
   const revoked = liveStatus === "revoked";
