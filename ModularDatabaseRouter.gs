@@ -1,6 +1,11 @@
 /* LAND VIEW — MODULAR DATABASE ROUTER
- * Splits the Apps Script data layer by business module while preserving a
- * master-spreadsheet fallback during migration.
+ * Production routing for the five LAND VIEW module databases.
+ *
+ * IMPORTANT:
+ * - Keep LAND_VIEW_MODULAR_DB_ACTIVE unset/0 until legacy data has been copied.
+ * - migrateModularDatabases() copies legacy master + finance/certificate data,
+ *   verifies the copy at a basic row/column level, then activates modular mode.
+ * - disableModularDatabases() provides an immediate master-database fallback.
  */
 
 const LAND_VIEW_MODULE_DATABASES_ = {
@@ -12,8 +17,17 @@ const LAND_VIEW_MODULE_DATABASES_ = {
 };
 
 const LAND_VIEW_MODULE_SHEETS_ = {
-  core: ["Users", "Projects", "Employees", "Clients", "Permissions", "Audit Log"],
-  finance: ["Summary", "File List", "Design Bill", "Design Deposit", "Supervision Bill", "S Deposit", "Others Bill", "Others Bill Deposit", "Payments", "Invoices", "Bills", "Ledger Reconciliation"],
+  core: [
+    "Users", "Projects", "Employees", "Clients", "Permissions", "Audit Log",
+    "Login Sessions", "Lookup Lists", "Database Map"
+  ],
+  finance: [
+    "Summary", "File List", "Design Bill", "Design Deposit", "Supervision Bill",
+    "S Deposit", "Others Bill", "Others Bill Deposit", "Payments", "Invoices",
+    "Bills", "Ledger Reconciliation", "Income", "Accounting Expenses",
+    "Auto Invoice Reconciliation", "Auto Invoice Projects",
+    "Auto Invoice Billing Lines", "Workflow"
+  ],
   certificates: ["Certificates", "Certificate Requests", "Certificate Audit"],
   operations: ["Site Visits", "Tasks", "Attendance", "Leave Requests", "Expenses", "Approvals"],
   documents: ["Documents", "Drawing Submissions", "Project Files", "Quotations"]
@@ -39,6 +53,12 @@ function getModuleSpreadsheet_(moduleName) {
   return LAND_VIEW_MODULE_CACHE_[key];
 }
 
+function getCoreDatabase_() { return getModuleSpreadsheet_("core"); }
+function getFinanceDatabase_() { return getModuleSpreadsheet_("finance"); }
+function getCertificateDatabase_() { return getModuleSpreadsheet_("certificates"); }
+function getOperationsDatabase_() { return getModuleSpreadsheet_("operations"); }
+function getDocumentsDatabase_() { return getModuleSpreadsheet_("documents"); }
+
 function modularDatabaseEnabled_() {
   return String(PropertiesService.getScriptProperties().getProperty("LAND_VIEW_MODULAR_DB_ACTIVE") || "") === "1";
 }
@@ -51,10 +71,6 @@ function getSpreadsheetForSheet_(sheetName) {
   return getSpreadsheet();
 }
 
-function getCertificateDatabase_() {
-  return getModuleSpreadsheet_("certificates");
-}
-
 function getModularDatabaseStatus_(params) {
   if (params) requireSession(params);
   const modules = {};
@@ -63,42 +79,63 @@ function getModularDatabaseStatus_(params) {
     modules[name] = {
       spreadsheetId: ss.getId(),
       name: ss.getName(),
-      sheets: ss.getSheets().map(function(sheet) { return sheet.getName(); })
+      sheets: ss.getSheets().map(function(sheet) {
+        return { name: sheet.getName(), rows: sheet.getLastRow(), columns: sheet.getLastColumn() };
+      })
     };
   });
   return { success: true, data: { active: modularDatabaseEnabled_(), modules: modules } };
 }
 
-function copySheetToModule_(sourceSs, targetSs, sheetName) {
+function copySheetToModule_(sourceSs, targetSs, sheetName, targetName) {
   const source = sourceSs.getSheetByName(sheetName);
-  if (!source) return { sheet: sheetName, status: "not-used-in-source" };
+  const destinationName = String(targetName || sheetName);
+  if (!source) return { sheet: sheetName, target: destinationName, status: "not-used-in-source" };
 
-  const old = targetSs.getSheetByName(sheetName);
-  const temporaryName = "__LV_MIGRATE__" + new Date().getTime() + "__" + sheetName.slice(0, 30);
+  const old = targetSs.getSheetByName(destinationName);
+  const temporaryName = "__LV_MIGRATE__" + new Date().getTime() + "__" + destinationName.slice(0, 25);
   const copied = source.copyTo(targetSs).setName(temporaryName);
   if (old) targetSs.deleteSheet(old);
-  copied.setName(sheetName);
-  return { sheet: sheetName, status: "copied", rows: source.getLastRow(), columns: source.getLastColumn() };
+  copied.setName(destinationName);
+
+  const sourceRows = source.getLastRow();
+  const sourceColumns = source.getLastColumn();
+  const targetRows = copied.getLastRow();
+  const targetColumns = copied.getLastColumn();
+  if (sourceRows !== targetRows || sourceColumns !== targetColumns) {
+    throw new Error("Copy verification failed for " + sheetName + " -> " + destinationName);
+  }
+
+  return {
+    sheet: sheetName,
+    target: destinationName,
+    status: "copied",
+    rows: sourceRows,
+    columns: sourceColumns
+  };
 }
 
 function migrateModularDatabases(params) {
   const session = requireSession(params || {});
   if (!isAdminRole(session.role)) throw new Error("Admin or Manager access required.");
 
+  const props = PropertiesService.getScriptProperties();
   const master = getSpreadsheet();
-  const results = {};
+  const results = { core: [], finance: [], certificates: [], operations: [], documents: [] };
   const failures = [];
 
+  // 1. Master management database -> module databases.
   Object.keys(LAND_VIEW_MODULE_SHEETS_).forEach(function(moduleName) {
+    if (moduleName === "certificates") return;
     const target = getModuleSpreadsheet_(moduleName);
-    results[moduleName] = [];
     LAND_VIEW_MODULE_SHEETS_[moduleName].forEach(function(sheetName) {
+      // Accounting Expenses is intentionally sourced from the accounting ledger,
+      // not from the operational master Expenses sheet.
+      if (sheetName === "Accounting Expenses" || sheetName === "Income" ||
+          sheetName === "Auto Invoice Reconciliation" || sheetName === "Auto Invoice Projects" ||
+          sheetName === "Auto Invoice Billing Lines" || sheetName === "Workflow") return;
       try {
-        const result = copySheetToModule_(master, target, sheetName);
-        results[moduleName].push(result);
-        // A sheet that never existed in the legacy master is not an error: the
-        // empty module tab remains ready for future records. Only actual copy
-        // exceptions block activation.
+        results[moduleName].push(copySheetToModule_(master, target, sheetName));
       } catch (error) {
         const message = error && error.message ? error.message : String(error);
         results[moduleName].push({ sheet: sheetName, status: "error", error: message });
@@ -107,36 +144,68 @@ function migrateModularDatabases(params) {
     });
   });
 
-  // Certificate data historically lives in the finance workbook rather than the
-  // master management workbook. Preserve it before enabling modular routing.
+  // 2. Legacy Auto Invoice workbook -> new Finance DB and Certificate DB.
   try {
-    if (typeof getFinanceWorkbook_ === "function") {
-      const financeSource = getFinanceWorkbook_();
-      const certificateTarget = getModuleSpreadsheet_("certificates");
-      ["Certificates", "Certificate Requests"].forEach(function(sheetName) {
-        if (financeSource.getSheetByName(sheetName)) {
-          const result = copySheetToModule_(financeSource, certificateTarget, sheetName);
-          results.certificates = results.certificates || [];
-          results.certificates.push(Object.assign({ source: "finance-workbook" }, result));
+    if (typeof getLegacyFinanceWorkbook_ === "function") {
+      const financeSource = getLegacyFinanceWorkbook_();
+      const financeTarget = getFinanceDatabase_();
+      [
+        "Summary", "File List", "Design Bill", "Design Deposit", "Supervision Bill",
+        "S Deposit", "Others Bill", "Others Bill Deposit", "Ledger Reconciliation",
+        "Auto Invoice Reconciliation", "Auto Invoice Projects", "Auto Invoice Billing Lines", "Workflow"
+      ].forEach(function(sheetName) {
+        if (!financeSource.getSheetByName(sheetName)) return;
+        try {
+          results.finance.push(Object.assign({ source: "legacy-finance" }, copySheetToModule_(financeSource, financeTarget, sheetName)));
+        } catch (error) {
+          const message = error && error.message ? error.message : String(error);
+          failures.push("legacy-finance:" + sheetName + ":" + message);
+        }
+      });
+
+      const certificateTarget = getCertificateDatabase_();
+      ["Certificates", "Certificate Requests", "Certificate Audit"].forEach(function(sheetName) {
+        if (!financeSource.getSheetByName(sheetName)) return;
+        try {
+          results.certificates.push(Object.assign({ source: "legacy-finance" }, copySheetToModule_(financeSource, certificateTarget, sheetName)));
+        } catch (error) {
+          const message = error && error.message ? error.message : String(error);
+          failures.push("certificate:" + sheetName + ":" + message);
         }
       });
     }
   } catch (error) {
-    failures.push("certificate-finance-source:" + (error && error.message ? error.message : String(error)));
+    failures.push("legacy-finance-source:" + (error && error.message ? error.message : String(error)));
   }
 
-  if (!failures.length) {
-    PropertiesService.getScriptProperties().setProperty("LAND_VIEW_MODULAR_DB_ACTIVE", "1");
+  // 3. Legacy accounting ledger -> new Finance DB. Rename Expenses to avoid
+  // collision with the operational Expenses table.
+  try {
+    if (typeof getLegacyAccountingLedger_ === "function") {
+      const accountingSource = getLegacyAccountingLedger_();
+      const financeTarget = getFinanceDatabase_();
+      if (accountingSource.getSheetByName("Income")) {
+        results.finance.push(Object.assign({ source: "legacy-accounting" }, copySheetToModule_(accountingSource, financeTarget, "Income", "Income")));
+      }
+      if (accountingSource.getSheetByName("Expenses")) {
+        results.finance.push(Object.assign({ source: "legacy-accounting" }, copySheetToModule_(accountingSource, financeTarget, "Expenses", "Accounting Expenses")));
+      }
+      ["Auto Invoice Reconciliation", "Auto Invoice Projects", "Auto Invoice Billing Lines"].forEach(function(sheetName) {
+        if (!accountingSource.getSheetByName(sheetName)) return;
+        results.finance.push(Object.assign({ source: "legacy-accounting" }, copySheetToModule_(accountingSource, financeTarget, sheetName)));
+      });
+    }
+  } catch (error) {
+    failures.push("legacy-accounting-source:" + (error && error.message ? error.message : String(error)));
   }
+
+  if (!failures.length) props.setProperty("LAND_VIEW_MODULAR_DB_ACTIVE", "1");
+  else props.setProperty("LAND_VIEW_MODULAR_DB_ACTIVE", "0");
 
   return {
     success: !failures.length,
-    data: {
-      active: !failures.length,
-      results: results,
-      failures: failures
-    },
-    error: failures.length ? "Migration completed with one or more copy errors. Modular mode was not activated." : ""
+    data: { active: !failures.length, results: results, failures: failures },
+    error: failures.length ? "Migration completed with copy errors. Modular mode remains disabled." : ""
   };
 }
 
