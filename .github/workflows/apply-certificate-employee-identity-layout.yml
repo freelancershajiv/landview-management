@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - scripts/apply_certificate_employee_identity_layout.py
+      - scripts/run_certificate_employee_identity_layout.trigger
   workflow_dispatch:
 
 permissions:
