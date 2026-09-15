@@ -1,0 +1,37 @@
+name: Make certificate entry manual-only
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/patch_certificate_manual_entry.py
+      - .github/workflows/manual-certificate-entry.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Remove project and employee source loading from certificates
+        run: python3 scripts/patch_certificate_manual_entry.py
+
+      - name: Commit certificate page changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/certificates/page.tsx
+          if git diff --cached --quiet; then
+            echo "Certificate page already uses manual-only entry."
+            exit 0
+          fi
+          git commit -m "Use manual certificate project and employee entry"
+          git push
