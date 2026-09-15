@@ -32,9 +32,25 @@ function portalRequest(request:NextRequest,payload:Record<string,unknown>){retur
 function certificateUrls(request:NextRequest,token:string,certificateId=""){
   if(!token)return{verificationUrl:"",qrUrl:""};
   const origin=`${request.nextUrl.protocol}//${request.nextUrl.host}`;
-  const verificationKey=certificateId||token;
-  const verificationUrl=`${origin}/certificate/verify/${encodeURIComponent(verificationKey)}`;
-  const qrUrl=`${origin}/api/billing-verification/qr?data=${encodeURIComponent(verificationUrl)}`;
+  const verificationUrl=`${origin}/certificate/verify/${encodeURIComponent(token)}`;
+  let qrVerificationUrl=verificationUrl;
+  const full=verifyCertificate(token);
+  if(full){
+    const compactToken=signCertificate({
+      id:full.id,
+      t:full.t,
+      n:full.n,
+      a:"",
+      p:"",
+      s:"",
+      r:"",
+      d:"",
+      i:full.i,
+      x:full.x||undefined,
+    });
+    qrVerificationUrl=`${origin}/certificate/verify/${encodeURIComponent(compactToken)}`;
+  }
+  const qrUrl=`${origin}/api/billing-verification/qr?data=${encodeURIComponent(qrVerificationUrl)}`;
   return{verificationUrl,qrUrl};
 }
 function validateType(value:unknown){const type=clean(value,20).toLowerCase() as CertificateType;if(!["project","employee","building"].includes(type))throw new Error("Invalid certificate type.");return type;}
