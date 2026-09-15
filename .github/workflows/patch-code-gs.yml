@@ -1,19 +1,11 @@
-name: Patch LAND VIEW application files
+name: Patch LAND VIEW modular Apps Script files
 
 on:
   push:
     branches:
       - main
     paths:
-      - .github/workflows/patch-code-gs.yml
-      - scripts/patch_chairman_approval.py
-      - scripts/patch_chairman_core_backend.py
-      - scripts/patch_emp0001_login.py
-      - scripts/patch_backend_retry.py
-      - scripts/patch_employee_login_transition.py
       - scripts/patch_accounting_database_id.py
-      - scripts/patch_invoice_verification.py
-      - ChairmanPendingExpenses.gs
   workflow_dispatch:
 
 permissions:
@@ -27,95 +19,18 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Patch EMP-0001 identity and approval UI
-        run: python3 scripts/patch_chairman_approval.py
-      - name: Patch self-contained chairman approval backend
-        run: python3 scripts/patch_chairman_core_backend.py
-      - name: Patch EMP-0001 login alias and employee permissions
-        run: python3 scripts/patch_emp0001_login.py
-      - name: Patch Apps Script proxy retries
-        run: python3 scripts/patch_backend_retry.py
-      - name: Patch employee login transition
-        run: python3 scripts/patch_employee_login_transition.py
-      - name: Switch to clean accounting database
+
+      - name: Apply modular finance cutover
         run: python3 scripts/patch_accounting_database_id.py
-      - name: Patch invoice verification linkage
-        run: python3 scripts/patch_invoice_verification.py
-      - name: Publish patched application files
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
+
+      - name: Commit patched Apps Script files
         run: |
-          python3 - <<'PY'
-          import base64
-          import json
-          import os
-          import subprocess
-          import urllib.error
-          import urllib.request
-
-          repo = os.environ["GITHUB_REPOSITORY"]
-          token = os.environ["GITHUB_TOKEN"]
-          allowed = {
-              "Code.gs",
-              "FinanceLedger.gs",
-              "FinanceSheet.gs",
-              "ZZ_AccountingFinance.gs",
-              "lib/api.ts",
-              "lib/sheet-invoices.ts",
-              "app/api/landview/route.ts",
-              "app/login/page.tsx",
-              "app/admin/accounts/page.tsx",
-              "app/admin/finance/invoices/page.tsx",
-              "components/chairman-expense-approval.tsx",
-              "components/employee-portal-shell.tsx",
-          }
-
-          def git_names(args):
-              out = subprocess.check_output(["git", *args], text=True).splitlines()
-              return {line.strip() for line in out if line.strip()}
-
-          changed = git_names(["diff", "--name-only"]) | git_names(["diff", "--cached", "--name-only"])
-          files = sorted(changed & allowed)
-          if not files:
-              print("No application changes required")
-              raise SystemExit(0)
-
-          headers = {
-              "Authorization": f"Bearer {token}",
-              "Accept": "application/vnd.github+json",
-              "X-GitHub-Api-Version": "2022-11-28",
-              "User-Agent": "land-view-patcher",
-          }
-
-          for path in files:
-              url = f"https://api.github.com/repos/{repo}/contents/{path}"
-              get_req = urllib.request.Request(url + "?ref=main", headers=headers)
-              try:
-                  with urllib.request.urlopen(get_req, timeout=30) as response:
-                      current = json.load(response)
-                  sha = current.get("sha", "")
-              except urllib.error.HTTPError as exc:
-                  if exc.code == 404:
-                      sha = ""
-                  else:
-                      raise
-
-              payload = {
-                  "message": "Apply LAND VIEW application patches",
-                  "content": base64.b64encode(open(path, "rb").read()).decode("ascii"),
-                  "branch": "main",
-              }
-              if sha:
-                  payload["sha"] = sha
-
-              body = json.dumps(payload).encode("utf-8")
-              put_req = urllib.request.Request(
-                  url,
-                  data=body,
-                  headers={**headers, "Content-Type": "application/json"},
-                  method="PUT",
-              )
-              with urllib.request.urlopen(put_req, timeout=60) as response:
-                  result = json.load(response)
-              print(f"Published {path}: {result.get('commit', {}).get('sha', '')}")
-          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add FinanceSheet.gs FinanceLedger.gs ZZ_AccountingFinance.gs app/admin/accounts/page.tsx
+          if git diff --cached --quiet; then
+            echo "No modular cutover changes required."
+            exit 0
+          fi
+          git commit -m "Route finance Apps Script to modular databases"
+          git push
