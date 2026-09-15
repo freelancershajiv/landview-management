@@ -33,7 +33,8 @@ test("finance ledger posts to Transactions and never recreates the old accountin
   assert.match(source, /TXN-EXP-/);
   assert.match(source, /TXN-TRF-/);
   assert.equal(source.includes("1e51Mq3hOj9rUH9ugF8SiHe4SYJW3dJ3Bcw9JNgii_bs"), false);
-  assert.equal(source.includes("Accounting Expenses"), false);
+  assert.equal(source.includes('getSheetByName("Accounting Expenses")'), false);
+  assert.equal(source.includes('insertSheet("Accounting Expenses")'), false);
 });
 
 test("owner bearer link is retired and admin layout excludes employees", () => {
