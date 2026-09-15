@@ -42,3 +42,4 @@ text = text.replace(old_jsx, new_jsx, 1)
 
 path.write_text(text)
 print("Removed certificate seal/signature and centered a simplified QR block.")
+# trigger
