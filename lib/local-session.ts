@@ -1,46 +1,24 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
-import { getVercelOidcToken } from "@vercel/oidc";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import type { NextRequest } from "next/server";
+import { supabaseAuthGateway } from "@/lib/supabase-auth";
 
-const SESSION_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-session";
-const AUDIENCE = "https://supabase.landview.internal";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 
 export const SESSION_COOKIE = "landview_session";
+export const REFRESH_COOKIE = "landview_refresh";
 export const QUICK_USER_COOKIE = "landview_quick_user";
 export const REMEMBER_COOKIE = "landview_remember_device";
 export const DEVICE_COOKIE = "landview_device";
 
 const NORMAL_MAX_AGE_SECONDS = 8 * 60 * 60;
 const REMEMBER_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
-const NORMAL_IDLE_MS = 30 * 60 * 1000;
-const TOUCH_AFTER_MS = 2 * 60 * 1000;
 const SESSION_READ_CACHE_MS = 5_000;
 
 export type WorkspaceUser = Record<string, unknown>;
 
-type SessionRow = {
-  session_key: string;
-  user_id: string;
-  role: string;
-  user_json: WorkspaceUser;
-  remembered: boolean;
-  active: boolean;
-  created_at: string;
-  last_seen_at: string;
-  expires_at: string;
-};
-
-type SessionCacheEntry = {
-  row: SessionRow;
-  expiresAt: number;
-};
-
-// Serverless instances can receive several API requests from one page at once.
-// Collapse those requests into one authoritative session lookup and briefly
-// reuse a positive result. The short TTL keeps logout/revocation responsive.
+type SessionCacheEntry = { user: WorkspaceUser; expiresAt: number };
 const sessionReadCache = new Map<string, SessionCacheEntry>();
-const sessionReadInflight = new Map<string, Promise<SessionRow | null>>();
+const sessionReadInflight = new Map<string, Promise<WorkspaceUser | null>>();
 
 function hmac(value: string) {
   if (!PROXY_SECRET) return "";
@@ -83,143 +61,55 @@ export function userIdOf(user: WorkspaceUser | null | undefined) {
   return String(user?.userId || user?.User_ID || user?.username || user?.Username || "").trim();
 }
 
-export function sessionKeyForToken(token: string) {
-  return hmac(`app-session|${String(token || "").trim()}`);
-}
-
-async function sessionGateway(action: string, input: Record<string, unknown>) {
-  const oidc = await getVercelOidcToken({ audience: AUDIENCE });
-  if (!oidc) throw new Error("Vercel OIDC token is unavailable.");
-  const response = await fetch(SESSION_URL, {
-    method: "POST",
-    headers: { authorization: `Bearer ${oidc}`, "content-type": "application/json" },
-    body: JSON.stringify({ action, ...input }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(10_000),
-  });
-  const json = await response.json().catch(() => null);
-  if (!response.ok || !json?.success) throw new Error(String(json?.error || `Supabase session service returned HTTP ${response.status}.`));
-  return json.data as SessionRow | null;
-}
-
-function cacheSessionRow(sessionKey: string, row: SessionRow | null) {
-  if (!row) {
-    sessionReadCache.delete(sessionKey);
-    return;
-  }
-  sessionReadCache.set(sessionKey, { row, expiresAt: Date.now() + SESSION_READ_CACHE_MS });
-}
-
-function clearSessionReadCache(sessionKey: string) {
-  sessionReadCache.delete(sessionKey);
-  sessionReadInflight.delete(sessionKey);
-}
-
-async function readSessionRow(sessionKey: string) {
-  const cached = sessionReadCache.get(sessionKey);
-  if (cached?.expiresAt && cached.expiresAt > Date.now()) return cached.row;
-  if (cached) sessionReadCache.delete(sessionKey);
-
-  const existing = sessionReadInflight.get(sessionKey);
-  if (existing) return existing;
-
-  const promise = (async () => {
-    const row = await sessionGateway("get", { sessionKey });
-    cacheSessionRow(sessionKey, row);
-    return row;
-  })();
-  sessionReadInflight.set(sessionKey, promise);
-
-  try {
-    return await promise;
-  } finally {
-    if (sessionReadInflight.get(sessionKey) === promise) sessionReadInflight.delete(sessionKey);
-  }
-}
-
-function expiryFor(remembered: boolean) {
-  const seconds = remembered ? REMEMBER_MAX_AGE_SECONDS : NORMAL_MAX_AGE_SECONDS;
-  return new Date(Date.now() + seconds * 1000).toISOString();
-}
-
 export function sessionMaxAge(remembered: boolean) {
   return remembered ? REMEMBER_MAX_AGE_SECONDS : NORMAL_MAX_AGE_SECONDS;
 }
 
-export async function registerSupabaseSession(
-  token: string,
-  user: WorkspaceUser,
-  remembered: boolean,
-  deviceId = "",
-) {
-  const sessionKey = sessionKeyForToken(token);
-  if (!sessionKey || !userIdOf(user)) throw new Error("Cannot register LAND VIEW session.");
-  const row = await sessionGateway("upsert", {
-    sessionKey,
-    user,
-    remembered,
-    expiresAt: expiryFor(remembered),
-    deviceId,
-  });
-  cacheSessionRow(sessionKey, row);
-  return row;
+function cacheKey(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function clearTokenCache(token: string) {
+  const key = cacheKey(token);
+  sessionReadCache.delete(key);
+  sessionReadInflight.delete(key);
+}
+
+async function readSupabaseAuthUser(token: string): Promise<WorkspaceUser | null> {
+  const key = cacheKey(token);
+  const cached = sessionReadCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.user;
+  if (cached) sessionReadCache.delete(key);
+
+  const inflight = sessionReadInflight.get(key);
+  if (inflight) return inflight;
+
+  const promise = (async () => {
+    try {
+      const data = await supabaseAuthGateway<{ authenticated: boolean; user: WorkspaceUser }>("getUser", { accessToken: token });
+      if (!data?.authenticated || !data.user) return null;
+      sessionReadCache.set(key, { user: data.user, expiresAt: Date.now() + SESSION_READ_CACHE_MS });
+      return data.user;
+    } catch {
+      return null;
+    }
+  })();
+  sessionReadInflight.set(key, promise);
+  try {
+    return await promise;
+  } finally {
+    if (sessionReadInflight.get(key) === promise) sessionReadInflight.delete(key);
+  }
 }
 
 export async function requireLocalSession(request: NextRequest): Promise<WorkspaceUser | null> {
-  if (!PROXY_SECRET) return null;
   const token = request.cookies.get(SESSION_COOKIE)?.value?.trim() || "";
-  const signedUser = readSignedWorkspaceUser(request.cookies.get(QUICK_USER_COOKIE)?.value);
-  if (!token || !signedUser) return null;
-
-  const sessionKey = sessionKeyForToken(token);
-  if (!sessionKey) return null;
-  const remembered = request.cookies.get(REMEMBER_COOKIE)?.value === "1";
-  let row: SessionRow | null = null;
-  try {
-    row = await readSessionRow(sessionKey);
-  } catch (error) {
-    console.warn("LAND VIEW Supabase session lookup failed", {
-      message: error instanceof Error ? error.message.slice(0, 180) : "Unknown error",
-    });
-    return null;
-  }
-
-  if (!row) {
-    try {
-      row = await registerSupabaseSession(
-        token,
-        signedUser,
-        remembered,
-        request.cookies.get(DEVICE_COOKIE)?.value || "",
-      );
-    } catch (error) {
-      console.warn("LAND VIEW Supabase session bootstrap failed", {
-        message: error instanceof Error ? error.message.slice(0, 180) : "Unknown error",
-      });
-      return null;
-    }
-  }
-
-  if (!row?.active || Date.parse(row.expires_at) <= Date.now()) {
-    clearSessionReadCache(sessionKey);
-    return null;
-  }
-  const lastSeen = Date.parse(row.last_seen_at || row.created_at || "");
-  if (!row.remembered && Number.isFinite(lastSeen) && Date.now() - lastSeen > NORMAL_IDLE_MS) {
-    clearSessionReadCache(sessionKey);
-    void sessionGateway("revoke", { sessionKey }).catch(() => undefined);
-    return null;
-  }
-
-  if (!Number.isFinite(lastSeen) || Date.now() - lastSeen > TOUCH_AFTER_MS) {
-    void sessionGateway("touch", { sessionKey }).catch(() => undefined);
-  }
-  return row.user_json && typeof row.user_json === "object" ? row.user_json : signedUser;
+  if (!token) return null;
+  return readSupabaseAuthUser(token);
 }
 
 export async function revokeLocalSession(token: string) {
-  const sessionKey = sessionKeyForToken(token);
-  if (!sessionKey) return null;
-  clearSessionReadCache(sessionKey);
-  return sessionGateway("revoke", { sessionKey });
+  if (!token) return null;
+  clearTokenCache(token);
+  return supabaseAuthGateway("logout", { accessToken: token }).catch(() => null);
 }
