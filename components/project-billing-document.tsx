@@ -8,6 +8,18 @@ import styles from "@/app/admin/finance/invoices/invoice.module.css";
 const money = (value: number) =>
   new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(Number(value || 0));
 
+const amountText = (value: unknown) => {
+  const normalized = String(value ?? "").trim().replace(/BDT|Tk\.?|৳|,/gi, "").replace(/\s/g, "");
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed)
+    ? new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 }).format(parsed)
+    : "—";
+};
+
+function isSoilTestService(value: unknown) {
+  return /\bsoil\s*test\b/i.test(String(value ?? ""));
+}
+
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Dhaka",
@@ -199,10 +211,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
   const renderTable = (category: SheetInvoices["invoices"][number], type: "bill" | "deposit") => {
     if (type === "bill") {
       if (!category.items.length) return <p className={styles.empty}>No bill records.</p>;
-      if (category.name === "Supervision") {
-        return <div className={styles.tableWrap}><table className={styles.supervisionBillTable}><thead><tr><th>SL.</th><th>Description</th><th>Amount</th></tr></thead><tbody>{category.items.map((item,index)=><tr key={index}><td>{index+1}</td><td>{item.service||"—"}</td><td className={styles.moneyCell}>{money(item.amount)}</td></tr>)}</tbody></table></div>;
-      }
-      return <div className={styles.tableWrap}><table className={styles.billTable}><thead><tr><th>SL.</th><th>Description</th><th>Rate</th><th>Qty.</th><th>Amount</th></tr></thead><tbody>{category.items.map((item,index)=><tr key={index}><td>{index+1}</td><td>{item.service||"—"}</td><td>{item.price||"—"}</td><td>{item.quantity||"—"}</td><td className={styles.moneyCell}>{money(item.amount)}</td></tr>)}</tbody></table></div>;
+      return <div className={styles.tableWrap}><table className={styles.billTable}><thead><tr><th>SL.</th><th>Description</th><th>Rate (BDT)</th><th>QTY</th><th>AMOUNT (BDT)</th></tr></thead><tbody>{category.items.map((item,index)=>{const soilTest=isSoilTestService(item.service);return <tr key={index}><td>{index+1}</td><td>{item.service||"—"}</td><td>{soilTest&&item.price?amountText(item.price):""}</td><td>{soilTest&&item.quantity?item.quantity:""}</td><td className={styles.moneyCell}>{amountText(item.amount)}</td></tr>;})}</tbody></table></div>;
     }
 
     if (!category.payments.length) return <p className={styles.empty}>No deposit records.</p>;
@@ -229,9 +238,9 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
   return <div data-billing-id={result.id}>
     <main className={styles.report}>
       <header className={styles.printHeader}><div><strong>LAND <span>VIEW</span></strong><small>Engineers and Architects</small></div><div><h2>PROJECT BILLING STATEMENT</h2><p>Issue date {issueDate}</p></div></header>
-      <section className={styles.projectCard}><div><span>FILE ID</span><strong>{result.id}</strong></div><div><span>CLIENT</span><strong>{result.client.name||"—"}</strong><small>{result.client.phone||"—"}</small></div><div><span>PROJECT TYPE</span><strong>{result.client.type||"—"}</strong><small>{result.client.floor||"—"}</small></div><div className={styles.totalDueCard}><span>TOTAL DUE</span><strong>{money(result.totals.due)}</strong></div></section>
-      <section className={styles.categoryGrid}>{activeCategories.map(category=><article className={styles.category} key={category.name}><div className={styles.categoryHeader}><div><span>{category.name.toUpperCase()}</span><h2>{category.name} Billing</h2></div><div className={category.due>0?styles.dueBadge:styles.paidBadge}>{category.due>0?"DUE":"PAID"}</div></div><div className={styles.metrics}><div><span>Bill</span><strong>{money(category.gross)}</strong></div><div><span>Discount</span><strong>{money(category.discount)}</strong></div><div><span>Deposited</span><strong>{money(category.paid)}</strong></div><div><span>Due</span><strong>{money(category.due)}</strong></div></div><div className={styles.split}><section><h3>{category.name} Bill</h3>{renderTable(category,"bill")}</section><section><h3>{category.name} Deposit</h3>{renderTable(category,"deposit")}</section></div><div className={styles.formula}><span>{money(category.gross)} − {money(category.discount)} − {money(category.paid)}</span><strong>= {money(category.due)}</strong></div></article>)}</section>
-      <section className={styles.grandSummary}><div><span>Total Bill</span><strong>{money(result.totals.gross)}</strong></div><div><span>Total Discount</span><strong>{money(result.totals.discount)}</strong></div><div><span>Total Deposited</span><strong>{money(result.totals.paid)}</strong></div><div className={styles.grandDue}><span>Grand Total Due</span><strong>{money(result.totals.due)}</strong></div></section>
+      <section className={styles.projectCard}><div><span>FILE ID</span><strong>{result.id}</strong></div><div><span>CLIENT</span><strong>{result.client.name||"—"}</strong><small>{result.client.phone||"—"}</small></div><div><span>PROJECT TYPE</span><strong>{result.client.type||"—"}</strong><small>{result.client.floor||"—"}</small></div><div className={styles.totalDueCard}><span>TOTAL DUE (BDT)</span><strong>{amountText(result.totals.due)}</strong></div></section>
+      <section className={styles.categoryGrid}>{activeCategories.map(category=><article className={styles.category} key={category.name}><div className={styles.categoryHeader}><div><span>{category.name.toUpperCase()}</span><h2>{category.name} Billing</h2></div><div className={category.due>0?styles.dueBadge:styles.paidBadge}>{category.due>0?"DUE":"PAID"}</div></div><div className={styles.metrics}><div><span>Bill (BDT)</span><strong>{amountText(category.gross)}</strong></div><div><span>Discount (BDT)</span><strong>{amountText(category.discount)}</strong></div><div><span>Deposited (BDT)</span><strong>{amountText(category.paid)}</strong></div><div><span>Due (BDT)</span><strong>{amountText(category.due)}</strong></div></div><div className={styles.split}><section><h3>{category.name} Bill</h3>{renderTable(category,"bill")}</section><section><h3>{category.name} Deposit</h3>{renderTable(category,"deposit")}</section></div><div className={styles.formula}><span>{amountText(category.gross)} − {amountText(category.discount)} − {amountText(category.paid)}</span><strong>= {amountText(category.due)}</strong></div></article>)}</section>
+      <section className={styles.grandSummary}><div><span>Total Bill (BDT)</span><strong>{amountText(result.totals.gross)}</strong></div><div><span>Total Discount (BDT)</span><strong>{amountText(result.totals.discount)}</strong></div><div><span>Total Deposit (BDT)</span><strong>{amountText(result.totals.paid)}</strong></div><div className={styles.grandDue}><span>Grand Total Due (BDT)</span><strong>{amountText(result.totals.due)}</strong></div></section>
       <section className={styles.verificationBlock}><div><span className={styles.verificationLabel}>PROJECT QR</span><strong>{qr.error || verificationError ? "QR unavailable" : verificationUrl ? "Live billing verification" : "Preparing project QR…"}</strong><p>{qr.error || verificationError || (verificationUrl ? "Scan this QR to view the project’s current billing and payment verification." : "A secure project verification link is being generated.")}</p>{verificationUrl&&<a href={verificationUrl} target="_blank" rel="noreferrer">Open billing verification ↗</a>}</div>{qrUrl&&<img data-billing-qr="true" className={styles.qrCode} src={qrUrl} loading="eager" alt={`Billing QR for ${result.id}`} width={132} height={132}/>}</section>
     </main>
 
@@ -242,9 +251,9 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
           <PrintHeader page={index + 1} title={`${category.name} Bill`}/>
           <section className={styles.portraitSection}>
             <div className={styles.sheetMain}><h2>{category.name.toUpperCase()} <span>BILL</span></h2>{renderTable(category,"bill")}<h2 className={styles.depositHeading}>{category.name.toUpperCase()} <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(category,"deposit")}</div>
-            <aside className={styles.sheetSummary}><h3>{category.name.toUpperCase()} SUMMARY</h3><div><span>Total Bill</span><strong>{money(category.gross)}</strong></div><div><span>Discount</span><strong>{money(category.discount)}</strong></div><div><span>Total Deposit</span><strong>{money(category.paid)}</strong></div><div className={styles.sheetDue}><span>Due</span><strong>{money(category.due)}</strong></div></aside>
+            <aside className={styles.sheetSummary}><h3>{category.name.toUpperCase()} SUMMARY</h3><div><span>Total Bill (BDT)</span><strong>{amountText(category.gross)}</strong></div><div><span>Discount (BDT)</span><strong>{amountText(category.discount)}</strong></div><div><span>Total Deposit (BDT)</span><strong>{amountText(category.paid)}</strong></div><div className={styles.sheetDue}><span>Due (BDT)</span><strong>{amountText(category.due)}</strong></div></aside>
           </section>
-          <footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>{last ? `Grand Total Due: ${money(result.totals.due)} · ` : ""}Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer>
+          <footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>{last ? `Grand Total Due (BDT): ${amountText(result.totals.due)} · ` : ""}Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer>
         </article>;
       })}
     </section>
