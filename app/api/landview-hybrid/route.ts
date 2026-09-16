@@ -3,10 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { GET as legacyGET, POST as legacyPOST } from "../landview/route";
 import {
   handleLandviewDataAction,
+  normalizeProjectCode,
   roleOf,
+  selectRows,
   SUPABASE_DATA_GET_ACTIONS,
   SUPABASE_DATA_POST_ACTIONS,
   supabaseGateway,
+  upsertRows,
 } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -59,6 +62,10 @@ function originAllowed(request: NextRequest) {
     return host === "app.landview.com.bd" || host === "localhost" || host === "127.0.0.1" || host.endsWith(".vercel.app");
   } catch { return false; }
 }
+function numberOf(value: unknown) {
+  const n = Number(String(value ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
 
 async function readLegacySession(request: NextRequest) {
   const url = new URL(request.url);
@@ -97,6 +104,43 @@ async function syncProvisionedRecord(action: string, input: Record<string, unkno
   return null;
 }
 
+async function mirrorInvoice(sourceData: unknown, input: Record<string, unknown>, user: Record<string, unknown>) {
+  const source = sourceData && typeof sourceData === "object" ? sourceData as Record<string, any> : {};
+  const invoice = source.invoice && typeof source.invoice === "object" ? source.invoice as Record<string, any> : {};
+  const invoiceCode = String(source.invoiceId || invoice.Invoice_ID || invoice.Invoice_No || "").trim();
+  const projectCode = normalizeProjectCode(source.projectId || input.projectId || input.Project_ID);
+  if (!invoiceCode || !projectCode) return sourceData;
+  const projects = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
+  const project = projects[0];
+  if (!project) return sourceData;
+  const totalBill = numberOf(source.totalBill ?? invoice.Total_Bill ?? invoice.Amount);
+  const totalPaid = numberOf(source.totalPaid ?? invoice.Total_Paid ?? invoice.Paid_Amount);
+  const due = numberOf(source.due ?? invoice.Due ?? Math.max(0, totalBill - totalPaid));
+  await upsertRows("invoices", {
+    invoice_code: invoiceCode,
+    invoice_no: String(invoice.Invoice_No || invoiceCode),
+    project_id: project.id,
+    issue_date: String(invoice.Issue_Date || new Date().toISOString().slice(0, 10)),
+    amount: totalBill,
+    status: due > 0.009 ? "OPEN" : "PAID",
+    paid_amount_snapshot: totalPaid,
+    due_amount_snapshot: due,
+    pdf_url: String(source.pdfUrl || invoice.PDF_URL || "") || null,
+    drive_file_id: String(source.fileId || invoice.File_ID || "") || null,
+    project_name_snapshot: String(source.projectName || project.project_name || "") || null,
+    client_name_snapshot: String(source.clientName || project.client_name_snapshot || "") || null,
+    total_bill_snapshot: totalBill,
+    total_paid_snapshot: totalPaid,
+    pdf_file_id: String(source.fileId || invoice.File_ID || "") || null,
+    download_url: String(source.downloadUrl || invoice.Download_URL || "") || null,
+    invoice_folder_url: String(source.folderUrl || invoice.Folder_URL || "") || null,
+    source_created_by: String(user.userId || user.User_ID || user.username || user.Username || "LAND VIEW"),
+    source_created_at: new Date().toISOString(),
+    source_updated_at: new Date().toISOString(),
+  }, "invoice_code");
+  return sourceData;
+}
+
 export async function GET(request: NextRequest) {
   const action = String(request.nextUrl.searchParams.get("action") || "").trim();
   if (!SUPABASE_DATA_GET_ACTIONS.has(action)) return legacyGET(request);
@@ -110,8 +154,6 @@ export async function GET(request: NextRequest) {
     return ok(data, user);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    // Quotations/drawings and any deliberately non-migrated Google compatibility
-    // module continue through the legacy service rather than breaking the portal.
     if (/Google compatibility service|Finance tab .* not available/i.test(message)) return legacyGET(request);
     console.warn("LAND VIEW Supabase read failed", { action, message: message.slice(0, 220) });
     return NextResponse.json({ success: false, error: message }, { status: statusForError(message), headers: { "Cache-Control": "no-store" } });
@@ -122,18 +164,27 @@ export async function POST(request: NextRequest) {
   const copy = request.clone();
   const input = await copy.json().catch(() => ({})) as Record<string, unknown>;
   const action = String(input.action || "").trim();
-  if (!SUPABASE_DATA_POST_ACTIONS.has(action)) return legacyPOST(request);
+  const isInvoiceGeneration = action === "createInvoice";
+  if (!SUPABASE_DATA_POST_ACTIONS.has(action) && !isInvoiceGeneration) return legacyPOST(request);
   if (!originAllowed(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
 
   try {
     const user = await authorizedUser(request);
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     const role = roleOf(user);
-    if (ADMIN_ONLY_DATA_WRITES.has(action) && !["admin", "manager", "accounts"].includes(role)) {
+    if ((ADMIN_ONLY_DATA_WRITES.has(action) || isInvoiceGeneration) && !["admin", "manager", "accounts"].includes(role)) {
       return NextResponse.json({ success: false, error: "Management access is required." }, { status: 403 });
     }
     if (FINANCE_WRITES.has(action) && !["admin", "manager", "accounts", "employee"].includes(role)) {
       return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
+    }
+
+    if (isInvoiceGeneration) {
+      const legacy = await legacyPOST(request);
+      const json = await legacy.clone().json().catch(() => null);
+      if (!legacy.ok || !json?.success) return legacy;
+      await mirrorInvoice(json.data, input, user);
+      return ok(json.data, user);
     }
 
     // Project/employee provisioning still creates or maintains Google-backed
