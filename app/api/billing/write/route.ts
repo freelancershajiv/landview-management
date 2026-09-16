@@ -131,6 +131,7 @@ export async function POST(request: NextRequest) {
           source: "Payments",
           id: paymentId,
           status: "Approved",
+          masterAdminAutoApproval: true,
           note: "Auto-approved by Master Admin. Awaiting EMP-0001 acknowledgement.",
           token,
           proxySecret: PROXY_SECRET,
@@ -148,6 +149,8 @@ export async function POST(request: NextRequest) {
           data: { ...(json.data || {}), Approval_Status: "Approved", Acknowledgement_Status: "Unseen", Payment_ID: paymentId },
           autoApproved: true,
           acknowledgementRequiredBy: "EMP-0001",
+          ledgerPosted: Boolean(approval?.data?.Ledger_Posted),
+          ledgerDeferred: Boolean(approval?.data?.Ledger_Deferred),
         }, { status: 200, headers: { "Cache-Control": "no-store, max-age=0" } });
       } catch {
         return NextResponse.json({
