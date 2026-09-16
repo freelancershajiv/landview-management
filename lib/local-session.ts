@@ -15,6 +15,7 @@ const NORMAL_MAX_AGE_SECONDS = 8 * 60 * 60;
 const REMEMBER_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
 const NORMAL_IDLE_MS = 30 * 60 * 1000;
 const TOUCH_AFTER_MS = 2 * 60 * 1000;
+const SESSION_READ_CACHE_MS = 5_000;
 
 export type WorkspaceUser = Record<string, unknown>;
 
@@ -29,6 +30,17 @@ type SessionRow = {
   last_seen_at: string;
   expires_at: string;
 };
+
+type SessionCacheEntry = {
+  row: SessionRow;
+  expiresAt: number;
+};
+
+// Serverless instances can receive several API requests from one page at once.
+// Collapse those requests into one authoritative session lookup and briefly
+// reuse a positive result. The short TTL keeps logout/revocation responsive.
+const sessionReadCache = new Map<string, SessionCacheEntry>();
+const sessionReadInflight = new Map<string, Promise<SessionRow | null>>();
 
 function hmac(value: string) {
   if (!PROXY_SECRET) return "";
@@ -90,6 +102,41 @@ async function sessionGateway(action: string, input: Record<string, unknown>) {
   return json.data as SessionRow | null;
 }
 
+function cacheSessionRow(sessionKey: string, row: SessionRow | null) {
+  if (!row) {
+    sessionReadCache.delete(sessionKey);
+    return;
+  }
+  sessionReadCache.set(sessionKey, { row, expiresAt: Date.now() + SESSION_READ_CACHE_MS });
+}
+
+function clearSessionReadCache(sessionKey: string) {
+  sessionReadCache.delete(sessionKey);
+  sessionReadInflight.delete(sessionKey);
+}
+
+async function readSessionRow(sessionKey: string) {
+  const cached = sessionReadCache.get(sessionKey);
+  if (cached?.expiresAt && cached.expiresAt > Date.now()) return cached.row;
+  if (cached) sessionReadCache.delete(sessionKey);
+
+  const existing = sessionReadInflight.get(sessionKey);
+  if (existing) return existing;
+
+  const promise = (async () => {
+    const row = await sessionGateway("get", { sessionKey });
+    cacheSessionRow(sessionKey, row);
+    return row;
+  })();
+  sessionReadInflight.set(sessionKey, promise);
+
+  try {
+    return await promise;
+  } finally {
+    if (sessionReadInflight.get(sessionKey) === promise) sessionReadInflight.delete(sessionKey);
+  }
+}
+
 function expiryFor(remembered: boolean) {
   const seconds = remembered ? REMEMBER_MAX_AGE_SECONDS : NORMAL_MAX_AGE_SECONDS;
   return new Date(Date.now() + seconds * 1000).toISOString();
@@ -107,13 +154,15 @@ export async function registerSupabaseSession(
 ) {
   const sessionKey = sessionKeyForToken(token);
   if (!sessionKey || !userIdOf(user)) throw new Error("Cannot register LAND VIEW session.");
-  return sessionGateway("upsert", {
+  const row = await sessionGateway("upsert", {
     sessionKey,
     user,
     remembered,
     expiresAt: expiryFor(remembered),
     deviceId,
   });
+  cacheSessionRow(sessionKey, row);
+  return row;
 }
 
 export async function requireLocalSession(request: NextRequest): Promise<WorkspaceUser | null> {
@@ -127,7 +176,7 @@ export async function requireLocalSession(request: NextRequest): Promise<Workspa
   const remembered = request.cookies.get(REMEMBER_COOKIE)?.value === "1";
   let row: SessionRow | null = null;
   try {
-    row = await sessionGateway("get", { sessionKey });
+    row = await readSessionRow(sessionKey);
   } catch (error) {
     console.warn("LAND VIEW Supabase session lookup failed", {
       message: error instanceof Error ? error.message.slice(0, 180) : "Unknown error",
@@ -151,9 +200,13 @@ export async function requireLocalSession(request: NextRequest): Promise<Workspa
     }
   }
 
-  if (!row?.active || Date.parse(row.expires_at) <= Date.now()) return null;
+  if (!row?.active || Date.parse(row.expires_at) <= Date.now()) {
+    clearSessionReadCache(sessionKey);
+    return null;
+  }
   const lastSeen = Date.parse(row.last_seen_at || row.created_at || "");
   if (!row.remembered && Number.isFinite(lastSeen) && Date.now() - lastSeen > NORMAL_IDLE_MS) {
+    clearSessionReadCache(sessionKey);
     void sessionGateway("revoke", { sessionKey }).catch(() => undefined);
     return null;
   }
@@ -167,5 +220,6 @@ export async function requireLocalSession(request: NextRequest): Promise<Workspa
 export async function revokeLocalSession(token: string) {
   const sessionKey = sessionKeyForToken(token);
   if (!sessionKey) return null;
+  clearSessionReadCache(sessionKey);
   return sessionGateway("revoke", { sessionKey });
 }
