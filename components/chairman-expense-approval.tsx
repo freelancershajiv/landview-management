@@ -68,6 +68,7 @@ async function markSeen(row: ApprovalRow) {
       source: "Payments",
       id: row.Source_ID,
       status: "Approved",
+      acknowledgeOnly: true,
       note: "Seen by EMP-0001 — Master Admin payment acknowledgement.",
     }),
   });
@@ -134,7 +135,7 @@ export default function ChairmanExpenseApproval() {
       @media(max-width:850px){.lv-ack-row{grid-template-columns:1fr 1fr}.lv-ack-cell.details{grid-column:1/-1}.lv-ack-btn{width:100%}}
     `}</style>
     <header className="lv-ack-head">
-      <div><span className="lv-ack-kicker">EMP-0001 / FINANCE REVIEW</span><h2>Master Admin payments awaiting acknowledgement</h2><p>These payments are already approved and posted to Billing and the ledger. “Mark Seen” is acknowledgement only and does not change the financial amount.</p></div>
+      <div><span className="lv-ack-kicker">EMP-0001 / FINANCE REVIEW</span><h2>Master Admin payments awaiting acknowledgement</h2><p>These payments are already approved and posted to Billing and the ledger. “Mark Seen” is acknowledgement only and does not change the financial amount or approver.</p></div>
       <div style={{display:"flex",alignItems:"center",gap:8}}><button className="lv-ack-refresh" type="button" onClick={() => void load()} disabled={loading}>Refresh</button><span className="lv-ack-count">{unseen.length}</span></div>
     </header>
     {error && <div className="lv-ack-error">{error}</div>}
