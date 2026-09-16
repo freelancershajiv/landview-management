@@ -1,0 +1,142 @@
+name: Persistent remembered admin session
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/persistent-admin-session.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch remembered sessions and server-auth handoff
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace(path, old, new, label):
+              p = Path(path)
+              s = p.read_text()
+              if old not in s:
+                  raise SystemExit(f'{label}: expected source not found in {path}')
+              p.write_text(s.replace(old, new, 1))
+
+          # Staff login: remembered Admin/Manager sessions receive long-lived cookies.
+          replace('app/api/login-fast/route.ts',
+          '''const DEVICE_COOKIE = "landview_device";\nconst COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;\nconst DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;''',
+          '''const DEVICE_COOKIE = "landview_device";\nconst REMEMBER_COOKIE = "landview_remember_device";\nconst COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;\nconst REMEMBER_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;\nconst DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;''',
+          'login constants')
+
+          replace('app/api/login-fast/route.ts',
+          '''  const userId = String(input.userId || input.username || "").trim();\n  const password = String(input.password || "");''',
+          '''  const userId = String(input.userId || input.username || "").trim();\n  const password = String(input.password || "");\n  const rememberRequested = input.rememberDevice === true || String(input.rememberDevice || "").toLowerCase() === "true";''',
+          'remember input')
+
+          replace('app/api/login-fast/route.ts',
+          '''  const response = NextResponse.json({ success: true, data: { user } }, {\n    headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" },\n  });\n  response.cookies.set(COOKIE_NAME, token, cookieOptions(COOKIE_MAX_AGE_SECONDS));\n  response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user as Record<string, unknown>), cookieOptions(COOKIE_MAX_AGE_SECONDS));\n  if (!existingDeviceId) response.cookies.set(DEVICE_COOKIE, deviceId, cookieOptions(DEVICE_MAX_AGE_SECONDS));\n  return response;''',
+          '''  const role = String(user?.role || user?.Role || "").trim().toLowerCase();\n  const remembered = rememberRequested && (role === "admin" || role === "manager");\n  const sessionMaxAge = remembered ? REMEMBER_MAX_AGE_SECONDS : COOKIE_MAX_AGE_SECONDS;\n  const response = NextResponse.json({ success: true, data: { user, remembered } }, {\n    headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" },\n  });\n  response.cookies.set(COOKIE_NAME, token, cookieOptions(sessionMaxAge));\n  response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user as Record<string, unknown>), cookieOptions(sessionMaxAge));\n  response.cookies.set(REMEMBER_COOKIE, remembered ? "1" : "", cookieOptions(remembered ? REMEMBER_MAX_AGE_SECONDS : 0));\n  if (!existingDeviceId) response.cookies.set(DEVICE_COOKIE, deviceId, cookieOptions(DEVICE_MAX_AGE_SECONDS));\n  return response;''',
+          'remember cookies')
+
+          # Login UI.
+          replace('app/login/page.tsx',
+          '''async function fastStaffLogin(userId:string,password:string){\n  const response = await fetch("/api/login-fast", {\n    method:"POST", headers:{"Content-Type":"application/json"}, cache:"no-store", credentials:"same-origin",\n    body:JSON.stringify({userId,password}),''',
+          '''async function fastStaffLogin(userId:string,password:string,rememberDevice:boolean){\n  const response = await fetch("/api/login-fast", {\n    method:"POST", headers:{"Content-Type":"application/json"}, cache:"no-store", credentials:"same-origin",\n    body:JSON.stringify({userId,password,rememberDevice}),''',
+          'login function')
+
+          replace('app/login/page.tsx',
+          '''  const [loading,setLoading] = useState(false);\n  const [error,setError] = useState("");\n  const [trustedDevice,setTrustedDevice] = useState(false);''',
+          '''  const [loading,setLoading] = useState(false);\n  const [error,setError] = useState("");\n  const [rememberDevice,setRememberDevice] = useState(false);\n  const [trustedDevice,setTrustedDevice] = useState(false);''',
+          'remember state')
+
+          replace('app/login/page.tsx',
+          '''      const result = portal === "client" ? await clientLogin(id,clientMobile.trim()) : await fastStaffLogin(id,password);''',
+          '''      const result = portal === "client" ? await clientLogin(id,clientMobile.trim()) : await fastStaffLogin(id,password,rememberDevice);''',
+          'remember submit')
+
+          replace('app/login/page.tsx',
+          '''.lv-login .submit{width:100%;height:51px;margin-top:17px;border:0;border-radius:8px;background:#ef493b;color:white;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:9px;font-weight:900;letter-spacing:.09em;cursor:pointer}.lv-login .submit:disabled{opacity:.55}''',
+          '''.lv-login .remember{display:flex;gap:10px;align-items:flex-start;margin-top:15px;padding:11px 12px;border:1px solid #2d3338;border-radius:8px;background:#101316;color:#dce1e4;cursor:pointer}.lv-login .remember input{width:16px;height:16px;margin:1px 0 0;accent-color:#ef493b}.lv-login .remember span{display:block;min-width:0}.lv-login .remember strong{display:block;font-size:9px}.lv-login .remember small{display:block;margin-top:3px;color:#7f8991;font-size:8px;line-height:1.4}.lv-login .submit{width:100%;height:51px;margin-top:17px;border:0;border-radius:8px;background:#ef493b;color:white;display:flex;align-items:center;justify-content:space-between;padding:0 16px;font-size:9px;font-weight:900;letter-spacing:.09em;cursor:pointer}.lv-login .submit:disabled{opacity:.55}''',
+          'remember css')
+
+          replace('app/login/page.tsx',
+          '''            <button className="submit" type="submit" disabled={loading}><span>{loading?"AUTHENTICATING…":`CONTINUE TO ${selected.label.toUpperCase()}`}</span><span>→</span></button><div className="note">{portal==="client"?"Access is limited to the project that matches both details.":"Your account role is verified before workspace access is granted."}</div>''',
+          '''            {portal !== "client" && <label className="remember"><input type="checkbox" checked={rememberDevice} onChange={e=>setRememberDevice(e.target.checked)} disabled={loading}/><span><strong>Remember this device</strong><small>For Admin/Manager accounts, keep this browser signed in and refresh the secure backend session automatically until you sign out.</small></span></label>}\n            <button className="submit" type="submit" disabled={loading}><span>{loading?"AUTHENTICATING…":`CONTINUE TO ${selected.label.toUpperCase()}`}</span><span>→</span></button><div className="note">{portal==="client"?"Access is limited to the project that matches both details.":"Your account role is verified before workspace access is granted."}</div>''',
+          'remember ui')
+
+          # Pass the server-authenticated identity directly into the shell. This removes
+          # the redundant second session validation that caused the 8-second warning.
+          replace('app/admin/layout.tsx',
+          '''export default async function AdminLayout({ children }: { children: React.ReactNode }) {\n  await requirePortalSession(["admin", "manager", "accounts"]);\n  return <>''',
+          '''export default async function AdminLayout({ children }: { children: React.ReactNode }) {\n  const session = await requirePortalSession(["admin", "manager", "accounts"]);\n  return <>''',
+          'admin session result')
+
+          replace('app/admin/layout.tsx',
+          '''    <ManagementShellV2>{children}</ManagementShellV2>''',
+          '''    <ManagementShellV2 initialUser={session.user}>{children}</ManagementShellV2>''',
+          'admin initial user')
+
+          replace('components/management-shell-v2.tsx',
+          '''export default function ManagementShellV2({ children }: { children: React.ReactNode }) {''',
+          '''export default function ManagementShellV2({ children, initialUser = null }: { children: React.ReactNode; initialUser?: SessionUser | null }) {''',
+          'shell props')
+
+          replace('components/management-shell-v2.tsx',
+          '''    const cached = readSessionCache();\n    const cachedRole = roleOf(cached?.user);\n    const hasCache = Boolean(cached?.authenticated && cached?.user && isWorkspaceRole(cachedRole));\n\n    // The server layout has already authenticated this request. A successful\n    // login also stores the same user in the browser cache. Use that immediately\n    // instead of blocking the whole workspace on a second Apps Script session call.\n    if (hasCache) {\n      setUser(cached!.user);\n      if (cachedRole === "admin" || cachedRole === "manager") setAccess({ all: true });''',
+          '''    const cached = readSessionCache();\n    const cachedRole = roleOf(cached?.user);\n    const hasCache = Boolean(cached?.authenticated && cached?.user && isWorkspaceRole(cachedRole));\n    const effectiveUser = hasCache ? cached!.user : initialUser;\n    const effectiveRole = roleOf(effectiveUser);\n\n    // The server layout has already authenticated this request. Use that identity\n    // immediately instead of blocking the workspace on another Apps Script call.\n    if (effectiveUser && isWorkspaceRole(effectiveRole)) {\n      setUser(effectiveUser);\n      saveSessionCache({ authenticated: true, user: effectiveUser });\n      if (effectiveRole === "admin" || effectiveRole === "manager") setAccess({ all: true });''',
+          'shell fast path')
+
+          replace('components/management-shell-v2.tsx',
+          '''  }, [router]);''',
+          '''  }, [router, initialUser]);''',
+          'shell dependencies')
+
+          # Keepalive and expiry checks now use the endpoint that can rotate a remembered session.
+          replace('components/session-keepalive.tsx',
+          '''        await fetch("/api/landview?action=getSession", {''',
+          '''        await fetch("/api/session-refresh", {''',
+          'keepalive refresh endpoint')
+
+          replace('components/session-expiry-guard.tsx',
+          '''        const response = await fetch("/api/session-fast", {''',
+          '''        const response = await fetch("/api/session-refresh", {''',
+          'expiry refresh endpoint')
+
+          # Explicit sign-out must also remove remembered-device state.
+          replace('app/api/landview/route.ts',
+          '''const TRUSTED_DEVICE_COOKIE = "landview_trusted_device";\nconst COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;''',
+          '''const TRUSTED_DEVICE_COOKIE = "landview_trusted_device";\nconst REMEMBER_DEVICE_COOKIE = "landview_remember_device";\nconst COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;''',
+          'logout remember constant')
+
+          replace('app/api/landview/route.ts',
+          '''function clearTrustedDeviceCookie(response: NextResponse) {\n  response.cookies.set(TRUSTED_DEVICE_COOKIE, "", cookieOptions(0));\n}''',
+          '''function clearTrustedDeviceCookie(response: NextResponse) {\n  response.cookies.set(TRUSTED_DEVICE_COOKIE, "", cookieOptions(0));\n}\n\nfunction clearRememberDeviceCookie(response: NextResponse) {\n  response.cookies.set(REMEMBER_DEVICE_COOKIE, "", cookieOptions(0));\n}''',
+          'logout remember helper')
+
+          replace('app/api/landview/route.ts',
+          '''    if (action === "logout") {\n      clearSessionCookie(out);\n      clearQuickMetaCookies(out);\n    } else if (confirmedExpired) {''',
+          '''    if (action === "logout") {\n      clearSessionCookie(out);\n      clearQuickMetaCookies(out);\n      clearRememberDeviceCookie(out);\n    } else if (confirmedExpired) {''',
+          'logout remember clear')
+
+          print('Persistent remembered-session patch applied.')
+          PY
+
+      - name: Commit remembered-session patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/login-fast/route.ts app/login/page.tsx app/admin/layout.tsx components/management-shell-v2.tsx components/session-keepalive.tsx components/session-expiry-guard.tsx app/api/landview/route.ts
+          if git diff --cached --quiet; then
+            echo "No session changes required."
+            exit 0
+          fi
+          git commit -m "Add remembered admin sessions and remove duplicate validation"
+          git push
