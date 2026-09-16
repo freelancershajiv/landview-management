@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GET as legacyGET } from "../../landview/route";
+import { requireLocalSession } from "@/lib/local-session";
 import { handleLandviewDataAction, roleOf } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -14,15 +14,6 @@ function cleanKey(value: unknown) {
   const key = String(value ?? "").trim();
   return /^[A-Za-z0-9._:-]{12,120}$/.test(key) ? key : "";
 }
-async function sessionUser(request: NextRequest) {
-  const url = new URL(request.url);
-  url.pathname = "/api/landview";
-  url.search = "?action=getSession";
-  const probe = new NextRequest(url, { method: "GET", headers: new Headers(request.headers) });
-  const response = await legacyGET(probe);
-  const json = await response.json().catch(() => null);
-  return response.ok && json?.success && json?.data?.authenticated ? json.data.user as Record<string, unknown> : null;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -35,15 +26,13 @@ export async function POST(request: NextRequest) {
     const idempotencyKey = cleanKey(body.Idempotency_Key || body.idempotencyKey);
     if (!idempotencyKey) return NextResponse.json({ success: false, error: "A valid idempotency key is required." }, { status: 400 });
 
-    const user = await sessionUser(request);
+    const user = await requireLocalSession(request);
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     const role = roleOf(user);
     if (!["admin", "manager", "accounts", "employee"].includes(role)) {
       return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
     }
 
-    // Supabase enforces the idempotency key and posts the ledger transaction in
-    // the same database. This endpoint deliberately performs one money write.
     const data = await handleLandviewDataAction(action, { ...body, Idempotency_Key: idempotencyKey }, user);
     const masterAdmin = role === "admin";
     return NextResponse.json({
