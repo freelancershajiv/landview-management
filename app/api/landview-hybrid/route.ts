@@ -95,6 +95,37 @@ function statusForError(message: string) {
   return 502;
 }
 
+async function financeTransactionsSheet() {
+  const rows = await selectRows("transactions", { order: "transaction_date:asc", limit: 5000 });
+  const headers = [
+    "Transaction_ID", "Transaction_Date", "Transaction_Type", "Source_Type", "Source_ID", "Project_ID",
+    "Account", "Category", "Description", "Debit", "Credit", "Reference_No", "Status", "Direction",
+    "Amount", "Payment_Method", "Created_By", "Created_At",
+  ];
+  const values = rows.map((row) => [
+    row.transaction_code || "", row.transaction_date || "", row.transaction_type || "", row.source_type || "", row.source_id || "",
+    row.project_code_snapshot || "", row.account_snapshot || row.account_code_snapshot || "", row.category || "", row.description || "",
+    row.debit ?? 0, row.credit ?? 0, row.reference_no || "", row.status || "POSTED", row.direction || "", row.amount ?? Math.max(numberOf(row.debit), numberOf(row.credit)),
+    row.payment_method || "", row.source_created_by || "", row.source_created_at || row.created_at || "",
+  ]).map((cells) => cells.map((cell) => String(cell ?? "")));
+  return {
+    tab: "Transactions",
+    tabs: ["Transactions"],
+    headers,
+    rows: values,
+    totals: {
+      gross: 0,
+      discount: 0,
+      billed: 0,
+      paid: rows.reduce((sum, row) => sum + numberOf(row.credit), 0),
+      due: rows.reduce((sum, row) => sum + numberOf(row.debit), 0),
+      projects: new Set(rows.map((row) => row.project_id).filter(Boolean)).size,
+    },
+    url: "",
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 async function syncProvisionedRecord(action: string, input: Record<string, unknown>, sourceData: unknown) {
   const source = sourceData && typeof sourceData === "object" ? sourceData as Record<string, unknown> : {};
   if (action === "createProject") return supabaseGateway("syncProject", { record: { ...input, ...source } });
@@ -150,6 +181,9 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     const input: Record<string, unknown> = {};
     request.nextUrl.searchParams.forEach((value, key) => { if (key !== "action") input[key] = value; });
+    if (action === "getFinanceSheet" && String(input.tab || "").trim() === "Transactions") {
+      return ok(await financeTransactionsSheet(), user);
+    }
     const data = await handleLandviewDataAction(action, input, user);
     return ok(data, user);
   } catch (error) {
