@@ -17,7 +17,7 @@ export default function SessionKeepAlive() {
     const ping = async () => {
       if (stopped || document.visibilityState === "hidden") return;
       try {
-        await fetch("/api/landview?action=getSession", {
+        await fetch("/api/session-refresh", {
           method: "GET",
           cache: "no-store",
           credentials: "same-origin",

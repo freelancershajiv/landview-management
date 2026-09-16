@@ -8,7 +8,9 @@ export const maxDuration = 60;
 const COOKIE_NAME = "landview_session";
 const QUICK_USER_COOKIE = "landview_quick_user";
 const DEVICE_COOKIE = "landview_device";
+const REMEMBER_COOKIE = "landview_remember_device";
 const COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;
+const REMEMBER_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
 const DEVICE_MAX_AGE_SECONDS = 365 * 24 * 60 * 60;
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
@@ -193,6 +195,7 @@ export async function POST(request: NextRequest) {
 
   const userId = String(input.userId || input.username || "").trim();
   const password = String(input.password || "");
+  const rememberRequested = input.rememberDevice === true || String(input.rememberDevice || "").toLowerCase() === "true";
   if (!userId || !password) {
     return NextResponse.json({ success: false, error: "Enter your User ID and password." }, { status: 400 });
   }
@@ -276,11 +279,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const response = NextResponse.json({ success: true, data: { user } }, {
+  const role = String(user?.role || user?.Role || "").trim().toLowerCase();
+  const remembered = rememberRequested && (role === "admin" || role === "manager");
+  const sessionMaxAge = remembered ? REMEMBER_MAX_AGE_SECONDS : COOKIE_MAX_AGE_SECONDS;
+  const response = NextResponse.json({ success: true, data: { user, remembered } }, {
     headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" },
   });
-  response.cookies.set(COOKIE_NAME, token, cookieOptions(COOKIE_MAX_AGE_SECONDS));
-  response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user as Record<string, unknown>), cookieOptions(COOKIE_MAX_AGE_SECONDS));
+  response.cookies.set(COOKIE_NAME, token, cookieOptions(sessionMaxAge));
+  response.cookies.set(QUICK_USER_COOKIE, signQuickUser(user as Record<string, unknown>), cookieOptions(sessionMaxAge));
+  response.cookies.set(REMEMBER_COOKIE, remembered ? "1" : "", cookieOptions(remembered ? REMEMBER_MAX_AGE_SECONDS : 0));
   if (!existingDeviceId) response.cookies.set(DEVICE_COOKIE, deviceId, cookieOptions(DEVICE_MAX_AGE_SECONDS));
   return response;
 }

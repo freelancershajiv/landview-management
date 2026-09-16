@@ -68,7 +68,7 @@ export default function SessionExpiryGuard() {
       if (validating.current || loggingOut.current) return;
       validating.current = true;
       try {
-        const response = await fetch("/api/session-fast", {
+        const response = await fetch("/api/session-refresh", {
           method: "GET",
           credentials: "same-origin",
           cache: "no-store",

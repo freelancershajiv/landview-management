@@ -8,6 +8,7 @@ const COOKIE_NAME = "landview_session";
 const QUICK_USER_COOKIE = "landview_quick_user";
 const QUICK_LOCK_COOKIE = "landview_quick_locked";
 const TRUSTED_DEVICE_COOKIE = "landview_trusted_device";
+const REMEMBER_DEVICE_COOKIE = "landview_remember_device";
 const COOKIE_MAX_AGE_SECONDS = 8 * 60 * 60;
 const QUICK_META_MAX_AGE_SECONDS = 3650 * 24 * 60 * 60;
 const TRUSTED_DEVICE_MAX_AGE_SECONDS = 7 * 24 * 60 * 60;
@@ -250,6 +251,10 @@ function clearQuickMetaCookies(response: NextResponse) {
 
 function clearTrustedDeviceCookie(response: NextResponse) {
   response.cookies.set(TRUSTED_DEVICE_COOKIE, "", cookieOptions(0));
+}
+
+function clearRememberDeviceCookie(response: NextResponse) {
+  response.cookies.set(REMEMBER_DEVICE_COOKIE, "", cookieOptions(0));
 }
 
 function hmac(value: string) {
@@ -633,6 +638,7 @@ async function handle(request: NextRequest, method: "GET" | "POST") {
     if (action === "logout") {
       clearSessionCookie(out);
       clearQuickMetaCookies(out);
+      clearRememberDeviceCookie(out);
     } else if (confirmedExpired) {
       clearSessionCookie(out);
       clearQuickMetaCookies(out);

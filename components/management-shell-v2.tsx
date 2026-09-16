@@ -64,7 +64,7 @@ async function getWorkspaceAccess() {
   return (json.data || {}) as WorkspaceAccess;
 }
 
-export default function ManagementShellV2({ children }: { children: React.ReactNode }) {
+export default function ManagementShellV2({ children, initialUser = null }: { children: React.ReactNode; initialUser?: SessionUser | null }) {
   const pathname = usePathname();
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null);
@@ -82,13 +82,15 @@ export default function ManagementShellV2({ children }: { children: React.ReactN
     const cached = readSessionCache();
     const cachedRole = roleOf(cached?.user);
     const hasCache = Boolean(cached?.authenticated && cached?.user && isWorkspaceRole(cachedRole));
+    const effectiveUser = hasCache ? cached!.user : initialUser;
+    const effectiveRole = roleOf(effectiveUser);
 
-    // The server layout has already authenticated this request. A successful
-    // login also stores the same user in the browser cache. Use that immediately
-    // instead of blocking the whole workspace on a second Apps Script session call.
-    if (hasCache) {
-      setUser(cached!.user);
-      if (cachedRole === "admin" || cachedRole === "manager") setAccess({ all: true });
+    // The server layout has already authenticated this request. Use that identity
+    // immediately instead of blocking the workspace on another Apps Script call.
+    if (effectiveUser && isWorkspaceRole(effectiveRole)) {
+      setUser(effectiveUser);
+      saveSessionCache({ authenticated: true, user: effectiveUser });
+      if (effectiveRole === "admin" || effectiveRole === "manager") setAccess({ all: true });
       setReady(true);
       setError("");
 
@@ -134,7 +136,7 @@ export default function ManagementShellV2({ children }: { children: React.ReactN
 
     return () => { cancelled = true; window.clearTimeout(watchdog); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [router]);
+  }, [router, initialUser]);
 
   useEffect(() => {
     if (!ready) return;

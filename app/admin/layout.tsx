@@ -5,7 +5,7 @@ import "./admin-brand-theme.css";
 import "./admin-layout-polish.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  await requirePortalSession(["admin", "manager", "accounts"]);
+  const session = await requirePortalSession(["admin", "manager", "accounts"]);
   return <>
     <PortalPreloader portal="admin"/>
     <style>{`
@@ -15,6 +15,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       .primary-nav a[href="/admin/finance"]::after{content:"Billing";font-size:12px}
       .primary-nav a[href="/admin/accounts"]::after{content:"Accounts";font-size:12px}
     `}</style>
-    <ManagementShellV2>{children}</ManagementShellV2>
+    <ManagementShellV2 initialUser={session.user}>{children}</ManagementShellV2>
   </>;
 }
