@@ -143,11 +143,11 @@ export default function ProjectBillingPage() {
     }
   }
 
-  async function load(event: FormEvent) {
-    event.preventDefault();
-    const id = normalizeFileId(fileId);
+  async function openBilling(rawId: string) {
+    const id = normalizeFileId(rawId);
     if (!id) return setError("Select a project from File List or enter a File ID such as LV-209.");
     const version = ++request.current;
+    setFileId(`LV-${id}`);
     setError(""); setVerificationUrl(""); setVerificationError("");
 
     const snapshot = readBillingSnapshot(id);
@@ -161,6 +161,18 @@ export default function ProjectBillingPage() {
     setResult(null); setBusy(true); setRefreshing(false);
     await refreshBilling(id, version, false);
   }
+
+  async function load(event: FormEvent) {
+    event.preventDefault();
+    await openBilling(fileId);
+  }
+
+  useEffect(() => {
+    const requested = normalizeFileId(new URLSearchParams(window.location.search).get("fileId") || "");
+    if (requested) void openBilling(requested);
+    // Open-on-arrival is intentionally a one-time action for Billing → Open links.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className={styles.workspace}>
