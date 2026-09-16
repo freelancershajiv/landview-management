@@ -22,7 +22,7 @@ async function sha256(value: string) {
 async function buildSnapshot() {
   const entries = await Promise.all(TABLES.map(async (table) => [table, await selectRows(table, { limit: 5000 })] as const));
   const snapshot = Object.fromEntries(entries);
-  const raw = JSON.stringify({ exportedAt: new Date().toISOString(), source: "LAND VIEW Production", tables: snapshot });
+  const raw = JSON.stringify({ source: "LAND VIEW Production", tables: snapshot });
   const zipped = gzipSync(Buffer.from(raw, "utf8"), { level: 9 });
   const b64 = zipped.toString("base64");
   const hash = createHash("sha256").update(zipped).digest("hex");
@@ -40,10 +40,20 @@ export async function GET(request: Request) {
       const requested = Number(url.searchParams.get("part") || "-1");
       if (Number.isInteger(requested) && requested >= 0) {
         if (requested >= totalParts) return Response.json({ success: false, error: "Part out of range", totalParts }, { status: 416 });
-        return Response.json({ success: true, mode: "snapshot", hash, rawBytes, gzipBytes, totalParts, part: requested, data: b64.slice(requested * PART_SIZE, (requested + 1) * PART_SIZE) }, { headers: { "cache-control": "no-store" } });
+        return new Response(b64.slice(requested * PART_SIZE, (requested + 1) * PART_SIZE), {
+          status: 200,
+          headers: {
+            "content-type": "text/plain; charset=utf-8",
+            "cache-control": "no-store, max-age=0",
+            "x-snapshot-hash": hash,
+            "x-total-parts": String(totalParts),
+            "x-raw-bytes": String(rawBytes),
+            "x-gzip-bytes": String(gzipBytes),
+            "x-part": String(requested),
+          },
+        });
       }
-      const parts = Array.from({ length: totalParts }, (_, i) => b64.slice(i * PART_SIZE, (i + 1) * PART_SIZE));
-      return Response.json({ success: true, mode: "snapshot", hash, rawBytes, gzipBytes, totalParts, parts }, { headers: { "cache-control": "no-store" } });
+      return Response.json({ success: true, mode: "snapshot", hash, rawBytes, gzipBytes, totalParts }, { headers: { "cache-control": "no-store" } });
     }
 
     const table = (url.searchParams.get("table") || "").trim();
