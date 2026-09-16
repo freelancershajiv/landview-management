@@ -1,4 +1,5 @@
 import { cache } from "react";
+import { selectRows } from "@/lib/supabase-data";
 
 export type PublicTeamMember = {
   name?: string;
@@ -16,18 +17,11 @@ export type PublicTeamMember = {
   displayOrder?: number;
 };
 
-const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
-const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
-
 export function normalizePublicTeamImageUrl(url?: string, size = "w1000") {
   const value = String(url || "").trim();
   if (!value) return "";
-
   const fileMatch = value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);
-  if (fileMatch?.[1]) {
-    return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileMatch[1])}&sz=${size}`;
-  }
-
+  if (fileMatch?.[1]) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileMatch[1])}&sz=${size}`;
   try {
     const parsed = new URL(value);
     if (parsed.hostname === "drive.google.com") {
@@ -35,40 +29,35 @@ export function normalizePublicTeamImageUrl(url?: string, size = "w1000") {
       if (id) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=${size}`;
     }
   } catch {}
-
   return value;
 }
 
 export const getPublicTeamForSeo = cache(async function getPublicTeamForSeo(): Promise<PublicTeamMember[]> {
-  if (!APPS_SCRIPT_URL || !PROXY_SECRET) return [];
-
   try {
-    const response = await fetch(APPS_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: "getPublicTeam", proxySecret: PROXY_SECRET }),
-      cache: "no-store",
-      redirect: "follow",
-      signal: AbortSignal.timeout(8000),
+    const rows = await selectRows("employees", {
+      filters: { public_display: true },
+      order: "display_order:asc,name:asc",
+      limit: 1000,
     });
-
-    if (!response.ok) return [];
-
-    const json = await response.json();
-    const rows = Array.isArray(json?.data)
-      ? json.data
-      : Array.isArray(json?.team)
-        ? json.team
-        : Array.isArray(json?.employees)
-          ? json.employees
-          : Array.isArray(json)
-            ? json
-            : [];
-
-    return (rows as PublicTeamMember[]).sort(
-      (a, b) => Number(a.displayOrder ?? 9999) - Number(b.displayOrder ?? 9999)
-    );
-  } catch {
+    return rows.map((row: any) => ({
+      name: String(row.name || ""),
+      title: String(row.public_title || row.designation || ""),
+      designation: String(row.designation || row.public_title || ""),
+      position: String(row.public_title || row.designation || ""),
+      department: String(row.department || ""),
+      degree: "",
+      degrees: "",
+      speciality: "",
+      specialities: "",
+      bio: String(row.public_bio || ""),
+      photoUrl: String(row.photo_url || ""),
+      linkedInUrl: String(row.linkedin_url || ""),
+      displayOrder: Number(row.display_order ?? 9999),
+    }));
+  } catch (error) {
+    console.warn("LAND VIEW public team Supabase read failed", {
+      message: error instanceof Error ? error.message.slice(0, 180) : "Unknown error",
+    });
     return [];
   }
 });
