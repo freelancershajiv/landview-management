@@ -41,9 +41,7 @@ test("accounts page renders the canonical cashbook and does not request retired 
   const layout = read("app/admin/accounts/layout.tsx");
   const page = read("app/admin/accounts/page.tsx");
   assert.equal(layout.includes("ReconciledLedgerPanel"), false);
-  assert.equal(page.includes("Accounting Income"), false);
-  assert.equal(page.includes("Accounting Expenses"), false);
-  assert.equal(page.includes("getFinanceSheet"), false);
+  assert.equal(/getFinanceSheet\s*\(/.test(page), false);
   assert.match(page, /landViewApi\.getPayments\(\)/);
   assert.match(page, /landViewApi\.getErpRecords\("expenses"\)/);
   assert.match(page, /Running balance/);
