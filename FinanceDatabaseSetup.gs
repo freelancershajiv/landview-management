@@ -117,7 +117,7 @@ function verifyLandViewFinanceDatabaseFromEditor() {
     if (!sheetReady) ready = false;
     checks[sheetName] = { exists: !!sheet, ready: sheetReady, missingHeaders: missingHeaders, rows: sheet ? sheet.getLastRow() : 0, columns: sheet ? sheet.getLastColumn() : 0 };
   });
-  return { success: ready, spreadsheetId: ss.getId(), spreadsheetName: ss.getName(), spreadsheetUrl: ss.getUrl(), canonicalFinanceSheets: Object.keys(LAND_VIEW_FINANCE_SETUP_SHEETS_), checks: checks };
+  return { success: ready, spreadsheetId: ss.getId(), spreadsheetName: ss.getName(), spreadsheetUrl: ss.getUrl(), canonicalSheets: Object.keys(LAND_VIEW_FINANCE_SETUP_SHEETS_), checks: checks };
 }
 
 function setupAndSyncLandViewFinanceDatabaseFromEditor() {
