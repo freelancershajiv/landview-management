@@ -38,6 +38,14 @@ function allowedOrigin(request: NextRequest) {
   }
 }
 
+function normalizeUserId(value: unknown) {
+  const raw = String(value || "").trim();
+  if (/^admin$/i.test(raw)) return "admin";
+  const employee = raw.match(/^emp[\s_-]*0*(\d+)$/i);
+  if (employee) return `EMP-${String(Number(employee[1])).padStart(4, "0")}`;
+  return raw;
+}
+
 export async function POST(request: NextRequest) {
   if (!allowedOrigin(request)) {
     return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
@@ -50,7 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid login request." }, { status: 400 });
   }
 
-  const userId = String(input.userId || input.username || "").trim();
+  const userId = normalizeUserId(input.userId || input.username || "");
   const password = String(input.password || "");
   const rememberRequested = input.rememberDevice === true || String(input.rememberDevice || "").toLowerCase() === "true";
   if (!userId || !password) {
@@ -85,7 +93,9 @@ export async function POST(request: NextRequest) {
     const message = String(error?.message || "Invalid User ID or password.");
     const safe = /invalid login credentials|invalid.*password|credentials/i.test(message)
       ? "Invalid User ID or password."
-      : message;
+      : /not been activated/i.test(message)
+        ? "Unknown User ID. Use admin or your EMP-#### ID."
+        : message;
     return NextResponse.json(
       { success: false, error: safe },
       { status: Number(error?.status) === 401 ? 401 : 503, headers: { "Cache-Control": "no-store, max-age=0" } },
