@@ -60,8 +60,6 @@ function categoryFromExplicit(value: unknown): Category | "" {
 }
 
 function categoryOf(record: RecordRow): Category {
-  // Explicit billing/payment category wins. This is important for legitimate
-  // engineering items whose service text happens to contain "Supervision".
   const explicit = categoryFromExplicit(field(record, [
     "Billing_Category", "Billing Category", "Category",
     "Payment_For", "Payment For", "Income_Category", "Income Category",
@@ -219,11 +217,14 @@ function buildCompatibilitySheets(projectId: string, project: RecordRow, billing
     const gross = amount(field(bill, ["Amount", "Bill_Amount", "Total", "Grand_Total"]));
     const description = text(field(bill, ["Description", "Service", "Particulars", "Item"]))
       .replace(/^\[(Engineering Bill|Supervision Bill|Other Services Bill)\]\s*/i, "");
+    const isSoilTest = /\bsoil\s*test\b/i.test(description);
     const rawUnitPrice = field(bill, ["Unit_Price", "Unit Price", "Price", "Rate"]);
     const rawQuantity = field(bill, ["Quantity", "Qty", "QTY"]);
-    const unitPrice = text(rawUnitPrice) ? amount(rawUnitPrice) : gross;
-    const quantity = amount(rawQuantity) > 0 ? amount(rawQuantity) : 1;
-    return [projectId, description || category, unitPrice || gross, quantity, gross, field(bill, ["Bill_ID", "Bill ID"])];
+    const quantity = isSoilTest && amount(rawQuantity) > 0 ? amount(rawQuantity) : 0;
+    const unitPrice = isSoilTest
+      ? (text(rawUnitPrice) ? amount(rawUnitPrice) : quantity > 0 ? gross / quantity : gross)
+      : 0;
+    return [projectId, description || category, unitPrice || "", quantity || "", gross, field(bill, ["Bill_ID", "Bill ID"])];
   });
   const paymentRows = (category: Category) => categories[category].payments.map((payment) => {
     const method = text(field(payment, ["Payment_Method", "Payment Method", "Method"]));
@@ -241,11 +242,11 @@ function buildCompatibilitySheets(projectId: string, project: RecordRow, billing
   return [
     sheet("Summary", ["FILE ID", "Client Name", "Project Name", "Engineering Bill", "Engineering Discount", "Engineering Deposit", "Engineering Due", "Supervision Bill", "Supervision Discount", "Supervision Deposit", "Supervision Due", "Other Services Bill", "Other Services Discount", "Other Services Deposit", "Other Services Due", "Total Due", "Status"], [summaryRow]),
     sheet("File List", ["FILE ID", "Client Name", "Address", "Phone", "Floor/Story", "Build Type", "Land Area"], [fileRow]),
-    sheet("Design Bill", ["FILE ID", "Service Name", "Price", "Qty", "Amount", "Bill ID"], billRows("Engineering Bill")),
+    sheet("Design Bill", ["FILE ID", "Service Name", "Rate (BDT)", "QTY", "Amount (BDT)", "Bill ID"], billRows("Engineering Bill")),
     sheet("Design Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], paymentRows("Engineering Bill")),
-    sheet("Supervision Bill", ["FILE ID", "Service Name", "Price", "Qty", "Amount", "Bill ID"], billRows("Supervision Bill")),
+    sheet("Supervision Bill", ["FILE ID", "Service Name", "Rate (BDT)", "QTY", "Amount (BDT)", "Bill ID"], billRows("Supervision Bill")),
     sheet("S Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], paymentRows("Supervision Bill")),
-    sheet("Others Bill", ["FILE ID", "Service Name", "Price", "Qty", "Amount", "Bill ID"], billRows("Other Services Bill")),
+    sheet("Others Bill", ["FILE ID", "Service Name", "Rate (BDT)", "QTY", "Amount (BDT)", "Bill ID"], billRows("Other Services Bill")),
     sheet("Others Bill Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], paymentRows("Other Services Bill")),
   ];
 }
