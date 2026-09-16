@@ -39,6 +39,26 @@ function parseBillingDate(value: unknown) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function paymentDateOnly(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "—";
+
+  const isoDate = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDate) return isoDate[1];
+
+  const displayDate = raw.match(/^(\d{1,2}[/.]\d{1,2}[/.]\d{2,4})/);
+  if (displayDate) return displayDate[1];
+
+  const parsed = parseBillingDate(raw);
+  if (!parsed) return raw;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(parsed);
+}
+
 export function billingIssueDate(result: SheetInvoices) {
   const dates = result.invoices
     .flatMap((category) => category.payments)
@@ -186,7 +206,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
     }
 
     if (!category.payments.length) return <p className={styles.empty}>No deposit records.</p>;
-    return <div className={styles.tableWrap}><table className={styles.depositTable}><thead><tr><th>SL.</th><th>Date</th><th>Details</th><th>Amount</th><th>Verification</th></tr></thead><tbody>{category.payments.map((payment,index)=><tr key={index}><td>{index+1}</td><td className={styles.dateCell}>{payment.date||"—"}</td><td className={styles.detailsCell}>{payment.details||"—"}</td><td className={styles.moneyCell}>{money(payment.amount)}</td><td className={styles.verificationCell}><strong className={payment.verification === "Verified" ? styles.verificationVerified : styles.verificationUnverified}>{payment.verification||"Unverified"}</strong>{payment.incomeId&&<small className={styles.verificationRef}>Ref: {payment.incomeId}</small>}</td></tr>)}</tbody></table></div>;
+    return <div className={styles.tableWrap}><table className={styles.depositTable}><thead><tr><th>SL.</th><th>Date</th><th>Details</th><th>Amount</th><th>Verification</th></tr></thead><tbody>{category.payments.map((payment,index)=><tr key={index}><td>{index+1}</td><td className={styles.dateCell}>{paymentDateOnly(payment.date)}</td><td className={styles.detailsCell}>{payment.details||"—"}</td><td className={styles.moneyCell}>{money(payment.amount)}</td><td className={styles.verificationCell}><strong className={payment.verification === "Verified" ? styles.verificationVerified : styles.verificationUnverified}>{payment.verification||"Unverified"}</strong>{payment.incomeId&&<small className={styles.verificationRef}>Ref: {payment.incomeId}</small>}</td></tr>)}</tbody></table></div>;
   };
 
   const PrintHeader = ({ page, title }: { page: number; title: string }) => <>
