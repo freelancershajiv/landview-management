@@ -105,10 +105,6 @@ async function callSupabase(action: string, input: Record<string, unknown>) {
   return json.data;
 }
 
-function copyCookies(from: NextResponse, to: NextResponse) {
-  for (const cookie of from.cookies.getAll()) to.cookies.set(cookie);
-}
-
 export async function GET(request: NextRequest) {
   const action = String(request.nextUrl.searchParams.get("action") || "").trim();
   if (!FAST_GET_ACTIONS.has(action)) return legacyGET(request);
@@ -137,7 +133,6 @@ export async function GET(request: NextRequest) {
 }
 
 async function mirrorWrite(action: string, input: Record<string, unknown>, sourceData: unknown) {
-  if (!MIRROR_POST_ACTIONS.has(action)) return;
   if (action === "deleteProject") {
     await callSupabase("deleteProject", { projectId: input.projectId || input.Project_ID });
     return;
@@ -158,17 +153,22 @@ async function mirrorWrite(action: string, input: Record<string, unknown>, sourc
 }
 
 export async function POST(request: NextRequest) {
-  const copy = request.clone();
-  const input = await copy.json().catch(() => ({})) as Record<string, unknown>;
+  const bodyCopy = request.clone();
+  const input = await bodyCopy.json().catch(() => ({})) as Record<string, unknown>;
   const action = String(input.action || "").trim();
-  const response = await legacyPOST(request);
 
+  // Resolve the signed/cached identity before the legacy handler consumes the request body.
+  let user: Record<string, unknown> | null = null;
+  if (MIRROR_POST_ACTIONS.has(action)) {
+    try { user = await authorizedUser(request); } catch {}
+  }
+
+  const response = await legacyPOST(request);
   if (!response.ok || !MIRROR_POST_ACTIONS.has(action)) return response;
   const json = await response.clone().json().catch(() => null);
   if (!json?.success) return response;
 
   try {
-    const user = await authorizedUser(copy as unknown as NextRequest);
     const role = roleOf(user);
     if (user && (role === "admin" || role === "manager")) {
       await mirrorWrite(action, input, json.data);
