@@ -1,11 +1,22 @@
 import { selectRows } from "@/lib/supabase-data";
 import { gzipSync } from "node:zlib";
-import { createHash } from "node:crypto";
+import { constants, createCipheriv, createHash, publicEncrypt, randomBytes } from "node:crypto";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const TOKEN_HASH = "8e00e36dc4a9e91c8f11d58de9e0e731d9ad69873c60901cb0df048057a43d31";
+const MIGRATION_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKCAYEAl6mrtz/uOng4+XYc5kKN
+GTWvcrKwn/UMclUZpI0Vrx1CbVDOLYzkYfyc54ecYijkmGxT/5SFbSmzLIupKOZN
+s1oNSUgnTaBR+49PMrq5IDJQAAauFl4h2nSgYe13020Pgp+kj7r1E4zBtbiztGv3
+Ju42nx4Bp9GUdOm7b+aG36RZ+LLbBF9HQH3qTZYuz3Pvi77NOlxRnF8cPolsaj/2
+0Dbpqdl9d3I1vgzpurhm9XzGiZghucTiM/o+1DMiWCWmvN8lJPlFMAe3YyjTzaCc
+7RWmzwXFC92r0cIEgRFm6DiFb92uWK34wZ3P4SQISLFGkqrdDCfT1adGyKhKwyrw
+AbdnUhVEb7dwsIeJ0HS4m1vOO3OKoXRGmuZYU2RC82iiThKq6ZyvZ27V0O/ib22m
+dMTW2UHSf9+SUGjVD3dJuK/zutY3CbqIXgXsVJh/X1QZCmg8Oq73lqn2O47M1ZbB
+acid2h5CZ2gCt02hyOk4BjKLzldtaaindP5YLOjGCco7AgMBAAE=
+-----END PUBLIC KEY-----`;
 const TABLES = [
   "clients","employees","projects","project_employees","invoices","payments","site_visits","documents",
   "bills","accounts","transfers","transactions","expenses","tasks","attendance","leave_requests","approvals"
@@ -26,14 +37,49 @@ async function buildSnapshot() {
   const zipped = gzipSync(Buffer.from(raw, "utf8"), { level: 9 });
   const b64 = zipped.toString("base64");
   const hash = createHash("sha256").update(zipped).digest("hex");
-  return { b64, hash, rawBytes: Buffer.byteLength(raw), gzipBytes: zipped.length };
+  return { raw, zipped, b64, hash, rawBytes: Buffer.byteLength(raw), gzipBytes: zipped.length };
+}
+
+function sealSnapshot(zipped: Buffer) {
+  const key = randomBytes(32);
+  const nonce = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", key, nonce);
+  const ciphertext = Buffer.concat([cipher.update(zipped), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const wrappedKey = publicEncrypt(
+    { key: MIGRATION_PUBLIC_KEY, padding: constants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" },
+    key,
+  );
+  const magic = Buffer.from("LVSEAL1", "ascii");
+  const keyLength = Buffer.alloc(2);
+  keyLength.writeUInt16BE(wrappedKey.length, 0);
+  return Buffer.concat([magic, keyLength, wrappedKey, nonce, tag, ciphertext]);
 }
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const token = url.searchParams.get("token") || "";
-  if ((await sha256(token)) !== TOKEN_HASH) return Response.json({ success: false, error: "Not found" }, { status: 404 });
   try {
+    if (url.searchParams.get("mode") === "sealed") {
+      const { zipped, hash, rawBytes, gzipBytes } = await buildSnapshot();
+      const sealed = sealSnapshot(zipped);
+      return new Response(sealed, {
+        status: 200,
+        headers: {
+          "content-type": "application/octet-stream",
+          "content-disposition": "attachment; filename=landview-production-snapshot.lvseal",
+          "cache-control": "no-store, max-age=0",
+          "x-snapshot-hash": hash,
+          "x-raw-bytes": String(rawBytes),
+          "x-gzip-bytes": String(gzipBytes),
+          "x-sealed-bytes": String(sealed.length),
+          "x-robots-tag": "noindex, nofollow",
+        },
+      });
+    }
+
+    const token = url.searchParams.get("token") || "";
+    if ((await sha256(token)) !== TOKEN_HASH) return Response.json({ success: false, error: "Not found" }, { status: 404 });
+
     if (url.searchParams.get("mode") === "snapshot") {
       const { b64, hash, rawBytes, gzipBytes } = await buildSnapshot();
       const requestedSize = Number(url.searchParams.get("size") || DEFAULT_PART_SIZE);
