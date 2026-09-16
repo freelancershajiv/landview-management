@@ -1,0 +1,97 @@
+name: Fix billing modal UX
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-billing-modal-ux.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Improve billing readability and save responsiveness
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('app/admin/finance/page.tsx')
+          s = p.read_text()
+
+          old = '''  const [saving, setSaving] = useState(false);\n  const [message, setMessage] = useState("");\n  const [billForm, setBillForm] = useState<BillingForm>({ projectId: "", category: "Engineering Bill", service: "", amount: "", date: today(), notes: "" });'''
+          new = '''  const [saving, setSaving] = useState(false);\n  const [message, setMessage] = useState("");\n  const [billError, setBillError] = useState("");\n  const [paymentError, setPaymentError] = useState("");\n  const [billForm, setBillForm] = useState<BillingForm>({ projectId: "", category: "Engineering Bill", service: "", amount: "", date: today(), notes: "" });'''
+          if old not in s:
+              raise SystemExit('Could not add modal error state')
+          s = s.replace(old, new, 1)
+
+          old = '''  function startBill(category: BillCategory = "Engineering Bill") { setMessage(""); setBillForm({ projectId: "", category, service: "", amount: "", date: today(), notes: "" }); setBillOpen(true); }\n  function startPayment(category: BillCategory = "Engineering Bill") { setMessage(""); setPaymentForm({ projectId: "", category, amount: "", date: today(), method: "Bank Transfer", account: "Bank Account", reference: "", notes: "" }); setPaymentOpen(true); }'''
+          new = '''  function startBill(category: BillCategory = "Engineering Bill") { if (saving) return; setMessage(""); setBillError(""); setBillForm({ projectId: "", category, service: "", amount: "", date: today(), notes: "" }); setBillOpen(true); }\n  function startPayment(category: BillCategory = "Engineering Bill") { if (saving) return; setMessage(""); setPaymentError(""); setPaymentForm({ projectId: "", category, amount: "", date: today(), method: "Bank Transfer", account: "Bank Account", reference: "", notes: "" }); setPaymentOpen(true); }'''
+          if old not in s:
+              raise SystemExit('Could not patch modal open handlers')
+          s = s.replace(old, new, 1)
+
+          old = '''  async function saveBill() {\n    const value = amount(billForm.amount);\n    if (!billForm.projectId) return setMessage("Choose a project first.");\n    if (!billForm.service.trim()) return setMessage("Enter the service or bill description.");\n    if (!(value > 0)) return setMessage("Enter a valid bill amount.");\n    setSaving(true); setMessage("");\n    const idempotencyKey = `web-bill-${crypto.randomUUID()}`;\n    try {\n      await writeBilling("saveBill", { Project_ID: billForm.projectId, Bill_Date: billForm.date, Description: `[${billForm.category}] ${billForm.service.trim()}`, Amount: value, Status: "Issued", Billing_Category: billForm.category, Category: billForm.category, Created_Via: "Billing Workspace", Notes: billForm.notes.trim(), Idempotency_Key: idempotencyKey });\n      setMessage("Bill added successfully."); setBillOpen(false); setRevision((value) => value + 1);\n    } catch (err) { setMessage(err instanceof Error ? err.message : "Could not add bill."); }\n    finally { setSaving(false); }\n  }'''
+          new = '''  async function saveBill() {\n    const value = amount(billForm.amount);\n    if (!billForm.projectId) return setBillError("Choose a project first.");\n    if (!billForm.service.trim()) return setBillError("Enter the service or bill description.");\n    if (!(value > 0)) return setBillError("Enter a valid bill amount.");\n    setSaving(true); setBillError(""); setMessage("Saving bill…"); setBillOpen(false);\n    const idempotencyKey = `web-bill-${crypto.randomUUID()}`;\n    try {\n      await writeBilling("saveBill", { Project_ID: billForm.projectId, Bill_Date: billForm.date, Description: `[${billForm.category}] ${billForm.service.trim()}`, Amount: value, Status: "Issued", Billing_Category: billForm.category, Category: billForm.category, Created_Via: "Billing Workspace", Notes: billForm.notes.trim(), Idempotency_Key: idempotencyKey });\n      setMessage("Bill added successfully."); setRevision((value) => value + 1);\n    } catch (err) { setBillError(err instanceof Error ? err.message : "Could not add bill."); setMessage(""); setBillOpen(true); }\n    finally { setSaving(false); }\n  }'''
+          if old not in s:
+              raise SystemExit('Could not patch saveBill')
+          s = s.replace(old, new, 1)
+
+          old = '''  async function savePayment() {\n    const value = amount(paymentForm.amount);\n    if (!paymentForm.projectId) return setMessage("Choose a project first.");\n    if (!(selectedCategoryDue > 0)) return setMessage("This category has no outstanding amount.");\n    if (!(value > 0)) return setMessage("Enter a valid payment amount.");\n    if (value > selectedCategoryDue + 0.01) return setMessage(`Payment cannot exceed ${money(selectedCategoryDue)}.`);\n    setSaving(true); setMessage("");\n    const idempotencyKey = `web-payment-${crypto.randomUUID()}`;\n    try {\n      await writeBilling("savePayment", { Project_ID: paymentForm.projectId, Payment_Date: paymentForm.date, Amount: value, Payment_Method: paymentForm.method, Deposit_Account: paymentForm.account, Reference_No: paymentForm.reference.trim(), Payment_For: paymentForm.category, Income_Category: paymentForm.category, Transaction_Type: "Business Income", Affects_Business_Balance: "Yes", Received_From: selectedPaymentProject?.clientName || "", Notes: paymentForm.notes.trim(), Idempotency_Key: idempotencyKey });\n      setMessage("Payment recorded and sent for the configured approval/accounting flow."); setPaymentOpen(false); setRevision((value) => value + 1);\n    } catch (err) { setMessage(err instanceof Error ? err.message : "Could not record payment."); }\n    finally { setSaving(false); }\n  }'''
+          new = '''  async function savePayment() {\n    const value = amount(paymentForm.amount);\n    if (!paymentForm.projectId) return setPaymentError("Choose a project first.");\n    if (!(selectedCategoryDue > 0)) return setPaymentError("This category has no outstanding amount.");\n    if (!(value > 0)) return setPaymentError("Enter a valid payment amount.");\n    if (value > selectedCategoryDue + 0.01) return setPaymentError(`Payment cannot exceed ${money(selectedCategoryDue)}.`);\n    setSaving(true); setPaymentError(""); setMessage("Saving payment…"); setPaymentOpen(false);\n    const idempotencyKey = `web-payment-${crypto.randomUUID()}`;\n    try {\n      await writeBilling("savePayment", { Project_ID: paymentForm.projectId, Payment_Date: paymentForm.date, Amount: value, Payment_Method: paymentForm.method, Deposit_Account: paymentForm.account, Reference_No: paymentForm.reference.trim(), Payment_For: paymentForm.category, Income_Category: paymentForm.category, Transaction_Type: "Business Income", Affects_Business_Balance: "Yes", Received_From: selectedPaymentProject?.clientName || "", Notes: paymentForm.notes.trim(), Idempotency_Key: idempotencyKey });\n      setMessage("Payment recorded successfully."); setRevision((value) => value + 1);\n    } catch (err) { setPaymentError(err instanceof Error ? err.message : "Could not record payment."); setMessage(""); setPaymentOpen(true); }\n    finally { setSaving(false); }\n  }'''
+          if old not in s:
+              raise SystemExit('Could not patch savePayment')
+          s = s.replace(old, new, 1)
+
+          old_css = '''.billing-modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}@media(max-width:900px)'''
+          new_css = '''.billing-modal-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}.billing-page{line-height:1.45}.billing-head h1,.billing-cat h3,.billing-toolbar strong,.billing-modal h2{color:#f8fafc}.billing-help{color:#b7c1c9;line-height:1.5}.billing-btn{min-height:40px;display:inline-flex;align-items:center;justify-content:center;line-height:1.1;transition:border-color .15s ease,background .15s ease,transform .15s ease}.billing-btn:hover:not(:disabled){border-color:#67737d;background:#1b252d}.billing-btn.primary:hover:not(:disabled){background:#ee5b53;border-color:#ee5b53}.billing-btn:disabled{opacity:.55;cursor:not-allowed}.billing-table td{color:#e7edf2;vertical-align:middle}.billing-table td strong{color:#f8fafc}.billing-table tbody tr:hover{background:#151f27}.billing-status{white-space:nowrap;line-height:1.1}.billing-modal{background:#151d24;color:#f5f7f9}.billing-field label{color:#c7d0d7;line-height:1.2}.billing-field input,.billing-field select,.billing-field textarea{min-height:44px;line-height:1.25;color-scheme:dark}.billing-field select option{background:#11181e;color:#f7f9fa}.billing-inline-error{margin:0 0 14px;padding:10px 12px;border:1px solid #8b4039;border-radius:8px;background:#3a211f;color:#ffd0cc;font-size:12px;font-weight:800;line-height:1.45}.billing-modal-actions{position:sticky;bottom:-20px;margin:18px -20px -20px;padding:14px 20px 20px;background:linear-gradient(180deg,rgba(21,29,36,.78),#151d24 30%);border-top:1px solid #2f3942}.billing-modal-actions .billing-btn{min-width:112px}@media(max-width:900px)'''
+          if old_css not in s:
+              raise SystemExit('Could not patch billing CSS')
+          s = s.replace(old_css, new_css, 1)
+
+          old_mobile = '''@media(max-width:540px){.billing-metrics{grid-template-columns:1fr}.billing-toolbar-right{align-items:stretch;flex-direction:column}.billing-toolbar input{min-width:0;max-width:none}.billing-filter-group{width:100%}.billing-filter{flex:1}}'''
+          new_mobile = '''@media(max-width:540px){.billing-metrics{grid-template-columns:1fr}.billing-toolbar-right{align-items:stretch;flex-direction:column}.billing-toolbar input{min-width:0;max-width:none}.billing-filter-group{width:100%}.billing-filter{flex:1}.billing-actions{width:100%}.billing-actions .billing-btn{flex:1 1 calc(50% - 6px);min-width:0}.billing-modal-backdrop{padding:10px}.billing-modal{padding:16px;max-height:94vh}.billing-modal-actions{bottom:-16px;margin:18px -16px -16px;padding:12px 16px 16px}.billing-modal-actions .billing-btn{flex:1;min-width:0}}'''
+          if old_mobile not in s:
+              raise SystemExit('Could not patch mobile billing CSS')
+          s = s.replace(old_mobile, new_mobile, 1)
+
+          old_header = '''<header className="billing-head"><div><small>LAND VIEW / CLIENT BILLING</small><h1>Billing</h1></div><div className="billing-actions"><button className="billing-btn primary" type="button" onClick={() => startBill()}>+ Add Bill</button><Link className="billing-btn" href="/admin/finance/invoices">Generate Invoice</Link><button className="billing-btn" type="button" onClick={() => startPayment()}>+ Add Payment</button><Link className="billing-btn" href="/admin/accounts">Accounts</Link></div></header>'''
+          new_header = '''<header className="billing-head"><div><small>LAND VIEW / CLIENT BILLING</small><h1>Billing</h1></div><div className="billing-actions"><button className="billing-btn primary" disabled={saving} type="button" onClick={() => startBill()}>+ Add Bill</button><Link className="billing-btn" href="/admin/finance/invoices">Generate Invoice</Link><button className="billing-btn" disabled={saving} type="button" onClick={() => startPayment()}>+ Add Payment</button><Link className="billing-btn" href="/admin/accounts">Accounts</Link></div></header>'''
+          if old_header not in s:
+              raise SystemExit('Could not patch billing header buttons')
+          s = s.replace(old_header, new_header, 1)
+
+          old_bill_modal = '''<div className="billing-modal" role="dialog" aria-modal="true" aria-label="Add bill"><h2>Add Bill</h2><div className="billing-grid">'''
+          new_bill_modal = '''<div className="billing-modal" role="dialog" aria-modal="true" aria-label="Add bill"><h2>Add Bill</h2>{billError && <div className="billing-inline-error" role="alert">{billError}</div>}<div className="billing-grid">'''
+          if old_bill_modal not in s:
+              raise SystemExit('Could not add bill modal error')
+          s = s.replace(old_bill_modal, new_bill_modal, 1)
+
+          old_payment_modal = '''<div className="billing-modal" role="dialog" aria-modal="true" aria-label="Add payment"><h2>Add Payment</h2><div className="billing-grid">'''
+          new_payment_modal = '''<div className="billing-modal" role="dialog" aria-modal="true" aria-label="Add payment"><h2>Add Payment</h2>{paymentError && <div className="billing-inline-error" role="alert">{paymentError}</div>}<div className="billing-grid">'''
+          if old_payment_modal not in s:
+              raise SystemExit('Could not add payment modal error')
+          s = s.replace(old_payment_modal, new_payment_modal, 1)
+
+          p.write_text(s)
+          print('Billing UX patch applied.')
+          PY
+
+      - name: Commit billing UX repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/finance/page.tsx
+          if git diff --cached --quiet; then
+            echo "No billing UX changes required."
+            exit 0
+          fi
+          git commit -m "Improve billing modal readability and save UX"
+          git push
