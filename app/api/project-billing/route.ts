@@ -8,6 +8,7 @@ const COOKIE_NAME = "landview_session";
 const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 const BACKEND_TIMEOUT_MS = 12_000;
+const BACKEND_RETRY_DELAYS_MS = [0, 250, 800];
 
 const COMPAT_TABS = [
   "Summary",
@@ -50,13 +51,25 @@ function field(record: RecordRow, keys: string[]) {
   return "";
 }
 
-function categoryOf(record: RecordRow): Category {
-  const source = [
-    field(record, ["Billing_Category", "Billing Category", "Category"]),
-    field(record, ["Income_Category", "Income Category", "Payment_For", "Payment For"]),
-    field(record, ["Description", "Service", "Particulars", "Notes"]),
-  ].map(text).join(" ").toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+function categoryFromExplicit(value: unknown): Category | "" {
+  const normalized = text(value).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  if (/^engineering(?: bill)?$|^design(?: bill)?$/.test(normalized)) return "Engineering Bill";
+  if (/^supervision(?: bill)?$/.test(normalized)) return "Supervision Bill";
+  if (/^(?:other services|others)(?: bill)?$/.test(normalized)) return "Other Services Bill";
+  return "";
+}
 
+function categoryOf(record: RecordRow): Category {
+  // Explicit billing/payment category wins. This is important for legitimate
+  // engineering items whose service text happens to contain "Supervision".
+  const explicit = categoryFromExplicit(field(record, [
+    "Billing_Category", "Billing Category", "Category",
+    "Payment_For", "Payment For", "Income_Category", "Income Category",
+  ]));
+  if (explicit) return explicit;
+
+  const source = [field(record, ["Description", "Service", "Particulars", "Notes"])].map(text)
+    .join(" ").toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
   if (/supervision|site supervision/.test(source)) return "Supervision Bill";
   if (/engineering|design|architect|structur|electrical|plumbing|\b3d\b|estimate|costing|plan approval/.test(source)) return "Engineering Bill";
   return "Other Services Bill";
@@ -82,26 +95,58 @@ function clientKey(request: NextRequest) {
   return createHmac("sha256", PROXY_SECRET).update(forwarded).digest("hex").slice(0, 32);
 }
 
-async function callBackend(payload: Record<string, unknown>) {
-  const response = await fetch(APPS_SCRIPT_URL, {
-    method: "POST",
-    headers: { "Content-Type": "text/plain;charset=utf-8" },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-    redirect: "follow",
-    signal: AbortSignal.timeout(BACKEND_TIMEOUT_MS),
-  });
+async function parseBackendResponse(response: Response) {
   const raw = await response.text();
-  let json: any;
-  try {
-    json = JSON.parse(raw);
-  } catch {
-    throw new Error(/^\s*</.test(raw) ? "Apps Script returned HTML instead of JSON." : "Apps Script returned invalid JSON.");
+  let json: any = null;
+  try { json = JSON.parse(raw); } catch {}
+  return { response, raw, json };
+}
+
+async function callBackend(payload: Record<string, unknown>) {
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < BACKEND_RETRY_DELAYS_MS.length; attempt += 1) {
+    const delay = BACKEND_RETRY_DELAYS_MS[attempt];
+    if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
+
+    try {
+      const signal = AbortSignal.timeout(BACKEND_TIMEOUT_MS);
+      const initial = await fetch(APPS_SCRIPT_URL, {
+        method: "POST",
+        headers: { "Content-Type": "text/plain;charset=utf-8" },
+        body: JSON.stringify(payload),
+        cache: "no-store",
+        redirect: "manual",
+        signal,
+      });
+
+      let result = await parseBackendResponse(initial);
+      if ([301, 302, 303].includes(initial.status)) {
+        const location = initial.headers.get("location") || "";
+        if (!location) throw new Error("Apps Script returned an incomplete redirect.");
+        const redirected = await fetch(location, { method: "GET", cache: "no-store", redirect: "follow", signal });
+        result = await parseBackendResponse(redirected);
+      }
+
+      if (result.json?.success) return result.json.data;
+      if (result.json) {
+        const message = String(result.json?.error || result.json?.message || `Backend request failed (${result.response.status}).`);
+        const retryable = result.response.status === 429 || result.response.status >= 500;
+        if (!retryable || attempt === BACKEND_RETRY_DELAYS_MS.length - 1) throw new Error(message);
+        lastError = new Error(message);
+        continue;
+      }
+
+      const retryable = result.response.status === 404 || result.response.status === 429 || result.response.status >= 500 || /^\s*</.test(result.raw);
+      lastError = new Error(/^\s*</.test(result.raw) ? "Apps Script returned HTML instead of JSON." : "Apps Script returned invalid JSON.");
+      if (!retryable || attempt === BACKEND_RETRY_DELAYS_MS.length - 1) throw lastError;
+    } catch (error: any) {
+      lastError = error instanceof Error ? error : new Error(String(error || "Backend request failed."));
+      if (attempt === BACKEND_RETRY_DELAYS_MS.length - 1) throw lastError;
+    }
   }
-  if (!response.ok || !json?.success) {
-    throw new Error(String(json?.error || json?.message || `Backend request failed (${response.status}).`));
-  }
-  return json.data;
+
+  throw lastError || new Error("Backend request failed.");
 }
 
 function commonPayload(request: NextRequest, token: string) {
@@ -174,7 +219,11 @@ function buildCompatibilitySheets(projectId: string, project: RecordRow, billing
     const gross = amount(field(bill, ["Amount", "Bill_Amount", "Total", "Grand_Total"]));
     const description = text(field(bill, ["Description", "Service", "Particulars", "Item"]))
       .replace(/^\[(Engineering Bill|Supervision Bill|Other Services Bill)\]\s*/i, "");
-    return [projectId, description || category, gross, 1, gross, field(bill, ["Bill_ID", "Bill ID"])];
+    const rawUnitPrice = field(bill, ["Unit_Price", "Unit Price", "Price", "Rate"]);
+    const rawQuantity = field(bill, ["Quantity", "Qty", "QTY"]);
+    const unitPrice = text(rawUnitPrice) ? amount(rawUnitPrice) : gross;
+    const quantity = amount(rawQuantity) > 0 ? amount(rawQuantity) : 1;
+    return [projectId, description || category, unitPrice || gross, quantity, gross, field(bill, ["Bill_ID", "Bill ID"])];
   });
   const paymentRows = (category: Category) => categories[category].payments.map((payment) => {
     const method = text(field(payment, ["Payment_Method", "Payment Method", "Method"]));
@@ -234,7 +283,7 @@ export async function GET(request: NextRequest) {
           sheets,
           payments: effectivePayments,
           updatedAt: new Date().toISOString(),
-          mode: "canonical-api-aggregate",
+          mode: "canonical-api-itemized",
         },
       },
       { headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" } },
