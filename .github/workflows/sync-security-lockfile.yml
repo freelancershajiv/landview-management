@@ -1,0 +1,36 @@
+name: Sync security lockfile
+
+on:
+  push:
+    branches:
+      - fix/ledger-security-20260916
+    paths:
+      - package.json
+
+permissions:
+  contents: write
+
+jobs:
+  lockfile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/ledger-security-20260916
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Refresh npm lockfile
+        run: npm install --package-lock-only --ignore-scripts
+      - name: Commit lockfile
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfile already current."
+            exit 0
+          fi
+          git commit -m "Refresh lockfile for security update"
+          git push origin HEAD:fix/ledger-security-20260916
