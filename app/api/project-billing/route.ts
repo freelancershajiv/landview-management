@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GET as legacyGET } from "../landview/route";
+import { requireLocalSession } from "@/lib/local-session";
 import { handleLandviewDataAction, normalizeProjectCode } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -17,12 +17,6 @@ function category(row: Row): Category {
   if(/other|soil|survey|municipality|file pass/.test(source)) return "Other Services Bill";
   return "Engineering Bill";
 }
-async function sessionUser(request: NextRequest) {
-  const url=new URL(request.url); url.pathname="/api/landview"; url.search="?action=getSession";
-  const response=await legacyGET(new NextRequest(url,{method:"GET",headers:new Headers(request.headers)}));
-  const json=await response.json().catch(()=>null);
-  return response.ok&&json?.success&&json?.data?.authenticated?json.data.user as Record<string,unknown>:null;
-}
 function sheet(tab:string,headers:string[],rows:unknown[][],totals:Row={gross:0,discount:0,billed:0,paid:0,due:0,projects:1}) {
   return {tab,tabs:[...TABS],headers,rows:rows.map(r=>r.map(v=>String(v??""))),totals,url:"",updatedAt:new Date().toISOString()};
 }
@@ -31,7 +25,7 @@ export async function GET(request: NextRequest) {
   try {
     const projectId=normalizeProjectCode(request.nextUrl.searchParams.get("fileId"));
     if(!projectId) return NextResponse.json({success:false,error:"Enter a valid File ID such as LV-209."},{status:400});
-    const user=await sessionUser(request);
+    const user=await requireLocalSession(request);
     if(!user) return NextResponse.json({success:false,error:"Session expired."},{status:401});
     const [project,billing]=await Promise.all([
       handleLandviewDataAction("getProject",{projectId},user) as Promise<Row>,
