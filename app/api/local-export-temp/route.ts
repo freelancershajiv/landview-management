@@ -5,7 +5,7 @@ import { createHash } from "node:crypto";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const TOKEN_HASH = "70e0b004b47b742c761fde95a1b3ea8bc1716d0a82e4751c6e016a019e8b6996";
+const TOKEN_HASH = "8e00e36dc4a9e91c8f11d58de9e0e731d9ad69873c60901cb0df048057a43d31";
 const TABLES = [
   "clients","employees","projects","project_employees","invoices","payments","site_visits","documents",
   "bills","accounts","transfers","transactions","expenses","tasks","attendance","leave_requests","approvals"
