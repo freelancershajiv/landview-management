@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { verifyCertificate } from "@/lib/certificate-verification";
+import { selectRows } from "@/lib/supabase-data";
 import styles from "./verify.module.css";
 
 export const dynamic = "force-dynamic";
@@ -13,7 +14,7 @@ type RegistryCertificate = {
   revokedReason?: string;
   deletedAt?: string;
   deletedReason?: string;
-  token?: string; Token?: string; type?: string; Type?: string; name?: string; Name?: string; address?: string; Address?: string; position?: string; Position?: string; subject?: string; Subject?: string; reference?: string; Reference?: string; description?: string; Description?: string; issuedAt?: string; Issued_At?: string; expiresAt?: string; Expires_At?: string; fatherName?: string; Father_Name?: string; motherName?: string; Mother_Name?: string; nidNo?: string; NID_No?: string;
+  token?: string; type?: string; name?: string; address?: string; position?: string; subject?: string; reference?: string; description?: string; issuedAt?: string; expiresAt?: string; fatherName?: string; motherName?: string; nidNo?: string;
 };
 
 function label(type: string) {
@@ -25,39 +26,41 @@ function label(type: string) {
 function dateText(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value || "—";
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Dhaka",
-    day: "2-digit",
-    month: "long",
-    year: "numeric",
-  }).format(date);
+  return new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", day: "2-digit", month: "long", year: "numeric" }).format(date);
 }
 
 async function registryStatus(certificateId: string): Promise<{ available: boolean; found: boolean; certificate?: RegistryCertificate }> {
-  const url = process.env.LAND_VIEW_API_URL || "";
-  const proxySecret = process.env.LAND_VIEW_PROXY_SECRET || "";
-  if (!url || !proxySecret) return { available: false, found: false };
-
+  if (!certificateId) return { available: true, found: false };
   try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        action: "getPublicProjects",
-        _certificateVerify: certificateId,
-        proxySecret,
-      }),
-      cache: "no-store",
-      redirect: "follow",
-      signal: AbortSignal.timeout(15000),
-    });
-    const raw = await response.text();
-    const json = JSON.parse(raw);
-    if (!json?.success) return { available: false, found: false };
+    const rows = await selectRows("certificates", { filters: { certificate_code: certificateId.toUpperCase() }, limit: 1 });
+    const row = rows[0];
+    if (!row) return { available: true, found: false };
     return {
       available: true,
-      found: Boolean(json?.data?.found),
-      certificate: json?.data?.certificate || undefined,
+      found: true,
+      certificate: {
+        certificateId: row.certificate_code,
+        status: row.status || "Active",
+        revision: Number(row.revision || 1),
+        supersededBy: row.superseded_by || "",
+        revokedAt: row.revoked_at || "",
+        revokedReason: row.revoked_reason || "",
+        deletedAt: row.deleted_at || "",
+        deletedReason: row.deleted_reason || "",
+        token: row.verification_token || "",
+        type: row.type || "project",
+        name: row.name || "",
+        address: row.address || "",
+        fatherName: row.father_name || "",
+        motherName: row.mother_name || "",
+        nidNo: row.nid_no || "",
+        position: row.position || "",
+        subject: row.subject || "",
+        reference: row.reference || "",
+        description: row.description || "",
+        issuedAt: row.issued_at || "",
+        expiresAt: row.expires_at || "",
+      },
     };
   } catch {
     return { available: false, found: false };
@@ -70,15 +73,15 @@ export default async function CertificateVerificationPage({ params }: { params: 
   const shortId = /^LVC-(?:EMP|PRJ|BLD)-/i.test(decoded) ? decoded.toUpperCase() : "";
   const shortRegistry = shortId ? await registryStatus(shortId) : null;
   const row: any = shortRegistry?.certificate || {};
-  const storedToken = String(row.token || row.Token || "").trim();
+  const storedToken = String(row.token || "").trim();
   let certificate: any = storedToken ? verifyCertificate(storedToken) : verifyCertificate(decoded);
   if (!certificate && shortRegistry?.found) {
     certificate = {
-      id: shortId, t: String(row.type || row.Type || "project").toLowerCase(),
-      n: row.name || row.Name || "LAND VIEW certificate holder", a: row.address || row.Address || "",
-      p: row.position || row.Position || "", s: row.subject || row.Subject || "", r: row.reference || row.Reference || "",
-      d: row.description || row.Description || "", i: row.issuedAt || row.Issued_At || "", x: row.expiresAt || row.Expires_At || "",
-      f: row.fatherName || row.Father_Name || "", m: row.motherName || row.Mother_Name || "", nid: row.nidNo || row.NID_No || ""
+      id: shortId, t: String(row.type || "project").toLowerCase(),
+      n: row.name || "LAND VIEW certificate holder", a: row.address || "",
+      p: row.position || "", s: row.subject || "", r: row.reference || "",
+      d: row.description || "", i: row.issuedAt || "", x: row.expiresAt || "",
+      f: row.fatherName || "", m: row.motherName || "", nid: row.nidNo || ""
     };
   }
 
@@ -116,15 +119,10 @@ export default async function CertificateVerificationPage({ params }: { params: 
     <main className={styles.shell}>
       <section className={styles.card}>
         <header className={styles.header}>
-          <div>
-            <div className={styles.brand}>LAND <span>VIEW</span></div>
-            <small>Engineers and Architects</small>
-          </div>
+          <div><div className={styles.brand}>LAND <span>VIEW</span></div><small>Engineers and Architects</small></div>
           <div className={badgeClass}><b>{badgeIcon}</b><span>{badgeText}</span></div>
         </header>
-
         <div className={styles.rule} />
-
         <section className={styles.hero}>
           <span>OFFICIAL LAND VIEW CERTIFICATE</span>
           <h1>{label(certificate.t)}</h1>
@@ -136,7 +134,7 @@ export default async function CertificateVerificationPage({ params }: { params: 
             {revoked && <><strong>This certificate has been revoked.</strong><p>{registry.certificate?.revokedReason || "LAND VIEW administration has revoked this certificate."}</p></>}
             {deleted && <><strong>This certificate has been withdrawn.</strong><p>{registry.certificate?.deletedReason || "LAND VIEW administration has withdrawn this certificate from active use."}</p></>}
             {superseded && <><strong>A newer revision has replaced this certificate.</strong><p>Replacement certificate: {registry.certificate?.supersededBy || "see LAND VIEW administration"}.</p></>}
-            {(!registry.available || !registry.found) && !revoked && !deleted && !superseded && <><strong>Signed certificate — registry status unavailable.</strong><p>The QR signature is valid, but this certificate is not currently available in the live registry. This can include certificates issued before the registry was enabled.</p></>}
+            {(!registry.available || !registry.found) && !revoked && !deleted && !superseded && <><strong>Signed certificate — registry status unavailable.</strong><p>The QR signature is valid, but this certificate is not currently available in the live registry.</p></>}
           </section>
         )}
 
@@ -155,15 +153,9 @@ export default async function CertificateVerificationPage({ params }: { params: 
           <div><span>Expiry</span><strong>{certificate.x ? dateText(certificate.x) : "No expiry"}</strong></div>
           <div><span>Registry Status</span><strong>{registry.certificate?.status || (registry.available ? "Not registered" : "Unavailable")}</strong></div>
         </section>
-
         {certificate.d && <section className={styles.statement}><span>Certificate Statement</span><p>{certificate.d}</p></section>}
-
-        <p className={styles.notice}>The signed QR protects the issued certificate data from alteration. Revocation, withdrawal and reissue status is checked against the live LAND VIEW certificate registry whenever available.</p>
-
-        <footer>
-          <strong>LAND VIEW — Engineers and Architects</strong>
-          <span>Feni Sadar, Feni, Bangladesh · www.landview.com.bd</span>
-        </footer>
+        <p className={styles.notice}>The signed QR protects the issued certificate data from alteration. Revocation, withdrawal and reissue status is checked against the live LAND VIEW Supabase certificate registry.</p>
+        <footer><strong>LAND VIEW — Engineers and Architects</strong><span>Feni Sadar, Feni, Bangladesh · www.landview.com.bd</span></footer>
       </section>
     </main>
   );
