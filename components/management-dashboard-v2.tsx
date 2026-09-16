@@ -16,10 +16,7 @@ type Dashboard = {
 const number = (v: unknown) => { const n = Number(String(v ?? 0).replace(/,/g,"")); return Number.isFinite(n)?n:0; };
 
 async function loadDashboard() {
-  const url = new URL("/api/landview", window.location.origin);
-  url.searchParams.set("action","getErpRecords");
-  url.searchParams.set("module","managementDashboardV2");
-  const response = await fetch(url.toString(),{credentials:"same-origin",cache:"no-store"});
+  const response = await fetch("/api/management-dashboard",{credentials:"same-origin",cache:"no-store"});
   const json = await response.json().catch(()=>null);
   if(!response.ok||!json?.success) throw new Error(String(json?.error||json?.message||"Could not load management dashboard."));
   return (json.data||{}) as Dashboard;
