@@ -37,6 +37,20 @@ test("finance ledger posts to Transactions and never recreates the old accountin
   assert.equal(source.includes('insertSheet("Accounting Expenses")'), false);
 });
 
+test("accounts page renders the canonical cashbook and does not request retired accounting worksheets", () => {
+  const layout = read("app/admin/accounts/layout.tsx");
+  const page = read("app/admin/accounts/page.tsx");
+  assert.equal(layout.includes("ReconciledLedgerPanel"), false);
+  assert.equal(page.includes("Accounting Income"), false);
+  assert.equal(page.includes("Accounting Expenses"), false);
+  assert.equal(page.includes("getFinanceSheet"), false);
+  assert.match(page, /landViewApi\.getPayments\(\)/);
+  assert.match(page, /landViewApi\.getErpRecords\("expenses"\)/);
+  assert.match(page, /Running balance/);
+  assert.match(page, /debit/);
+  assert.match(page, /credit/);
+});
+
 test("owner bearer link is retired and admin layout excludes employees", () => {
   const ownerSource = read("app/owner-access/[token]/route.ts");
   const magicSource = read("zzzz_AdminMagicAccess.gs");
