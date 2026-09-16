@@ -1,0 +1,26 @@
+name: Temporary security audit
+
+on:
+  push:
+    branches:
+      - fix/ledger-security-20260916
+    paths:
+      - .github/workflows/temp-security-audit.yml
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - name: Production dependency audit
+        run: npm audit --omit=dev || true
+      - name: Full dependency audit
+        run: npm audit || true
