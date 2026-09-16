@@ -5,7 +5,7 @@
  */
 
 const LAND_VIEW_FINANCE_SETUP_SHEETS_ = {
-  "Bills": ["Bill_ID", "Project_ID", "Bill_Date", "Description", "Amount", "Discount", "Status", "Notes", "Billing_Category", "Category", "Created_Via", "Created_At", "Created_By", "Idempotency_Key", "Legacy_Source_ID"],
+  "Bills": ["Bill_ID", "Project_ID", "Bill_Date", "Description", "Amount", "Discount", "Status", "Notes", "Billing_Category", "Category", "Created_Via", "Created_At", "Created_By", "Idempotency_Key", "Legacy_Source_ID", "Unit_Price", "Quantity"],
   "Payments": ["Payment_ID", "Project_ID", "Payment_Date", "Amount", "Payment_Method", "Deposit_Account", "Reference_No", "Received_From", "Received_By", "Payment_For", "Income_Category", "Transaction_Type", "Affects_Business_Balance", "Approval_Status", "Reviewed_By", "Reviewed_At", "Review_Notes", "Approved_By", "Approved_At", "Notes", "Created_At", "Created_By", "Idempotency_Key", "Legacy_Source_ID"],
   "Invoices": ["Invoice_ID", "Project_ID", "Project_Name", "Client_Name", "Invoice_Date", "Status", "Total_Bill", "Total_Paid", "Due_Amount", "PDF_File_ID", "PDF_URL", "Download_URL", "Invoice_Folder_URL", "Notes", "Created_At", "Created_By"],
   "Expenses": ["Expense_ID", "Project_ID", "Expense_Date", "Category", "Description", "Amount", "Approval_Status", "Requested_By", "Requested_At", "Approved_By", "Approved_At", "Paid_To", "Payment_Method", "Reference_No", "Receipt_URL", "Notes", "Created_At", "Created_By", "Idempotency_Key"],
@@ -117,7 +117,7 @@ function verifyLandViewFinanceDatabaseFromEditor() {
     if (!sheetReady) ready = false;
     checks[sheetName] = { exists: !!sheet, ready: sheetReady, missingHeaders: missingHeaders, rows: sheet ? sheet.getLastRow() : 0, columns: sheet ? sheet.getLastColumn() : 0 };
   });
-  return { success: ready, spreadsheetId: ss.getId(), spreadsheetName: ss.getName(), spreadsheetUrl: ss.getUrl(), canonicalSheets: Object.keys(LAND_VIEW_FINANCE_SETUP_SHEETS_), checks: checks };
+  return { success: ready, spreadsheetId: ss.getId(), spreadsheetName: ss.getName(), spreadsheetUrl: ss.getUrl(), canonicalFinanceSheets: Object.keys(LAND_VIEW_FINANCE_SETUP_SHEETS_), checks: checks };
 }
 
 function setupAndSyncLandViewFinanceDatabaseFromEditor() {
