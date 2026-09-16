@@ -11,7 +11,7 @@ const TABLES = [
   "bills","accounts","transfers","transactions","expenses","tasks","attendance","leave_requests","approvals"
 ] as const;
 const TABLE_SET = new Set<string>(TABLES);
-const PART_SIZE = 48000;
+const DEFAULT_PART_SIZE = 12000;
 
 async function sha256(value: string) {
   const bytes = new TextEncoder().encode(value);
@@ -36,24 +36,27 @@ export async function GET(request: Request) {
   try {
     if (url.searchParams.get("mode") === "snapshot") {
       const { b64, hash, rawBytes, gzipBytes } = await buildSnapshot();
-      const totalParts = Math.ceil(b64.length / PART_SIZE);
+      const requestedSize = Number(url.searchParams.get("size") || DEFAULT_PART_SIZE);
+      const partSize = Number.isInteger(requestedSize) && requestedSize >= 4000 && requestedSize <= 48000 ? requestedSize : DEFAULT_PART_SIZE;
+      const totalParts = Math.ceil(b64.length / partSize);
       const requested = Number(url.searchParams.get("part") || "-1");
       if (Number.isInteger(requested) && requested >= 0) {
         if (requested >= totalParts) return Response.json({ success: false, error: "Part out of range", totalParts }, { status: 416 });
-        return new Response(b64.slice(requested * PART_SIZE, (requested + 1) * PART_SIZE), {
+        return new Response(b64.slice(requested * partSize, (requested + 1) * partSize), {
           status: 200,
           headers: {
             "content-type": "text/plain; charset=utf-8",
             "cache-control": "no-store, max-age=0",
             "x-snapshot-hash": hash,
             "x-total-parts": String(totalParts),
+            "x-part-size": String(partSize),
             "x-raw-bytes": String(rawBytes),
             "x-gzip-bytes": String(gzipBytes),
             "x-part": String(requested),
           },
         });
       }
-      return Response.json({ success: true, mode: "snapshot", hash, rawBytes, gzipBytes, totalParts }, { headers: { "cache-control": "no-store" } });
+      return Response.json({ success: true, mode: "snapshot", hash, rawBytes, gzipBytes, partSize, totalParts }, { headers: { "cache-control": "no-store" } });
     }
 
     const table = (url.searchParams.get("table") || "").trim();
