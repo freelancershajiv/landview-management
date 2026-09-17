@@ -24,21 +24,16 @@ jobs:
           from pathlib import Path
           p = Path('app/admin/projects/page.tsx')
           text = p.read_text()
-          old = '''                const name = String(project.Project_Name || id);
-                const details = [project.Number_of_Stories, project.Project_Area].filter(Boolean).join(" · ");
-                return <Fragment key={id}>
-                  <tr>
-                    <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{name}</strong>{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}</div></div></td>'''
-          new = '''                const projectName = String(project.Project_Name || "").trim();
+          old_const = 'const name = String(project.Project_Name || id);'
+          new_const = '''const projectName = String(project.Project_Name || "").trim();
                 const clientName = String(project.Client_Name || projectName || id).trim();
-                const secondaryProjectName = projectName && projectName.toLowerCase() !== clientName.toLowerCase() ? projectName : "";
-                const details = [project.Number_of_Stories, project.Project_Area].filter(Boolean).join(" · ");
-                return <Fragment key={id}>
-                  <tr>
-                    <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{clientName}</strong>{secondaryProjectName && <small>{secondaryProjectName}</small>}{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}</div></div></td>'''
-          if old not in text:
-              raise SystemExit('Expected Projects row block was not found; refusing to patch blindly.')
-          p.write_text(text.replace(old, new, 1))
+                const secondaryProjectName = projectName && projectName.toLowerCase() !== clientName.toLowerCase() ? projectName : "";'''
+          old_cell = '<strong>{name}</strong>{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}'
+          new_cell = '<strong>{clientName}</strong>{secondaryProjectName && <small>{secondaryProjectName}</small>}{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}'
+          if old_const not in text or old_cell not in text:
+              raise SystemExit('Expected Projects display tokens were not found; refusing to patch blindly.')
+          text = text.replace(old_const, new_const, 1).replace(old_cell, new_cell, 1)
+          p.write_text(text)
           PY
 
       - name: Commit patch and remove one-time workflow
