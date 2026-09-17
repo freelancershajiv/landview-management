@@ -158,10 +158,10 @@ async function saveProposal(user: Row, input: Row) {
   return proposalBundle(proposalCode);
 }
 async function proposalAction(user: Row, input: Row) {
-  const id = text(input.id);
-  if (!id) throw new Error("Proposal ID is required.");
   const op = text(input.op).toLowerCase();
   if (op === "save") return saveProposal(user, input);
+  const id = text(input.id);
+  if (!id) throw new Error("Proposal ID is required.");
   if (op === "print") {
     if (!await hasPermission(user, "proposals.print")) throw new Error("Permission required: proposals.print");
     const current = await proposalBundle(id); const before = text(current.proposal.Status);
