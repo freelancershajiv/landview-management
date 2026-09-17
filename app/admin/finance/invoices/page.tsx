@@ -14,6 +14,7 @@ import ProjectBillingDocument, {
   billingVerificationSnapshot,
   printBillingPdf,
 } from "@/components/project-billing-document";
+import EmailInvoiceButton from "@/components/email-invoice-button";
 import styles from "./invoice.module.css";
 
 const BILLING_SNAPSHOT_PREFIX = "landview_billing_snapshot_v2:";
@@ -183,7 +184,12 @@ export default function ProjectBillingPage() {
           <h1>LV-Auto Invoice</h1>
           <p>Select a project from Billing → File List and generate its live billing statement.</p>
         </div>
-        {result && <button className={styles.printButton} type="button" onClick={() => printBillingPdf(result)}>Print / Save PDF</button>}
+        {result && (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
+            <EmailInvoiceButton result={result} verificationUrl={verificationUrl} className={styles.printButton} />
+            <button className={styles.printButton} type="button" onClick={() => printBillingPdf(result)}>Print / Save PDF</button>
+          </div>
+        )}
       </div>
 
       <form className={styles.lookup} onSubmit={load}>
