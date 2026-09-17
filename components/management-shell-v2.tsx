@@ -21,6 +21,7 @@ type NavItem = { href: string; label: string; permission?: string; adminOnly?: b
 const nav: NavItem[] = [
   { href: "/admin", label: "Dashboard", permission: "dashboard.view" },
   { href: "/admin/projects", label: "Projects", permission: "projects.view" },
+  { href: "/admin/estimate", label: "Estimate", permission: "projects.view" },
   { href: "/admin/workflow", label: "Workflow", permission: "workflow.view" },
   { href: "/admin/employees", label: "Employees", permission: "employees.view" },
   { href: "/admin/certificate-requests", label: "Requests", permission: "requests.view" },
