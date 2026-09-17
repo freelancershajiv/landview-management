@@ -364,11 +364,13 @@ export default function ProjectsPage() {
                 const isExpanded = expanded === id;
                 const publicOn = truthy(project.Public_Display);
                 const driveUrl = String(project.Drive_Folder_URL || "").trim();
-                const name = String(project.Project_Name || id);
+                const projectName = String(project.Project_Name || "").trim();
+      const clientName = String(project.Client_Name || projectName || id).trim();
+      const secondaryProjectName = projectName && projectName.toLowerCase() !== clientName.toLowerCase() ? projectName : "";
                 const details = [project.Number_of_Stories, project.Project_Area].filter(Boolean).join(" · ");
                 return <Fragment key={id}>
                   <tr>
-                    <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{name}</strong>{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}</div></div></td>
+                    <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{clientName}</strong>{secondaryProjectName && <small>{secondaryProjectName}</small>}{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}</div></div></td>
                     <td>{String(project.Project_Type || "—")}</td>
                     <td><div>{String(project.Location || "—")}</div>{details && <div className="muted" style={{marginTop:4}}>{details}</div>}</td>
                     <td>{canManage ? <select aria-label={`Status for ${id}`} value={normalizeCategory(project.Status)} disabled={savingStatus===id} onChange={(e)=>void setProjectStatus(project,e.target.value as ProjectCategory)} style={{height:34,minWidth:112,border:"1px solid rgba(255,255,255,.14)",borderRadius:7,background:"#111b24",color:"#eef2f5",padding:"0 9px",fontSize:11,fontWeight:800}}><option value="Running">Ongoing</option><option value="Paused">On Hold</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select> : <StatusBadge value={projectStatusLabel(project.Status)} />}</td>
