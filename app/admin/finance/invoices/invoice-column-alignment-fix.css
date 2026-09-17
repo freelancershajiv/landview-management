@@ -1,0 +1,60 @@
+@media print {
+  /*
+   * Use one shared 4-column grid for the invoice meta row and all owner/building detail rows.
+   * The first two tracks total 50%, so the Building Details section starts exactly at the page center.
+   */
+  .lvInvoiceRevampRoot .lvInvoicePage .lvMetaRow,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvInfoRow {
+    display: grid !important;
+    grid-template-columns: 12% 38% 14% 36% !important;
+    width: 100% !important;
+  }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvMetaPair {
+    display: contents !important;
+  }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvInfoHead {
+    display: grid !important;
+    grid-template-columns: 50% 50% !important;
+    width: 100% !important;
+  }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvMetaRow > .lvMetaPair > span,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvMetaRow > .lvMetaPair > strong,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvInfoRow > span,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvInfoRow > strong {
+    min-width: 0 !important;
+    width: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvMetaRow > .lvMetaPair:nth-child(2) > strong,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvInfoRow > *:nth-child(4) {
+    border-right: 0 !important;
+  }
+
+  /* Keep project/building values on a single line where they fit. */
+  .lvInvoiceRevampRoot .lvInvoicePage .lvInfoRow > strong:nth-child(4) {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /*
+   * Engineering Bill: make the left edge of RATE (BDT) land exactly at 50%.
+   * SL. 8% + Description 42% = 50%.
+   */
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable col:nth-child(1) { width: 8% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable col:nth-child(2) { width: 42% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable col:nth-child(3) { width: 18% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable col:nth-child(4) { width: 12% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable col:nth-child(5) { width: 20% !important; }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable th:nth-child(3),
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable td:nth-child(3),
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable th:nth-child(4),
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable td:nth-child(4) {
+    text-align: center !important;
+  }
+}
