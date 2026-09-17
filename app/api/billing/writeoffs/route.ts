@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     if (!FINANCE_ROLES.has(roleOf(user))) return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
 
     const [events, projects] = await Promise.all([
-      selectRows("billing_writeoff_log", { order: "effective_date:desc,created_at:desc", limit: 5000 }),
+      selectRows("billing_writeoff_log", { order: "created_at:asc", limit: 5000 }),
       selectRows("projects", { select: "id,project_code,project_name,client_name_snapshot", limit: 5000 }),
     ]);
     const projectMap = new Map(projects.map((project) => [String(project.id), project]));
