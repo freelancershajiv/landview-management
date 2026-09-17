@@ -1,0 +1,52 @@
+name: One-time project client-name display patch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/one-time-project-client-name-display.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Prioritize client name on Projects page
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('app/admin/projects/page.tsx')
+          text = p.read_text()
+          old = '''                const name = String(project.Project_Name || id);
+                const details = [project.Number_of_Stories, project.Project_Area].filter(Boolean).join(" · ");
+                return <Fragment key={id}>
+                  <tr>
+                    <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{name}</strong>{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}</div></div></td>'''
+          new = '''                const projectName = String(project.Project_Name || "").trim();
+                const clientName = String(project.Client_Name || projectName || id).trim();
+                const secondaryProjectName = projectName && projectName.toLowerCase() !== clientName.toLowerCase() ? projectName : "";
+                const details = [project.Number_of_Stories, project.Project_Area].filter(Boolean).join(" · ");
+                return <Fragment key={id}>
+                  <tr>
+                    <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{clientName}</strong>{secondaryProjectName && <small>{secondaryProjectName}</small>}{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}</div></div></td>'''
+          if old not in text:
+              raise SystemExit('Expected Projects row block was not found; refusing to patch blindly.')
+          p.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Commit patch and remove one-time workflow
+        shell: bash
+        run: |
+          git config user.name "LAND VIEW Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git rm .github/workflows/one-time-project-client-name-display.yml
+          git add app/admin/projects/page.tsx
+          git commit -m "Prioritize client names on Projects page"
+          git push
