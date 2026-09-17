@@ -6,13 +6,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
-type Category = "Engineering Bill" | "Supervision Bill" | "Other Services Bill";
-const TABS = ["Summary","File List","Design Bill","Design Deposit","Supervision Bill","S Deposit","Others Bill","Others Bill Deposit"];
+type Category = "Engineering Bill" | "Design Books" | "Supervision Bill" | "Other Services Bill";
+const TABS = ["Summary","File List","Design Bill","Design Deposit","Design Books Bill","Design Books Deposit","Supervision Bill","S Deposit","Others Bill","Others Bill Deposit"];
 
 function text(v: unknown) { return String(v ?? "").trim(); }
 function num(v: unknown) { const n=Number(text(v).replace(/,/g,"").replace(/[^0-9.-]/g,"")); return Number.isFinite(n)?n:0; }
 function category(row: Row): Category {
   const source=text(row.Billing_Category||row.Category||row.Payment_For||row.Income_Category||row.Description).toLowerCase();
+  if(/design\s*books?/.test(source)) return "Design Books";
   if(/supervision/.test(source)) return "Supervision Bill";
   if(/other|soil|survey|municipality|file pass/.test(source)) return "Other Services Bill";
   return "Engineering Bill";
@@ -35,21 +36,24 @@ export async function GET(request: NextRequest) {
     const payments=(Array.isArray(billing.payments)?billing.payments:[]) as Row[];
     const groups: Record<Category,{bills:Row[];payments:Row[];gross:number;discount:number;paid:number;due:number}>={
       "Engineering Bill":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
+      "Design Books":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
       "Supervision Bill":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
       "Other Services Bill":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
     };
     for(const b of bills){const g=groups[category(b)];g.bills.push(b);g.gross+=num(b.Amount);g.discount+=num(b.Discount);}
     for(const p of payments){const g=groups[category(p)];g.payments.push(p);g.paid+=num(p.Amount);}
     for(const g of Object.values(groups))g.due=Math.max(0,g.gross-g.discount-g.paid);
-    const eng=groups["Engineering Bill"],sup=groups["Supervision Bill"],oth=groups["Other Services Bill"];
-    const totalDue=eng.due+sup.due+oth.due,totalBilled=eng.gross-eng.discount+sup.gross-sup.discount+oth.gross-oth.discount;
+    const eng=groups["Engineering Bill"],books=groups["Design Books"],sup=groups["Supervision Bill"],oth=groups["Other Services Bill"];
+    const totalDue=eng.due+books.due+sup.due+oth.due,totalBilled=eng.gross-eng.discount+books.gross-books.discount+sup.gross-sup.discount+oth.gross-oth.discount;
     const billRows=(c:Category)=>groups[c].bills.map(b=>[projectId,b.Description||c,b.Unit_Price||"",b.Quantity||"",b.Amount||0,b.Bill_ID||""]);
     const payRows=(c:Category)=>groups[c].payments.map(p=>[projectId,p.Payment_Date||"",[p.Payment_Method,p.Reference_No].filter(Boolean).join(" · ")||"Client Payment",p.Amount||0,p.Approval_Status||"Approved",p.Payment_ID||""]);
     const sheets=[
-      sheet("Summary",["FILE ID","Client Name","Project Name","Engineering Bill","Engineering Discount","Engineering Deposit","Engineering Due","Supervision Bill","Supervision Discount","Supervision Deposit","Supervision Due","Other Services Bill","Other Services Discount","Other Services Deposit","Other Services Due","Total Due","Status"],[[projectId,project.Client_Name||"",project.Project_Name||"",eng.gross,eng.discount,eng.paid,eng.due,sup.gross,sup.discount,sup.paid,sup.due,oth.gross,oth.discount,oth.paid,oth.due,totalDue,totalDue>.009?"DUE":totalBilled>0?"FULL PAID":""]]),
+      sheet("Summary",["FILE ID","Client Name","Project Name","Engineering Bill","Engineering Discount","Engineering Deposit","Engineering Due","Supervision Bill","Supervision Discount","Supervision Deposit","Supervision Due","Other Services Bill","Other Services Discount","Other Services Deposit","Other Services Due","Design Books Bill","Design Books Discount","Design Books Deposit","Design Books Due","Total Due","Status"],[[projectId,project.Client_Name||"",project.Project_Name||"",eng.gross,eng.discount,eng.paid,eng.due,sup.gross,sup.discount,sup.paid,sup.due,oth.gross,oth.discount,oth.paid,oth.due,books.gross,books.discount,books.paid,books.due,totalDue,totalDue>.009?"DUE":totalBilled>0?"FULL PAID":""]]),
       sheet("File List",["FILE ID","Client Name","Address","Phone","Floor/Story","Build Type","Land Area"],[[projectId,project.Client_Name||"",project.Location||"",project.Phone_Number||"",project.Floors||"",project.Project_Type||"",project.Plot_Area||""]]),
       sheet("Design Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID"],billRows("Engineering Bill")),
       sheet("Design Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Engineering Bill")),
+      sheet("Design Books Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID"],billRows("Design Books")),
+      sheet("Design Books Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Design Books")),
       sheet("Supervision Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID"],billRows("Supervision Bill")),
       sheet("S Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Supervision Bill")),
       sheet("Others Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID"],billRows("Other Services Bill")),

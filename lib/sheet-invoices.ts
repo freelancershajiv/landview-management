@@ -1,6 +1,6 @@
 import type { FinanceSheetData } from "./api";
 
-export const invoiceTabs = ["Summary", "File List", "Design Bill", "Design Deposit", "Supervision Bill", "S Deposit", "Others Bill", "Others Bill Deposit"];
+export const invoiceTabs = ["Summary", "File List", "Design Bill", "Design Deposit", "Design Books Bill", "Design Books Deposit", "Supervision Bill", "S Deposit", "Others Bill", "Others Bill Deposit"];
 
 export function normalizeFileId(value: string) {
   const match = value.trim().match(/^(?:LV\s*-?\s*)?0*(\d+)$/i);
@@ -36,6 +36,7 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
   const summary = summaries[0] || [];
   const categories = [
     { name: "Engineering", bill: "Design Bill", deposit: "Design Deposit", discountIndex: 4 },
+    { name: "Design Books", bill: "Design Books Bill", deposit: "Design Books Deposit", discountIndex: 16 },
     { name: "Supervision", bill: "Supervision Bill", deposit: "S Deposit", discountIndex: 8 },
     { name: "Others", bill: "Others Bill", deposit: "Others Bill Deposit", discountIndex: 12 },
   ];
@@ -86,7 +87,7 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
 
 export type SheetInvoices = ReturnType<typeof buildSheetInvoices>;
 
-type InvoiceCategoryName = "Engineering" | "Supervision" | "Others";
+type InvoiceCategoryName = "Engineering" | "Design Books" | "Supervision" | "Others";
 
 function recordValue(record: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
@@ -98,6 +99,7 @@ function recordValue(record: Record<string, unknown>, keys: string[]) {
 
 function categoryFromWorkspaceValue(value: unknown): InvoiceCategoryName | "" {
   const text = String(value || "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+  if (text === "design books" || text === "design book") return "Design Books";
   if (text === "engineering bill" || text === "engineering") return "Engineering";
   if (text === "supervision bill" || text === "supervision") return "Supervision";
   if (text === "other services bill" || text === "others bill" || text === "other services" || text === "others") return "Others";
@@ -119,7 +121,7 @@ function recalculateBilling(billing: SheetInvoices) {
 
 function normalizedBillDescription(value: unknown) {
   return String(value || "")
-    .replace(/^\[(Engineering Bill|Supervision Bill|Other Services Bill)\]\s*/i, "")
+    .replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ");
@@ -136,7 +138,7 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     if (["cancelled", "canceled", "void", "voided", "rejected"].includes(status)) continue;
 
     const description = String(recordValue(record, ["Description", "Service", "Particulars"])).trim();
-    const prefix = description.match(/^\[(Engineering Bill|Supervision Bill|Other Services Bill)\]\s*/i);
+    const prefix = description.match(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i);
     const notes = String(recordValue(record, ["Notes", "Created_Via", "Created Via"]));
     const explicitCategory = recordValue(record, ["Billing_Category", "Billing Category", "Category"]);
     const workspaceEntry = Boolean(prefix) || /billing workspace/i.test(notes) || /billing workspace/i.test(String(recordValue(record, ["Created_Via", "Created Via"])));
@@ -147,7 +149,7 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     const billAmount = Number(String(recordValue(record, ["Amount", "Bill_Amount", "Bill Amount"]) || 0).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
     if (!category || !Number.isFinite(billAmount) || billAmount <= 0) continue;
 
-    const service = description.replace(/^\[(Engineering Bill|Supervision Bill|Other Services Bill)\]\s*/i, "").trim() || "Service";
+    const service = description.replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim() || "Service";
     const alreadyIncluded = category.items.some((item) =>
       normalizedBillDescription(item.service) === normalizedBillDescription(service) && Math.abs(item.amount - billAmount) < 0.01,
     );

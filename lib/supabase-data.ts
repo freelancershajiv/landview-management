@@ -119,6 +119,7 @@ function effectivePayment(row: Row) {
 }
 function categoryOf(row: Row) {
   const raw = text(row.billing_category || row.category || row.payment_for || row.income_category || row.description).toLowerCase();
+  if (/design\s*books?/.test(raw)) return "Design Books";
   if (/supervision/.test(raw)) return "Supervision Bill";
   if (/other|soil|survey|municipality|file pass/.test(raw)) return "Other Services Bill";
   return "Engineering Bill";

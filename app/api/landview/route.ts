@@ -179,7 +179,51 @@ async function proposalAction(user: Row, input: Row) {
   if (op === "convert") {
     if (!await hasPermission(user, "proposals.convert")) throw new Error("Permission required: proposals.convert");
     const projectId = normalizeProjectCode(input.projectId || input.Project_ID || input.convertedProjectId || "");
-    await updateRows("proposals", { proposal_code: id }, { status: "Converted", converted_project_code: projectId || null, updated_at: new Date().toISOString() });
+    if (!projectId) throw new Error("A valid Project ID is required, for example LV-281.");
+    const current = await proposalBundle(id);
+    const proposal = current.proposal as Row;
+    const existingProjects = await selectRows("projects", { filters: { project_code: projectId }, limit: 1 });
+    if (existingProjects.length && text(existingProjects[0].reclassified_proposal_code) !== id) {
+      throw new Error(`${projectId} already exists. Choose an unused Project ID.`);
+    }
+    const now = new Date().toISOString();
+    if (!existingProjects.length) {
+      const rawPlot = text(proposal.Plot_Area);
+      const rawFloors = text(proposal.Floors);
+      const plot = rawPlot ? num(rawPlot) : null;
+      const floors = rawFloors ? Math.trunc(num(rawFloors)) : null;
+      await insertRows("projects", {
+        project_code: projectId,
+        project_name: text(proposal.Project_Title) || text(proposal.Client_Name) || projectId,
+        client_name_snapshot: text(proposal.Client_Name) || null,
+        phone_number_snapshot: text(proposal.Phone) || null,
+        project_type: text(proposal.Project_Type) || null,
+        location: text(proposal.Project_Location) || null,
+        plot_area: plot !== null && plot >= 0 ? plot : null,
+        floors: floors !== null && floors >= 0 ? floors : null,
+        project_area_text: rawPlot || null,
+        number_of_stories_text: rawFloors || null,
+        start_date: now.slice(0, 10),
+        design_bill: 0,
+        status: "Running",
+        notes: `Converted from proposal ${id}${text(proposal.Notes) ? `\n${text(proposal.Notes)}` : ""}`,
+        public_display: false,
+        record_type: "project",
+        reclassified_proposal_code: id,
+        created_at: now,
+        updated_at: now,
+      });
+    }
+    await updateRows("proposals", { proposal_code: id }, { status: "Converted", converted_project_code: projectId, updated_at: now });
+    const prior = await selectRows("proposal_activity", { filters: { proposal_code: id, action: "Converted to Project", reference: projectId }, limit: 1 });
+    if (!prior.length) {
+      await insertRows("proposal_activity", {
+        activity_code: randomCode("PA"), proposal_code: id, prospect_code: text(proposal.Prospect_ID) || null,
+        action: "Converted to Project", from_status: text(proposal.Status) || "Accepted", to_status: "Converted",
+        performed_by: text(user.name || user.Name) || userIdOf(user), performed_at: now,
+        details: `Created project ${projectId} from accepted proposal.`, user_key: userIdOf(user), role: roleOf(user), reference: projectId,
+      });
+    }
     return proposalBundle(id);
   }
   throw new Error("Unsupported proposal operation.");
