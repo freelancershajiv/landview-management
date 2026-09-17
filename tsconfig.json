@@ -19,6 +19,7 @@
       }
     ],
     "paths": {
+      "@/components/project-billing-document": ["./components/project-billing-document-revamp"],
       "@/*": ["./*"]
     }
   },
