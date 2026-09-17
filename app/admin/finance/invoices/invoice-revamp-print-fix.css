@@ -167,4 +167,30 @@
   .lvInvoiceRevampRoot .lvInvoicePage .lvPaidBlock {
     font-variant-numeric: tabular-nums !important;
   }
+
+  /*
+   * Header meta alignment:
+   * Invoice ID / Issue Date must use the exact same four vertical tracks
+   * as File ID / Project Type and the rows below it.
+   */
+  .lvInvoiceRevampRoot .lvInvoicePage .lvMetaRow {
+    display: grid !important;
+    grid-template-columns: 23mm minmax(0, 1fr) 27mm minmax(0, .92fr) !important;
+    width: 100% !important;
+  }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvMetaPair {
+    display: contents !important;
+  }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvMetaRow > .lvMetaPair > span,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvMetaRow > .lvMetaPair > strong {
+    min-width: 0 !important;
+    width: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvMetaRow > .lvMetaPair:nth-child(2) > strong {
+    border-right: 0 !important;
+  }
 }
