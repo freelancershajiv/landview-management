@@ -1,0 +1,122 @@
+@media print {
+  .lvInvoicePage,
+  .lvInvoicePage * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Keep the category name visible beside BILL / DEPOSIT-PAYMENTS. */
+  .lvSectionTitle,
+  .lvSectionTitle span {
+    color: #111 !important;
+  }
+
+  .lvSectionTitle b {
+    color: #e21f2f !important;
+  }
+
+  /* The screen theme was bleeding into the printable rows. Force a paper-safe table. */
+  .lvInvoiceTable,
+  .lvInvoiceTable tbody,
+  .lvInvoiceTable tbody tr,
+  .lvInvoiceTable tbody td {
+    color: #111 !important;
+    background: #fff !important;
+  }
+
+  .lvInvoiceTable tbody tr:nth-child(even) td {
+    background: #f8fafb !important;
+  }
+
+  .lvInvoiceTable td {
+    border-color: #d6dbe0 !important;
+  }
+
+  .lvInvoiceTable th {
+    background: #22282c !important;
+    color: #fff !important;
+  }
+
+  /* Totals must remain readable even when the website is using the dark theme. */
+  .lvTotalsBlock,
+  .lvTotalsBlock > div,
+  .lvTotalsBlock span,
+  .lvTotalsBlock strong {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .lvTotalsBlock span {
+    font-weight: 700 !important;
+  }
+
+  .lvTotalsBlock strong {
+    font-weight: 800 !important;
+  }
+
+  .lvTotalsBlock .lvGrandTotal,
+  .lvTotalsBlock .lvGrandTotal span,
+  .lvTotalsBlock .lvGrandTotal strong {
+    background: #e21f2f !important;
+    color: #fff !important;
+  }
+
+  /* Due and amount-in-words area. */
+  .lvDueBlock {
+    background: #fff8f8 !important;
+  }
+
+  .lvDueRow strong {
+    background: #fff8f8 !important;
+    color: #d7192d !important;
+  }
+
+  .lvDueRow b {
+    background: #e21f2f !important;
+    color: #fff !important;
+  }
+
+  .lvWordsRow,
+  .lvWordsRow strong,
+  .lvWordsRow span {
+    background: #fff !important;
+    color: #111 !important;
+  }
+
+  .lvWordsRow strong {
+    font-weight: 800 !important;
+  }
+
+  .lvWordsRow span {
+    font-weight: 700 !important;
+  }
+
+  /* Keep payment verification clearly readable. */
+  .lvDepositTable td.lvVerified {
+    color: #118a3c !important;
+    font-weight: 900 !important;
+  }
+
+  .lvDepositTable td.lvUnverified {
+    color: #b42318 !important;
+    font-weight: 900 !important;
+  }
+
+  /* Project type and the right-side building values should stay on one line where possible. */
+  .lvInfoRow > strong:nth-child(4) {
+    white-space: nowrap !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+
+  /* Keep the printable tables flush to the same left and right edges. */
+  .lvTableWrap,
+  .lvTotalsBlock,
+  .lvDueBlock,
+  .lvPaidBlock {
+    width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box !important;
+  }
+}
