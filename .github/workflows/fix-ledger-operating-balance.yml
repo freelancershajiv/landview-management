@@ -1,0 +1,114 @@
+name: Fix ledger operating balance
+
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/fix-ledger-operating-balance.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Use full 2025-2026 cashbook for operating balance
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('app/admin/accounts/page.tsx')
+          s = p.read_text()
+
+          def replace_one(old, new, label):
+              global s
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'{label}: expected exactly one match, found {count}')
+              s = s.replace(old, new, 1)
+
+          replace_one(
+              '''const LEDGER_YEAR = "2026";\nconst LEDGER_OPENING_BALANCE = -389456;\nconst LEDGER_LIVE_START = "2026-09-01";''',
+              '''const LEDGER_LIVE_START = "2026-09-01";''',
+              'ledger constants',
+          )
+
+          replace_one(
+              '''        isHistory: id.startsWith("TXN-HIST-2026-"),''',
+              '''        is2025Ledger: id.startsWith("TXN-LEDGER-2025-"),\n        is2026History: id.startsWith("TXN-HIST-2026-"),''',
+              'history flags',
+          )
+
+          replace_one(
+              '''    const history = normalized\n      .filter((item) => item.isHistory && dateKey(item.row.date).startsWith(`${LEDGER_YEAR}-`))\n      .sort((a, b) => a.row.id.localeCompare(b.row.id));''',
+              '''    const history = normalized\n      .filter((item) => item.is2025Ledger || item.is2026History)\n      .sort((a, b) => dateKey(a.row.date).localeCompare(dateKey(b.row.date)) || a.row.id.localeCompare(b.row.id));''',
+              'history selection',
+          )
+
+          replace_one(
+              '''        if (item.isHistory) return false;''',
+              '''        if (item.is2025Ledger || item.is2026History) return false;''',
+              'live exclusion',
+          )
+
+          replace_one('''    let balance = LEDGER_OPENING_BALANCE;''', '''    let balance = 0;''', 'opening balance')
+          replace_one(
+              '''    const balance = ledgerRows.length ? ledgerRows[ledgerRows.length - 1].balance : LEDGER_OPENING_BALANCE;\n    return { credit, debit, balance };\n  }, [ledgerRows]);''',
+              '''    const balance = ledgerRows.length ? ledgerRows[ledgerRows.length - 1].balance : 0;\n    return { credit, debit, balance };\n  }, [ledgerRows]);\n\n  const ledger2025Closing = useMemo(() => {\n    const rows = ledgerRows.filter((row) => dateKey(row.date) < "2026-01-01");\n    return rows.length ? rows[rows.length - 1].balance : 0;\n  }, [ledgerRows]);''',
+              'ledger totals',
+          )
+
+          replace_one(
+              '''        ? "2026 ledger only. Opening balance on 01 Jan 2026 is −৳389,456. Jan–Aug comes from the approved 2026 ledger import; Sep–Dec continues from posted Transactions. Older and duplicate Jan–Aug canonical rows are excluded."\n        : "Canonical cashbook: financially effective Payments are credits; only approved/posted Expenses are debits. Pending expenses remain visible but do not reduce the canonical operating balance."''',
+              '''        ? "Authoritative running cashbook: the full 2025 ledger flows into the approved Jan–Aug 2026 ledger, then Sep–Dec continues from posted finance transactions. No separate 2026 opening baseline is added, so the 2025 closing balance is counted once."\n        : "Approved income and expense cards show the canonical finance records. Operating balance comes from the authoritative running ledger, including the imported 2025 cashbook and 2026 transactions."''',
+              'accounts note',
+          )
+
+          replace_one(
+              '''        <div className="accounts-card"><span>Opening balance · 01 Jan 2026</span><strong>{ledgerMoney(LEDGER_OPENING_BALANCE)}</strong></div>\n        <div className="accounts-card"><span>2026 credits</span><strong className="accounts-income">{ledgerMoney(ledgerTotals.credit)}</strong></div>\n        <div className="accounts-card"><span>2026 debits</span><strong className="accounts-expense">{ledgerMoney(ledgerTotals.debit)}</strong></div>\n        <div className="accounts-card"><span>Current balance</span><strong>{ledgerMoney(ledgerTotals.balance)}</strong></div>''',
+              '''        <div className="accounts-card"><span>2025 closing balance</span><strong className={ledger2025Closing < 0 ? "accounts-expense" : "accounts-income"}>{ledgerMoney(ledger2025Closing)}</strong></div>\n        <div className="accounts-card"><span>Ledger credits</span><strong className="accounts-income">{ledgerMoney(ledgerTotals.credit)}</strong></div>\n        <div className="accounts-card"><span>Ledger debits</span><strong className="accounts-expense">{ledgerMoney(ledgerTotals.debit)}</strong></div>\n        <div className="accounts-card"><span>Current balance</span><strong className={ledgerTotals.balance < 0 ? "accounts-expense" : "accounts-income"}>{ledgerMoney(ledgerTotals.balance)}</strong></div>''',
+              'ledger metrics',
+          )
+
+          replace_one(
+              '''        <div className="accounts-card"><span>Operating balance</span><strong>{money(totals.net)}</strong></div>''',
+              '''        <div className="accounts-card"><span>Operating balance</span><strong className={ledgerTotals.balance < 0 ? "accounts-expense" : "accounts-income"}>{ledgerMoney(ledgerTotals.balance)}</strong></div>''',
+              'operating balance',
+          )
+
+          replace_one(
+              '''      <div className="accounts-card"><span>2026 ledger transactions</span><strong>{ledgerRows.length}</strong><p>Jan–Aug imported from the approved 2026 workbook; Sep–Dec is read from posted finance transactions.</p></div>\n      <div className="accounts-card"><span>Ledger baseline</span><strong>{ledgerMoney(LEDGER_OPENING_BALANCE)}</strong><p>The website ledger is isolated to 2026 so old migrated records cannot change the displayed running balance.</p></div>''',
+              '''      <div className="accounts-card"><span>2025–2026 ledger transactions</span><strong>{ledgerRows.length}</strong><p>Full 2025 ledger book, approved Jan–Aug 2026 ledger, and current posted finance transactions.</p></div>\n      <div className="accounts-card"><span>2025 closing balance</span><strong className={ledger2025Closing < 0 ? "accounts-expense" : "accounts-income"}>{ledgerMoney(ledger2025Closing)}</strong><p>The 2025 cashbook closes directly into 2026, so no duplicate opening baseline is added.</p></div>''',
+              'dashboard ledger cards',
+          )
+
+          replace_one(
+              '''          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search 2026 transaction, project, category or reference..."/>\n          <span className="accounts-year-lock">2026 only</span>''',
+              '''          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ledger transaction, project, category or reference..."/>\n          <span className="accounts-year-lock">2025–2026</span>''',
+              'ledger search',
+          )
+
+          replace_one('''Loading 2026 ledger…''', '''Loading ledger…''', 'loading text')
+          replace_one('''No matching 2026 transactions.''', '''No matching ledger transactions.''', 'empty text')
+          replace_one(
+              '''Running balances are calculated from the full authoritative 2026 ledger before search filtering, so searching never changes the historical balance.''',
+              '''Running balances are calculated from the full authoritative 2025–2026 ledger before search filtering, so searching never changes the historical balance.''',
+              'running balance note',
+          )
+
+          p.write_text(s)
+          PY
+
+      - name: Commit correction
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/admin/accounts/page.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "Use full ledger for operating balance"
+          git push origin HEAD:main
