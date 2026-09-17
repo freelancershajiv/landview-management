@@ -119,4 +119,52 @@
     margin-right: 0 !important;
     box-sizing: border-box !important;
   }
+
+  /*
+   * Financial-column alignment:
+   * Both bill and payment tables reserve the final 20% for AMOUNT (BDT).
+   * Use that exact same 80/20 split for subtotal, discount, grand total,
+   * due amount and FULL PAID so every important financial divider is vertical.
+   */
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable col:nth-child(1) { width: 8% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable col:nth-child(2) { width: 44% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable col:nth-child(3) { width: 18% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable col:nth-child(4) { width: 10% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable col:nth-child(5) { width: 20% !important; }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(1) { width: 8% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(2) { width: 15% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(3) { width: 37% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(4) { width: 20% !important; }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(5) { width: 20% !important; }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvTotalsBlock > div,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDueRow,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvPaidBlock {
+    grid-template-columns: minmax(0, 80%) minmax(0, 20%) !important;
+  }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvTotalsBlock > div > strong,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDueRow > b,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvPaidBlock > b {
+    min-width: 0 !important;
+    width: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Keep all financial blocks on the same exact horizontal geometry. */
+  .lvInvoiceRevampRoot .lvInvoicePage .lvTableWrap,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvTotalsBlock,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDueBlock,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvPaidBlock {
+    border-left-width: 1px !important;
+    border-right-width: 1px !important;
+  }
+
+  .lvInvoiceRevampRoot .lvInvoicePage .lvInvoiceTable,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvTotalsBlock,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDueBlock,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvPaidBlock {
+    font-variant-numeric: tabular-nums !important;
+  }
 }
