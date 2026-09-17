@@ -24,8 +24,6 @@ type Row = {
 type RunningRow = Row & { debit: number; credit: number; balance: number };
 
 const FINANCE_URL = "https://docs.google.com/spreadsheets/d/1RDbzIr4aaysiB-UTZQKRK6m60HLg3zSZVzNrdgnGHBc/edit";
-const LEDGER_YEAR = "2026";
-const LEDGER_OPENING_BALANCE = -389456;
 const LEDGER_LIVE_START = "2026-09-01";
 const LEDGER_END = "2026-12-31";
 const DHAKA_DATE = new Intl.DateTimeFormat("en-CA", {
@@ -241,17 +239,18 @@ export default function AccountsPage() {
         debit,
         credit,
         transactionType,
-        isHistory: id.startsWith("TXN-HIST-2026-"),
+        is2025Ledger: id.startsWith("TXN-LEDGER-2025-"),
+        is2026History: id.startsWith("TXN-HIST-2026-"),
       };
     }).filter((item) => item.row.id && item.row.date && (item.debit > 0 || item.credit > 0));
 
     const history = normalized
-      .filter((item) => item.isHistory && dateKey(item.row.date).startsWith(`${LEDGER_YEAR}-`))
-      .sort((a, b) => a.row.id.localeCompare(b.row.id));
+      .filter((item) => item.is2025Ledger || item.is2026History)
+      .sort((a, b) => dateKey(a.row.date).localeCompare(dateKey(b.row.date)) || a.row.id.localeCompare(b.row.id));
 
     const live = normalized
       .filter((item) => {
-        if (item.isHistory) return false;
+        if (item.is2025Ledger || item.is2026History) return false;
         if (normalizeStatus(item.row.status) !== "posted") return false;
         if (item.transactionType === "transfer") return false;
         const key = dateKey(item.row.date);
@@ -259,7 +258,7 @@ export default function AccountsPage() {
       })
       .sort((a, b) => dateKey(a.row.date).localeCompare(dateKey(b.row.date)) || a.row.id.localeCompare(b.row.id));
 
-    let balance = LEDGER_OPENING_BALANCE;
+    let balance = 0;
     return [...history, ...live].map((item) => {
       balance += item.credit - item.debit;
       return { ...item.row, debit: item.debit, credit: item.credit, balance };
@@ -292,8 +291,13 @@ export default function AccountsPage() {
   const ledgerTotals = useMemo(() => {
     const credit = ledgerRows.reduce((sum, row) => sum + row.credit, 0);
     const debit = ledgerRows.reduce((sum, row) => sum + row.debit, 0);
-    const balance = ledgerRows.length ? ledgerRows[ledgerRows.length - 1].balance : LEDGER_OPENING_BALANCE;
+    const balance = ledgerRows.length ? ledgerRows[ledgerRows.length - 1].balance : 0;
     return { credit, debit, balance };
+  }, [ledgerRows]);
+
+  const ledger2025Closing = useMemo(() => {
+    const rows = ledgerRows.filter((row) => dateKey(row.date) < "2026-01-01");
+    return rows.length ? rows[rows.length - 1].balance : 0;
   }, [ledgerRows]);
 
   const categoryBreakdown = useMemo(() => {
@@ -329,21 +333,21 @@ export default function AccountsPage() {
     {error && <div className="accounts-note error">{error}</div>}
     <div className="accounts-note">
       {mode === "ledger"
-        ? "2026 ledger only. Opening balance on 01 Jan 2026 is −৳389,456. Jan–Aug comes from the approved 2026 ledger import; Sep–Dec continues from posted Transactions. Older and duplicate Jan–Aug canonical rows are excluded."
-        : "Canonical cashbook: financially effective Payments are credits; only approved/posted Expenses are debits. Pending expenses remain visible but do not reduce the canonical operating balance."}
+        ? "Authoritative running cashbook: the full 2025 ledger flows into the approved Jan–Aug 2026 ledger, then Sep–Dec continues from posted finance transactions. No separate 2026 opening baseline is added, so the 2025 closing balance is counted once."
+        : "Approved income and expense cards show the canonical finance records. Operating balance comes from the authoritative running ledger, including the imported 2025 cashbook and 2026 transactions."}
     </div>
 
     <section className="accounts-metrics">
       {mode === "ledger" ? <>
-        <div className="accounts-card"><span>Opening balance · 01 Jan 2026</span><strong>{ledgerMoney(LEDGER_OPENING_BALANCE)}</strong></div>
-        <div className="accounts-card"><span>2026 credits</span><strong className="accounts-income">{ledgerMoney(ledgerTotals.credit)}</strong></div>
-        <div className="accounts-card"><span>2026 debits</span><strong className="accounts-expense">{ledgerMoney(ledgerTotals.debit)}</strong></div>
-        <div className="accounts-card"><span>Current balance</span><strong>{ledgerMoney(ledgerTotals.balance)}</strong></div>
+        <div className="accounts-card"><span>2025 closing balance</span><strong className={ledger2025Closing < 0 ? "accounts-expense" : "accounts-income"}>{ledgerMoney(ledger2025Closing)}</strong></div>
+        <div className="accounts-card"><span>Ledger credits</span><strong className="accounts-income">{ledgerMoney(ledgerTotals.credit)}</strong></div>
+        <div className="accounts-card"><span>Ledger debits</span><strong className="accounts-expense">{ledgerMoney(ledgerTotals.debit)}</strong></div>
+        <div className="accounts-card"><span>Current balance</span><strong className={ledgerTotals.balance < 0 ? "accounts-expense" : "accounts-income"}>{ledgerMoney(ledgerTotals.balance)}</strong></div>
       </> : <>
         <div className="accounts-card"><span>Approved income</span><strong className="accounts-income">{money(totals.income)}</strong></div>
         <div className="accounts-card"><span>Approved expenses</span><strong className="accounts-expense">{money(totals.approvedExpense)}</strong></div>
         <div className="accounts-card"><span>Pending expenses</span><strong className="accounts-pending">{money(totals.pendingExpense)}</strong></div>
-        <div className="accounts-card"><span>Operating balance</span><strong>{money(totals.net)}</strong></div>
+        <div className="accounts-card"><span>Operating balance</span><strong className={ledgerTotals.balance < 0 ? "accounts-expense" : "accounts-income"}>{ledgerMoney(ledgerTotals.balance)}</strong></div>
       </>}
     </section>
 
@@ -352,8 +356,8 @@ export default function AccountsPage() {
     </nav>
 
     {mode === "dashboard" && <section className="accounts-report">
-      <div className="accounts-card"><span>2026 ledger transactions</span><strong>{ledgerRows.length}</strong><p>Jan–Aug imported from the approved 2026 workbook; Sep–Dec is read from posted finance transactions.</p></div>
-      <div className="accounts-card"><span>Ledger baseline</span><strong>{ledgerMoney(LEDGER_OPENING_BALANCE)}</strong><p>The website ledger is isolated to 2026 so old migrated records cannot change the displayed running balance.</p></div>
+      <div className="accounts-card"><span>2025–2026 ledger transactions</span><strong>{ledgerRows.length}</strong><p>Full 2025 ledger book, approved Jan–Aug 2026 ledger, and current posted finance transactions.</p></div>
+      <div className="accounts-card"><span>2025 closing balance</span><strong className={ledger2025Closing < 0 ? "accounts-expense" : "accounts-income"}>{ledgerMoney(ledger2025Closing)}</strong><p>The 2025 cashbook closes directly into 2026, so no duplicate opening baseline is added.</p></div>
     </section>}
 
     {mode === "reports" && <section className="accounts-card" style={{marginBottom:16}}><h3 style={{marginTop:0}}>Category breakdown</h3><div className="accounts-table"><table><thead><tr><th>Category</th><th className="accounts-num">Income</th><th className="accounts-num">Approved expense</th><th className="accounts-num">Net</th></tr></thead><tbody>{categoryBreakdown.map((item) => <tr key={item.category}><td>{item.category}</td><td className="accounts-income accounts-num">{money(item.income)}</td><td className="accounts-expense accounts-num">{money(item.expense)}</td><td className="accounts-num">{money(item.income - item.expense)}</td></tr>)}</tbody></table></div></section>}
@@ -361,12 +365,12 @@ export default function AccountsPage() {
     {mode === "ledger" && <>
       <section className="accounts-panel">
         <div className="accounts-toolbar">
-          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search 2026 transaction, project, category or reference..."/>
-          <span className="accounts-year-lock">2026 only</span>
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search ledger transaction, project, category or reference..."/>
+          <span className="accounts-year-lock">2025–2026</span>
         </div>
-        {loading ? <div className="accounts-empty">Loading 2026 ledger…</div> : filteredLedger.length === 0 ? <div className="accounts-empty">No matching 2026 transactions.</div> : <div className="accounts-table"><table><thead><tr><th>Date</th><th>Transaction / Project</th><th>Account</th><th>Details</th><th className="accounts-num">Debit</th><th className="accounts-num">Credit</th><th className="accounts-num">Balance</th></tr></thead><tbody>{filteredLedger.map((row) => <tr key={`${row.type}-${row.id}`}><td>{displayDate(row.date)}</td><td><strong>{row.id}</strong><br/><span style={{color:"#89959e"}}>{row.projectId || "—"}</span></td><td>{row.account || row.method || "—"}</td><td>{row.description}<br/><span style={{color:"#89959e"}}>{row.category}{row.reference ? ` · ${row.reference}` : ""}</span></td><td className="accounts-expense accounts-num">{row.debit ? ledgerMoney(row.debit) : "—"}</td><td className="accounts-income accounts-num">{row.credit ? ledgerMoney(row.credit) : "—"}</td><td className="accounts-balance accounts-num">{ledgerMoney(row.balance)}</td></tr>)}</tbody></table></div>}
+        {loading ? <div className="accounts-empty">Loading ledger…</div> : filteredLedger.length === 0 ? <div className="accounts-empty">No matching ledger transactions.</div> : <div className="accounts-table"><table><thead><tr><th>Date</th><th>Transaction / Project</th><th>Account</th><th>Details</th><th className="accounts-num">Debit</th><th className="accounts-num">Credit</th><th className="accounts-num">Balance</th></tr></thead><tbody>{filteredLedger.map((row) => <tr key={`${row.type}-${row.id}`}><td>{displayDate(row.date)}</td><td><strong>{row.id}</strong><br/><span style={{color:"#89959e"}}>{row.projectId || "—"}</span></td><td>{row.account || row.method || "—"}</td><td>{row.description}<br/><span style={{color:"#89959e"}}>{row.category}{row.reference ? ` · ${row.reference}` : ""}</span></td><td className="accounts-expense accounts-num">{row.debit ? ledgerMoney(row.debit) : "—"}</td><td className="accounts-income accounts-num">{row.credit ? ledgerMoney(row.credit) : "—"}</td><td className="accounts-balance accounts-num">{ledgerMoney(row.balance)}</td></tr>)}</tbody></table></div>}
       </section>
-      <div style={{marginTop:10,color:"#7f8b94",fontSize:11}}>Running balances are calculated from the full authoritative 2026 ledger before search filtering, so searching never changes the historical balance.</div>
+      <div style={{marginTop:10,color:"#7f8b94",fontSize:11}}>Running balances are calculated from the full authoritative 2025–2026 ledger before search filtering, so searching never changes the historical balance.</div>
     </>}
 
     {(mode === "income" || mode === "expenses") && <section className="accounts-panel">
