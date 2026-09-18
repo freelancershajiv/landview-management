@@ -17,7 +17,7 @@ import ProjectBillingDocument, {
 import EmailInvoiceButton from "@/components/email-invoice-button";
 import styles from "./invoice.module.css";
 
-const BILLING_SNAPSHOT_PREFIX = "landview_billing_snapshot_v2:";
+const BILLING_SNAPSHOT_PREFIX = "landview_billing_snapshot_v3:";
 const BILLING_SNAPSHOT_TTL_MS = 10 * 60 * 1000;
 
 type BillingSnapshot = { savedAt: number; billing: SheetInvoices };
