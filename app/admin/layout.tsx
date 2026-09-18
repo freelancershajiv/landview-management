@@ -4,6 +4,8 @@ import ProjectManagementEnhancements from "@/components/project-management-enhan
 import { requirePortalSession } from "@/lib/server-auth";
 import "./admin-brand-theme.css";
 import "./admin-layout-polish.css";
+import "./finance/invoices/invoice-revamp-print-fix.css";
+import "./finance/invoices/invoice-column-alignment-fix.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager", "accounts"]);
