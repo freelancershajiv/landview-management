@@ -145,7 +145,6 @@ export default function ProjectBillingDocumentRevamp({
           const due = Math.max(0, Number(category.due || 0));
           const grandTotal = Math.max(0, gross - discount);
           const fullyPaid = due <= 0.009;
-          const last = index === printCategories.length - 1;
 
           return (
             <article className={`${styles.printPage} lvInvoicePage`} key={`${category.name}-${index}`}>
@@ -255,7 +254,11 @@ export default function ProjectBillingDocumentRevamp({
 
               <footer className="lvInvoiceFooter">
                 <strong>LAND VIEW</strong>
-                <span>{last ? "" : ""}Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span>
+                <div className="lvInvoiceFooterDetails">
+                  <span>Address: Land View, F.Rahman AC Market (2nd Floor), SSK Road, Feni Sadar, Feni</span>
+                  <span>Contact No: +88 0140 80 80 400</span>
+                  <span>+88 01902 500 400</span>
+                </div>
               </footer>
             </article>
           );
@@ -350,7 +353,9 @@ export default function ProjectBillingDocumentRevamp({
           .lvPaidBlock>b{display:grid!important;place-items:center!important;background:#138a42!important;color:#fff!important;font-size:13pt!important;letter-spacing:.2px!important}
 
           .lvInvoiceFooter{position:absolute!important;left:7.5mm!important;right:7.5mm!important;bottom:5mm!important;display:flex!important;justify-content:space-between!important;align-items:center!important;border-top:.5mm solid #e21f2f!important;padding-top:1.7mm!important;font-size:6.2pt!important;color:#59636a!important}
-          .lvInvoiceFooter strong{color:#111!important;font-size:7pt!important}.lvInvoiceFooter span{text-align:right!important}
+          .lvInvoiceFooter strong{color:#111!important;font-size:7pt!important}
+          .lvInvoiceFooterDetails{display:flex!important;flex-direction:column!important;align-items:flex-end!important;gap:.35mm!important;text-align:right!important;line-height:1.15!important}
+          .lvInvoiceFooterDetails span{display:block!important;text-align:right!important}
         }
       `}</style>
     </div>
