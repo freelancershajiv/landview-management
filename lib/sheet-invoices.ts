@@ -187,25 +187,37 @@ function verificationAmount(value: unknown) {
 }
 
 function workspacePaymentIsEffective(record: Record<string, unknown>) {
-  const type = String(recordValue(record, ["Transaction_Type", "Transaction Type"])).trim().toLowerCase();
+  const type = String(recordValue(record, ["Transaction_Type", "Transaction Type", "transaction_type"])).trim().toLowerCase();
   if (type === "personal income") return false;
-  const impact = String(recordValue(record, ["Affects_Business_Balance", "Affects Business Balance"])).trim().toLowerCase();
+  const impact = String(recordValue(record, ["Affects_Business_Balance", "Affects Business Balance", "affects_business_balance"])).trim().toLowerCase();
   if (["false", "no", "0"].includes(impact)) return false;
-  const status = String(recordValue(record, ["Approval_Status", "Approval Status", "Status"])).trim().toLowerCase().replace(/[_-]+/g, " ");
+  const status = String(recordValue(record, ["Approval_Status", "Approval Status", "approval_status", "Status", "status"])).trim().toLowerCase().replace(/[_-]+/g, " ");
   if (!status) return true;
   return ["approved", "received", "paid", "verified", "complete", "completed", "full paid", "fully paid"].includes(status);
 }
 
 export function verifySheetInvoicesWithPayments(billing: SheetInvoices, databasePayments: Record<string, unknown>[]) {
-  const candidates = databasePayments.map((record, index) => ({
-    index,
-    record,
-    date: verificationDateKey(recordValue(record, ["Payment_Date", "Payment Date", "Date"])),
-    rawDate: String(recordValue(record, ["Payment_Date", "Payment Date", "Date"])).trim(),
-    amount: verificationAmount(recordValue(record, ["Amount", "Payment_Amount", "Payment Amount"])),
-    id: String(recordValue(record, ["Payment_ID", "Payment ID", "PaymentId", "Income_ID", "Income ID"])).trim(),
-    category: categoryFromWorkspaceValue(recordValue(record, ["Payment_For", "Payment For", "Income_Category", "Income Category", "Category"])),
-  }));
+  const candidates = databasePayments.map((record, index) => {
+    const incomeCategory = categoryFromWorkspaceValue(recordValue(record, [
+      "Income_Category", "Income Category", "income_category", "Category", "category",
+    ]));
+    const paymentForCategory = categoryFromWorkspaceValue(recordValue(record, [
+      "Payment_For", "Payment For", "payment_for",
+    ]));
+
+    return {
+      index,
+      record,
+      date: verificationDateKey(recordValue(record, ["Payment_Date", "Payment Date", "payment_date", "Date", "date"])),
+      rawDate: String(recordValue(record, ["Payment_Date", "Payment Date", "payment_date", "Date", "date"])).trim(),
+      amount: verificationAmount(recordValue(record, ["Amount", "amount", "Payment_Amount", "Payment Amount", "payment_amount"])),
+      id: String(recordValue(record, ["Payment_ID", "Payment ID", "PaymentId", "payment_code", "Income_ID", "Income ID", "income_id"])).trim(),
+      // Income_Category is the canonical billing bucket. Payment_For may be a
+      // human-readable purpose (for example "6th Floor R.C.C Bill"), so only
+      // use it as a fallback when no canonical category is present.
+      category: incomeCategory || paymentForCategory,
+    };
+  });
   const used = new Set<number>();
 
   for (const category of billing.invoices) {
