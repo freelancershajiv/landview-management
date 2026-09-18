@@ -12,7 +12,15 @@ const TABS = ["Summary","File List","Design Bill","Design Deposit","Design Books
 function text(v: unknown) { return String(v ?? "").trim(); }
 function num(v: unknown) { const n=Number(text(v).replace(/,/g,"").replace(/[^0-9.-]/g,"")); return Number.isFinite(n)?n:0; }
 function category(row: Row): Category {
-  const source=text(row.Billing_Category||row.Category||row.Payment_For||row.Income_Category||row.Description).toLowerCase();
+  // Prefer canonical billing buckets. Payment_For can be a free-text purpose
+  // such as "6th Floor R.C.C Bill" and must not override Income_Category.
+  const source=text(
+    row.Billing_Category || row.billing_category ||
+    row.Income_Category || row.income_category ||
+    row.Category || row.category ||
+    row.Payment_For || row.payment_for ||
+    row.Description || row.description
+  ).toLowerCase();
   if(/design\s*books?/.test(source)) return "Design Books";
   if(/supervision/.test(source)) return "Supervision Bill";
   if(/other|soil|survey|municipality|file pass/.test(source)) return "Other Services Bill";
