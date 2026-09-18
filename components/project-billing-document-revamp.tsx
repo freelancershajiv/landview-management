@@ -278,43 +278,43 @@ export default function ProjectBillingDocumentRevamp({
           .lvBrandLockup{display:flex!important;align-items:center!important;gap:2.4mm!important}
           .lvBrandLockup img{display:block!important;width:17mm!important;height:17mm!important;object-fit:contain!important}
           .lvBrandLockup>div{display:flex!important;flex-direction:column!important;min-width:0!important}
-          .lvBrandLockup strong{font-size:15.5pt!important;line-height:1!important;white-space:nowrap!important;color:#111!important}
+          .lvBrandLockup strong{font-size:16.5pt!important;line-height:1!important;white-space:nowrap!important;color:#111!important}
           .lvBrandLockup strong span{color:#e21f2f!important}
-          .lvBrandLockup small{font-size:7.2pt!important;letter-spacing:.3px!important;margin-top:1mm!important;white-space:nowrap!important;color:#222!important}
-          .lvBrandBlock em{font-style:normal!important;font-size:7pt!important;color:#666!important;margin:1.2mm 0 0 19.4mm!important}
+          .lvBrandLockup small{font-size:7.8pt!important;letter-spacing:.28px!important;margin-top:1mm!important;white-space:nowrap!important;color:#222!important}
+          .lvBrandBlock em{font-style:normal!important;font-size:7.6pt!important;color:#666!important;margin:1.2mm 0 0 19.4mm!important}
           .lvTitleBlock{display:flex!important;flex-direction:column!important;align-items:flex-end!important;text-align:right!important;padding-top:.6mm!important}
-          .lvTitleBlock small{font-size:7.2pt!important;color:#555!important;margin-bottom:1.4mm!important}
-          .lvTitleBlock b{font-size:10.2pt!important;color:#111!important;white-space:nowrap!important}
-          .lvTitleBlock strong{font-size:12.2pt!important;color:#e21f2f!important;margin-top:.8mm!important;text-transform:capitalize!important;white-space:nowrap!important}
+          .lvTitleBlock small{font-size:7.8pt!important;color:#555!important;margin-bottom:1.4mm!important}
+          .lvTitleBlock b{font-size:11pt!important;color:#111!important;white-space:nowrap!important}
+          .lvTitleBlock strong{font-size:13pt!important;color:#e21f2f!important;margin-top:.8mm!important;text-transform:capitalize!important;white-space:nowrap!important}
           .lvQrBlock{display:flex!important;flex-direction:column!important;align-items:center!important;gap:.8mm!important}
           .lvQrBlock img,.lvQrPlaceholder{width:19mm!important;height:19mm!important;background:#fff!important;border:1px solid #cfd4d8!important;box-sizing:border-box!important}
-          .lvQrPlaceholder{display:grid!important;place-items:center!important;color:#777!important;font-size:7pt!important}
-          .lvQrBlock small{font-size:6.7pt!important;color:#555!important;white-space:nowrap!important}
+          .lvQrPlaceholder{display:grid!important;place-items:center!important;color:#777!important;font-size:7.5pt!important}
+          .lvQrBlock small{font-size:7.2pt!important;color:#555!important;white-space:nowrap!important}
 
           .lvInfoBoard{border:1px solid #aeb6bd!important;margin-bottom:3.4mm!important;width:100%!important;box-sizing:border-box!important}
           .lvMetaRow{display:grid!important;grid-template-columns:1fr 1fr!important}
           .lvMetaPair{display:grid!important;grid-template-columns:24mm minmax(0,1fr)!important}
-          .lvMetaPair span,.lvInfoRow span{background:#22282c!important;color:#fff!important;font-size:7.6pt!important;font-weight:700!important;white-space:nowrap!important}
+          .lvMetaPair span,.lvInfoRow span{background:#22282c!important;color:#fff!important;font-size:8.1pt!important;font-weight:700!important;white-space:nowrap!important}
           .lvMetaPair span,.lvMetaPair strong,.lvInfoRow span,.lvInfoRow strong{padding:1.3mm 1.7mm!important;min-height:6.5mm!important;display:flex!important;align-items:center!important;box-sizing:border-box!important;border-right:1px solid #c8ced3!important;border-bottom:1px solid #c8ced3!important}
-          .lvMetaPair strong,.lvInfoRow strong{background:#fff!important;color:#111!important;font-size:7.8pt!important;font-weight:700!important;min-width:0!important;overflow-wrap:anywhere!important}
+          .lvMetaPair strong,.lvInfoRow strong{background:#fff!important;color:#111!important;font-size:8.3pt!important;font-weight:700!important;min-width:0!important;overflow-wrap:anywhere!important}
           .lvMetaPair:last-child strong{border-right:0!important}
           .lvInfoHead{display:grid!important;grid-template-columns:1fr 1fr!important}
-          .lvInfoHead strong{background:#22282c!important;color:#fff!important;text-align:center!important;font-size:7.8pt!important;padding:1.25mm!important;border-bottom:1px solid #c8ced3!important}
+          .lvInfoHead strong{background:#22282c!important;color:#fff!important;text-align:center!important;font-size:8.4pt!important;padding:1.25mm!important;border-bottom:1px solid #c8ced3!important}
           .lvInfoHead strong:first-child{border-right:1px solid #c8ced3!important}
           .lvInfoRow{display:grid!important;grid-template-columns:23mm minmax(0,1fr) 27mm minmax(0,.92fr)!important}
           .lvInfoRow>*:last-child{border-right:0!important}
           .lvInfoRow:last-child>*{border-bottom:0!important}
 
           .lvInvoiceBody{width:100%!important;box-sizing:border-box!important}
-          .lvSectionTitle{display:flex!important;align-items:center!important;justify-content:center!important;gap:1.2mm!important;margin:0 0 1.8mm!important;font-size:13.2pt!important;color:#111!important;line-height:1.1!important;text-align:center!important;white-space:nowrap!important}
+          .lvSectionTitle{display:flex!important;align-items:center!important;justify-content:center!important;gap:1.2mm!important;margin:0 0 1.8mm!important;font-size:14pt!important;color:#111!important;line-height:1.1!important;text-align:center!important;white-space:nowrap!important}
           .lvSectionTitle:before,.lvSectionTitle:after{content:""!important;height:.35mm!important;background:#e21f2f!important;flex:1!important}
           .lvSectionTitle:before{margin-right:4mm!important}.lvSectionTitle:after{margin-left:4mm!important}
           .lvSectionTitle span{font-weight:800!important}.lvSectionTitle b{color:#e21f2f!important;font-weight:800!important}
           .lvDepositTitle{margin-top:3.8mm!important}
 
           .lvTableWrap{width:100%!important;border:1px solid #cbd1d6!important;box-sizing:border-box!important;overflow:hidden!important}
-          .lvInvoiceTable{width:100%!important;border-collapse:collapse!important;table-layout:fixed!important;font-size:7.8pt!important;color:#111!important}
-          .lvInvoiceTable th{background:#22282c!important;color:#fff!important;padding:1.55mm 1.7mm!important;font-size:7.3pt!important;font-weight:800!important;border-right:1px solid #cbd1d6!important;white-space:nowrap!important}
+          .lvInvoiceTable{width:100%!important;border-collapse:collapse!important;table-layout:fixed!important;font-size:8.3pt!important;color:#111!important}
+          .lvInvoiceTable th{background:#22282c!important;color:#fff!important;padding:1.55mm 1.7mm!important;font-size:7.8pt!important;font-weight:800!important;border-right:1px solid #cbd1d6!important;white-space:nowrap!important}
           .lvInvoiceTable td{padding:1.45mm 1.7mm!important;border-top:1px solid #d6dbe0!important;border-right:1px solid #d6dbe0!important;line-height:1.15!important;box-sizing:border-box!important;overflow-wrap:anywhere!important}
           .lvInvoiceTable th:last-child,.lvInvoiceTable td:last-child{border-right:0!important}
           .lvInvoiceTable tbody tr:nth-child(even){background:#fafbfb!important}
@@ -329,10 +329,10 @@ export default function ProjectBillingDocumentRevamp({
           .lvTotalsBlock{width:100%!important;margin-top:0!important;border:1px solid #cbd1d6!important;border-top:0!important;box-sizing:border-box!important}
           .lvTotalsBlock>div{display:grid!important;grid-template-columns:minmax(0,1fr) 42mm!important;align-items:center!important;min-height:6.6mm!important;border-top:1px solid #d6dbe0!important}
           .lvTotalsBlock>div:first-child{border-top:0!important}
-          .lvTotalsBlock span,.lvTotalsBlock strong{padding:1.45mm 2mm!important;font-size:8pt!important;box-sizing:border-box!important}
+          .lvTotalsBlock span,.lvTotalsBlock strong{padding:1.45mm 2mm!important;font-size:8.5pt!important;box-sizing:border-box!important}
           .lvTotalsBlock span{font-weight:700!important}.lvTotalsBlock strong{text-align:right!important;border-left:1px solid #d6dbe0!important;font-variant-numeric:tabular-nums!important}
           .lvGrandTotal{background:#e21f2f!important;color:#fff!important}
-          .lvGrandTotal span,.lvGrandTotal strong{font-size:9.4pt!important;font-weight:900!important;color:#fff!important;border-color:rgba(255,255,255,.45)!important}
+          .lvGrandTotal span,.lvGrandTotal strong{font-size:10pt!important;font-weight:900!important;color:#fff!important;border-color:rgba(255,255,255,.45)!important}
 
           .lvDepositTable col:nth-child(1){width:8%!important}.lvDepositTable col:nth-child(2){width:16%!important}.lvDepositTable col:nth-child(3){width:36%!important}.lvDepositTable col:nth-child(4){width:20%!important}.lvDepositTable col:nth-child(5){width:20%!important}
           .lvDepositTable th:nth-child(2),.lvDepositTable td:nth-child(2),.lvDepositTable th:nth-child(4),.lvDepositTable td:nth-child(4){text-align:center!important;white-space:nowrap!important}
@@ -342,18 +342,18 @@ export default function ProjectBillingDocumentRevamp({
           .lvDueBlock,.lvPaidBlock{width:100%!important;margin-top:2.6mm!important;box-sizing:border-box!important}
           .lvDueBlock{border:1px solid #ef8f97!important;background:#fff8f8!important}
           .lvDueRow{display:grid!important;grid-template-columns:minmax(0,1fr) 45mm!important;align-items:center!important}
-          .lvDueRow strong{padding:2.1mm 2.4mm!important;color:#d7192d!important;font-size:10pt!important}
-          .lvDueRow b{padding:2.1mm 2.4mm!important;background:#e21f2f!important;color:#fff!important;text-align:right!important;font-size:12pt!important}
+          .lvDueRow strong{padding:2.1mm 2.4mm!important;color:#d7192d!important;font-size:10.5pt!important}
+          .lvDueRow b{padding:2.1mm 2.4mm!important;background:#e21f2f!important;color:#fff!important;text-align:right!important;font-size:12.8pt!important}
           .lvWordsRow{display:grid!important;grid-template-columns:31mm minmax(0,1fr)!important;border-top:1px solid #efb3b8!important}
-          .lvWordsRow strong,.lvWordsRow span{padding:1.9mm 2.4mm!important;font-size:8.8pt!important}.lvWordsRow strong{font-weight:800!important}.lvWordsRow span{font-weight:700!important}
+          .lvWordsRow strong,.lvWordsRow span{padding:1.9mm 2.4mm!important;font-size:9.2pt!important}.lvWordsRow strong{font-weight:800!important}.lvWordsRow span{font-weight:700!important}
 
           .lvPaidBlock{display:grid!important;grid-template-columns:minmax(0,1fr) 48mm!important;border:1px solid #8bc9a0!important;background:#f2fbf5!important}
           .lvPaidBlock>div{padding:2.1mm 2.5mm!important;display:flex!important;flex-direction:column!important;justify-content:center!important;gap:.7mm!important}
-          .lvPaidBlock>div strong{color:#137a3a!important;font-size:10pt!important}.lvPaidBlock>div span{font-size:7.8pt!important;color:#2d4935!important}
-          .lvPaidBlock>b{display:grid!important;place-items:center!important;background:#138a42!important;color:#fff!important;font-size:14pt!important;letter-spacing:.2px!important}
+          .lvPaidBlock>div strong{color:#137a3a!important;font-size:10.5pt!important}.lvPaidBlock>div span{font-size:8.3pt!important;color:#2d4935!important}
+          .lvPaidBlock>b{display:grid!important;place-items:center!important;background:#138a42!important;color:#fff!important;font-size:14.8pt!important;letter-spacing:.2px!important}
 
-          .lvInvoiceFooter{position:absolute!important;left:7.5mm!important;right:7.5mm!important;bottom:5mm!important;display:flex!important;justify-content:space-between!important;align-items:center!important;border-top:.5mm solid #e21f2f!important;padding-top:1.7mm!important;font-size:7pt!important;color:#59636a!important}
-          .lvInvoiceFooter strong{color:#111!important;font-size:7.8pt!important}
+          .lvInvoiceFooter{position:absolute!important;left:7.5mm!important;right:7.5mm!important;bottom:5mm!important;display:flex!important;justify-content:space-between!important;align-items:center!important;border-top:.5mm solid #e21f2f!important;padding-top:1.7mm!important;font-size:7.5pt!important;color:#59636a!important}
+          .lvInvoiceFooter strong{color:#111!important;font-size:8.4pt!important}
           .lvInvoiceFooterDetails{display:flex!important;flex-direction:column!important;align-items:flex-end!important;gap:.35mm!important;text-align:right!important;line-height:1.15!important}
           .lvInvoiceFooterDetails span{display:block!important;text-align:right!important}
         }
