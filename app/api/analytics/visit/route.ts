@@ -113,32 +113,60 @@ export async function POST(request: NextRequest) {
   };
 
   try {
-    const response = await fetch(APPS_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-      redirect: "follow",
-      signal: AbortSignal.timeout(8_000),
-    });
+    let lastError = "Analytics storage failed.";
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        const response = await fetch(APPS_SCRIPT_URL, {
+          method: "POST",
+          headers: { "Content-Type": "text/plain;charset=utf-8" },
+          body: JSON.stringify(payload),
+          cache: "no-store",
+          redirect: "follow",
+          signal: AbortSignal.timeout(20_000),
+        });
 
-    const responseText = await response.text();
-    let json: { success?: boolean } = {};
-    try {
-      json = JSON.parse(responseText) as { success?: boolean };
-    } catch {
-      json = {};
-    }
+        const responseText = await response.text();
+        let json: { success?: boolean; error?: string; message?: string } = {};
+        try {
+          json = JSON.parse(responseText) as { success?: boolean; error?: string; message?: string };
+        } catch {
+          json = {};
+        }
 
-    if (!response.ok || !json.success) {
-      return NextResponse.json({ success: false, error: "Analytics storage failed." }, { status: 502 });
+        if (response.ok && json.success) {
+          return NextResponse.json(
+            { success: true },
+            { headers: { "Cache-Control": "no-store, max-age=0" } },
+          );
+        }
+
+        lastError = text(json.error || json.message || `Analytics backend returned ${response.status}.`, 300);
+        console.error("Visitor analytics backend write failed", {
+          attempt,
+          status: response.status,
+          eventType,
+          error: lastError,
+        });
+      } catch (error) {
+        lastError = error instanceof Error ? error.message : "Analytics backend unavailable.";
+        console.error("Visitor analytics backend request failed", {
+          attempt,
+          eventType,
+          error: lastError,
+        });
+      }
+
+      if (attempt < 3) {
+        await new Promise((resolve) => setTimeout(resolve, attempt * 350));
+      }
     }
 
     return NextResponse.json(
-      { success: true },
-      { headers: { "Cache-Control": "no-store, max-age=0" } },
+      { success: false, error: "Analytics storage temporarily unavailable." },
+      { status: 502, headers: { "Cache-Control": "no-store, max-age=0" } },
     );
-  } catch {
+  } catch (error) {
+    console.error("Visitor analytics route failed", error);
     return NextResponse.json({ success: false, error: "Analytics storage unavailable." }, { status: 502 });
   }
 }
