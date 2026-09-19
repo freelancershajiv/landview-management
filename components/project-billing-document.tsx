@@ -72,6 +72,9 @@ function paymentDateOnly(value: unknown) {
 }
 
 export function billingIssueDate(result: SheetInvoices) {
+  const explicitIssueDate = parseBillingDate(result.client.issueDate);
+  if (explicitIssueDate) return formatDate(explicitIssueDate);
+
   const dates = result.invoices
     .flatMap((category) => category.payments)
     .map((payment) => parseBillingDate(payment.date))
@@ -192,17 +195,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
   }, [verificationUrl]);
   const qrUrl = qr.url;
   const statementRef = `INV-${result.id.replace(/^LV-/, "")}-01`;
-  const projectStatus = result.totals.due > 0 ? "Partial / Due" : "Full Paid";
-  const allPayments = result.invoices.flatMap((category) => category.payments);
-  const verifiedPayments = allPayments.filter((payment) => payment.verification === "Verified").length;
-  const unverifiedPayments = Math.max(0, allPayments.length - verifiedPayments);
-  const invoiceVerification = allPayments.length === 0
-    ? "Unverified"
-    : verifiedPayments === allPayments.length
-      ? "Verified"
-      : verifiedPayments === 0
-        ? "Unverified"
-        : "Partially Verified";
+  const projectStatus = result.client.status || (result.totals.due > 0 ? "Partial / Due" : "Full Paid");
 
   const activeCategories = result.invoices.filter(hasBillingData);
   const printCategories = activeCategories.length ? activeCategories : result.invoices.slice(0, 1);
@@ -225,13 +218,12 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
       <div className={styles.sheetHeaderQr}>{qrUrl ? <img data-billing-qr="true" className={styles.sheetHeaderQrImage} src={qrUrl} loading="eager" alt={`Verify ${result.id}`} width={96} height={96}/> : <div className={styles.sheetHeaderQrPlaceholder}>QR</div>}<small>Scan to verify</small></div>
     </header>
     <section className={styles.sheetInfoBoard}>
-      <div className={styles.sheetMetaRow}><div className={styles.sheetMetaPair}><span>Invoice ID</span><strong>{statementRef}</strong></div><div className={styles.sheetMetaPair}><span>Issue Date</span><strong>{issueDate}</strong></div></div>
-      <div className={styles.sheetPanelTitles}><strong>Owner Details</strong><strong>Building Details</strong></div>
-      <div className={styles.sheetInfoRow}><span>File ID</span><strong>{result.id}</strong><span>Project Type</span><strong>{result.client.type || "—"}</strong></div>
-      <div className={styles.sheetInfoRow}><span>Name</span><strong>{result.client.name || "—"}</strong><span>Floor/Story</span><strong>{result.client.floor || "—"}</strong></div>
-      <div className={styles.sheetInfoRow}><span>Address</span><strong>{result.client.address || "—"}</strong><span>Land Area</span><strong>{result.client.area || "—"}</strong></div>
-      <div className={styles.sheetInfoRow}><span>Contact</span><strong>{result.client.phone || "—"}</strong><span>Status</span><strong>{projectStatus}</strong></div>
-      <div className={styles.sheetInfoRow}><span>Verification</span><strong className={invoiceVerification === "Verified" ? styles.statusVerified : invoiceVerification === "Partially Verified" ? styles.statusPartial : styles.statusUnverified}>{invoiceVerification}</strong><span>Receipts</span><strong>Verified: {verifiedPayments}/{allPayments.length}{unverifiedPayments > 0 ? ` · Pending: ${unverifiedPayments}` : ""}</strong></div>
+      <div className={styles.sheetInfoRow}><span>Invoice ID</span><strong>{statementRef}</strong><span>Issue Date</span><strong>{issueDate}</strong></div>
+      <div className={styles.sheetInfoRow}><span>Owner Name</span><strong>{result.client.name || "—"}</strong><span>File ID</span><strong>{result.client.fileId || result.id || "—"}</strong></div>
+      <div className={styles.sheetInfoRow}><span>Contact No</span><strong>{result.client.phone || "—"}</strong><span>Project Type</span><strong>{result.client.type || "—"}</strong></div>
+      <div className={styles.sheetInfoRow}><span>Referred By</span><strong>{result.client.referredBy || "—"}</strong><span>Floor/Story</span><strong>{result.client.floor || "—"}</strong></div>
+      <div className={styles.sheetInfoRow}><span>Ref. Contact</span><strong>{result.client.refContact || "—"}</strong><span>Land Area</span><strong>{result.client.area || "—"}</strong></div>
+      <div className={styles.sheetInfoRow}><span>Address</span><strong>{result.client.address || "—"}</strong><span>Status</span><strong>{projectStatus}</strong></div>
     </section>
   </>;
 
