@@ -32,6 +32,15 @@ function normalize(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function firstText(record: Record<string, unknown> | null | undefined, keys: string[]) {
+  if (!record) return "";
+  for (const key of keys) {
+    const value = String(record[key] ?? "").trim();
+    if (value) return value;
+  }
+  return "";
+}
+
 function isEngineering(item: ProposalItem) {
   const service = normalize(item.Service);
   const category = normalize(item.Category);
@@ -102,12 +111,17 @@ export function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): Sh
   return {
     id: proposal.Proposal_ID || proposalId,
     client: {
+      fileId: proposal.Converted_Project_ID || "Not assigned yet",
       name: proposal.Client_Name || "",
       address: proposal.Address || proposal.Project_Location || "",
       phone: proposal.Phone || "",
       floor: proposal.Floors || "",
       type: proposal.Project_Type || "",
       area: proposal.Plot_Area || "",
+      referredBy: proposal.Source || firstText(bundle.prospect, ["Source", "Referred_By", "Referred By", "Referral_Source", "Referral Source"]),
+      refContact: firstText(bundle.prospect, ["Ref_Contact", "Ref. Contact", "Ref Contact", "Referral_Contact", "Referral Contact", "Referral_Phone", "Referral Phone", "Reference_Contact", "Reference Contact"]),
+      issueDate: proposal.Created_At || "",
+      status: proposal.Converted_Project_ID ? "Converted to Project" : (proposal.Status || "Proposal"),
     },
     invoices,
     totals: {
