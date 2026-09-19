@@ -20,6 +20,8 @@ export type ProposalRecord = {
   Email?: string;
   Address?: string;
   Source?: string;
+  Referred_By?: string;
+  Ref_Contact?: string;
   Project_Title?: string;
   Project_Location?: string;
   Project_Type?: string;
