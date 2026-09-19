@@ -12,6 +12,8 @@ type FormState = {
   Project_Name: string;
   Client_Name: string;
   Phone_Number: string;
+  Referred_By: string;
+  Ref_Contact: string;
   Project_Type: string;
   Location: string;
   Project_Area: string;
@@ -26,6 +28,8 @@ const emptyForm: FormState = {
   Project_Name: "",
   Client_Name: "",
   Phone_Number: "",
+  Referred_By: "",
+  Ref_Contact: "",
   Project_Type: "",
   Location: "",
   Project_Area: "",
@@ -154,6 +158,8 @@ export default function NewProjectPage() {
           <label className={mode === "automatic" ? "full" : ""}>Project Name<input value={form.Project_Name} onChange={(e)=>setForm({...form,Project_Name:e.target.value,Client_Name:form.Client_Name || e.target.value})} required /></label>
           <label>Client Name<input value={form.Client_Name} onChange={(e)=>setForm({...form,Client_Name:e.target.value})} /></label>
           <label>Phone Number<input value={form.Phone_Number} onChange={(e)=>setForm({...form,Phone_Number:e.target.value})} /></label>
+          <label>Referred By<input value={form.Referred_By} onChange={(e)=>setForm({...form,Referred_By:e.target.value})} placeholder="Referrer name / source" /></label>
+          <label>Ref. Contact<input value={form.Ref_Contact} onChange={(e)=>setForm({...form,Ref_Contact:e.target.value})} placeholder="Referrer phone / contact" /></label>
           <label>Project Type<input value={form.Project_Type} onChange={(e)=>setForm({...form,Project_Type:e.target.value})} placeholder="Residential / Commercial / etc." /></label>
           <label>Location<input value={form.Location} onChange={(e)=>setForm({...form,Location:e.target.value})} /></label>
           <label>Project Area<input value={form.Project_Area} onChange={(e)=>setForm({...form,Project_Area:e.target.value})} placeholder="e.g. 5 decimal / 3200 sft" /></label>
