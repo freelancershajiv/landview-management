@@ -71,17 +71,28 @@ function safeReferrer() {
 }
 
 async function sendEvent(payload: Record<string, unknown>) {
-  try {
-    await fetch("/api/analytics/visit", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      keepalive: true,
-      body: JSON.stringify(payload),
-    });
-  } catch {
-    // Analytics must never interfere with the visitor experience.
+  const body = JSON.stringify(payload);
+
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch("/api/analytics/visit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        keepalive: true,
+        body,
+      });
+      if (response.ok) return;
+    } catch {
+      // Retry transient network/storage failures below.
+    }
+
+    if (attempt < 3) {
+      await new Promise((resolve) => setTimeout(resolve, attempt * 700));
+    }
   }
+
+  // Analytics must never interfere with the visitor experience.
 }
 
 function distanceMetres(
