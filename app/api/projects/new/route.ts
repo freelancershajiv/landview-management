@@ -80,6 +80,8 @@ export async function POST(request: NextRequest) {
       project_name: projectName,
       client_name_snapshot: clientName,
       phone_number_snapshot: text(body.Phone_Number || body.phoneNumber, 80) || null,
+      referred_by: text(body.Referred_By || body.referredBy, 240) || null,
+      ref_contact: text(body.Ref_Contact || body.refContact, 120) || null,
       project_type: text(body.Project_Type || body.projectType, 160) || null,
       location: text(body.Location || body.location, 300) || null,
       project_area_text: text(body.Project_Area || body.projectArea, 120) || null,
