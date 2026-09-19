@@ -16,7 +16,7 @@ const SERVICES=[
 function money(v:number){return new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v)||0)}
 function dateText(v?:string){if(!v)return "—";const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}
 function blankItem(service="Architectural Design",category="Engineering"):ProposalItem{return{Service:service,Description:"",Quantity:1,Unit:"Job",Rate:0,Amount:0,Category:category}}
-function emptyProposal():ProposalRecord{return{Client_Name:"",Phone:"",Email:"",Address:"",Source:"",Project_Title:"",Project_Location:"",Project_Type:"Residential",Plot_Area:"",Floors:"",Discount:0,Validity_Days:30,Status:"Draft",Assigned_To:"",Notes:""}}
+function emptyProposal():ProposalRecord{return{Client_Name:"",Phone:"",Email:"",Address:"",Source:"",Referred_By:"",Ref_Contact:"",Project_Title:"",Project_Location:"",Project_Type:"Residential",Plot_Area:"",Floors:"",Discount:0,Validity_Days:30,Status:"Draft",Assigned_To:"",Notes:""}}
 
 export default function ProposalWorkspace({proposalId}:{proposalId?:string}){
   const [record,setRecord]=useState<ProposalRecord>(emptyProposal());
@@ -105,6 +105,8 @@ export default function ProposalWorkspace({proposalId}:{proposalId?:string}){
       <label>Email<input type="email" value={record.Email||""} onChange={e=>setRecord({...record,Email:e.target.value})}/></label>
       <label className="wide">Address<input value={record.Address||""} onChange={e=>setRecord({...record,Address:e.target.value})}/></label>
       <label>Lead source<input value={record.Source||""} onChange={e=>setRecord({...record,Source:e.target.value})} placeholder="Walk-in / Referral / Facebook…"/></label>
+      <label>Referred By<input value={record.Referred_By||""} onChange={e=>setRecord({...record,Referred_By:e.target.value})} placeholder="Referrer name"/></label>
+      <label>Ref. Contact<input value={record.Ref_Contact||""} onChange={e=>setRecord({...record,Ref_Contact:e.target.value})} placeholder="Referrer phone / contact"/></label>
       <label>Assigned employee<input value={record.Assigned_To||""} onChange={e=>setRecord({...record,Assigned_To:e.target.value})} placeholder="EMP-xxxx (optional)"/></label>
     </div></section>
     <section className="pw-panel"><h2>Proposed project</h2><div className="pw-grid">
