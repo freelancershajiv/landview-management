@@ -61,6 +61,7 @@ export async function deleteRows(table: string, filters: Row) {
 function projectLegacy(row: Row, billed?: number) {
   return {
     Project_ID: row.project_code, Project_Name: row.project_name || "", Client_Name: row.client_name_snapshot || "", Phone_Number: row.phone_number_snapshot || "",
+    Referred_By: row.referred_by || "", Ref_Contact: row.ref_contact || "",
     Project_Type: row.project_type || "", Location: row.location || "", Location_Tag: row.location_tag || "", Plot_Area: row.plot_area ?? "", Floors: row.floors ?? "",
     Start_Date: row.start_date || "", Design_Bill: billed ?? num(row.design_bill), Status: row.status || "", Notes: row.notes || "",
     Drive_Folder_ID: row.drive_folder_id || "", Drive_Folder_URL: row.drive_folder_url || "", Documents_Folder_ID: row.documents_folder_id || "", Documents_Folder_URL: row.documents_folder_url || "",
@@ -158,6 +159,7 @@ function projectFromInput(input: Row, existing: Row = {}) {
   const result: Row = { ...existing, project_code: projectId, updated_at: new Date().toISOString() };
   const mappings: Array<[string,string[]]> = [
     ["project_name",["Project_Name","projectName","project_name"]],["client_name_snapshot",["Client_Name","clientName","client_name_snapshot"]],["phone_number_snapshot",["Phone_Number","phoneNumber","phone_number_snapshot"]],
+    ["referred_by",["Referred_By","Referred By","referredBy","referred_by"]],["ref_contact",["Ref_Contact","Ref. Contact","Ref Contact","refContact","ref_contact"]],
     ["project_type",["Project_Type","projectType","project_type"]],["location",["Location","location"]],["location_tag",["Location_Tag","LocationTag","location_tag"]],["start_date",["Start_Date","startDate","start_date"]],
     ["status",["Status","status"]],["notes",["Notes","notes"]],["drive_folder_id",["Drive_Folder_ID","driveFolderId","drive_folder_id"]],["drive_folder_url",["Drive_Folder_URL","driveFolderUrl","drive_folder_url"]],
     ["documents_folder_id",["Documents_Folder_ID","documents_folder_id"]],["documents_folder_url",["Documents_Folder_URL","documents_folder_url"]],["invoices_folder_id",["Invoices_Folder_ID","invoices_folder_id"]],["invoices_folder_url",["Invoices_Folder_URL","invoices_folder_url"]],
