@@ -34,6 +34,20 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
 
   const file = files[0];
   const summary = summaries[0] || [];
+  const fileListSheet = sheets.find((item) => item.tab === "File List");
+  const normalizedHeader = (value: unknown) => String(value ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const fileField = (aliases: string[]) => {
+    const headers = fileListSheet?.headers || [];
+    for (const alias of aliases) {
+      const wanted = normalizedHeader(alias);
+      const index = headers.findIndex((header) => normalizedHeader(header) === wanted);
+      if (index >= 0) {
+        const value = String(file[index] ?? "").trim();
+        if (value) return value;
+      }
+    }
+    return "";
+  };
   const categories = [
     { name: "Engineering", bill: "Design Bill", deposit: "Design Deposit", discountIndex: 4 },
     { name: "Design Books", bill: "Design Books Bill", deposit: "Design Books Deposit", discountIndex: 16 },
@@ -68,12 +82,17 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
   return {
     id: `LV-${id}`,
     client: {
+      fileId: `LV-${id}`,
       name: file[1],
       address: file[2],
       phone: file[3],
       floor: file[4],
       type: file[5],
       area: file[6],
+      referredBy: fileField(["Referred By", "Referred_By", "Referral", "Referral Source", "Ref By", "Reference", "Source"]),
+      refContact: fileField(["Ref. Contact", "Ref Contact", "Reference Contact", "Referral Contact", "Referral Phone", "Ref Phone", "Reference Phone"]),
+      issueDate: "",
+      status: "",
     },
     invoices,
     totals: {
