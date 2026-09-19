@@ -112,16 +112,7 @@ export default function ProjectBillingDocumentRevamp({
   }, [verificationUrl]);
 
   const statementRef = `INV-${result.id.replace(/^LV-/, "")}-01`;
-  const projectStatus = Number(result.totals.due || 0) > 0.009 ? "Partial / Due" : "Full Paid";
-  const allPayments = result.invoices.flatMap((category) => category.payments);
-  const verifiedPayments = allPayments.filter((payment) => payment.verification === "Verified").length;
-  const invoiceVerification = allPayments.length === 0
-    ? "Unverified"
-    : verifiedPayments === allPayments.length
-      ? "Verified"
-      : verifiedPayments === 0
-        ? "Unverified"
-        : "Partially Verified";
+  const projectStatus = result.client.status || (Number(result.totals.due || 0) > 0.009 ? "Partial / Due" : "Full Paid");
 
   const activeCategories = result.invoices.filter(hasBillingData);
   const printCategories = activeCategories.length ? activeCategories : result.invoices.slice(0, 1);
@@ -177,16 +168,12 @@ export default function ProjectBillingDocumentRevamp({
               </header>
 
               <section className="lvInfoBoard">
-                <div className="lvMetaRow">
-                  <div className="lvMetaPair"><span>Invoice ID</span><strong>{statementRef}</strong></div>
-                  <div className="lvMetaPair"><span>Issue Date</span><strong>{issueDate}</strong></div>
-                </div>
-                <div className="lvInfoHead"><strong>Owner Details</strong><strong>Building Details</strong></div>
-                <div className="lvInfoRow"><span>File ID</span><strong>{result.id}</strong><span>Project Type</span><strong>{result.client.type || "—"}</strong></div>
-                <div className="lvInfoRow"><span>Name</span><strong>{result.client.name || "—"}</strong><span>Floor/Story</span><strong>{result.client.floor || "—"}</strong></div>
-                <div className="lvInfoRow"><span>Address</span><strong>{result.client.address || "—"}</strong><span>Land Area</span><strong>{result.client.area || "—"}</strong></div>
-                <div className="lvInfoRow"><span>Contact</span><strong>{result.client.phone || "—"}</strong><span>Status</span><strong>{projectStatus}</strong></div>
-                <div className="lvInfoRow"><span>Verification</span><strong>{invoiceVerification}</strong><span>Receipts</span><strong>Verified: {verifiedPayments}/{allPayments.length}</strong></div>
+                <div className="lvInfoRow"><span>Invoice ID</span><strong>{statementRef}</strong><span>Issue Date</span><strong>{issueDate}</strong></div>
+                <div className="lvInfoRow"><span>Owner Name</span><strong>{result.client.name || "—"}</strong><span>File ID</span><strong>{result.client.fileId || result.id || "—"}</strong></div>
+                <div className="lvInfoRow"><span>Contact No</span><strong>{result.client.phone || "—"}</strong><span>Project Type</span><strong>{result.client.type || "—"}</strong></div>
+                <div className="lvInfoRow"><span>Referred By</span><strong>{result.client.referredBy || "—"}</strong><span>Floor/Story</span><strong>{result.client.floor || "—"}</strong></div>
+                <div className="lvInfoRow"><span>Ref. Contact</span><strong>{result.client.refContact || "—"}</strong><span>Land Area</span><strong>{result.client.area || "—"}</strong></div>
+                <div className="lvInfoRow"><span>Address</span><strong>{result.client.address || "—"}</strong><span>Status</span><strong>{projectStatus}</strong></div>
               </section>
 
               <section className="lvInvoiceBody">
@@ -292,16 +279,10 @@ export default function ProjectBillingDocumentRevamp({
           .lvQrBlock small{font-size:7.2pt!important;color:#555!important;white-space:nowrap!important}
 
           .lvInfoBoard{border:1px solid #aeb6bd!important;margin-bottom:3.4mm!important;width:100%!important;box-sizing:border-box!important}
-          .lvMetaRow{display:grid!important;grid-template-columns:1fr 1fr!important}
-          .lvMetaPair{display:grid!important;grid-template-columns:24mm minmax(0,1fr)!important}
-          .lvMetaPair span,.lvInfoRow span{background:#22282c!important;color:#fff!important;font-size:8.1pt!important;font-weight:700!important;white-space:nowrap!important}
-          .lvMetaPair span,.lvMetaPair strong,.lvInfoRow span,.lvInfoRow strong{padding:1.3mm 1.7mm!important;min-height:6.5mm!important;display:flex!important;align-items:center!important;box-sizing:border-box!important;border-right:1px solid #c8ced3!important;border-bottom:1px solid #c8ced3!important}
-          .lvMetaPair strong,.lvInfoRow strong{background:#fff!important;color:#111!important;font-size:8.3pt!important;font-weight:700!important;min-width:0!important;overflow-wrap:anywhere!important}
-          .lvMetaPair:last-child strong{border-right:0!important}
-          .lvInfoHead{display:grid!important;grid-template-columns:1fr 1fr!important}
-          .lvInfoHead strong{background:#22282c!important;color:#fff!important;text-align:center!important;font-size:8.4pt!important;padding:1.25mm!important;border-bottom:1px solid #c8ced3!important}
-          .lvInfoHead strong:first-child{border-right:1px solid #c8ced3!important}
-          .lvInfoRow{display:grid!important;grid-template-columns:23mm minmax(0,1fr) 27mm minmax(0,.92fr)!important}
+          .lvInfoRow{display:grid!important;grid-template-columns:25mm minmax(0,1.18fr) 25mm minmax(0,.82fr)!important}
+          .lvInfoRow span{background:#22282c!important;color:#fff!important;font-size:8.1pt!important;font-weight:700!important;white-space:nowrap!important}
+          .lvInfoRow span,.lvInfoRow strong{padding:1.3mm 1.7mm!important;min-height:6.5mm!important;display:flex!important;align-items:center!important;box-sizing:border-box!important;border-right:1px solid #c8ced3!important;border-bottom:1px solid #c8ced3!important}
+          .lvInfoRow strong{background:#fff!important;color:#111!important;font-size:8.3pt!important;font-weight:700!important;min-width:0!important;overflow-wrap:anywhere!important}
           .lvInfoRow>*:last-child{border-right:0!important}
           .lvInfoRow:last-child>*{border-bottom:0!important}
 
