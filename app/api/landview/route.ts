@@ -269,8 +269,18 @@ async function financeSheet(tab: string) {
   }
   if (tab === "File List") {
     const projects=await selectRows("projects",{order:"project_code:asc",limit:5000});
-    const headers=["FILE ID","Project Name","Client Name","Phone","Location","Status"];
-    const rows=projects.map(p=>[p.project_code,p.project_name||"",p.client_name_snapshot||"",p.phone_number_snapshot||"",p.location||"",p.status||""]);
+    const headers=["FILE ID","Client Name","Address","Phone","Floor/Story","Build Type","Land Area","Referred By","Ref. Contact"];
+    const rows=projects.map(p=>[
+      p.project_code,
+      p.client_name_snapshot||p.project_name||"",
+      p.location||"",
+      p.phone_number_snapshot||"",
+      p.number_of_stories_text||p.floors||"",
+      p.project_type||"",
+      p.project_area_text||p.plot_area||"",
+      p.referred_by||"",
+      p.ref_contact||"",
+    ]);
     return {tab,tabs:[tab],headers,rows,totals:{gross:0,discount:0,billed:0,paid:0,due:0,projects:projects.length},url:"",updatedAt:now};
   }
   throw new Error("Use primary Supabase finance adapter.");
