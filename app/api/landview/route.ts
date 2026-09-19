@@ -115,7 +115,18 @@ async function proposalBundle(id: string) {
     selectRows("proposal_activity", { filters: { proposal_code: id }, order: "performed_at:desc", limit: 1000 }),
     proposal.prospect_code ? selectRows("prospective_clients", { filters: { prospect_code: proposal.prospect_code }, limit: 1 }) : Promise.resolve([]),
   ]);
-  return { proposal: proposalLegacy(proposal), prospect: prospects[0] || null, items: items.map(proposalItemLegacy), activity: activity.map(activityLegacy) };
+  const prospect = prospects[0] || null;
+  return {
+    proposal: {
+      ...proposalLegacy(proposal),
+      Source: prospect?.source || "",
+      Referred_By: prospect?.referred_by || "",
+      Ref_Contact: prospect?.ref_contact || "",
+    },
+    prospect,
+    items: items.map(proposalItemLegacy),
+    activity: activity.map(activityLegacy),
+  };
 }
 async function listProposals(user: Row) {
   if (!await hasPermission(user, "proposals.view")) throw new Error("Permission required: proposals.view");
@@ -135,7 +146,8 @@ async function saveProposal(user: Row, input: Row) {
   const now = new Date().toISOString();
   const prospect = {
     prospect_code: prospectCode, client_name: text(record.Client_Name) || "Prospective Client", phone: text(record.Phone) || null, email: text(record.Email) || null,
-    address: text(record.Address) || null, source: text(record.Source) || null, assigned_to: text(record.Assigned_To) || null, status: "Prospect", notes: text(record.Notes) || null,
+    address: text(record.Address) || null, source: text(record.Source) || null, referred_by: text(record.Referred_By || record.referredBy) || null, ref_contact: text(record.Ref_Contact || record.refContact) || null,
+    assigned_to: text(record.Assigned_To) || null, status: "Prospect", notes: text(record.Notes) || null,
     created_by: userIdOf(user), created_at: text(record.Created_At) || now, updated_at: now,
   };
   await upsertRows("prospective_clients", prospect, "prospect_code");
@@ -197,6 +209,8 @@ async function proposalAction(user: Row, input: Row) {
         project_name: text(proposal.Project_Title) || text(proposal.Client_Name) || projectId,
         client_name_snapshot: text(proposal.Client_Name) || null,
         phone_number_snapshot: text(proposal.Phone) || null,
+        referred_by: text(proposal.Referred_By) || null,
+        ref_contact: text(proposal.Ref_Contact) || null,
         project_type: text(proposal.Project_Type) || null,
         location: text(proposal.Project_Location) || null,
         plot_area: plot !== null && plot >= 0 ? plot : null,
