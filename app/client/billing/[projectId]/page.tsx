@@ -96,12 +96,17 @@ function buildClientBilling(project: ClientProject): SheetInvoices {
   return {
     id: normalized ? `LV-${normalized}` : text(project.projectId),
     client: {
+      fileId: normalized ? `LV-${normalized}` : text(project.projectId),
       name: text(project.clientName),
       address: text(project.location),
       phone: text(project.mobile),
       floor: "",
       type: text(project.projectName),
       area: "",
+      referredBy: "",
+      refContact: "",
+      issueDate: "",
+      status: "",
     },
     invoices,
     totals: { gross, discount, paid, due },
@@ -116,6 +121,8 @@ function mergeProjectDetails(billing: SheetInvoices, detail: Record<string, unkn
   next.client.floor = text(pick(detail, ["Floors", "Floor", "Floor_Story", "Floor/Story", "Number_of_Stories"])) || next.client.floor;
   next.client.type = text(pick(detail, ["Project_Type", "Project Type", "Type", "Project_Name", "Project Name"])) || next.client.type;
   next.client.area = text(pick(detail, ["Plot_Area", "Plot Area", "Land_Area", "Land Area", "Project_Area"])) || next.client.area;
+  next.client.referredBy = text(pick(detail, ["Referred_By", "Referred By", "Referral", "Referral_Source", "Referral Source", "Source"])) || next.client.referredBy;
+  next.client.refContact = text(pick(detail, ["Ref_Contact", "Ref. Contact", "Ref Contact", "Referral_Contact", "Referral Contact", "Referral_Phone", "Referral Phone"])) || next.client.refContact;
   return next;
 }
 
