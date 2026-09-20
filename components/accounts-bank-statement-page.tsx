@@ -352,7 +352,8 @@ export default function AccountsBankStatementPage() {
     const rows = transactions
       .map((record) => {
         const transactionType = normalizeStatus(field(record, ["Transaction_Type", "Transaction Type", "Type"]));
-        if (transactionType !== "personal income" && transactionType !== "personal expense") return null;
+        const sourceType = normalizeStatus(field(record, ["Source_Type", "Source Type"]));
+        if (sourceType !== "personal") return null;
         const id = text(field(record, ["Transaction_ID", "Transaction ID", "TransactionId"]));
         const date = text(field(record, ["Transaction_Date", "Transaction Date", "Date"]));
         const projectId = text(field(record, ["Project_ID", "Project ID", "ProjectId"]));
@@ -365,7 +366,7 @@ export default function AccountsBankStatementPage() {
         let credit = amount(field(record, ["Credit"]));
         const fallbackAmount = amount(field(record, ["Amount"]));
         if (!debit && !credit && fallbackAmount > 0) {
-          if (transactionType === "personal expense") debit = fallbackAmount;
+          if (transactionType === "expense") debit = fallbackAmount;
           else credit = fallbackAmount;
         }
         const row: RunningRow = {
@@ -402,15 +403,7 @@ export default function AccountsBankStatementPage() {
   const personalExpense = personalRows.reduce((sum, row) => sum + row.debit, 0);
   const personalNet = personalIncome - personalExpense;
 
-  const cashLedgerRows = useMemo<RunningRow[]>(() => {
-    const rows = [...ledgerRows, ...personalRows]
-      .sort((a, b) => dateKey(a.date).localeCompare(dateKey(b.date)) || a.id.localeCompare(b.id));
-    let balance = 0;
-    return rows.map((row) => {
-      balance += row.credit - row.debit;
-      return { ...row, balance };
-    });
-  }, [ledgerRows, personalRows]);
+  const cashLedgerRows = ledgerRows;
 
   const monthKey = dhakaDateKey(new Date()).slice(0, 7);
   const monthLabel = DHAKA_MONTH.format(new Date());
@@ -593,7 +586,7 @@ export default function AccountsBankStatementPage() {
           <div className="statement-title">
             <small>{mode === "ledger" ? "AUTHORITATIVE LEDGER" : mode === "personal" ? "ENG RONY / PERSONAL" : mode === "reports" ? "CURRENT MONTH ANALYSIS" : "CURRENT MONTH STATEMENT"}</small>
             <h2>{mode === "ledger" ? "Full running ledger" : mode === "personal" ? "Eng Rony personal ledger" : mode === "reports" ? `${monthLabel} report` : `${monthLabel} statement`}</h2>
-            <p>{mode === "ledger" ? "Full cash running balance, including separately tagged personal movements, newest transaction first." : mode === "personal" ? "Personal income and expenses stay separately tagged but are included in total monthly cashflow and the shared running balance." : mode === "reports" ? "Official income and expenditure summarized by category for this month." : "Newest transaction stays at the top. Monthly totals and current balance include official and separately tagged personal cash movements."}</p>
+            <p>{mode === "ledger" ? "Full official running balance, including Eng Rony salary/personal-source entries, newest transaction first." : mode === "personal" ? "Eng Rony personal-source expenses are posted officially as Eng Rony Salary; this tab is only a filtered view of those same records." : mode === "reports" ? "Official income and expenditure summarized by category for this month." : "Newest transaction stays at the top. Eng Rony personal expenses are included in official expense as Eng Rony Salary."}</p>
           </div>
           <div className="statement-head-stats">
             {mode === "personal" ? <>
@@ -649,7 +642,7 @@ export default function AccountsBankStatementPage() {
 
         <div className="statement-footer">
           <span className="footer-note"><strong>Statement order:</strong> newest at top → oldest at bottom{mode === "personal" || mode === "ledger" ? "." : " → previous balance as the final opening row."}</span>
-          {mode === "personal" ? <span>Personal transactions are excluded from official income/expense totals but included in the shared cash balance.</span> : pendingThisMonth.length > 0 ? <span className="pending-chip">{pendingThisMonth.length} pending expense{pendingThisMonth.length === 1 ? "" : "s"} · {money(pendingAmount)} not deducted</span> : <span>No pending expenses affecting this month&apos;s posted balance.</span>}
+          {mode === "personal" ? <span>These are official Accounts entries; personal expenses are categorized as Eng Rony Salary.</span> : pendingThisMonth.length > 0 ? <span className="pending-chip">{pendingThisMonth.length} pending expense{pendingThisMonth.length === 1 ? "" : "s"} · {money(pendingAmount)} not deducted</span> : <span>No pending expenses affecting this month&apos;s posted balance.</span>}
         </div>
       </section>
 
