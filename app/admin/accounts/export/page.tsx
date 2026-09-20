@@ -284,20 +284,57 @@ export default function LedgerExportPage() {
   return (
     <div className="ledger-export-page">
       <style>{`
-        .ledger-export-page{color:#eef2f5;padding-bottom:50px}.export-top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}.export-top a{color:#e9b620;text-decoration:none;font-size:11px;font-weight:800}.export-top h1{margin:8px 0 5px;font-size:34px;letter-spacing:-.03em}.export-top p{margin:0;color:#8b99a2;font-size:11px}.export-actions{display:flex;gap:8px;flex-wrap:wrap}.export-btn{border:1px solid #3a4751;border-radius:8px;background:#121b22;color:#edf2f5;padding:10px 14px;font-size:10px;font-weight:900;cursor:pointer}.export-btn.primary{background:#c83d3f;border-color:#d24a4c;color:#fff}.export-btn.gold{background:#e9b620;border-color:#e9b620;color:#081116}.export-btn:disabled{opacity:.55;cursor:not-allowed}.export-builder{display:grid;grid-template-columns:150px repeat(2,minmax(180px,1fr)) auto;gap:10px;align-items:end;padding:15px;border:1px solid #2d3a44;border-radius:12px;background:#101820;margin-bottom:16px}.export-builder label{display:grid;gap:6px;color:#8d9aa3;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.export-builder input,.export-builder select{height:38px;border:1px solid #384650;border-radius:7px;background:#091117;color:#edf2f5;padding:0 10px;font-size:10px}.builder-range{display:grid;grid-template-columns:1fr 1fr;gap:10px}.export-alert{margin-bottom:14px;padding:10px 12px;border:1px solid #6b373a;border-radius:8px;background:#321b1e;color:#ffaaa5;font-size:10px}.ledger-export-report{border:1px solid #303d47;border-radius:14px;background:#0f171d;overflow:hidden}.report-screen-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:17px 18px;border-bottom:1px solid #293640;background:#111b22}.report-screen-head h2{margin:3px 0 0;font-size:23px}.report-screen-head small{color:#e26762;font-size:9px;font-weight:900;letter-spacing:.12em}.report-screen-head p{margin:6px 0 0;color:#82909a;font-size:10px}.report-screen-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px;background:#0b1318;border-bottom:1px solid #293640}.report-stat{padding:12px;border:1px solid #2b3943;border-radius:9px;background:#111a21}.report-stat span{display:block;color:#82909a;font-size:8px;text-transform:uppercase;letter-spacing:.08em}.report-stat strong{display:block;margin-top:7px;font-size:16px;font-variant-numeric:tabular-nums}.positive{color:#91e2ae}.negative{color:#ff958f}.export-table-wrap{overflow:auto}.export-table{width:100%;min-width:1220px;border-collapse:collapse}.export-table th,.export-table td{padding:10px 11px;border-bottom:1px solid #26323b;text-align:left;font-size:9px;vertical-align:top}.export-table th{background:#111a21;color:#8b98a1;font-size:8px;text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0}.export-table .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.export-table .tx{font-weight:800;color:#e4eaed}.export-table .sub{display:block;color:#74818a;font-size:8px;margin-top:2px}.opening-line{background:#182229}.opening-line td{font-weight:800}.print-only{display:none}.empty-report{text-align:center;padding:34px;color:#7c8992;font-size:10px}@media(max-width:900px){.export-top{flex-direction:column}.export-builder{grid-template-columns:1fr}.builder-range{grid-template-columns:1fr}.report-screen-stats{grid-template-columns:1fr 1fr}}@media(max-width:600px){.report-screen-stats{grid-template-columns:1fr}.export-actions{width:100%}.export-btn{flex:1}}
+        .ledger-export-page{color:#eef2f5;padding-bottom:50px}.export-top{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:18px}.export-top a{color:#e9b620;text-decoration:none;font-size:11px;font-weight:800}.export-top h1{margin:8px 0 5px;font-size:34px;letter-spacing:-.03em}.export-top p{margin:0;color:#8b99a2;font-size:11px}.export-actions{display:flex;gap:8px;flex-wrap:wrap}.export-btn{border:1px solid #3a4751;border-radius:8px;background:#121b22;color:#edf2f5;padding:10px 14px;font-size:10px;font-weight:900;cursor:pointer}.export-btn.primary{background:#c83d3f;border-color:#d24a4c;color:#fff}.export-btn.gold{background:#e9b620;border-color:#e9b620;color:#081116}.export-btn:disabled{opacity:.55;cursor:not-allowed}.export-builder{display:grid;grid-template-columns:150px repeat(2,minmax(180px,1fr)) auto;gap:10px;align-items:end;padding:15px;border:1px solid #2d3a44;border-radius:12px;background:#101820;margin-bottom:16px}.export-builder label{display:grid;gap:6px;color:#8d9aa3;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.export-builder input,.export-builder select{height:38px;border:1px solid #384650;border-radius:7px;background:#091117;color:#edf2f5;padding:0 10px;font-size:10px}.builder-range{display:grid;grid-template-columns:1fr 1fr;gap:10px}.export-alert{margin-bottom:14px;padding:10px 12px;border:1px solid #6b373a;border-radius:8px;background:#321b1e;color:#ffaaa5;font-size:10px}.ledger-export-report{border:1px solid #303d47;border-radius:14px;background:#0f171d;overflow:hidden}.report-screen-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:17px 18px;border-bottom:1px solid #293640;background:#111b22}.report-screen-head h2{margin:3px 0 0;font-size:23px}.report-screen-head small{color:#e26762;font-size:9px;font-weight:900;letter-spacing:.12em}.report-screen-head p{margin:6px 0 0;color:#82909a;font-size:10px}.report-screen-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px;background:#0b1318;border-bottom:1px solid #293640}.report-stat{padding:12px;border:1px solid #2b3943;border-radius:9px;background:#111a21}.report-stat span{display:block;color:#82909a;font-size:8px;text-transform:uppercase;letter-spacing:.08em}.report-stat strong{display:block;margin-top:7px;font-size:16px;font-variant-numeric:tabular-nums}.positive{color:#91e2ae}.negative{color:#ff958f}.export-table-wrap{overflow:auto}.export-table{width:100%;min-width:980px;border-collapse:collapse}.export-table th,.export-table td{padding:10px 11px;border-bottom:1px solid #26323b;text-align:left;font-size:9px;vertical-align:top}.export-table th{background:#111a21;color:#8b98a1;font-size:8px;text-transform:uppercase;letter-spacing:.06em;position:sticky;top:0}.export-table .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.export-table .tx{display:block;font-weight:800;color:#e4eaed;overflow-wrap:anywhere}.export-table .project-tag{display:inline-block;margin-top:4px;padding:2px 6px;border:1px solid #3b4852;border-radius:999px;color:#b9c3c9;font-size:8px;font-weight:800}.export-table .detail-main{display:block;color:#e3e9ec;font-weight:800}.export-table .sub{display:block;color:#74818a;font-size:8px;margin-top:3px;line-height:1.35}.opening-line{background:#182229}.opening-line td{font-weight:800}.print-only{display:none}.empty-report{text-align:center;padding:34px;color:#7c8992;font-size:10px}@media(max-width:900px){.export-top{flex-direction:column}.export-builder{grid-template-columns:1fr}.builder-range{grid-template-columns:1fr}.report-screen-stats{grid-template-columns:1fr 1fr}}@media(max-width:600px){.report-screen-stats{grid-template-columns:1fr}.export-actions{width:100%}.export-btn{flex:1}}
         @media print{
-          @page{size:A4 landscape;margin:10mm 8mm 12mm}
-          html,body{margin:0!important;padding:0!important;background:#fff!important;color:#111!important}
+          @page{size:A4 portrait;margin:9mm 8mm 13mm}
+          html,body{margin:0!important;padding:0!important;background:#fff!important;color:#111!important;width:auto!important}
           body *{visibility:hidden!important}
           .ledger-export-report,.ledger-export-report *{visibility:visible!important}
           .ledger-export-report{position:absolute!important;left:0!important;top:0!important;width:100%!important;border:0!important;border-radius:0!important;background:#fff!important;color:#111!important;overflow:visible!important}
           .report-screen-head,.report-screen-stats{display:none!important}
           .print-only{display:block!important}
-          .print-ledger-header{border-bottom:2px solid #d61f26!important;padding-bottom:5mm!important;margin-bottom:4mm!important}
-          .print-brand-row{display:grid!important;grid-template-columns:1.2fr 1fr 1fr!important;gap:8mm!important;align-items:start!important}
-          .print-brand{display:flex!important;align-items:center!important;gap:3mm!important}.print-brand img{width:17mm!important;height:17mm!important;object-fit:contain!important}.print-brand strong{display:block!important;font-size:18pt!important;line-height:1!important}.print-brand strong span{color:#d61f26!important}.print-brand small{display:block!important;margin-top:1.4mm!important;font-size:6.5pt!important;letter-spacing:1px!important}.print-contact{font-size:6.8pt!important;line-height:1.45!important;color:#333!important}.print-title{text-align:right!important}.print-title small{display:block!important;font-size:6.5pt!important;color:#555!important}.print-title b{display:block!important;margin-top:1mm!important;font-size:11pt!important;color:#d61f26!important}.print-title strong{display:block!important;margin-top:1mm!important;font-size:13pt!important}
-          .print-summary{display:grid!important;grid-template-columns:repeat(4,1fr)!important;border:1px solid #cfd5d9!important;margin-bottom:4mm!important}.print-summary div{padding:2.6mm 3mm!important;border-right:1px solid #cfd5d9!important}.print-summary div:last-child{border-right:0!important}.print-summary span{display:block!important;font-size:6.6pt!important;color:#555!important;text-transform:uppercase!important}.print-summary strong{display:block!important;margin-top:1mm!important;font-size:9.5pt!important;color:#111!important}.print-summary .closing{background:#d61f26!important}.print-summary .closing span,.print-summary .closing strong{color:#fff!important}
-          .export-table-wrap{overflow:visible!important}.export-table{width:100%!important;min-width:0!important;border-collapse:collapse!important;table-layout:fixed!important}.export-table thead{display:table-header-group!important}.export-table th{position:static!important;background:#34393d!important;color:#fff!important;font-size:6.4pt!important;padding:1.6mm 1.5mm!important;border:1px solid #34393d!important}.export-table td{font-size:6.5pt!important;color:#111!important;background:#fff!important;padding:1.45mm 1.5mm!important;border:1px solid #d1d6da!important;line-height:1.15!important;overflow-wrap:anywhere!important}.export-table tr{break-inside:avoid!important;page-break-inside:avoid!important}.export-table th:nth-child(1),.export-table td:nth-child(1){width:8%!important}.export-table th:nth-child(2),.export-table td:nth-child(2){width:13%!important}.export-table th:nth-child(3),.export-table td:nth-child(3){width:9%!important}.export-table th:nth-child(4),.export-table td:nth-child(4){width:13%!important}.export-table th:nth-child(5),.export-table td:nth-child(5){width:27%!important}.export-table th:nth-child(6),.export-table td:nth-child(6){width:10%!important}.export-table th:nth-child(7),.export-table td:nth-child(7){width:10%!important}.export-table th:nth-child(8),.export-table td:nth-child(8){width:10%!important}.export-table .sub{font-size:5.6pt!important;color:#555!important}.opening-line td{background:#f2f3f4!important;font-weight:800!important}.print-ledger-footer{position:fixed!important;left:8mm!important;right:8mm!important;bottom:4mm!important;border-top:1px solid #d61f26!important;padding-top:1.5mm!important;display:flex!important;justify-content:space-between!important;font-size:6pt!important;color:#555!important}.print-ledger-footer strong{color:#111!important}
+          .print-ledger-header{border-bottom:.7mm solid #d61f26!important;padding:0 0 3.8mm!important;margin:0 0 3.8mm!important}
+          .print-brand-row{display:grid!important;grid-template-columns:1.05fr 1.15fr .95fr!important;gap:4.5mm!important;align-items:start!important}
+          .print-brand{display:flex!important;align-items:center!important;gap:2.6mm!important;min-width:0!important}
+          .print-brand img{display:block!important;width:15mm!important;height:15mm!important;object-fit:contain!important;flex:0 0 15mm!important}
+          .print-brand strong{display:block!important;font-size:15pt!important;line-height:.95!important;letter-spacing:-.4px!important;color:#111!important;white-space:nowrap!important}
+          .print-brand strong span{color:#d61f26!important}
+          .print-brand small{display:block!important;margin-top:1.2mm!important;font-size:5.8pt!important;letter-spacing:.75px!important;color:#666!important;white-space:nowrap!important}
+          .print-contact{font-size:6.4pt!important;line-height:1.45!important;color:#333!important;padding-top:.8mm!important}
+          .print-contact strong{display:block!important;font-size:6.7pt!important;color:#111!important;margin-bottom:.4mm!important}
+          .print-title{text-align:right!important;min-width:0!important}
+          .print-title small{display:block!important;font-size:5.9pt!important;color:#666!important;line-height:1.35!important}
+          .print-title b{display:block!important;margin-top:1.1mm!important;font-size:10.5pt!important;color:#d61f26!important;line-height:1.05!important}
+          .print-title strong{display:block!important;margin-top:1.2mm!important;font-size:12pt!important;color:#111!important;line-height:1.05!important}
+          .print-summary{display:grid!important;grid-template-columns:1fr 1fr!important;border:.35mm solid #cfd5d9!important;margin:0 0 3.8mm!important;background:#fff!important}
+          .print-summary div{min-height:14mm!important;padding:2.5mm 3mm!important;border-right:.3mm solid #cfd5d9!important;border-bottom:.3mm solid #cfd5d9!important;display:flex!important;flex-direction:column!important;justify-content:center!important;box-sizing:border-box!important}
+          .print-summary div:nth-child(2n){border-right:0!important}
+          .print-summary div:nth-last-child(-n+2){border-bottom:0!important}
+          .print-summary span{display:block!important;font-size:6.5pt!important;color:#555!important;text-transform:uppercase!important;letter-spacing:.35px!important}
+          .print-summary strong{display:block!important;margin-top:1.2mm!important;font-size:10.2pt!important;color:#111!important;font-variant-numeric:tabular-nums!important}
+          .print-summary .closing{background:#d61f26!important}
+          .print-summary .closing span,.print-summary .closing strong{color:#fff!important}
+          .export-table-wrap{overflow:visible!important}
+          .export-table{width:100%!important;min-width:0!important;border-collapse:collapse!important;table-layout:fixed!important}
+          .export-table thead{display:table-header-group!important}
+          .export-table th{position:static!important;background:#34393d!important;color:#fff!important;font-size:6.5pt!important;padding:1.75mm 1.35mm!important;border:.25mm solid #34393d!important;line-height:1.05!important;vertical-align:middle!important}
+          .export-table td{font-size:6.55pt!important;color:#111!important;background:#fff!important;padding:1.55mm 1.35mm!important;border:.25mm solid #cfd5d9!important;line-height:1.18!important;vertical-align:top!important;overflow-wrap:break-word!important;word-break:normal!important}
+          .export-table tr{break-inside:avoid!important;page-break-inside:avoid!important}
+          .export-table th:nth-child(1),.export-table td:nth-child(1){width:12%!important}
+          .export-table th:nth-child(2),.export-table td:nth-child(2){width:19%!important}
+          .export-table th:nth-child(3),.export-table td:nth-child(3){width:35%!important}
+          .export-table th:nth-child(4),.export-table td:nth-child(4){width:11%!important}
+          .export-table th:nth-child(5),.export-table td:nth-child(5){width:11%!important}
+          .export-table th:nth-child(6),.export-table td:nth-child(6){width:12%!important}
+          .export-table .num{text-align:right!important;white-space:nowrap!important;font-variant-numeric:tabular-nums!important}
+          .export-table .tx{display:block!important;font-size:6.15pt!important;font-weight:800!important;color:#111!important;overflow-wrap:anywhere!important;line-height:1.12!important}
+          .export-table .project-tag{display:inline-block!important;margin-top:.7mm!important;padding:.45mm 1mm!important;border:.25mm solid #c9cfd3!important;border-radius:2mm!important;font-size:5.7pt!important;font-weight:800!important;color:#333!important;background:#f5f6f7!important}
+          .export-table .detail-main{display:block!important;font-size:6.7pt!important;font-weight:700!important;color:#111!important;line-height:1.17!important}
+          .export-table .sub{display:block!important;font-size:5.65pt!important;line-height:1.18!important;color:#555!important;margin-top:.6mm!important}
+          .opening-line td{background:#f1f3f4!important;font-weight:800!important;vertical-align:middle!important}
+          .opening-line .detail-main{font-weight:800!important}
+          .print-ledger-footer{position:fixed!important;left:8mm!important;right:8mm!important;bottom:4mm!important;border-top:.35mm solid #d61f26!important;padding-top:1.5mm!important;display:flex!important;justify-content:space-between!important;gap:5mm!important;font-size:5.9pt!important;color:#555!important;background:#fff!important}
+          .print-ledger-footer strong{color:#111!important}
           .empty-report{color:#444!important}
           *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
         }
@@ -367,9 +404,9 @@ export default function LedgerExportPage() {
             </div>
             <div className="print-title">
               <small>Generated {generatedOn}</small>
-              <b>Ledger Statement</b>
+              <b>Financial Ledger Statement</b>
               <strong>{label}</strong>
-              <small>{displayDate(range.start)} - {displayDate(range.end)}</small>
+              <small>{displayDate(range.start)} — {displayDate(range.end)}</small>
             </div>
           </div>
         </div>
@@ -384,17 +421,36 @@ export default function LedgerExportPage() {
         {loading ? <div className="empty-report">Loading ledger…</div> : selectedRows.length === 0 ? <div className="empty-report">No ledger transactions found for this period.</div> : (
           <div className="export-table-wrap">
             <table className="export-table">
-              <thead><tr><th>Date</th><th>Transaction ID</th><th>Project</th><th>Category</th><th>Details</th><th className="num">Expense</th><th className="num">Income</th><th className="num">Balance</th></tr></thead>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>Transaction / Project</th>
+                  <th>Details</th>
+                  <th className="num">Expense</th>
+                  <th className="num">Income</th>
+                  <th className="num">Balance</th>
+                </tr>
+              </thead>
               <tbody>
                 <tr className="opening-line">
-                  <td>{displayDate(range.start)}</td><td>OPENING</td><td>—</td><td>Opening Balance</td><td>Balance brought forward before selected period</td><td className="num">—</td><td className="num">—</td><td className="num">{money(openingBalance)}</td>
+                  <td>{displayDate(range.start)}</td>
+                  <td><span className="tx">OPENING</span></td>
+                  <td><span className="detail-main">Opening Balance</span><span className="sub">Balance brought forward before selected period</span></td>
+                  <td className="num">—</td>
+                  <td className="num">—</td>
+                  <td className="num">{money(openingBalance)}</td>
                 </tr>
                 {selectedRows.map((row) => <tr key={row.id}>
                   <td>{displayDate(row.date)}</td>
-                  <td><span className="tx">{row.id}</span><span className="sub">{row.sourceType || row.type}</span></td>
-                  <td>{row.projectId || "—"}</td>
-                  <td>{row.category}</td>
-                  <td>{row.description}<span className="sub">{[row.account || row.method, row.reference].filter(Boolean).join(" · ") || "—"}</span></td>
+                  <td>
+                    <span className="tx">{row.id}</span>
+                    {row.projectId ? <span className="project-tag">{row.projectId}</span> : <span className="sub">{row.sourceType || row.type}</span>}
+                  </td>
+                  <td>
+                    <span className="detail-main">{row.description}</span>
+                    <span className="sub">{row.category}</span>
+                    <span className="sub">{[row.account || row.method, row.reference].filter(Boolean).join(" · ") || "—"}</span>
+                  </td>
                   <td className="num">{row.debit ? money(row.debit) : "—"}</td>
                   <td className="num">{row.credit ? money(row.credit) : "—"}</td>
                   <td className="num">{money(row.balance)}</td>
