@@ -439,10 +439,13 @@ export default function AccountsBankStatementPage() {
   const currentBalance = cashMonthChronological.length
     ? cashMonthChronological[cashMonthChronological.length - 1].balance
     : previousBalance;
-  const monthIncome = officialMonthChronological.reduce((sum, row) => sum + row.credit, 0);
-  const monthExpense = officialMonthChronological.reduce((sum, row) => sum + row.debit, 0);
+  const officialMonthIncome = officialMonthChronological.reduce((sum, row) => sum + row.credit, 0);
+  const officialMonthExpense = officialMonthChronological.reduce((sum, row) => sum + row.debit, 0);
+  const officialMonthNet = officialMonthIncome - officialMonthExpense;
+  const monthIncome = cashMonthChronological.reduce((sum, row) => sum + row.credit, 0);
+  const monthExpense = cashMonthChronological.reduce((sum, row) => sum + row.debit, 0);
   const monthNet = monthIncome - monthExpense;
-  const cashMonthNet = cashMonthChronological.reduce((sum, row) => sum + row.credit - row.debit, 0);
+  const cashMonthNet = monthNet;
 
   const pendingThisMonth = useMemo(
     () => expenses.filter((record) => pendingExpense(record) && dateKey(field(record, ["Expense_Date", "Expense Date", "Date"])).startsWith(monthKey)),
@@ -459,11 +462,11 @@ export default function AccountsBankStatementPage() {
 
   const modeRows = useMemo(() => {
     if (mode === "statement") return monthStatementRows;
-    if (mode === "income") return [...officialMonthChronological].filter((row) => row.credit > 0).sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id));
-    if (mode === "expenses") return [...officialMonthChronological].filter((row) => row.debit > 0).sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id));
+    if (mode === "income") return [...cashMonthChronological].filter((row) => row.credit > 0).sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id));
+    if (mode === "expenses") return [...cashMonthChronological].filter((row) => row.debit > 0).sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id));
     if (mode === "personal") return [...personalRows].sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id));
     return filteredLedger;
-  }, [filteredLedger, mode, monthStatementRows, officialMonthChronological, personalRows]);
+  }, [filteredLedger, mode, monthStatementRows, cashMonthChronological, personalRows]);
 
   const categoryBreakdown = useMemo(() => {
     const map = new Map<string, { category: string; income: number; expense: number }>();
@@ -569,14 +572,14 @@ export default function AccountsBankStatementPage() {
           <p>Balance carried forward into {monthLabel}.</p>
         </article>
         <article className="bank-metric">
-          <span>Income this month</span>
+          <span>Total income this month</span>
           <strong className="positive">{money(monthIncome)}</strong>
-          <p>{officialMonthChronological.filter((row) => row.credit > 0).length} official credit transaction{officialMonthChronological.filter((row) => row.credit > 0).length === 1 ? "" : "s"}.</p>
+          <p>{cashMonthChronological.filter((row) => row.credit > 0).length} credit transaction{cashMonthChronological.filter((row) => row.credit > 0).length === 1 ? "" : "s"} · official {money(officialMonthIncome)}.</p>
         </article>
         <article className="bank-metric">
-          <span>Expense this month</span>
+          <span>Total expense this month</span>
           <strong className="negative">{money(monthExpense)}</strong>
-          <p>{officialMonthChronological.filter((row) => row.debit > 0).length} official debit transaction{officialMonthChronological.filter((row) => row.debit > 0).length === 1 ? "" : "s"}.</p>
+          <p>{cashMonthChronological.filter((row) => row.debit > 0).length} debit transaction{cashMonthChronological.filter((row) => row.debit > 0).length === 1 ? "" : "s"} · official {money(officialMonthExpense)}.</p>
         </article>
         <article className="bank-metric">
           <span>Current balance</span>
@@ -590,7 +593,7 @@ export default function AccountsBankStatementPage() {
           <div className="statement-title">
             <small>{mode === "ledger" ? "AUTHORITATIVE LEDGER" : mode === "personal" ? "ENG RONY / PERSONAL" : mode === "reports" ? "CURRENT MONTH ANALYSIS" : "CURRENT MONTH STATEMENT"}</small>
             <h2>{mode === "ledger" ? "Full running ledger" : mode === "personal" ? "Eng Rony personal ledger" : mode === "reports" ? `${monthLabel} report` : `${monthLabel} statement`}</h2>
-            <p>{mode === "ledger" ? "Full cash running balance, including separately tagged personal movements, newest transaction first." : mode === "personal" ? "Personal income and expenses stay separate from official income/expense reporting but still affect the shared cash balance." : mode === "reports" ? "Official income and expenditure summarized by category for this month." : "Newest transaction stays at the top. Current balance includes official and separately tagged personal cash movements."}</p>
+            <p>{mode === "ledger" ? "Full cash running balance, including separately tagged personal movements, newest transaction first." : mode === "personal" ? "Personal income and expenses stay separately tagged but are included in total monthly cashflow and the shared running balance." : mode === "reports" ? "Official income and expenditure summarized by category for this month." : "Newest transaction stays at the top. Monthly totals and current balance include official and separately tagged personal cash movements."}</p>
           </div>
           <div className="statement-head-stats">
             {mode === "personal" ? <>
