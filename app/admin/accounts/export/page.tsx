@@ -333,8 +333,8 @@ export default function LedgerExportPage() {
           .export-table .sub{display:block!important;font-size:5.65pt!important;line-height:1.18!important;color:#555!important;margin-top:.6mm!important}
           .opening-line td{background:#f1f3f4!important;font-weight:800!important;vertical-align:middle!important}
           .opening-line .detail-main{font-weight:800!important}
-          .print-ledger-footer{position:fixed!important;left:8mm!important;right:8mm!important;bottom:4mm!important;border-top:.35mm solid #d61f26!important;padding-top:1.5mm!important;display:flex!important;justify-content:space-between!important;gap:5mm!important;font-size:5.9pt!important;color:#555!important;background:#fff!important}
-          .print-ledger-footer strong{color:#111!important}
+          .print-ledger-footer{position:static!important;left:auto!important;right:auto!important;bottom:auto!important;min-height:7mm!important;margin-top:4mm!important;border-top:.45mm solid #d61f26!important;padding:1.8mm .8mm 0!important;display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:5mm!important;font-size:6pt!important;line-height:1.25!important;color:#555!important;background:#fff!important;box-sizing:border-box!important;break-inside:avoid!important;page-break-inside:avoid!important}
+          .print-ledger-footer strong{color:#111!important;font-weight:800!important}
           .empty-report{color:#444!important}
           *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
         }
