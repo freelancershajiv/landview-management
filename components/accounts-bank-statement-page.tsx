@@ -549,6 +549,7 @@ export default function AccountsBankStatementPage() {
         </div>
         <div className="bank-actions">
           <Link className="bank-btn primary" href="/admin/accounts/entry">＋ Record transaction</Link>
+          <Link className="bank-btn" href="/admin/accounts/export">Export Ledger</Link>
           <Link className="bank-btn" href="/admin/finance">Billing</Link>
           <a className="bank-btn" href={FINANCE_URL} target="_blank" rel="noreferrer">Finance Database</a>
           <button className="bank-btn" type="button" disabled={loading} onClick={() => setRevision((value) => value + 1)}>{loading ? "Refreshing…" : "Refresh"}</button>
