@@ -295,7 +295,46 @@ export async function handleLandviewDataAction(action: string, input: Row, user:
   if (action === "createDocument") { const p=await projectRow(input.projectId||input.Project_ID); const row={project_id:p.id,document_code:text(pick(input,"Document_ID","Document_Code"))||code("DOC"),title:text(pick(input,"Title","Document_Title"))||"Project Document",document_type:text(pick(input,"Document_Type","Type"))||null,drive_file_id:text(pick(input,"File_ID","Drive_File_ID"))||null,drive_file_url:text(pick(input,"File_URL","Drive_File_URL"))||null,document_date:text(pick(input,"Document_Date","Date"))||null,client_visible:bool(pick(input,"Client_Visible"),false)}; const saved=await insertRows("documents",row); return documentLegacy(saved[0]||row,p.project_code); }
   if (action === "createSiteVisit") { const p=await projectRow(input.projectId||input.Project_ID); const empCode=text(pick(input,"Employee_ID","employeeId")); const emp=empCode?await employeeRow(empCode):null; const row={visit_code:text(pick(input,"Visit_ID","visitId"))||code("SV"),project_id:p.id,employee_id:emp?.id||null,visit_date:text(pick(input,"Visit_Date","Date"))||new Date().toISOString().slice(0,10),purpose:text(pick(input,"Purpose","Visit_Purpose"))||null,visit_purpose:text(pick(input,"Visit_Purpose","Purpose"))||null,visited_by:text(pick(input,"Visited_By"))||emp?.name||null,observations:text(pick(input,"Observations"))||null,action_required:text(pick(input,"Action_Required"))||null,status:text(pick(input,"Status"))||"Completed",notes:text(pick(input,"Notes"))||null}; const saved=await insertRows("site_visits",row); return visitLegacy(saved[0]||row,p.project_code,emp?.employee_code||""); }
   if (["saveBill","createBill"].includes(action)) { const p=await projectRow(input.projectId||input.Project_ID); const idem=text(pick(input,"Idempotency_Key","idempotencyKey")); if(idem){const found=await selectRows("bills",{filters:{idempotency_key:idem},limit:1});if(found.length)return billLegacy(found[0],p.project_code);} const amount=num(pick(input,"Amount","Bill_Amount","Total","Grand_Total")),discount=num(pick(input,"Discount","Discount_Amount")); const row={bill_code:text(pick(input,"Bill_ID","billId","bill_code"))||code("BILL"),project_id:p.id,bill_date:text(pick(input,"Bill_Date","Date"))||new Date().toISOString().slice(0,10),billing_category:categoryOf(input),category:categoryOf(input),description:text(pick(input,"Description","Service","Particulars","Item"))||"Service Bill",amount,discount,status:text(pick(input,"Status"))||"ACTIVE",notes:text(pick(input,"Notes"))||null,created_via:"Supabase",source_created_by:employeeCodeOf(user)||text((user as Row)?.username)||"LAND VIEW",source_created_at:new Date().toISOString(),idempotency_key:idem||null,unit_price:text(pick(input,"Unit_Price","Rate"))?num(pick(input,"Unit_Price","Rate")):null,quantity:text(pick(input,"Quantity","QTY"))?num(pick(input,"Quantity","QTY")):null}; const saved=await insertRows("bills",row); return billLegacy(saved[0]||row,p.project_code); }
-  if (["savePayment","createPayment"].includes(action)) { const p=await projectRow(input.projectId||input.Project_ID); const idem=text(pick(input,"Idempotency_Key","idempotencyKey")); if(idem){const found=await selectRows("payments",{filters:{idempotency_key:idem},limit:1});if(found.length)return paymentLegacy(found[0],p.project_code);} const master=role==="admin"; const who=employeeCodeOf(user)||text((user as Row)?.username)||"Master Admin"; const row={payment_code:text(pick(input,"Payment_ID","paymentId","Income_ID"))||code("PAY"),project_id:p.id,payment_date:text(pick(input,"Payment_Date","Date"))||new Date().toISOString().slice(0,10),amount:num(pick(input,"Amount","Payment_Amount")),payment_method:text(pick(input,"Payment_Method","Method"))||null,reference_no:text(pick(input,"Reference_No","Reference"))||null,notes:text(pick(input,"Notes","Description"))||null,deposit_account:text(pick(input,"Deposit_Account","Account"))||"Office Cash",payment_for:text(pick(input,"Payment_For","Category"))||"Engineering Bill",income_category:categoryOf(input),transaction_type:text(pick(input,"Transaction_Type"))||"Business Income",affects_business_balance:pick(input,"Affects_Business_Balance")!==""?bool(pick(input,"Affects_Business_Balance"),true):true,received_from:text(pick(input,"Received_From"))||p.client_name_snapshot||null,received_by:who,receipt_url:text(pick(input,"Receipt_URL"))||null,approval_status:master?"Approved":text(pick(input,"Approval_Status"))||"Pending",approved_by:master?who:null,approved_at:master?new Date().toISOString():null,reviewed_by:master?who:null,reviewed_at:master?new Date().toISOString():null,idempotency_key:idem||null,status:"POSTED",source_created_by:who,source_created_at:new Date().toISOString()}; const saved=await insertRows("payments",row); return paymentLegacy(saved[0]||row,p.project_code); }
+  if (["savePayment","createPayment"].includes(action)) {
+    const projectCode=text(pick(input,"Project_ID","projectId"));
+    const p=projectCode?await projectRow(projectCode):null;
+    const idem=text(pick(input,"Idempotency_Key","idempotencyKey"));
+    if(idem){
+      const found=await selectRows("payments",{filters:{idempotency_key:idem},limit:1});
+      if(found.length)return paymentLegacy(found[0],p?.project_code||"");
+    }
+    const master=role==="admin";
+    const who=employeeCodeOf(user)||text((user as Row)?.username)||"Master Admin";
+    const requestedIncomeCategory=text(pick(input,"Income_Category","Category"))||"Other Income";
+    const row={
+      payment_code:text(pick(input,"Payment_ID","paymentId","Income_ID"))||code("PAY"),
+      project_id:p?.id||null,
+      payment_date:text(pick(input,"Payment_Date","Date"))||new Date().toISOString().slice(0,10),
+      amount:num(pick(input,"Amount","Payment_Amount")),
+      payment_method:text(pick(input,"Payment_Method","Method"))||null,
+      reference_no:text(pick(input,"Reference_No","Reference"))||null,
+      notes:text(pick(input,"Notes","Description"))||null,
+      deposit_account:text(pick(input,"Deposit_Account","Account"))||"Office Cash",
+      payment_for:text(pick(input,"Payment_For","Category"))||(p?"Engineering Bill":requestedIncomeCategory),
+      income_category:p?categoryOf(input):requestedIncomeCategory,
+      transaction_type:text(pick(input,"Transaction_Type"))||(p?"Business Income":"Office Income"),
+      affects_business_balance:pick(input,"Affects_Business_Balance")!==""?bool(pick(input,"Affects_Business_Balance"),true):true,
+      received_from:text(pick(input,"Received_From"))||p?.client_name_snapshot||null,
+      received_by:who,
+      receipt_url:text(pick(input,"Receipt_URL"))||null,
+      approval_status:master?"Approved":text(pick(input,"Approval_Status"))||"Pending",
+      approved_by:master?who:null,
+      approved_at:master?new Date().toISOString():null,
+      reviewed_by:master?who:null,
+      reviewed_at:master?new Date().toISOString():null,
+      idempotency_key:idem||null,
+      status:"POSTED",
+      source_created_by:who,
+      source_created_at:new Date().toISOString()
+    };
+    const saved=await insertRows("payments",row);
+    return paymentLegacy(saved[0]||row,p?.project_code||"");
+  }
   if (action === "reviewChairmanPendingApproval") { const id=text(input.id||input.Source_ID); if(!id)throw new Error("Payment ID is required."); const found=await selectRows("payments",{filters:{payment_code:id},limit:1}); if(!found.length)throw new Error("Payment not found."); if(bool(input.acknowledgeOnly)){const rows=await updateRows("payments",{payment_code:id},{reviewed_by:"EMP-0001",reviewed_at:new Date().toISOString(),review_notes:text(input.note)||"Seen by EMP-0001"});return{...(rows[0]?paymentLegacy(rows[0]):{}),Acknowledged:true,Ledger_Posted:true};} const who=employeeCodeOf(user)||text((user as Row)?.username)||"Master Admin"; const status=text(input.status)||"Approved"; const rows=await updateRows("payments",{payment_code:id},{approval_status:status,approved_by:who,approved_at:new Date().toISOString(),reviewed_by:who,reviewed_at:new Date().toISOString(),review_notes:text(input.note)||null,status:"POSTED"}); return{...(rows[0]?paymentLegacy(rows[0]):{}),Ledger_Posted:true}; }
   if (action === "initializeErpSheets") return {initialized:true,modules:["clients","tasks","attendance","leave","expenses","approvals"]};
   if (action === "createErpRecord" || action === "updateErpRecord") {
