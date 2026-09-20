@@ -21,6 +21,18 @@ type Row = {
   search: string;
 };
 type RunningRow = Row & { debit: number; credit: number; balance: number };
+type HistoricalEditForm = {
+  id: string;
+  date: string;
+  type: "Income" | "Expense";
+  projectId: string;
+  category: string;
+  description: string;
+  amount: string;
+  method: string;
+  account: string;
+  reference: string;
+};
 
 type NormalizedLedgerItem = {
   row: Row;
@@ -34,6 +46,8 @@ type NormalizedLedgerItem = {
 const FINANCE_URL = "https://docs.google.com/spreadsheets/d/1RDbzIr4aaysiB-UTZQKRK6m60HLg3zSZVzNrdgnGHBc/edit";
 const LEDGER_LIVE_START = "2026-09-01";
 const LEDGER_END = "2026-12-31";
+const HISTORICAL_EDIT_CUTOFF = "2026-09-01";
+const LEDGER_METHODS = ["Cash", "bKash", "Nagad", "Bank", "Card", "Cheque", "Other"];
 const DHAKA_DATE = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Dhaka",
   year: "numeric",
@@ -126,18 +140,24 @@ function pendingExpense(record: Record<string, unknown>) {
   return normalizeStatus(field(record, ["Approval_Status", "Approval Status", "Status"])) === "pending";
 }
 
+function editableHistoricalTransaction(id: string, date: string) {
+  return (id.startsWith("TXN-HIST-2026-") || id.startsWith("TXN-LEDGER-2025-")) && dateKey(date) < HISTORICAL_EDIT_CUTOFF;
+}
+
 function StatementTable({
   rows,
   openingBalance,
   monthKey,
   showOpening,
   emptyText,
+  onEdit,
 }: {
   rows: RunningRow[];
   openingBalance?: number;
   monthKey?: string;
   showOpening?: boolean;
   emptyText: string;
+  onEdit?: (row: RunningRow) => void;
 }) {
   return (
     <div className="bank-table-wrap">
@@ -152,12 +172,13 @@ function StatementTable({
             <th className="num">Expense · Debit</th>
             <th className="num">Income · Credit</th>
             <th className="num">Balance</th>
+            {onEdit && <th>Action</th>}
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 && (
             <tr className="empty-row">
-              <td colSpan={8}>{emptyText}</td>
+              <td colSpan={onEdit ? 9 : 8}>{emptyText}</td>
             </tr>
           )}
           {rows.map((row) => {
@@ -185,6 +206,7 @@ function StatementTable({
                 <td className="num debit">{row.debit ? money(row.debit) : "—"}</td>
                 <td className="num credit">{row.credit ? money(row.credit) : "—"}</td>
                 <td className={`num balance ${row.balance < 0 ? "negative" : "positive"}`}>{money(row.balance)}</td>
+                {onEdit && <td>{editableHistoricalTransaction(row.id, row.date) ? <button className="ledger-edit-btn" type="button" onClick={() => onEdit(row)}>Edit</button> : <span className="ledger-source-lock">Source record</span>}</td>}
               </tr>
             );
           })}
@@ -198,6 +220,7 @@ function StatementTable({
               <td className="num">—</td>
               <td className="num">—</td>
               <td className={`num balance ${(openingBalance || 0) < 0 ? "negative" : "positive"}`}>{money(openingBalance || 0)}</td>
+              {onEdit && <td>—</td>}
             </tr>
           )}
         </tbody>
@@ -213,6 +236,10 @@ export default function AccountsBankStatementPage() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [editError, setEditError] = useState("");
+  const [edit, setEdit] = useState<HistoricalEditForm | null>(null);
+  const [savingEdit, setSavingEdit] = useState(false);
   const [revision, setRevision] = useState(0);
 
   useEffect(() => {
@@ -382,10 +409,69 @@ export default function AccountsBankStatementPage() {
   const allCredit = ledgerRows.reduce((sum, row) => sum + row.credit, 0);
   const allDebit = ledgerRows.reduce((sum, row) => sum + row.debit, 0);
 
+  function beginHistoricalEdit(row: RunningRow) {
+    setMessage("");
+    setEditError("");
+    setEdit({
+      id: row.id,
+      date: dateKey(row.date),
+      type: row.debit > 0 ? "Expense" : "Income",
+      projectId: row.projectId,
+      category: row.category,
+      description: row.description,
+      amount: String(row.debit || row.credit || row.amount || ""),
+      method: row.method,
+      account: row.account,
+      reference: row.reference,
+    });
+  }
+
+  async function saveHistoricalEdit() {
+    if (!edit) return;
+    const value = Number(edit.amount.replace(/,/g, ""));
+    if (!edit.date) return setEditError("Choose a transaction date.");
+    if (edit.date >= HISTORICAL_EDIT_CUTOFF) return setEditError("Historical ledger entries must stay before September 2026.");
+    if (!edit.description.trim()) return setEditError("Description is required.");
+    if (!Number.isFinite(value) || value <= 0) return setEditError("Enter a valid amount greater than zero.");
+
+    setSavingEdit(true);
+    setEditError("");
+    try {
+      const response = await fetch("/api/accounts/ledger", {
+        method: "PATCH",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          Transaction_ID: edit.id,
+          Transaction_Date: edit.date,
+          Entry_Type: edit.type,
+          Project_ID: edit.projectId.trim(),
+          Category: edit.category.trim(),
+          Description: edit.description.trim(),
+          Amount: value,
+          Payment_Method: edit.method,
+          Account: edit.account.trim(),
+          Reference_No: edit.reference.trim(),
+        }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not update historical ledger entry."));
+      const id = edit.id;
+      setEdit(null);
+      setMessage(`${id} updated. Running balances were recalculated from the edited history.`);
+      setRevision((value) => value + 1);
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Could not update historical ledger entry.");
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   return (
     <div className="bank-accounts-page">
       <style>{`
-        .bank-accounts-page{--bg:#0b1116;--panel:#10181f;--panel2:#131d25;--line:#293640;--line2:#35434e;--text:#edf2f5;--muted:#84919a;--green:#8fe0ad;--green-bg:#12291c;--red:#ff958f;--red-bg:#30191c;--amber:#e8c66f;color:var(--text);padding-bottom:24px}.bank-accounts-page *{box-sizing:border-box}.bank-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin:0 0 16px}.bank-kicker{display:block;color:#ed6963;font-size:10px;font-weight:900;letter-spacing:.14em}.bank-head h1{margin:5px 0 2px;font-size:36px;line-height:1;letter-spacing:-.035em}.bank-head p{margin:7px 0 0;color:var(--muted);font-size:11px}.bank-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}.bank-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:35px;padding:8px 12px;border:1px solid #3a4751;border-radius:9px;background:#131b22;color:#e8eef1;text-decoration:none;font-size:10px;font-weight:900;cursor:pointer}.bank-btn:hover{border-color:#5a6872}.bank-btn.primary{background:#c83d3f;border-color:#d44c4e;color:#fff}.bank-btn:disabled{opacity:.55;cursor:not-allowed}.bank-alert{margin-bottom:12px;padding:10px 13px;border:1px solid #65363a;border-radius:9px;background:#321c1e;color:#ffaaa5;font-size:10px}.bank-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.bank-metric{position:relative;overflow:hidden;min-height:105px;padding:15px 16px;border:1px solid #303d47;border-radius:13px;background:linear-gradient(145deg,#151f27,#0f171d)}.bank-metric:after{content:"";position:absolute;right:-24px;bottom:-38px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.025)}.bank-metric span{display:block;color:#8b98a1;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.09em}.bank-metric strong{position:relative;display:block;margin-top:10px;font-size:21px;font-variant-numeric:tabular-nums;white-space:nowrap}.bank-metric p{position:relative;margin:7px 0 0;color:#73808a;font-size:9px;line-height:1.45}.positive{color:var(--green)!important}.negative{color:var(--red)!important}.bank-statement{overflow:hidden;border:1px solid #303d47;border-radius:15px;background:linear-gradient(180deg,#10181f,#0b1217);box-shadow:0 18px 50px rgba(0,0,0,.12)}.statement-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:17px 18px 15px;border-bottom:1px solid #293640;background:radial-gradient(circle at 88% -40%,rgba(211,65,64,.16),transparent 42%)}.statement-title small{display:block;color:#ee6b65;font-size:9px;font-weight:900;letter-spacing:.14em}.statement-title h2{margin:4px 0 4px;font-size:23px;letter-spacing:-.02em}.statement-title p{margin:0;color:#7e8b94;font-size:10px;line-height:1.5}.statement-head-stats{display:flex;gap:18px}.head-stat{text-align:right}.head-stat span{display:block;color:#75828b;font-size:8px;text-transform:uppercase;letter-spacing:.08em}.head-stat strong{display:block;margin-top:4px;font-size:14px;font-variant-numeric:tabular-nums}.bank-tabs{display:flex;align-items:center;gap:5px;padding:8px 10px;border-bottom:1px solid #28343d;background:#0d151b;overflow:auto}.bank-tabs button{border:0;border-radius:7px;background:transparent;color:#89969e;padding:7px 11px;font-size:9px;font-weight:900;white-space:nowrap;cursor:pointer}.bank-tabs button.active{background:#c83d3f;color:white;box-shadow:0 4px 14px rgba(200,61,63,.18)}.bank-tabs .tab-spacer{flex:1}.statement-search{width:min(280px,35vw);border:1px solid #33414b;border-radius:7px;background:#091117;color:#edf2f5;padding:8px 10px;font-size:9px;outline:none}.statement-search:focus{border-color:#596873}.bank-table-wrap{max-width:100%;overflow:auto}.bank-table{width:100%;min-width:1120px;border-collapse:collapse}.bank-table th,.bank-table td{padding:11px 12px;border-bottom:1px solid #25313a;vertical-align:middle;text-align:left}.bank-table th{position:sticky;top:0;z-index:2;background:#111a21;color:#8a969f;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.075em}.bank-table td{font-size:10px}.bank-table .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.transaction-row:hover{background:#121c23}.date-cell{color:#a5afb5;white-space:nowrap}.tx-id{display:block;color:#e5ebee;font-size:10px}.particular{display:block;color:#dfe6e9;font-size:10px}.subline{display:block;margin-top:3px;color:#73808a;font-size:8px;line-height:1.35}.type-pill{display:inline-flex;align-items:center;justify-content:center;min-width:61px;padding:5px 7px;border:1px solid;border-radius:999px;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.type-pill.income{border-color:#315f42;background:#152a1e;color:#9ee5b7}.type-pill.expense{border-color:#6e3439;background:#321b1d;color:#ffaaa5}.type-pill.opening{border-color:#4d5b66;background:#1b252d;color:#bdc8ce}.debit{color:var(--red);font-weight:900}.credit{color:var(--green);font-weight:900}.balance{font-weight:900}.opening-row{background:#182229}.opening-row td{border-top:2px solid #45535e;border-bottom:0}.opening-row .balance{font-size:11px}.empty-row td{text-align:center;color:#75828b;padding:30px}.statement-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;border-top:1px solid #293640;background:#0c141a;color:#74818a;font-size:9px}.footer-note strong{color:#aeb8be}.pending-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #5b4d2c;border-radius:999px;background:#251f12;color:#e5c46d;padding:5px 8px;font-weight:900}.report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px}.report-card{border:1px solid #2c3943;border-radius:11px;background:#101820;padding:14px}.report-card span{display:block;color:#7f8c95;font-size:9px;text-transform:uppercase;letter-spacing:.08em}.report-card strong{display:block;margin-top:8px;font-size:19px}.category-table{padding:0}.category-table table{width:100%;border-collapse:collapse}.category-table th,.category-table td{padding:11px 13px;border-bottom:1px solid #25313a;font-size:10px}.category-table th{text-align:left;color:#89969f;font-size:8px;text-transform:uppercase;letter-spacing:.07em}.category-table .num{text-align:right;font-variant-numeric:tabular-nums}.category-table tr:last-child td{border-bottom:0}@media(max-width:1000px){.bank-metrics{grid-template-columns:1fr 1fr}.bank-head{align-items:flex-start;flex-direction:column}.bank-actions{justify-content:flex-start}.statement-head{flex-direction:column}.statement-head-stats{width:100%;justify-content:space-between}.head-stat{text-align:left}.report-grid{grid-template-columns:1fr}}@media(max-width:700px){.bank-metrics{grid-template-columns:1fr}.bank-head h1{font-size:31px}.bank-actions{width:100%}.bank-btn{flex:1}.bank-tabs{align-items:stretch;flex-wrap:wrap}.bank-tabs .tab-spacer{display:none}.statement-search{width:100%;max-width:none}.statement-head-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.statement-footer{align-items:flex-start;flex-direction:column}}
+        .bank-accounts-page{--bg:#0b1116;--panel:#10181f;--panel2:#131d25;--line:#293640;--line2:#35434e;--text:#edf2f5;--muted:#84919a;--green:#8fe0ad;--green-bg:#12291c;--red:#ff958f;--red-bg:#30191c;--amber:#e8c66f;color:var(--text);padding-bottom:24px}.bank-accounts-page *{box-sizing:border-box}.bank-head{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin:0 0 16px}.bank-kicker{display:block;color:#ed6963;font-size:10px;font-weight:900;letter-spacing:.14em}.bank-head h1{margin:5px 0 2px;font-size:36px;line-height:1;letter-spacing:-.035em}.bank-head p{margin:7px 0 0;color:var(--muted);font-size:11px}.bank-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;flex-wrap:wrap}.bank-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:35px;padding:8px 12px;border:1px solid #3a4751;border-radius:9px;background:#131b22;color:#e8eef1;text-decoration:none;font-size:10px;font-weight:900;cursor:pointer}.bank-btn:hover{border-color:#5a6872}.bank-btn.primary{background:#c83d3f;border-color:#d44c4e;color:#fff}.bank-btn:disabled{opacity:.55;cursor:not-allowed}.bank-alert{margin-bottom:12px;padding:10px 13px;border:1px solid #65363a;border-radius:9px;background:#321c1e;color:#ffaaa5;font-size:10px}.bank-alert.success{border-color:#2e6345;background:#183524;color:#a2e6b8}.bank-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}.bank-metric{position:relative;overflow:hidden;min-height:105px;padding:15px 16px;border:1px solid #303d47;border-radius:13px;background:linear-gradient(145deg,#151f27,#0f171d)}.bank-metric:after{content:"";position:absolute;right:-24px;bottom:-38px;width:100px;height:100px;border-radius:50%;background:rgba(255,255,255,.025)}.bank-metric span{display:block;color:#8b98a1;font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.09em}.bank-metric strong{position:relative;display:block;margin-top:10px;font-size:21px;font-variant-numeric:tabular-nums;white-space:nowrap}.bank-metric p{position:relative;margin:7px 0 0;color:#73808a;font-size:9px;line-height:1.45}.positive{color:var(--green)!important}.negative{color:var(--red)!important}.bank-statement{overflow:hidden;border:1px solid #303d47;border-radius:15px;background:linear-gradient(180deg,#10181f,#0b1217);box-shadow:0 18px 50px rgba(0,0,0,.12)}.statement-head{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;padding:17px 18px 15px;border-bottom:1px solid #293640;background:radial-gradient(circle at 88% -40%,rgba(211,65,64,.16),transparent 42%)}.statement-title small{display:block;color:#ee6b65;font-size:9px;font-weight:900;letter-spacing:.14em}.statement-title h2{margin:4px 0 4px;font-size:23px;letter-spacing:-.02em}.statement-title p{margin:0;color:#7e8b94;font-size:10px;line-height:1.5}.statement-head-stats{display:flex;gap:18px}.head-stat{text-align:right}.head-stat span{display:block;color:#75828b;font-size:8px;text-transform:uppercase;letter-spacing:.08em}.head-stat strong{display:block;margin-top:4px;font-size:14px;font-variant-numeric:tabular-nums}.bank-tabs{display:flex;align-items:center;gap:5px;padding:8px 10px;border-bottom:1px solid #28343d;background:#0d151b;overflow:auto}.bank-tabs button{border:0;border-radius:7px;background:transparent;color:#89969e;padding:7px 11px;font-size:9px;font-weight:900;white-space:nowrap;cursor:pointer}.bank-tabs button.active{background:#c83d3f;color:white;box-shadow:0 4px 14px rgba(200,61,63,.18)}.bank-tabs .tab-spacer{flex:1}.statement-search{width:min(280px,35vw);border:1px solid #33414b;border-radius:7px;background:#091117;color:#edf2f5;padding:8px 10px;font-size:9px;outline:none}.statement-search:focus{border-color:#596873}.bank-table-wrap{max-width:100%;overflow:auto}.bank-table{width:100%;min-width:1120px;border-collapse:collapse}.bank-table th,.bank-table td{padding:11px 12px;border-bottom:1px solid #25313a;vertical-align:middle;text-align:left}.bank-table th{position:sticky;top:0;z-index:2;background:#111a21;color:#8a969f;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.075em}.bank-table td{font-size:10px}.bank-table .num{text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}.transaction-row:hover{background:#121c23}.date-cell{color:#a5afb5;white-space:nowrap}.tx-id{display:block;color:#e5ebee;font-size:10px}.particular{display:block;color:#dfe6e9;font-size:10px}.subline{display:block;margin-top:3px;color:#73808a;font-size:8px;line-height:1.35}.type-pill{display:inline-flex;align-items:center;justify-content:center;min-width:61px;padding:5px 7px;border:1px solid;border-radius:999px;font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}.type-pill.income{border-color:#315f42;background:#152a1e;color:#9ee5b7}.type-pill.expense{border-color:#6e3439;background:#321b1d;color:#ffaaa5}.type-pill.opening{border-color:#4d5b66;background:#1b252d;color:#bdc8ce}.ledger-edit-btn{border:1px solid #4b5963;border-radius:7px;background:#17222b;color:#edf2f5;padding:6px 9px;font-size:8px;font-weight:900;cursor:pointer}.ledger-edit-btn:hover{border-color:#77858f}.ledger-source-lock{color:#66737c;font-size:8px;white-space:nowrap}.debit{color:var(--red);font-weight:900}.credit{color:var(--green);font-weight:900}.balance{font-weight:900}.opening-row{background:#182229}.opening-row td{border-top:2px solid #45535e;border-bottom:0}.opening-row .balance{font-size:11px}.empty-row td{text-align:center;color:#75828b;padding:30px}.statement-footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 13px;border-top:1px solid #293640;background:#0c141a;color:#74818a;font-size:9px}.footer-note strong{color:#aeb8be}.pending-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid #5b4d2c;border-radius:999px;background:#251f12;color:#e5c46d;padding:5px 8px;font-weight:900}.report-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:12px}.report-card{border:1px solid #2c3943;border-radius:11px;background:#101820;padding:14px}.report-card span{display:block;color:#7f8c95;font-size:9px;text-transform:uppercase;letter-spacing:.08em}.report-card strong{display:block;margin-top:8px;font-size:19px}.category-table{padding:0}.category-table table{width:100%;border-collapse:collapse}.category-table th,.category-table td{padding:11px 13px;border-bottom:1px solid #25313a;font-size:10px}.category-table th{text-align:left;color:#89969f;font-size:8px;text-transform:uppercase;letter-spacing:.07em}.category-table .num{text-align:right;font-variant-numeric:tabular-nums}.category-table tr:last-child td{border-bottom:0}.ledger-modal-backdrop{position:fixed;inset:0;z-index:1200;display:grid;place-items:center;padding:18px;background:rgba(0,0,0,.72)}.ledger-modal{width:min(720px,100%);max-height:90vh;overflow:auto;border:1px solid #3a4751;border-radius:14px;background:#101820;padding:18px;box-shadow:0 24px 80px rgba(0,0,0,.5)}.ledger-modal h2{margin:0 0 4px;font-size:21px}.ledger-modal-intro{margin:0 0 14px;color:#839099;font-size:9px;line-height:1.5}.ledger-modal-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ledger-modal-grid label{display:grid;gap:5px;color:#8f9ba4;font-size:9px;font-weight:800;text-transform:uppercase}.ledger-modal-grid label.wide{grid-column:1/-1}.ledger-modal-grid input,.ledger-modal-grid select,.ledger-modal-grid textarea{width:100%;border:1px solid #35424b;border-radius:7px;background:#091016;color:#edf1f4;padding:10px;font-size:10px}.ledger-modal-grid textarea{min-height:84px;resize:vertical}.ledger-modal-note{grid-column:1/-1;padding:9px 10px;border:1px solid #5a4d2f;border-radius:8px;background:#251f12;color:#dfc576;font-size:9px;line-height:1.5}.ledger-modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.ledger-modal-error{margin:0 0 12px;padding:9px 10px;border:1px solid #73363a;border-radius:8px;background:#351b1d;color:#ffaaa5;font-size:9px}@media(max-width:1000px){.bank-metrics{grid-template-columns:1fr 1fr}.bank-head{align-items:flex-start;flex-direction:column}.bank-actions{justify-content:flex-start}.statement-head{flex-direction:column}.statement-head-stats{width:100%;justify-content:space-between}.head-stat{text-align:left}.report-grid{grid-template-columns:1fr}}@media(max-width:700px){.bank-metrics{grid-template-columns:1fr}.bank-head h1{font-size:31px}.bank-actions{width:100%}.bank-btn{flex:1}.bank-tabs{align-items:stretch;flex-wrap:wrap}.bank-tabs .tab-spacer{display:none}.statement-search{width:100%;max-width:none}.statement-head-stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}.statement-footer{align-items:flex-start;flex-direction:column}}
       `}</style>
 
       <header className="bank-head">
@@ -403,6 +489,7 @@ export default function AccountsBankStatementPage() {
       </header>
 
       {error && <div className="bank-alert">{error}</div>}
+      {message && <div className="bank-alert success">{message}</div>}
 
       <section className="bank-metrics" aria-label={`${monthLabel} summary`}>
         <article className="bank-metric">
@@ -475,6 +562,7 @@ export default function AccountsBankStatementPage() {
             monthKey={monthKey}
             showOpening={mode !== "ledger"}
             emptyText={mode === "ledger" ? "No matching ledger transactions." : mode === "income" ? `No posted income in ${monthLabel}.` : mode === "expenses" ? `No posted expenses in ${monthLabel}.` : `No posted transactions in ${monthLabel}.`}
+            onEdit={mode === "ledger" ? beginHistoricalEdit : undefined}
           />
         )}
 
@@ -483,6 +571,30 @@ export default function AccountsBankStatementPage() {
           {pendingThisMonth.length > 0 ? <span className="pending-chip">{pendingThisMonth.length} pending expense{pendingThisMonth.length === 1 ? "" : "s"} · {money(pendingAmount)} not deducted</span> : <span>No pending expenses affecting this month&apos;s posted balance.</span>}
         </div>
       </section>
+
+      {edit && <div className="ledger-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target && !savingEdit) setEdit(null); }}>
+        <section className="ledger-modal">
+          <h2>Edit historical ledger</h2>
+          <p className="ledger-modal-intro">{edit.id} · Imported historical entries can be corrected here. Source-linked billing/payment rows stay locked so Accounts and Billing cannot drift apart.</p>
+          {editError && <div className="ledger-modal-error">{editError}</div>}
+          <div className="ledger-modal-grid">
+            <label>Date<input type="date" max="2026-08-31" value={edit.date} onChange={(event) => setEdit({ ...edit, date: event.target.value })}/></label>
+            <label>Type<select value={edit.type} onChange={(event) => setEdit({ ...edit, type: event.target.value as "Income" | "Expense" })}><option>Income</option><option>Expense</option></select></label>
+            <label>Category<input value={edit.category} onChange={(event) => setEdit({ ...edit, category: event.target.value })}/></label>
+            <label>Amount (BDT)<input inputMode="decimal" value={edit.amount} onChange={(event) => setEdit({ ...edit, amount: event.target.value.replace(/[^0-9.]/g, "") })}/></label>
+            <label className="wide">Description<input value={edit.description} onChange={(event) => setEdit({ ...edit, description: event.target.value })}/></label>
+            <label>Project / File ID<input value={edit.projectId} onChange={(event) => setEdit({ ...edit, projectId: event.target.value })} placeholder="Optional LV-xxx"/></label>
+            <label>Account<input value={edit.account} onChange={(event) => setEdit({ ...edit, account: event.target.value })} placeholder="Cash / Bank / account name"/></label>
+            <label>Payment method<select value={edit.method} onChange={(event) => setEdit({ ...edit, method: event.target.value })}><option value="">Not specified</option>{LEDGER_METHODS.map((item) => <option key={item}>{item}</option>)}</select></label>
+            <label>Reference<input value={edit.reference} onChange={(event) => setEdit({ ...edit, reference: event.target.value })} placeholder="Optional reference"/></label>
+            <div className="ledger-modal-note">Saving updates only this imported historical transaction and writes an audit-log entry. The ledger running balance is then rebuilt automatically from the historical transactions.</div>
+          </div>
+          <div className="ledger-modal-actions">
+            <button className="bank-btn" type="button" disabled={savingEdit} onClick={() => setEdit(null)}>Cancel</button>
+            <button className="bank-btn primary" type="button" disabled={savingEdit} onClick={() => void saveHistoricalEdit()}>{savingEdit ? "Saving…" : "Save correction"}</button>
+          </div>
+        </section>
+      </div>}
     </div>
   );
 }
