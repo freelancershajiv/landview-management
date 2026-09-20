@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
 
-type ViewMode = "statement" | "income" | "expenses" | "ledger" | "reports";
+type ViewMode = "statement" | "income" | "expenses" | "ledger" | "personal" | "reports";
 type Row = {
   id: string;
   type: "Income" | "Expense";
@@ -330,7 +330,7 @@ export default function AccountsBankStatementPage() {
       .filter((item) => {
         if (item.is2025Ledger || item.is2026History) return false;
         if (normalizeStatus(item.row.status) !== "posted") return false;
-        if (item.transactionType === "transfer") return false;
+        if (item.transactionType === "transfer" || item.transactionType === "personal income" || item.transactionType === "personal expense") return false;
         const key = dateKey(item.row.date);
         return key >= LEDGER_LIVE_START && key <= LEDGER_END;
       })
@@ -347,6 +347,60 @@ export default function AccountsBankStatementPage() {
       };
     });
   }, [transactions]);
+
+  const personalRows = useMemo<RunningRow[]>(() => {
+    const rows = transactions
+      .map((record) => {
+        const transactionType = normalizeStatus(field(record, ["Transaction_Type", "Transaction Type", "Type"]));
+        if (transactionType !== "personal income" && transactionType !== "personal expense") return null;
+        const id = text(field(record, ["Transaction_ID", "Transaction ID", "TransactionId"]));
+        const date = text(field(record, ["Transaction_Date", "Transaction Date", "Date"]));
+        const projectId = text(field(record, ["Project_ID", "Project ID", "ProjectId"]));
+        const category = text(field(record, ["Category"])) || "Eng Rony Personal";
+        const description = text(field(record, ["Description", "Particulars"])) || category;
+        const method = text(field(record, ["Payment_Method", "Payment Method", "Method"]));
+        const account = text(field(record, ["Account", "Account_Name", "Account Name"]));
+        const reference = text(field(record, ["Reference_No", "Reference No", "Reference"]));
+        let debit = amount(field(record, ["Debit"]));
+        let credit = amount(field(record, ["Credit"]));
+        const fallbackAmount = amount(field(record, ["Amount"]));
+        if (!debit && !credit && fallbackAmount > 0) {
+          if (transactionType === "personal expense") debit = fallbackAmount;
+          else credit = fallbackAmount;
+        }
+        const row: RunningRow = {
+          id,
+          type: credit >= debit ? "Income" : "Expense",
+          date,
+          projectId,
+          category,
+          description,
+          amount: Math.max(debit, credit, fallbackAmount),
+          status: text(field(record, ["Status"])) || "Posted",
+          method,
+          account,
+          reference,
+          party: "",
+          search: [id, date, projectId, category, description, method, account, reference].join(" ").toLowerCase(),
+          debit,
+          credit,
+          balance: 0,
+        };
+        return row;
+      })
+      .filter((row): row is RunningRow => Boolean(row?.id && row?.date))
+      .sort((a, b) => dateKey(a.date).localeCompare(dateKey(b.date)) || a.id.localeCompare(b.id));
+
+    let balance = 0;
+    return rows.map((row) => {
+      balance += row.credit - row.debit;
+      return { ...row, balance };
+    });
+  }, [transactions]);
+
+  const personalIncome = personalRows.reduce((sum, row) => sum + row.credit, 0);
+  const personalExpense = personalRows.reduce((sum, row) => sum + row.debit, 0);
+  const personalNet = personalIncome - personalExpense;
 
   const monthKey = dhakaDateKey(new Date()).slice(0, 7);
   const monthLabel = DHAKA_MONTH.format(new Date());
@@ -391,8 +445,9 @@ export default function AccountsBankStatementPage() {
     if (mode === "statement") return monthStatementRows;
     if (mode === "income") return monthStatementRows.filter((row) => row.credit > 0);
     if (mode === "expenses") return monthStatementRows.filter((row) => row.debit > 0);
+    if (mode === "personal") return [...personalRows].sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id));
     return filteredLedger;
-  }, [filteredLedger, mode, monthStatementRows]);
+  }, [filteredLedger, mode, monthStatementRows, personalRows]);
 
   const categoryBreakdown = useMemo(() => {
     const map = new Map<string, { category: string; income: number; expense: number }>();
@@ -517,14 +572,20 @@ export default function AccountsBankStatementPage() {
       <section className="bank-statement">
         <div className="statement-head">
           <div className="statement-title">
-            <small>{mode === "ledger" ? "AUTHORITATIVE LEDGER" : mode === "reports" ? "CURRENT MONTH ANALYSIS" : "CURRENT MONTH STATEMENT"}</small>
-            <h2>{mode === "ledger" ? "Full running ledger" : mode === "reports" ? `${monthLabel} report` : `${monthLabel} statement`}</h2>
-            <p>{mode === "ledger" ? "Full historical running balance, newest transaction first." : mode === "reports" ? "Income and expenditure summarized by category for this month." : "Newest transaction stays at the top. The previous balance always stays at the bottom as the opening row."}</p>
+            <small>{mode === "ledger" ? "AUTHORITATIVE LEDGER" : mode === "personal" ? "ENG RONY / PERSONAL" : mode === "reports" ? "CURRENT MONTH ANALYSIS" : "CURRENT MONTH STATEMENT"}</small>
+            <h2>{mode === "ledger" ? "Full running ledger" : mode === "personal" ? "Eng Rony personal ledger" : mode === "reports" ? `${monthLabel} report` : `${monthLabel} statement`}</h2>
+            <p>{mode === "ledger" ? "Full historical business running balance, newest transaction first." : mode === "personal" ? "Personal income and expenses are kept separate and never affect LAND VIEW official balances." : mode === "reports" ? "Income and expenditure summarized by category for this month." : "Newest transaction stays at the top. The previous balance always stays at the bottom as the opening row."}</p>
           </div>
           <div className="statement-head-stats">
-            <div className="head-stat"><span>Opening</span><strong className={previousBalance < 0 ? "negative" : "positive"}>{money(previousBalance)}</strong></div>
-            <div className="head-stat"><span>Month movement</span><strong className={monthNet < 0 ? "negative" : "positive"}>{money(monthNet)}</strong></div>
-            <div className="head-stat"><span>Closing / live</span><strong className={currentBalance < 0 ? "negative" : "positive"}>{money(currentBalance)}</strong></div>
+            {mode === "personal" ? <>
+              <div className="head-stat"><span>Personal income</span><strong className="positive">{money(personalIncome)}</strong></div>
+              <div className="head-stat"><span>Personal expense</span><strong className="negative">{money(personalExpense)}</strong></div>
+              <div className="head-stat"><span>Personal net</span><strong className={personalNet < 0 ? "negative" : "positive"}>{money(personalNet)}</strong></div>
+            </> : <>
+              <div className="head-stat"><span>Opening</span><strong className={previousBalance < 0 ? "negative" : "positive"}>{money(previousBalance)}</strong></div>
+              <div className="head-stat"><span>Month movement</span><strong className={monthNet < 0 ? "negative" : "positive"}>{money(monthNet)}</strong></div>
+              <div className="head-stat"><span>Closing / live</span><strong className={currentBalance < 0 ? "negative" : "positive"}>{money(currentBalance)}</strong></div>
+            </>}
           </div>
         </div>
 
@@ -533,6 +594,7 @@ export default function AccountsBankStatementPage() {
           <button type="button" className={mode === "income" ? "active" : ""} onClick={() => { setMode("income"); setQuery(""); }}>Income</button>
           <button type="button" className={mode === "expenses" ? "active" : ""} onClick={() => { setMode("expenses"); setQuery(""); }}>Expenses</button>
           <button type="button" className={mode === "ledger" ? "active" : ""} onClick={() => setMode("ledger")}>Full Ledger</button>
+          <button type="button" className={mode === "personal" ? "active" : ""} onClick={() => { setMode("personal"); setQuery(""); }}>Eng Rony Personal</button>
           <button type="button" className={mode === "reports" ? "active" : ""} onClick={() => { setMode("reports"); setQuery(""); }}>Reports</button>
           <span className="tab-spacer" />
           {mode === "ledger" && <input className="statement-search" type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search transaction, project, category or reference…" />}
@@ -558,17 +620,17 @@ export default function AccountsBankStatementPage() {
         ) : (
           <StatementTable
             rows={modeRows}
-            openingBalance={previousBalance}
+            openingBalance={mode === "personal" ? 0 : previousBalance}
             monthKey={monthKey}
-            showOpening={mode !== "ledger"}
-            emptyText={mode === "ledger" ? "No matching ledger transactions." : mode === "income" ? `No posted income in ${monthLabel}.` : mode === "expenses" ? `No posted expenses in ${monthLabel}.` : `No posted transactions in ${monthLabel}.`}
+            showOpening={mode !== "ledger" && mode !== "personal"}
+            emptyText={mode === "ledger" ? "No matching ledger transactions." : mode === "personal" ? "No Eng Rony personal transactions." : mode === "income" ? `No posted income in ${monthLabel}.` : mode === "expenses" ? `No posted expenses in ${monthLabel}.` : `No posted transactions in ${monthLabel}.`}
             onEdit={mode === "ledger" ? beginHistoricalEdit : undefined}
           />
         )}
 
         <div className="statement-footer">
-          <span className="footer-note"><strong>Statement order:</strong> newest at top → oldest at bottom → previous balance as the final opening row.</span>
-          {pendingThisMonth.length > 0 ? <span className="pending-chip">{pendingThisMonth.length} pending expense{pendingThisMonth.length === 1 ? "" : "s"} · {money(pendingAmount)} not deducted</span> : <span>No pending expenses affecting this month&apos;s posted balance.</span>}
+          <span className="footer-note"><strong>Statement order:</strong> newest at top → oldest at bottom{mode === "personal" || mode === "ledger" ? "." : " → previous balance as the final opening row."}</span>
+          {mode === "personal" ? <span>Personal transactions are excluded from all LAND VIEW official totals.</span> : pendingThisMonth.length > 0 ? <span className="pending-chip">{pendingThisMonth.length} pending expense{pendingThisMonth.length === 1 ? "" : "s"} · {money(pendingAmount)} not deducted</span> : <span>No pending expenses affecting this month&apos;s posted balance.</span>}
         </div>
       </section>
 
