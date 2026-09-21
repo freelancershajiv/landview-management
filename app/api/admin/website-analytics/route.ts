@@ -82,8 +82,11 @@ function locationLegacy(row: Row) {
 }
 
 async function count(table: string) {
-  const result = await supabaseGateway("countRows", { table, limit: 1 });
-  return Number(result?.count || 0);
+  // Analytics tables use domain-specific primary keys (visitor_id/event_id),
+  // while the generic countRows action expects an "id" column. Read the
+  // lightweight analytics rows instead so these tables remain schema-safe.
+  const rows = await selectRows(table, { limit: 5000 });
+  return rows.length;
 }
 
 export async function GET() {
