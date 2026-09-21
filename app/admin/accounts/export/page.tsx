@@ -126,6 +126,36 @@ function csvCell(value: unknown) {
   return /[",\n]/.test(raw) ? `"${raw.replace(/"/g, '""')}"` : raw;
 }
 
+function ledgerEntryRank(debit: number, credit: number) {
+  if (credit > 0 && debit <= 0) return 0;
+  if (debit > 0 && credit <= 0) return 1;
+  return credit >= debit ? 0 : 1;
+}
+
+function ledgerWording(row: Pick<LedgerRow, "description" | "category" | "projectId" | "id">) {
+  return [row.description, row.category, row.projectId, row.id]
+    .map((value) => text(value))
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function compareLedgerRows(a: Pick<LedgerRow, "date" | "debit" | "credit" | "description" | "category" | "projectId" | "id">, b: Pick<LedgerRow, "date" | "debit" | "credit" | "description" | "category" | "projectId" | "id">) {
+  const dateOrder = a.date.localeCompare(b.date);
+  if (dateOrder) return dateOrder;
+
+  const entryOrder = ledgerEntryRank(a.debit, a.credit) - ledgerEntryRank(b.debit, b.credit);
+  if (entryOrder) return entryOrder;
+
+  const wordingOrder = ledgerWording(a as LedgerRow).localeCompare(ledgerWording(b as LedgerRow), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+  if (wordingOrder) return wordingOrder;
+
+  return a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" });
+}
+
 export default function LedgerExportPage() {
   const today = dhakaDateKey(new Date());
   const currentMonth = today.slice(0, 7);
@@ -194,7 +224,7 @@ export default function LedgerExportPage() {
       if (normalizeStatus(row.status) !== "posted") return false;
       if (row.type === "transfer") return false;
       return row.date >= LIVE_LEDGER_START;
-    }).sort((a, b) => a.date.localeCompare(b.date) || a.id.localeCompare(b.id));
+    }).sort(compareLedgerRows);
 
     let balance = 0;
     return normalized.map((row) => {
