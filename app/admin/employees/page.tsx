@@ -59,6 +59,7 @@ export default function EmployeesPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"Active" | "Former" | "All">("Active");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState(blank);
   const [editing, setEditing] = useState("");
@@ -78,10 +79,14 @@ export default function EmployeesPage() {
 
   useEffect(() => { load(); }, []);
 
-  const filtered = useMemo(
-    () => rows.filter((r) => JSON.stringify(r).toLowerCase().includes(query.toLowerCase())),
-    [rows, query]
-  );
+  const filtered = useMemo(() => rows.filter((r) => {
+    const status = String(pick(r, ["Status", "status"], "Active")).trim().toLowerCase();
+    const matchesStatus = statusFilter === "All" || (statusFilter === "Former" ? status !== "active" : status === "active");
+    return matchesStatus && JSON.stringify(r).toLowerCase().includes(query.toLowerCase());
+  }), [rows, query, statusFilter]);
+
+  const activeCount = useMemo(() => rows.filter(r => String(pick(r, ["Status", "status"], "Active")).trim().toLowerCase() === "active").length, [rows]);
+  const formerCount = rows.length - activeCount;
 
   function closeEditor() {
     setOpen(false);
@@ -278,15 +283,11 @@ export default function EmployeesPage() {
             </select>
           </Field>
 
-          {Object.entries({
-            Joining_Date: "JOINING DATE",
-            Status: "STATUS",
-            Photo_URL: "PHOTO URL",
-            LinkedIn_URL: "LINKEDIN / PROFILE URL",
-            Display_Order: "PUBLIC DISPLAY ORDER",
-          }).map(([k, l]) =>
-            <Field key={k} label={l}><input type={k === "Joining_Date" ? "date" : k === "Display_Order" ? "number" : "text"} value={String((form as any)[k] || "")} onChange={e => setForm(v => ({ ...v, [k]: e.target.value }))} /></Field>
-          )}
+          <Field label="JOINING DATE"><input type="date" value={String(form.Joining_Date || "")} onChange={e => setForm(v => ({ ...v, Joining_Date: e.target.value }))} /></Field>
+          <Field label="STATUS"><select value={String(form.Status || "Active")} onChange={e => setForm(v => ({ ...v, Status: e.target.value }))}><option value="Active">Active</option><option value="Former">Former</option><option value="On Leave">On Leave</option><option value="Suspended">Suspended</option></select></Field>
+          <Field label="PHOTO URL"><input type="text" value={String(form.Photo_URL || "")} onChange={e => setForm(v => ({ ...v, Photo_URL: e.target.value }))} /></Field>
+          <Field label="LINKEDIN / PROFILE URL"><input type="text" value={String(form.LinkedIn_URL || "")} onChange={e => setForm(v => ({ ...v, LinkedIn_URL: e.target.value }))} /></Field>
+          <Field label="PUBLIC DISPLAY ORDER"><input type="number" value={String(form.Display_Order || "")} onChange={e => setForm(v => ({ ...v, Display_Order: e.target.value }))} /></Field>
           <Field label="PUBLIC BIO"><textarea rows={4} value={String(form.Public_Bio || "")} onChange={e => setForm(v => ({ ...v, Public_Bio: e.target.value }))} /></Field>
           <Field label="PUBLIC WEBSITE"><label className="public-employee-toggle"><input type="checkbox" checked={String(form.Public_Display || "").toUpperCase() === "TRUE"} onChange={e => setForm(v => ({ ...v, Public_Display: e.target.checked ? "TRUE" : "FALSE" }))} /><span>Show this employee on the public website</span></label></Field>
         </div>
