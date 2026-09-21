@@ -1,73 +1,120 @@
-import { createHmac } from "node:crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { requirePortalSession } from "@/lib/server-auth";
+import { selectRows, supabaseGateway } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COOKIE_NAME = "landview_session";
-const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
-const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
+type Row = Record<string, any>;
 
-function normalizeHost(value: string | null | undefined) {
-  return String(value || "").split(":")[0].trim().toLowerCase();
+function visitorLegacy(row: Row) {
+  return {
+    Visitor_ID: row.visitor_id,
+    First_Seen: row.first_seen,
+    Last_Seen: row.last_seen,
+    First_Referrer: row.first_referrer || "",
+    Last_IP: row.last_ip || "",
+    Country: row.country || "",
+    Region: row.region || "",
+    City: row.city || "",
+    IP_Latitude: row.ip_latitude ?? "",
+    IP_Longitude: row.ip_longitude ?? "",
+    Timezone: row.timezone || "",
+    Continent: row.continent || "",
+    User_Agent: row.user_agent || "",
+    Language: row.language || "",
+    Screen_Width: row.screen_width ?? 0,
+    Screen_Height: row.screen_height ?? 0,
+    Is_Bot: Boolean(row.is_bot),
+    Total_Sessions: row.total_sessions ?? 0,
+    Total_Page_Views: row.total_page_views ?? 0,
+    Precise_Latitude: row.precise_latitude ?? "",
+    Precise_Longitude: row.precise_longitude ?? "",
+    Precise_Accuracy_M: row.precise_accuracy_m ?? "",
+    Precise_Location_Updated_At: row.precise_location_updated_at || "",
+  };
 }
 
-function allowedHost(host: string) {
-  const vercelHosts = [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL, process.env.VERCEL_PROJECT_PRODUCTION_URL]
-    .map(normalizeHost)
-    .filter(Boolean);
-  return host === "app.landview.com.bd" || host === "localhost" || host === "127.0.0.1" || vercelHosts.includes(host);
+function pageViewLegacy(row: Row) {
+  return {
+    Event_ID: row.event_id,
+    Visitor_ID: row.visitor_id,
+    Session_ID: row.session_id,
+    Visited_At: row.visited_at,
+    Page: row.page || "/",
+    Title: row.title || "",
+    Referrer: row.referrer || "",
+    IP: row.ip || "",
+    Country: row.country || "",
+    Region: row.region || "",
+    City: row.city || "",
+    IP_Latitude: row.ip_latitude ?? "",
+    IP_Longitude: row.ip_longitude ?? "",
+    Timezone: row.timezone || "",
+    Continent: row.continent || "",
+    User_Agent: row.user_agent || "",
+    Language: row.language || "",
+    Screen_Width: row.screen_width ?? 0,
+    Screen_Height: row.screen_height ?? 0,
+    Is_Bot: Boolean(row.is_bot),
+    Source_Host: row.source_host || "",
+  };
 }
 
-function clientKey(request: NextRequest) {
-  const forwarded = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown";
-  return createHmac("sha256", PROXY_SECRET).update(forwarded).digest("hex").slice(0, 32);
+function locationLegacy(row: Row) {
+  return {
+    Event_ID: row.event_id,
+    Visitor_ID: row.visitor_id,
+    Session_ID: row.session_id,
+    Recorded_At: row.recorded_at,
+    Page: row.page || "/",
+    Latitude: row.latitude,
+    Longitude: row.longitude,
+    Accuracy_M: row.accuracy_m,
+    IP: row.ip || "",
+    IP_Country: row.ip_country || "",
+    IP_Region: row.ip_region || "",
+    IP_City: row.ip_city || "",
+    IP_Latitude: row.ip_latitude ?? "",
+    IP_Longitude: row.ip_longitude ?? "",
+    Source_Host: row.source_host || "",
+  };
 }
 
-export async function GET(request: NextRequest) {
+async function count(table: string) {
+  const result = await supabaseGateway("countRows", { table, limit: 1 });
+  return Number(result?.count || 0);
+}
+
+export async function GET() {
   try {
-    if (!APPS_SCRIPT_URL || !PROXY_SECRET) {
-      return NextResponse.json({ success: false, error: "LAND VIEW analytics backend is not configured." }, { status: 503 });
-    }
+    await requirePortalSession(["admin"]);
 
-    if (!allowedHost(normalizeHost(request.headers.get("host")))) {
-      return NextResponse.json({ success: false, error: "Website analytics is available only inside the LAND VIEW management app." }, { status: 403 });
-    }
+    const [visitorCount, sessionCount, pageViewCount, locationCount, visitors, pageViews, locations] = await Promise.all([
+      count("website_analytics_visitors"),
+      count("website_analytics_sessions"),
+      count("website_analytics_page_views"),
+      count("website_analytics_location_events"),
+      selectRows("website_analytics_visitors", { order: "last_seen:desc", limit: 50 }),
+      selectRows("website_analytics_page_views", { order: "visited_at:desc", limit: 100 }),
+      selectRows("website_analytics_location_events", { order: "recorded_at:desc", limit: 50 }),
+    ]);
 
-    const token = request.cookies.get(COOKIE_NAME)?.value || "";
-    if (!token) {
-      return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
-    }
-
-    const backend = await fetch(APPS_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        action: "getVisitorAnalytics",
-        token,
-        proxySecret: PROXY_SECRET,
-        _clientKey: clientKey(request),
-      }),
-      cache: "no-store",
-      redirect: "follow",
-      signal: AbortSignal.timeout(15_000),
-    });
-
-    const raw = await backend.text();
-    let json: any;
-    try {
-      json = JSON.parse(raw);
-    } catch {
-      return NextResponse.json({ success: false, error: "Analytics backend returned an invalid response." }, { status: 502 });
-    }
-
-    if (!backend.ok || !json?.success) {
-      const message = String(json?.error || json?.message || "Could not load visitor analytics.");
-      const status = /session|unauthorized|authentication/i.test(message) ? 401 : /access|admin/i.test(message) ? 403 : 502;
-      return NextResponse.json({ success: false, error: message }, { status, headers: { "Cache-Control": "no-store" } });
-    }
-
-    return NextResponse.json({ success: true, data: json.data || {} }, { headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" } });
+    return NextResponse.json({
+      success: true,
+      data: {
+        storage: "Supabase",
+        totals: {
+          visitors: visitorCount,
+          sessions: sessionCount,
+          pageViews: pageViewCount,
+          preciseLocationEvents: locationCount,
+        },
+        recentVisitors: visitors.map(visitorLegacy),
+        recentPageViews: pageViews.map(pageViewLegacy),
+        recentLocations: locations.map(locationLegacy),
+      },
+    }, { headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load visitor analytics.";
     return NextResponse.json({ success: false, error: message }, { status: 502, headers: { "Cache-Control": "no-store" } });
