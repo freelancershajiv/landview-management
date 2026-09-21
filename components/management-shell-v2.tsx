@@ -17,21 +17,30 @@ type WorkspaceAccess = {
 };
 
 type NavItem = { href: string; label: string; permission?: string; adminOnly?: boolean };
+type NavGroup = { label: string; items: NavItem[] };
 
 const nav: NavItem[] = [
   { href: "/admin", label: "Dashboard", permission: "dashboard.view" },
   { href: "/admin/projects", label: "Projects", permission: "projects.view" },
-  { href: "/admin/estimate", label: "Estimate", permission: "projects.view" },
+  { href: "/admin/estimate", label: "Estimates", permission: "projects.view" },
   { href: "/admin/workflow", label: "Workflow", permission: "workflow.view" },
-  { href: "/admin/registers", label: "Registers", permission: "documents.view" },
+  { href: "/admin/registers", label: "Document Registry", permission: "documents.view" },
   { href: "/admin/employees", label: "Employees", permission: "employees.view" },
-  { href: "/admin/certificate-requests", label: "Requests", permission: "requests.view" },
+  { href: "/admin/certificate-requests", label: "Certificate Requests", permission: "requests.view" },
   { href: "/admin/certificates", label: "Certificates", permission: "certificates.view" },
-  { href: "/admin/finance", label: "Finance", permission: "finance.view" },
-  { href: "/admin/access", label: "Permission", adminOnly: true },
+  { href: "/admin/finance", label: "Billing", permission: "finance.view" },
+  { href: "/admin/access", label: "Access Control", adminOnly: true },
   { href: "/admin/accounts/entry", label: "Accounts", permission: "accounts.view" },
   { href: "/admin/accounts", label: "Ledger", permission: "ledger.view" },
   { href: "/admin/proposals", label: "Proposals", permission: "proposals.view" },
+];
+
+const navGroups: NavGroup[] = [
+  { label: "WORK", items: nav.filter((item) => ["/admin/projects", "/admin/estimate", "/admin/workflow", "/admin/proposals"].includes(item.href)) },
+  { label: "DOCUMENTS", items: nav.filter((item) => ["/admin/registers", "/admin/certificate-requests", "/admin/certificates"].includes(item.href)) },
+  { label: "FINANCE", items: nav.filter((item) => ["/admin/finance", "/admin/accounts/entry", "/admin/accounts"].includes(item.href)) },
+  { label: "PEOPLE", items: nav.filter((item) => item.href === "/admin/employees") },
+  { label: "ADMINISTRATION", items: nav.filter((item) => item.href === "/admin/access") },
 ];
 
 const SESSION_WATCHDOG_MS = 8000;
@@ -162,9 +171,12 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const visibleNav = useMemo(() => nav.filter((item) => {
     if (item.adminOnly) return isAdmin;
     if (all) return true;
-    if (role === "accounts") return Boolean(item.permission && permissions[item.permission]);
     return Boolean(item.permission && permissions[item.permission]);
-  }), [all, isAdmin, permissions, role]);
+  }), [all, isAdmin, permissions]);
+
+  const visibleGroups = useMemo(() => navGroups
+    .map((group) => ({ ...group, items: group.items.filter((item) => visibleNav.some((visible) => visible.href === item.href)) }))
+    .filter((group) => group.items.length > 0), [visibleNav]);
 
   const activeItem = useMemo(() => {
     const sorted = [...nav].sort((a, b) => b.href.length - a.href.length);
@@ -222,7 +234,17 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const name = user?.name || user?.Name || user?.username || user?.Username || "LAND VIEW User";
   const daysLeft = trustedUntil ? Math.max(1, Math.ceil((trustedUntil - Date.now()) / 86400000)) : 0;
 
-  return <div className="admin-shell tmg-shell portal-admin">
+  const navStyles = `
+    .primary-nav-inner{display:flex;align-items:stretch;gap:4px;flex-wrap:wrap}
+    .primary-nav-inner>a,.primary-nav-inner>details>summary{min-height:42px;padding:0 15px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:inherit;text-decoration:none;font-size:12px;font-weight:800;letter-spacing:.06em;cursor:pointer}
+    .primary-nav-inner>a:hover,.primary-nav-inner>details>summary:hover,.primary-nav-inner>details.group-active>summary{background:rgba(255,129,121,.10)}
+    .primary-nav-inner>.dashboard-nav.active{background:rgba(255,129,121,.16)}
+    .nav-group{position:relative}.nav-group>summary{list-style:none;gap:7px}.nav-group>summary::-webkit-details-marker{display:none}.nav-chevron{font-size:14px;line-height:1;opacity:.65}
+    .nav-group-menu{position:absolute;z-index:50;top:calc(100% - 1px);left:0;min-width:190px;padding:7px;border:1px solid rgba(255,255,255,.10);border-radius:0 0 10px 10px;background:#101820;box-shadow:0 14px 30px rgba(0,0,0,.28)}
+    .nav-group-menu a{display:block;padding:10px 12px;border-radius:7px;color:inherit;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap}.nav-group-menu a:hover,.nav-group-menu a.active{background:rgba(255,129,121,.12)}
+    @media (max-width:800px){.primary-nav-inner{display:block}.primary-nav-inner>a,.primary-nav-inner>details>summary{justify-content:flex-start;width:100%}.nav-group-menu{position:static;min-width:0;margin:0 8px 6px;border-radius:8px;box-shadow:none}}
+  `;
+  return <div className="admin-shell tmg-shell portal-admin"><style dangerouslySetInnerHTML={{__html: navStyles }} />
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
     <header className="masthead">
       <div className="utility-bar"><div className="utility-inner">
@@ -238,9 +260,18 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
         <button className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-expanded={mobileOpen} onClick={() => setMobileOpen((v)=>!v)}>☰</button>
       </div></div>
       <nav aria-label="Management" className={`primary-nav ${mobileOpen?"open":""}`}><div className="primary-nav-inner">
-        {visibleNav.map((item) => {
-          const active = currentMatches(pathname,item.href);
-          return <Link key={item.href} href={item.href} aria-current={active?"page":undefined} className={active?"active":""} onClick={()=>setMobileOpen(false)}>{item.label}</Link>;
+        <Link href="/admin" aria-current={pathname === "/admin" ? "page" : undefined} className={pathname === "/admin" ? "active dashboard-nav" : "dashboard-nav"} onClick={()=>setMobileOpen(false)}>Dashboard</Link>
+        {visibleGroups.map((group) => {
+          const groupActive = group.items.some((item) => currentMatches(pathname, item.href));
+          return <details key={group.label} className={`nav-group ${groupActive ? "group-active" : ""}`} open={groupActive}>
+            <summary>{group.label}<span className="nav-chevron">⌄</span></summary>
+            <div className="nav-group-menu">
+              {group.items.map((item) => {
+                const active = currentMatches(pathname,item.href);
+                return <Link key={item.href} href={item.href} aria-current={active?"page":undefined} className={active?"active":""} onClick={()=>setMobileOpen(false)}>{item.label}</Link>;
+              })}
+            </div>
+          </details>;
         })}
       </div></nav>
     </header>
