@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { supabaseGateway } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const APPS_SCRIPT_URL = process.env.LAND_VIEW_API_URL || "";
-const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 const ID_PATTERN = /^(vis|ses)_[0-9a-f-]{36}$/i;
 
 function text(value: unknown, maxLength: number) {
@@ -32,7 +31,6 @@ function safePath(value: unknown) {
 function allowedOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
   if (!origin) return request.headers.get("sec-fetch-site") === "same-origin" || process.env.NODE_ENV !== "production";
-
   try {
     const originUrl = new URL(origin);
     const requestHost = request.nextUrl.hostname.toLowerCase();
@@ -50,10 +48,6 @@ function numberInRange(value: unknown, min: number, max: number) {
 export async function POST(request: NextRequest) {
   if (!allowedOrigin(request)) {
     return NextResponse.json({ success: false, error: "Origin not allowed." }, { status: 403 });
-  }
-
-  if (!APPS_SCRIPT_URL || !PROXY_SECRET) {
-    return NextResponse.json({ success: false, error: "Analytics backend is not configured." }, { status: 503 });
   }
 
   let input: Record<string, unknown>;
@@ -85,8 +79,6 @@ export async function POST(request: NextRequest) {
   }
 
   const payload = {
-    action: "trackVisitorEvent",
-    proxySecret: PROXY_SECRET,
     eventType,
     visitorId,
     sessionId,
@@ -112,61 +104,20 @@ export async function POST(request: NextRequest) {
     sourceHost: text(request.nextUrl.hostname, 160),
   };
 
-  try {
-    let lastError = "Analytics storage failed.";
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
-      try {
-        const response = await fetch(APPS_SCRIPT_URL, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify(payload),
-          cache: "no-store",
-          redirect: "follow",
-          signal: AbortSignal.timeout(20_000),
-        });
-
-        const responseText = await response.text();
-        let json: { success?: boolean; error?: string; message?: string } = {};
-        try {
-          json = JSON.parse(responseText) as { success?: boolean; error?: string; message?: string };
-        } catch {
-          json = {};
-        }
-
-        if (response.ok && json.success) {
-          return NextResponse.json(
-            { success: true },
-            { headers: { "Cache-Control": "no-store, max-age=0" } },
-          );
-        }
-
-        lastError = text(json.error || json.message || `Analytics backend returned ${response.status}.`, 300);
-        console.error("Visitor analytics backend write failed", {
-          attempt,
-          status: response.status,
-          eventType,
-          error: lastError,
-        });
-      } catch (error) {
-        lastError = error instanceof Error ? error.message : "Analytics backend unavailable.";
-        console.error("Visitor analytics backend request failed", {
-          attempt,
-          eventType,
-          error: lastError,
-        });
-      }
-
-      if (attempt < 3) {
-        await new Promise((resolve) => setTimeout(resolve, attempt * 350));
-      }
+  let lastError = "Analytics storage failed.";
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await supabaseGateway("trackVisitorAnalytics", payload, 15_000);
+      return NextResponse.json({ success: true }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : "Analytics backend unavailable.";
+      console.error("Visitor analytics Supabase write failed", { attempt, eventType, error: lastError });
     }
-
-    return NextResponse.json(
-      { success: false, error: "Analytics storage temporarily unavailable." },
-      { status: 502, headers: { "Cache-Control": "no-store, max-age=0" } },
-    );
-  } catch (error) {
-    console.error("Visitor analytics route failed", error);
-    return NextResponse.json({ success: false, error: "Analytics storage unavailable." }, { status: 502 });
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 300));
   }
+
+  return NextResponse.json(
+    { success: false, error: "Analytics storage temporarily unavailable." },
+    { status: 502, headers: { "Cache-Control": "no-store, max-age=0" } },
+  );
 }
