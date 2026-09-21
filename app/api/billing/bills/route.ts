@@ -63,7 +63,6 @@ export async function PATCH(request: NextRequest) {
       description: `[${category}] ${service}`,
       amount: gross,
       discount,
-      net_amount: gross - discount,
       notes: text(body.Notes || body.notes, 2000) || null,
       source_updated_at: now,
       updated_at: now,
