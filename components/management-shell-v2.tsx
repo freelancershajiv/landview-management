@@ -17,7 +17,6 @@ type WorkspaceAccess = {
 };
 
 type NavItem = { href: string; label: string; permission?: string; adminOnly?: boolean };
-type NavGroup = { label: string; items: NavItem[] };
 
 const nav: NavItem[] = [
   { href: "/admin", label: "Dashboard", permission: "dashboard.view" },
@@ -35,14 +34,12 @@ const nav: NavItem[] = [
   { href: "/admin/proposals", label: "Proposals", permission: "proposals.view" },
 ];
 
-const navGroups: NavGroup[] = [
-  { label: "WORK", items: nav.filter((item) => ["/admin/projects", "/admin/estimate", "/admin/workflow", "/admin/proposals"].includes(item.href)) },
-  { label: "DOCUMENTS", items: nav.filter((item) => ["/admin/registers", "/admin/certificate-requests", "/admin/certificates"].includes(item.href)) },
-  { label: "FINANCE", items: nav.filter((item) => ["/admin/finance", "/admin/accounts/entry", "/admin/accounts"].includes(item.href)) },
-  { label: "PEOPLE", items: nav.filter((item) => item.href === "/admin/employees") },
-  { label: "ADMINISTRATION", items: nav.filter((item) => item.href === "/admin/access") },
+const navOrder = [
+  "/admin/projects", "/admin/estimate", "/admin/workflow", "/admin/proposals",
+  "/admin/registers", "/admin/certificate-requests", "/admin/certificates",
+  "/admin/finance", "/admin/accounts/entry", "/admin/accounts",
+  "/admin/employees", "/admin/access",
 ];
-
 const SESSION_WATCHDOG_MS = 8000;
 
 function roleOf(user?: SessionUser | null) {
@@ -83,7 +80,6 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [openNavGroup, setOpenNavGroup] = useState<string | null>(null);
   const [quickConfigured, setQuickConfigured] = useState(false);
   const [trustedDevice, setTrustedDevice] = useState(false);
   const [trustedUntil, setTrustedUntil] = useState<number | null>(null);
@@ -175,9 +171,10 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     return Boolean(item.permission && permissions[item.permission]);
   }), [all, isAdmin, permissions]);
 
-  const visibleGroups = useMemo(() => navGroups
-    .map((group) => ({ ...group, items: group.items.filter((item) => visibleNav.some((visible) => visible.href === item.href)) }))
-    .filter((group) => group.items.length > 0), [visibleNav]);
+  const orderedVisibleNav = useMemo(
+    () => navOrder.map((href) => nav.find((item) => item.href === href)).filter((item): item is NavItem => Boolean(item) && visibleNav.some((v) => v.href === item!.href)),
+    [visibleNav]
+  );
 
   const activeItem = useMemo(() => {
     const sorted = [...nav].sort((a, b) => b.href.length - a.href.length);
@@ -237,14 +234,12 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
 
   const navStyles = `
     .primary-nav{position:relative;z-index:90;overflow:visible !important}
-    .primary-nav-inner{position:relative;z-index:91;display:flex;align-items:stretch;gap:4px;flex-wrap:wrap;overflow:visible !important}
-    .primary-nav-inner>a,.primary-nav-inner>.nav-group>button{min-height:42px;padding:0 15px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:inherit;text-decoration:none;font-size:12px;font-weight:800;letter-spacing:.06em;cursor:pointer}
-    .primary-nav-inner>.nav-group>button:hover,.primary-nav-inner>.nav-group>button.active{background:rgba(255,129,121,.10)}
-    .primary-nav-inner>.dashboard-nav.active{background:rgba(255,129,121,.16)}
-    .nav-group{position:relative;z-index:92;flex:0 0 auto;display:flex;flex-direction:column;align-items:stretch}.nav-group>button{gap:7px;flex:0 0 42px}.nav-chevron{font-size:14px;line-height:1;opacity:.65}
-    .nav-group-menu{display:block;position:relative;z-index:999;top:auto;left:auto;min-width:210px;padding:7px;border:1px solid rgba(255,255,255,.16);border-top:0;border-radius:0 0 10px 10px;background:#101820;color:#fff;box-shadow:0 14px 30px rgba(0,0,0,.45);visibility:visible;opacity:1}
-    .nav-group-menu a{display:block;padding:10px 12px;border-radius:7px;color:#fff;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap}.nav-group-menu a:hover,.nav-group-menu a.active{background:rgba(255,129,121,.12)}
-    @media (max-width:800px){.primary-nav-inner{display:block}.primary-nav-inner>a,.primary-nav-inner>.nav-group>button{justify-content:flex-start;width:100%}.nav-group-menu{position:static;min-width:0;margin:0 8px 6px;border-radius:8px;box-shadow:none}}
+    .primary-nav-inner{position:relative;z-index:91;display:flex;align-items:center;gap:2px;flex-wrap:wrap;overflow:visible !important;padding:3px 0}
+    .primary-nav-inner>a{min-height:40px;padding:0 11px;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:inherit;text-decoration:none;font-size:11px;font-weight:800;letter-spacing:.045em;cursor:pointer;white-space:nowrap}
+    .primary-nav-inner>a:hover{background:rgba(255,129,121,.10)}
+    .primary-nav-inner>a.active{background:rgba(255,129,121,.16)}
+    @media (max-width:1100px){.primary-nav-inner>a{padding:0 9px;font-size:10.5px}}
+    @media (max-width:800px){.primary-nav-inner{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.primary-nav-inner>a{justify-content:flex-start;width:100%;padding:0 12px}}
   `;
   return <div className="admin-shell tmg-shell portal-admin"><style dangerouslySetInnerHTML={{__html: navStyles }} />
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
@@ -263,18 +258,12 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
       </div></div>
       <nav aria-label="Management" className={`primary-nav ${mobileOpen?"open":""}`}><div className="primary-nav-inner">
         <Link href="/admin" aria-current={pathname === "/admin" ? "page" : undefined} className={pathname === "/admin" ? "active dashboard-nav" : "dashboard-nav"} onClick={()=>setMobileOpen(false)}>Dashboard</Link>
-        {visibleGroups.map((group) => {
-          const groupActive = group.items.some((item) => currentMatches(pathname, item.href));
-          const isOpen = openNavGroup === group.label;
-          return <div key={group.label} className={`nav-group ${groupActive ? "group-active" : ""}`}>
-            <button type="button" className={`nav-group-trigger ${isOpen || groupActive ? "active" : ""}`} aria-expanded={isOpen} onClick={() => setOpenNavGroup((current) => current === group.label ? null : group.label)}>
-              {group.label}<span className="nav-chevron">{isOpen ? "⌃" : "⌄"}</span>
-            </button>
-            {isOpen && <div className="nav-group-menu">
-              {group.items.map((item) => {
-                const active = currentMatches(pathname,item.href);
-                return <Link key={item.href} href={item.href} aria-current={active?"page":undefined} className={active?"active":""} onClick={()=>{setMobileOpen(false);setOpenNavGroup(null);}}>{item.label}</Link>;
-              })}
+        {orderedVisibleNav.map((item) => {
+          const active = currentMatches(pathname, item.href);
+          return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}>
+            {item.label}
+          </Link>;
+        })}
             </div>}
           </div>;
         })}
