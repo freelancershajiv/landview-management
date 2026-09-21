@@ -28,6 +28,7 @@ type LiveFinance = { categories:FinanceCategory[]; billed:number; paid:number; d
 
 const css = `
 .pc{display:grid;gap:18px}.pc-tabs{display:flex;gap:6px;overflow:auto;padding:6px;border:1px solid rgba(255,255,255,.09);border-radius:12px;background:#151515;position:sticky;top:0;z-index:8}.pc-tabs button{border:0;background:transparent;color:#aaa;padding:11px 14px;border-radius:8px;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer}.pc-tabs button:hover{color:#fff;background:#222}.pc-tabs button.active{background:#ef493b;color:#fff}.pc-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.pc-stat{padding:18px;border:1px solid rgba(255,255,255,.09);border-radius:11px;background:#242424}.pc-stat span{display:block;color:#999;font-size:9px;text-transform:uppercase;letter-spacing:.1em}.pc-stat strong{display:block;margin-top:8px;color:#fff;font-size:20px;overflow-wrap:anywhere}.pc-stat small{display:block;margin-top:5px;color:#aaa;font-size:9px}.pc-panel{padding:20px;border:1px solid rgba(255,255,255,.09);border-radius:12px;background:#242424}.pc-panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.pc-panel-head span{color:#ef493b;font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.pc-panel-head h2{margin:3px 0 0;color:#fff;font-size:18px}.pc-two{display:grid;grid-template-columns:1.4fr 1fr;gap:14px}.pc-workflow{display:grid;gap:9px}.pc-progress{height:7px;background:#333;border-radius:10px;overflow:hidden}.pc-progress span{display:block;height:100%;background:#ef493b}.pc-progress-copy{display:flex;justify-content:space-between;color:#aaa;font-size:10px;margin-top:7px}.pc-list{display:grid;gap:8px}.pc-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px;border:1px solid rgba(255,255,255,.07);border-radius:8px;background:#1e1e1e}.pc-row strong{color:#eee;font-size:11px}.pc-row small{display:block;color:#888;font-size:9px;margin-top:3px}.pc-badge{padding:5px 8px;border-radius:5px;background:#333;color:#bbb;font-size:9px;white-space:nowrap}.pc-badge.red{background:#472824;color:#ff9a91}.pc-badge.green{background:#223b2c;color:#a7dfba}.pc-actions{display:flex;gap:8px;flex-wrap:wrap}.pc-empty{padding:30px;text-align:center;color:#888;font-size:11px}.service-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.service-card{padding:12px;border:1px solid rgba(255,255,255,.08);border-radius:9px;background:#1d1d1d}.service-card-head{display:flex;align-items:center;justify-content:space-between;gap:8px}.service-card-head strong{color:#eee;font-size:10px}.service-card-head a{font-size:9px;color:#ef766c}.service-upload{display:flex;gap:7px;margin-top:10px}.service-upload input{min-width:0;width:100%;font-size:9px;color:#999}.service-upload button{border:1px solid #555;background:#2c2c2c;color:#eee;border-radius:6px;padding:7px 9px;font-size:9px}.pc-table{width:100%;border-collapse:collapse}.pc-table th,.pc-table td{padding:10px;border-bottom:1px solid #383838;text-align:left;font-size:10px;color:#ccc}.pc-table th{color:#888;text-transform:uppercase;letter-spacing:.08em;font-size:8px}.pc-table a{color:#ef766c}.pc-note{color:#888;font-size:9px;line-height:1.6}.pc-edit{margin-top:0}.pc-danger{border:1px solid #67352f!important;color:#ff8177!important;background:#2b1d1b!important}.pc-finance-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.pc-finance-card{padding:16px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#1c1c1c}.pc-finance-card>span{display:block;color:#ef493b;font-size:8px;font-weight:800;letter-spacing:.1em;text-transform:uppercase}.pc-finance-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #333;font-size:10px;color:#aaa}.pc-finance-line:last-child{border-bottom:0}.pc-finance-line strong{color:#eee}.pc-live{display:flex;align-items:center;gap:7px;color:#9ccea8;font-size:9px}.pc-live i{width:6px;height:6px;border-radius:50%;background:#7fc49b}.pc-status-due{color:#ff9a91!important}.pc-status-paid{color:#a7dfba!important}
+.pc-edit-section{margin:0 16px 16px;padding:14px;border:1px solid rgba(255,255,255,.08);border-radius:10px;background:#1b1b1b}.pc-edit-section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:4px}.pc-edit-section-head strong{color:#fff;font-size:12px}.pc-edit-section-head small{color:#7f8a93;font-size:9px}.pc-edit .form-grid{padding:10px 0 2px}.pc-edit .form-field textarea{min-height:92px}.public-project-toggle{display:flex;align-items:center;gap:10px;min-height:41px;color:#cdd4d9;font-size:10px}.public-project-toggle input{width:17px;height:17px;accent-color:#ef493b}
 @media(max-width:1000px){.pc-grid{grid-template-columns:repeat(2,1fr)}.pc-two{grid-template-columns:1fr}.service-grid,.pc-finance-grid{grid-template-columns:1fr}}
 @media(max-width:600px){.pc-grid{grid-template-columns:1fr 1fr}.pc-tabs{border-radius:8px}.pc-panel{padding:15px}}
 `;
@@ -90,7 +91,71 @@ export default function ProjectDetailPage(){
     <PageHeader eyebrow={`PROJECT COMMAND CENTER · ${projectId}`} title={title} description={`${idOf(project,["Client_Name","Client Name","Client"])||"No client"} · ${idOf(project,["Location","Address"])||"Location not set"}`} action={<div className="pc-actions"><Link className="btn" href="/admin/projects">← Projects</Link><button className="btn btn-dark" onClick={()=>setEditing(v=>!v)}>{editing?"Close editor":"Edit project"}</button></div>}/>
     <div className="pc-tabs" role="tablist">{tabs.map(([key,label])=><button key={key} className={tab===key?"active":""} onClick={()=>setTab(key)}>{label}{key==="workflow"?` · ${progress}%`:key==="documents"?` · ${documents.length}`:key==="visits"?` · ${visits.length}`:key==="finance"&&liveFinance?` · ${liveFinance.status}`:""}</button>)}</div>
 
-    {editing&&<form className="card form-card compact pc-edit" onSubmit={saveEdit}><div className="section-title"><div><span>PROJECT MASTER DATA</span><h2>Edit project</h2></div></div><div className="form-grid">{[["Project_Name","PROJECT NAME"],["Client_Name","CLIENT NAME"],["Phone_Number","PHONE"],["Project_Type","PROJECT TYPE"],["Location","LOCATION"],["Design_Bill","DESIGN BILL"],["Status","STATUS"],["Start_Date","START DATE"]].map(([key,label])=><Field key={key} label={label}><input type={key==="Start_Date"?"date":"text"} value={String(draft?.[key]??"")} onChange={e=>setDraft((v:any)=>({...v,[key]:e.target.value}))}/></Field>)}</div><div className="form-actions"><button type="button" onClick={remove} className="btn pc-danger">Delete project</button><button className="btn btn-dark" disabled={savingProject}>{savingProject?"Saving...":"Save changes"}</button></div></form>}
+    {editing&&<form className="card form-card compact pc-edit" onSubmit={saveEdit}>
+      <div className="section-title">
+        <div><span>PROJECT MASTER DATA</span><h2>Edit all project details</h2></div>
+        <span className="pc-note">Project ID: {projectId} · ID is protected because bills, payments, documents and team links use it.</span>
+      </div>
+
+      <div className="pc-edit-section">
+        <div className="pc-edit-section-head"><strong>Client & project</strong><small>Core project information, referral and site details.</small></div>
+        <div className="form-grid">
+          <Field label="PROJECT NAME"><input value={String(draft?.Project_Name ?? "")} onChange={e=>setDraft((v:any)=>({...v,Project_Name:e.target.value}))}/></Field>
+          <Field label="CLIENT NAME"><input value={String(draft?.Client_Name ?? "")} onChange={e=>setDraft((v:any)=>({...v,Client_Name:e.target.value}))}/></Field>
+          <Field label="PHONE"><input value={String(draft?.Phone_Number ?? "")} onChange={e=>setDraft((v:any)=>({...v,Phone_Number:e.target.value}))}/></Field>
+          <Field label="REFERRED BY"><input value={String(draft?.Referred_By ?? "")} onChange={e=>setDraft((v:any)=>({...v,Referred_By:e.target.value}))}/></Field>
+          <Field label="REF. CONTACT"><input value={String(draft?.Ref_Contact ?? "")} onChange={e=>setDraft((v:any)=>({...v,Ref_Contact:e.target.value}))}/></Field>
+          <Field label="PROJECT TYPE"><input value={String(draft?.Project_Type ?? "")} onChange={e=>setDraft((v:any)=>({...v,Project_Type:e.target.value}))}/></Field>
+          <Field label="LOCATION"><input value={String(draft?.Location ?? "")} onChange={e=>setDraft((v:any)=>({...v,Location:e.target.value}))}/></Field>
+          <Field label="LOCATION TAG"><input value={String(draft?.Location_Tag ?? "")} onChange={e=>setDraft((v:any)=>({...v,Location_Tag:e.target.value}))}/></Field>
+          <Field label="PROJECT AREA"><input value={String(draft?.Project_Area ?? "")} onChange={e=>setDraft((v:any)=>({...v,Project_Area:e.target.value}))}/></Field>
+          <Field label="PLOT AREA"><input type="number" value={String(draft?.Plot_Area ?? "")} onChange={e=>setDraft((v:any)=>({...v,Plot_Area:e.target.value}))}/></Field>
+          <Field label="FLOORS / STORIES"><input value={String(draft?.Number_of_Stories ?? draft?.Floors ?? "")} onChange={e=>setDraft((v:any)=>({...v,Number_of_Stories:e.target.value,Floors:e.target.value}))}/></Field>
+          <Field label="START DATE"><input type="date" value={String(draft?.Start_Date ?? "")} onChange={e=>setDraft((v:any)=>({...v,Start_Date:e.target.value}))}/></Field>
+          <Field label="STATUS"><select value={String(draft?.Status ?? "Running")} onChange={e=>setDraft((v:any)=>({...v,Status:e.target.value}))}><option value="Running">Ongoing</option><option value="Paused">On Hold</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select></Field>
+          <Field label="COMPLETION YEAR"><input value={String(draft?.Completion_Year ?? "")} onChange={e=>setDraft((v:any)=>({...v,Completion_Year:e.target.value}))}/></Field>
+          <Field label="NOTES"><textarea rows={3} value={String(draft?.Notes ?? "")} onChange={e=>setDraft((v:any)=>({...v,Notes:e.target.value}))}/></Field>
+        </div>
+      </div>
+
+      <div className="pc-edit-section">
+        <div className="pc-edit-section-head"><strong>Google Drive & system links</strong><small>Update the stored folder references used by the project workspace.</small></div>
+        <div className="form-grid">
+          <Field label="DRIVE FOLDER ID"><input value={String(draft?.Drive_Folder_ID ?? "")} onChange={e=>setDraft((v:any)=>({...v,Drive_Folder_ID:e.target.value}))}/></Field>
+          <Field label="DRIVE FOLDER URL"><input value={String(draft?.Drive_Folder_URL ?? "")} onChange={e=>setDraft((v:any)=>({...v,Drive_Folder_URL:e.target.value}))}/></Field>
+          <Field label="DOCUMENTS FOLDER ID"><input value={String(draft?.Documents_Folder_ID ?? "")} onChange={e=>setDraft((v:any)=>({...v,Documents_Folder_ID:e.target.value}))}/></Field>
+          <Field label="DOCUMENTS FOLDER URL"><input value={String(draft?.Documents_Folder_URL ?? "")} onChange={e=>setDraft((v:any)=>({...v,Documents_Folder_URL:e.target.value}))}/></Field>
+          <Field label="INVOICES FOLDER ID"><input value={String(draft?.Invoices_Folder_ID ?? "")} onChange={e=>setDraft((v:any)=>({...v,Invoices_Folder_ID:e.target.value}))}/></Field>
+          <Field label="INVOICES FOLDER URL"><input value={String(draft?.Invoices_Folder_URL ?? "")} onChange={e=>setDraft((v:any)=>({...v,Invoices_Folder_URL:e.target.value}))}/></Field>
+          <Field label="CLIENT USER ID"><input value={String(draft?.Client_User_ID ?? "")} onChange={e=>setDraft((v:any)=>({...v,Client_User_ID:e.target.value}))}/></Field>
+          <Field label="CLIENT USERNAME"><input value={String(draft?.Client_Username ?? "")} onChange={e=>setDraft((v:any)=>({...v,Client_Username:e.target.value}))}/></Field>
+        </div>
+      </div>
+
+      <div className="pc-edit-section">
+        <div className="pc-edit-section-head"><strong>Public website</strong><small>Everything shown on the public project profile can be maintained here.</small></div>
+        <div className="form-grid">
+          <Field label="SHOW ON PUBLIC WEBSITE"><label className="public-project-toggle"><input type="checkbox" checked={Boolean(draft?.Public_Display)} onChange={e=>setDraft((v:any)=>({...v,Public_Display:e.target.checked}))}/><span>{draft?.Public_Display ? "Visible on the public website" : "Hidden from the public website"}</span></label></Field>
+          <Field label="PUBLIC DISPLAY ORDER"><input type="number" value={String(draft?.Public_Display_Order ?? 0)} onChange={e=>setDraft((v:any)=>({...v,Public_Display_Order:e.target.value}))}/></Field>
+          <Field label="PUBLIC PROJECT TITLE"><input value={String(draft?.Public_Project_Title ?? "")} onChange={e=>setDraft((v:any)=>({...v,Public_Project_Title:e.target.value}))}/></Field>
+          <Field label="PROJECT CATEGORY"><input value={String(draft?.Project_Category ?? "")} onChange={e=>setDraft((v:any)=>({...v,Project_Category:e.target.value}))}/></Field>
+          <Field label="COVER IMAGE URL"><input value={String(draft?.Cover_Image_URL ?? "")} onChange={e=>setDraft((v:any)=>({...v,Cover_Image_URL:e.target.value}))}/></Field>
+          <Field label="GALLERY IMAGES"><textarea rows={4} value={String(draft?.Gallery_Images ?? "")} onChange={e=>setDraft((v:any)=>({...v,Gallery_Images:e.target.value}))}/></Field>
+          <Field label="PUBLIC SERVICES"><textarea rows={4} value={String(draft?.Public_Services ?? "")} onChange={e=>setDraft((v:any)=>({...v,Public_Services:e.target.value}))}/></Field>
+          <Field label="PUBLIC DESCRIPTION"><textarea rows={5} value={String(draft?.Public_Description ?? "")} onChange={e=>setDraft((v:any)=>({...v,Public_Description:e.target.value}))}/></Field>
+        </div>
+      </div>
+
+      <div className="pc-edit-section">
+        <div className="pc-edit-section-head"><strong>Billing / legacy fields</strong><small>These are stored project-level values; live billing totals continue to come from the billing records.</small></div>
+        <div className="form-grid">
+          <Field label="DESIGN BILL / PROJECT BILL"><input type="number" value={String(draft?.Design_Bill ?? "")} onChange={e=>setDraft((v:any)=>({...v,Design_Bill:e.target.value}))}/></Field>
+          <Field label="PROJECT ID"><input value={projectId} disabled title="Project ID is protected"/></Field>
+        </div>
+      </div>
+
+      <div className="form-actions"><button type="button" onClick={remove} className="btn pc-danger">Delete project</button><span className="pc-note">Created: {formatDate(project?.Created_Date)} · Updated: {formatDate(project?.Updated_At)}</span><button type="button" className="btn" onClick={()=>setDraft(project)}>Reset changes</button><button className="btn btn-dark" disabled={savingProject}>{savingProject?"Saving...":"Save all project details"}</button></div>
+    </form>}
 
     {tab==="overview"&&<><section className="pc-grid">
       <div className="pc-stat"><span>Project status</span><strong>{idOf(project,["Status","status"])||"Active"}</strong><small>{formatDate(project.Start_Date||project["Start Date"])}</small></div>
