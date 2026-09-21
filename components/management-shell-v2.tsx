@@ -236,13 +236,14 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const daysLeft = trustedUntil ? Math.max(1, Math.ceil((trustedUntil - Date.now()) / 86400000)) : 0;
 
   const navStyles = `
-    .primary-nav-inner{display:flex;align-items:stretch;gap:4px;flex-wrap:wrap}
+    .primary-nav{position:relative;z-index:90;overflow:visible !important}
+    .primary-nav-inner{position:relative;z-index:91;display:flex;align-items:stretch;gap:4px;flex-wrap:wrap;overflow:visible !important}
     .primary-nav-inner>a,.primary-nav-inner>.nav-group>button{min-height:42px;padding:0 15px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:inherit;text-decoration:none;font-size:12px;font-weight:800;letter-spacing:.06em;cursor:pointer}
     .primary-nav-inner>.nav-group>button:hover,.primary-nav-inner>.nav-group>button.active{background:rgba(255,129,121,.10)}
     .primary-nav-inner>.dashboard-nav.active{background:rgba(255,129,121,.16)}
-    .nav-group{position:relative}.nav-group>button{gap:7px}.nav-chevron{font-size:14px;line-height:1;opacity:.65}
-    .nav-group-menu{position:absolute;z-index:50;top:calc(100% - 1px);left:0;min-width:190px;padding:7px;border:1px solid rgba(255,255,255,.10);border-radius:0 0 10px 10px;background:#101820;box-shadow:0 14px 30px rgba(0,0,0,.28)}
-    .nav-group-menu a{display:block;padding:10px 12px;border-radius:7px;color:inherit;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap}.nav-group-menu a:hover,.nav-group-menu a.active{background:rgba(255,129,121,.12)}
+    .nav-group{position:relative;z-index:92;flex:0 0 auto}.nav-group>button{gap:7px}.nav-chevron{font-size:14px;line-height:1;opacity:.65}
+    .nav-group-menu{display:block;position:absolute;z-index:999;top:100%;left:0;min-width:210px;padding:7px;border:1px solid rgba(255,255,255,.16);border-radius:0 0 10px 10px;background:#101820;color:#fff;box-shadow:0 14px 30px rgba(0,0,0,.45);visibility:visible;opacity:1}
+    .nav-group-menu a{display:block;padding:10px 12px;border-radius:7px;color:#fff;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap}.nav-group-menu a:hover,.nav-group-menu a.active{background:rgba(255,129,121,.12)}
     @media (max-width:800px){.primary-nav-inner{display:block}.primary-nav-inner>a,.primary-nav-inner>.nav-group>button{justify-content:flex-start;width:100%}.nav-group-menu{position:static;min-width:0;margin:0 8px 6px;border-radius:8px;box-shadow:none}}
   `;
   return <div className="admin-shell tmg-shell portal-admin"><style dangerouslySetInnerHTML={{__html: navStyles }} />
