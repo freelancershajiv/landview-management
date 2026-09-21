@@ -263,9 +263,6 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
             {item.label}
           </Link>;
         })}
-            </div>}
-          </div>;
-        })}
       </div></nav>
     </header>
 
