@@ -144,6 +144,52 @@ function editableHistoricalTransaction(id: string, date: string) {
   return (id.startsWith("TXN-HIST-2026-") || id.startsWith("TXN-LEDGER-2025-")) && dateKey(date) < HISTORICAL_EDIT_CUTOFF;
 }
 
+function ledgerEntryRank(debit: number, credit: number) {
+  if (credit > 0 && debit <= 0) return 0;
+  if (debit > 0 && credit <= 0) return 1;
+  return credit >= debit ? 0 : 1;
+}
+
+function ledgerWording(row: Pick<Row, "description" | "category" | "projectId" | "party" | "id">) {
+  return [row.description, row.category, row.projectId, row.party, row.id]
+    .map((value) => text(value))
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+}
+
+function compareNormalizedLedger(a: NormalizedLedgerItem, b: NormalizedLedgerItem) {
+  const dateOrder = dateKey(a.row.date).localeCompare(dateKey(b.row.date));
+  if (dateOrder) return dateOrder;
+
+  const entryOrder = ledgerEntryRank(a.debit, a.credit) - ledgerEntryRank(b.debit, b.credit);
+  if (entryOrder) return entryOrder;
+
+  const wordingOrder = ledgerWording(a.row).localeCompare(ledgerWording(b.row), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+  if (wordingOrder) return wordingOrder;
+
+  return a.row.id.localeCompare(b.row.id, undefined, { numeric: true, sensitivity: "base" });
+}
+
+function compareRunningRows(a: RunningRow, b: RunningRow, newestDateFirst = false) {
+  const dateOrder = dateKey(a.date).localeCompare(dateKey(b.date));
+  if (dateOrder) return newestDateFirst ? -dateOrder : dateOrder;
+
+  const entryOrder = ledgerEntryRank(a.debit, a.credit) - ledgerEntryRank(b.debit, b.credit);
+  if (entryOrder) return entryOrder;
+
+  const wordingOrder = ledgerWording(a).localeCompare(ledgerWording(b), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+  if (wordingOrder) return wordingOrder;
+
+  return a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" });
+}
+
 function StatementTable({
   rows,
   openingBalance,
@@ -324,7 +370,7 @@ export default function AccountsBankStatementPage() {
 
     const history = normalized
       .filter((item) => item.is2025Ledger || item.is2026History)
-      .sort((a, b) => dateKey(a.row.date).localeCompare(dateKey(b.row.date)) || a.row.id.localeCompare(b.row.id));
+      .sort(compareNormalizedLedger);
 
     const live = normalized
       .filter((item) => {
@@ -334,7 +380,7 @@ export default function AccountsBankStatementPage() {
         const key = dateKey(item.row.date);
         return key >= LEDGER_LIVE_START && key <= LEDGER_END;
       })
-      .sort((a, b) => dateKey(a.row.date).localeCompare(dateKey(b.row.date)) || a.row.id.localeCompare(b.row.id));
+      .sort(compareNormalizedLedger);
 
     let balance = 0;
     return [...history, ...live].map((item) => {
@@ -390,7 +436,7 @@ export default function AccountsBankStatementPage() {
         return row;
       })
       .filter((row): row is RunningRow => Boolean(row?.id && row?.date))
-      .sort((a, b) => dateKey(a.date).localeCompare(dateKey(b.date)) || a.id.localeCompare(b.id));
+      .sort((a, b) => compareRunningRows(a, b));
 
     let balance = 0;
     return rows.map((row) => {
@@ -420,7 +466,7 @@ export default function AccountsBankStatementPage() {
   );
 
   const monthStatementRows = useMemo(
-    () => [...cashMonthChronological].sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id)),
+    () => [...cashMonthChronological].sort((a, b) => compareRunningRows(a, b, true)),
     [cashMonthChronological],
   );
 
@@ -450,14 +496,14 @@ export default function AccountsBankStatementPage() {
     const term = query.trim().toLowerCase();
     return [...cashLedgerRows]
       .filter((row) => !term || row.search.includes(term))
-      .sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id));
+      .sort((a, b) => compareRunningRows(a, b, true));
   }, [cashLedgerRows, query]);
 
   const modeRows = useMemo(() => {
     if (mode === "statement") return monthStatementRows;
-    if (mode === "income") return [...cashMonthChronological].filter((row) => row.credit > 0).sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id));
-    if (mode === "expenses") return [...cashMonthChronological].filter((row) => row.debit > 0).sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id));
-    if (mode === "personal") return [...personalRows].sort((a, b) => dateKey(b.date).localeCompare(dateKey(a.date)) || b.id.localeCompare(a.id));
+    if (mode === "income") return [...cashMonthChronological].filter((row) => row.credit > 0).sort((a, b) => compareRunningRows(a, b, true));
+    if (mode === "expenses") return [...cashMonthChronological].filter((row) => row.debit > 0).sort((a, b) => compareRunningRows(a, b, true));
+    if (mode === "personal") return [...personalRows].sort((a, b) => compareRunningRows(a, b, true));
     return filteredLedger;
   }, [filteredLedger, mode, monthStatementRows, cashMonthChronological, personalRows]);
 
@@ -587,7 +633,7 @@ export default function AccountsBankStatementPage() {
           <div className="statement-title">
             <small>{mode === "ledger" ? "AUTHORITATIVE LEDGER" : mode === "personal" ? "ENG RONY / PERSONAL" : mode === "reports" ? "CURRENT MONTH ANALYSIS" : "CURRENT MONTH STATEMENT"}</small>
             <h2>{mode === "ledger" ? "Full running ledger" : mode === "personal" ? "Eng Rony personal ledger" : mode === "reports" ? `${monthLabel} report` : `${monthLabel} statement`}</h2>
-            <p>{mode === "ledger" ? "Full official running balance, including Eng Rony salary/personal-source entries, newest transaction first." : mode === "personal" ? "Eng Rony personal-source expenses are posted officially as Eng Rony Salary; this tab is only a filtered view of those same records." : mode === "reports" ? "Official income and expenditure summarized by category for this month." : "Newest transaction stays at the top. Eng Rony personal expenses are included in official expense as Eng Rony Salary."}</p>
+            <p>{mode === "ledger" ? "Full official running balance, newest date first; within each date income is listed before that date's expenses." : mode === "personal" ? "Eng Rony personal-source expenses are posted officially as Eng Rony Salary; this tab is only a filtered view of those same records." : mode === "reports" ? "Official income and expenditure summarized by category for this month." : "Newest date stays at the top; within each date income is listed first, followed by that date's expenses. Eng Rony personal expenses are included in official expense as Eng Rony Salary."}</p>
           </div>
           <div className="statement-head-stats">
             {mode === "personal" ? <>
