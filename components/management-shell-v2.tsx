@@ -83,6 +83,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [openNavGroup, setOpenNavGroup] = useState<string | null>(null);
   const [quickConfigured, setQuickConfigured] = useState(false);
   const [trustedDevice, setTrustedDevice] = useState(false);
   const [trustedUntil, setTrustedUntil] = useState<number | null>(null);
@@ -236,13 +237,13 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
 
   const navStyles = `
     .primary-nav-inner{display:flex;align-items:stretch;gap:4px;flex-wrap:wrap}
-    .primary-nav-inner>a,.primary-nav-inner>details>summary{min-height:42px;padding:0 15px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:inherit;text-decoration:none;font-size:12px;font-weight:800;letter-spacing:.06em;cursor:pointer}
-    .primary-nav-inner>a:hover,.primary-nav-inner>details>summary:hover,.primary-nav-inner>details.group-active>summary{background:rgba(255,129,121,.10)}
+    .primary-nav-inner>a,.primary-nav-inner>.nav-group>button{min-height:42px;padding:0 15px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:inherit;text-decoration:none;font-size:12px;font-weight:800;letter-spacing:.06em;cursor:pointer}
+    .primary-nav-inner>.nav-group>button:hover,.primary-nav-inner>.nav-group>button.active{background:rgba(255,129,121,.10)}
     .primary-nav-inner>.dashboard-nav.active{background:rgba(255,129,121,.16)}
-    .nav-group{position:relative}.nav-group>summary{list-style:none;gap:7px}.nav-group>summary::-webkit-details-marker{display:none}.nav-chevron{font-size:14px;line-height:1;opacity:.65}
+    .nav-group{position:relative}.nav-group>button{gap:7px}.nav-chevron{font-size:14px;line-height:1;opacity:.65}
     .nav-group-menu{position:absolute;z-index:50;top:calc(100% - 1px);left:0;min-width:190px;padding:7px;border:1px solid rgba(255,255,255,.10);border-radius:0 0 10px 10px;background:#101820;box-shadow:0 14px 30px rgba(0,0,0,.28)}
     .nav-group-menu a{display:block;padding:10px 12px;border-radius:7px;color:inherit;text-decoration:none;font-size:12px;font-weight:700;white-space:nowrap}.nav-group-menu a:hover,.nav-group-menu a.active{background:rgba(255,129,121,.12)}
-    @media (max-width:800px){.primary-nav-inner{display:block}.primary-nav-inner>a,.primary-nav-inner>details>summary{justify-content:flex-start;width:100%}.nav-group-menu{position:static;min-width:0;margin:0 8px 6px;border-radius:8px;box-shadow:none}}
+    @media (max-width:800px){.primary-nav-inner{display:block}.primary-nav-inner>a,.primary-nav-inner>.nav-group>button{justify-content:flex-start;width:100%}.nav-group-menu{position:static;min-width:0;margin:0 8px 6px;border-radius:8px;box-shadow:none}}
   `;
   return <div className="admin-shell tmg-shell portal-admin"><style dangerouslySetInnerHTML={{__html: navStyles }} />
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
@@ -263,15 +264,18 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
         <Link href="/admin" aria-current={pathname === "/admin" ? "page" : undefined} className={pathname === "/admin" ? "active dashboard-nav" : "dashboard-nav"} onClick={()=>setMobileOpen(false)}>Dashboard</Link>
         {visibleGroups.map((group) => {
           const groupActive = group.items.some((item) => currentMatches(pathname, item.href));
-          return <details key={group.label} className={`nav-group ${groupActive ? "group-active" : ""}`} open={groupActive}>
-            <summary>{group.label}<span className="nav-chevron">⌄</span></summary>
-            <div className="nav-group-menu">
+          const isOpen = openNavGroup === group.label;
+          return <div key={group.label} className={`nav-group ${groupActive ? "group-active" : ""}`}>
+            <button type="button" className={`nav-group-trigger ${isOpen || groupActive ? "active" : ""}`} aria-expanded={isOpen} onClick={() => setOpenNavGroup((current) => current === group.label ? null : group.label)}>
+              {group.label}<span className="nav-chevron">{isOpen ? "⌃" : "⌄"}</span>
+            </button>
+            {isOpen && <div className="nav-group-menu">
               {group.items.map((item) => {
                 const active = currentMatches(pathname,item.href);
-                return <Link key={item.href} href={item.href} aria-current={active?"page":undefined} className={active?"active":""} onClick={()=>setMobileOpen(false)}>{item.label}</Link>;
+                return <Link key={item.href} href={item.href} aria-current={active?"page":undefined} className={active?"active":""} onClick={()=>{setMobileOpen(false);setOpenNavGroup(null);}}>{item.label}</Link>;
               })}
-            </div>
-          </details>;
+            </div>}
+          </div>;
         })}
       </div></nav>
     </header>
