@@ -81,12 +81,12 @@ export default function EmployeesPage() {
 
   const filtered = useMemo(() => rows.filter((r) => {
     const status = String(pick(r, ["Status", "status"], "Active")).trim().toLowerCase();
-    const matchesStatus = statusFilter === "All" || (statusFilter === "Former" ? status !== "active" : status === "active");
+    const matchesStatus = statusFilter === "All" || (statusFilter === "Former" ? status === "former" : status === "active");
     return matchesStatus && JSON.stringify(r).toLowerCase().includes(query.toLowerCase());
   }), [rows, query, statusFilter]);
 
   const activeCount = useMemo(() => rows.filter(r => String(pick(r, ["Status", "status"], "Active")).trim().toLowerCase() === "active").length, [rows]);
-  const formerCount = rows.length - activeCount;
+  const formerCount = useMemo(() => rows.filter(r => String(pick(r, ["Status", "status"], "Active")).trim().toLowerCase() === "former").length, [rows]);
 
   function closeEditor() {
     setOpen(false);
@@ -235,6 +235,11 @@ export default function EmployeesPage() {
 
     <div className="toolbar">
       <div className="search-box"><span>⌕</span><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search employees..." /></div>
+      <div className="tabs employee-status-tabs" role="tablist" aria-label="Employee status">
+        <button type="button" className={statusFilter === "Active" ? "active" : ""} aria-selected={statusFilter === "Active"} onClick={() => setStatusFilter("Active")}>Active ({activeCount})</button>
+        <button type="button" className={statusFilter === "Former" ? "active" : ""} aria-selected={statusFilter === "Former"} onClick={() => setStatusFilter("Former")}>Former ({formerCount})</button>
+        <button type="button" className={statusFilter === "All" ? "active" : ""} aria-selected={statusFilter === "All"} onClick={() => setStatusFilter("All")}>All ({rows.length})</button>
+      </div>
       <div className="toolbar-count">{filtered.length} people</div>
     </div>
 
