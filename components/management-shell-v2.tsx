@@ -25,7 +25,6 @@ const nav: NavItem[] = [
   { href: "/admin/workflow", label: "Workflow", permission: "workflow.view" },
   { href: "/admin/registers", label: "Document Registry", permission: "documents.view" },
   { href: "/admin/employees", label: "Employees", permission: "employees.view" },
-  { href: "/admin/certificate-requests", label: "Certificate Requests", permission: "requests.view" },
   { href: "/admin/certificates", label: "Certificates", permission: "certificates.view" },
   { href: "/admin/finance", label: "Billing", permission: "finance.view" },
   { href: "/admin/access", label: "Access Control", adminOnly: true },
@@ -36,7 +35,7 @@ const nav: NavItem[] = [
 
 const navOrder = [
   "/admin/projects", "/admin/estimate", "/admin/workflow", "/admin/proposals",
-  "/admin/registers", "/admin/certificate-requests", "/admin/certificates",
+  "/admin/registers", "/admin/certificates",
   "/admin/finance", "/admin/accounts/entry", "/admin/accounts",
   "/admin/employees", "/admin/access",
 ];
