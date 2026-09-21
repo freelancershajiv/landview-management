@@ -23,6 +23,7 @@ const nav: NavItem[] = [
   { href: "/admin/projects", label: "Projects", permission: "projects.view" },
   { href: "/admin/estimate", label: "Estimate", permission: "projects.view" },
   { href: "/admin/workflow", label: "Workflow", permission: "workflow.view" },
+  { href: "/admin/registers", label: "Registers", permission: "documents.view" },
   { href: "/admin/employees", label: "Employees", permission: "employees.view" },
   { href: "/admin/certificate-requests", label: "Requests", permission: "requests.view" },
   { href: "/admin/certificates", label: "Certificates", permission: "certificates.view" },
