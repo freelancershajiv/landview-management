@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import ContactMapEnhancer from "@/components/contact-map-enhancer";
+import BrandLoader from "@/components/brand-loader";
 import GlobalActionFeedback from "@/components/global-action-feedback";
 import SessionExpiryGuard from "@/components/session-expiry-guard";
 import VisitorAnalytics from "@/components/visitor-analytics";
@@ -82,6 +83,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en-BD">
       <body>
+        <BrandLoader />
         {children}
         <VisitorAnalytics />
         <SessionExpiryGuard />
