@@ -5,6 +5,7 @@ import ProposalFinanceBillingDocument, { toFinanceInvoice } from "@/components/p
 import { printBillingPdf } from "@/components/project-billing-document";
 import { useEffect, useMemo, useState } from "react";
 import { getProposal, getProposalPermissions, saveProposal, updateProposalAction, type ProposalBundle, type ProposalItem, type ProposalRecord } from "@/lib/proposal-api";
+import { sortServicesByStandardOrder, standardServiceLabel } from "@/lib/service-order";
 
 const SERVICES=[
   ["Architectural Design","Engineering"],["Structural Design","Engineering"],["3D Design Exterior","Engineering"],
@@ -25,7 +26,7 @@ const SERVICES=[
 
 function money(v:number){return new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v)||0)}
 function dateText(v?:string){if(!v)return "—";const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}
-function blankItem(service="Architectural Design",category="Engineering"):ProposalItem{return{Service:service,Description:"",Quantity:1,Unit:"Job",Rate:0,Amount:0,Category:category}}
+function blankItem(service="Architectural Design",category="Engineering"):ProposalItem{return{Service:service,Description:"",Quantity:1,Unit:"Job",Rate:0,Amount:0,Category:category}}\nfunction normalizeAndOrderItems(items: ProposalItem[]) {\n  const normalized = items.map((item) => ({ ...item, Service: standardServiceLabel(item.Service) || item.Service }));\n  return sortServicesByStandardOrder(normalized).map((item, index) => ({ ...item, Sort_Order: index + 1 }));\n}
 function emptyProposal():ProposalRecord{return{Client_Name:"",Phone:"",Email:"",Address:"",Source:"",Referred_By:"",Ref_Contact:"",Project_Title:"",Project_Location:"",Project_Type:"Residential",Plot_Area:"",Floors:"",Discount:0,Validity_Days:30,Status:"Draft",Assigned_To:"",Notes:""}}
 
 export default function ProposalWorkspace({proposalId}:{proposalId?:string}){
@@ -43,7 +44,7 @@ export default function ProposalWorkspace({proposalId}:{proposalId?:string}){
   const [message,setMessage]=useState("");
 
   useEffect(()=>{let live=true;void getProposalPermissions().then(data=>{if(!live)return;setPermissions(data?.permissions||{});setRole(String(data?.role||"").toLowerCase())}).catch(()=>{});return()=>{live=false}},[]);
-  useEffect(()=>{if(!proposalId)return;let live=true;setLoading(true);void getProposal(proposalId).then(data=>{if(!live)return;setBundle(data);setRecord(data.proposal);setItems(data.items?.length?data.items:[blankItem()]);setStage(2);setEditing(false)}).catch(e=>live&&setError(e instanceof Error?e.message:"Could not load proposal.")).finally(()=>live&&setLoading(false));return()=>{live=false}},[proposalId]);
+  useEffect(()=>{if(!proposalId)return;let live=true;setLoading(true);void getProposal(proposalId).then(data=>{if(!live)return;setBundle(data);setRecord(data.proposal);setItems(data.items?.length?normalizeAndOrderItems(data.items):[blankItem()]);setStage(2);setEditing(false)}).catch(e=>live&&setError(e instanceof Error?e.message:"Could not load proposal.")).finally(()=>live&&setLoading(false));return()=>{live=false}},[proposalId]);
 
   const full=role==="admin"||role==="manager";
   const can=(key:string)=>full||Boolean(permissions[key]);
@@ -53,15 +54,15 @@ export default function ProposalWorkspace({proposalId}:{proposalId?:string}){
   const discount=Math.max(0,Number(record.Discount)||0);
   const net=Math.max(0,gross-discount);
 
-  function patchItem(index:number,patch:Partial<ProposalItem>){setItems(prev=>prev.map((item,i)=>i===index?{...item,...patch,Amount:(patch.Quantity??item.Quantity)*(patch.Rate??item.Rate)}:item))}
-  function addItem(){setItems(prev=>[...prev,blankItem("Custom Service","Others")])}
+  function patchItem(index:number,patch:Partial<ProposalItem>){setItems(prev=>normalizeAndOrderItems(prev.map((item,i)=>i===index?{...item,...patch,Service:standardServiceLabel(patch.Service??item.Service)||item.Service,Amount:(patch.Quantity??item.Quantity)*(patch.Rate??item.Rate)}:item)))}
+  function addItem(){setItems(prev=>normalizeAndOrderItems([...prev,blankItem("Custom Service","Others")]))}
   function removeItem(index:number){setItems(prev=>prev.length===1?[blankItem()]:prev.filter((_,i)=>i!==index))}
 
   async function save(){
     setError("");setMessage("");
     if(!record.Client_Name.trim())return setError("Client name is required.");
     if(!record.Phone.trim())return setError("Phone number is required.");
-    const usable=items.filter(item=>item.Service.trim()&&Number(item.Rate)>=0&&Number(item.Quantity)>0);
+    const usable=normalizeAndOrderItems(items.filter(item=>item.Service.trim()&&Number(item.Rate)>=0&&Number(item.Quantity)>0));
     if(!usable.length)return setError("Add at least one proposal service.");
     if(!canEdit)return setError("Your account does not have permission to save this proposal.");
     setSaving(true);
@@ -130,7 +131,7 @@ export default function ProposalWorkspace({proposalId}:{proposalId?:string}){
       <label className="full">Proposal notes<textarea value={record.Notes||""} onChange={e=>setRecord({...record,Notes:e.target.value})} placeholder="Scope notes, exclusions, payment terms or special conditions."/></label>
     </div></section>
     <section className="pw-panel"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:12}}><h2 style={{margin:0}}>Proposed services & billing</h2><button className="pw-btn" type="button" onClick={addItem}>+ Add service</button></div><div className="pw-items">{items.map((item,index)=><div className="pw-item" key={index}>
-      <label>Service<select value={SERVICES.some(([s])=>s===item.Service)?item.Service:"Custom Service"} onChange={e=>{const service=e.target.value;const found=SERVICES.find(([s])=>s===service);patchItem(index,{Service:service,Category:found?.[1]||"Others"})}}>{SERVICES.map(([service])=><option key={service}>{service}</option>)}</select></label>
+      <label>Service<select value={SERVICES.some(([s])=>s===standardServiceLabel(item.Service))?standardServiceLabel(item.Service):"Custom Service"} onChange={e=>{const service=e.target.value;const found=SERVICES.find(([s])=>s===service);patchItem(index,{Service:service,Category:found?.[1]||"Others"})}}>{SERVICES.map(([service])=><option key={service}>{service}</option>)}</select></label>
       <label className="pw-desc">Description<input value={item.Description||""} onChange={e=>patchItem(index,{Description:e.target.value})} placeholder={item.Service==="Custom Service"?"Describe service":"Optional scope detail"}/></label>
       <label>Qty<input inputMode="decimal" value={item.Quantity} onChange={e=>patchItem(index,{Quantity:Number(e.target.value)||0})}/></label>
       <label>Unit<input value={item.Unit} onChange={e=>patchItem(index,{Unit:e.target.value})}/></label>

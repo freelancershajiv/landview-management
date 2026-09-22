@@ -5,12 +5,13 @@ import ProjectBillingDocument from "@/components/project-billing-document";
 import { type ProposalBundle, type ProposalItem } from "@/lib/proposal-api";
 import type { SheetInvoices } from "@/lib/sheet-invoices";
 import styles from "@/app/admin/finance/invoices/invoice.module.css";
+import { sortServicesByStandardOrder, standardServiceLabel } from "@/lib/service-order";
 
 const ENGINEERING_SERVICES = new Set([
   "architectural design",
   "structural design",
   "3d design",
-  "3d design exterior",
+  "3d design exterior",\n  "3d design - exterior",\n  "re-design fees",
   "electrical design",
   "plumbing design",
   "estimate & costing",
@@ -75,9 +76,9 @@ function allocateDiscount(gross: number, totalGross: number, totalDiscount: numb
 
 export function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): SheetInvoices {
   const proposal = bundle.proposal;
-  const engineeringItems = bundle.items.filter(isEngineering);
-  const supervisionItems = bundle.items.filter(isSupervision);
-  const otherItems = bundle.items.filter(isOtherService);
+  const engineeringItems = sortServicesByStandardOrder(bundle.items.filter(isEngineering));
+  const supervisionItems = sortServicesByStandardOrder(bundle.items.filter(isSupervision));
+  const otherItems = sortServicesByStandardOrder(bundle.items.filter(isOtherService));
 
   const sourceGroups = [
     { name: "Engineering", items: engineeringItems },
@@ -103,7 +104,7 @@ export function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): Sh
     return {
       name: group.name,
       items: group.items.map((item) => ({
-        service: item.Description ? `${item.Service} — ${item.Description}` : item.Service,
+        service: item.Description ? `${standardServiceLabel(item.Service) || item.Service} — ${item.Description}` : (standardServiceLabel(item.Service) || item.Service),
         price: String(Number(item.Rate) || 0),
         quantity: String(Number(item.Quantity) || 0),
         amount: (Number(item.Quantity) || 0) * (Number(item.Rate) || 0),

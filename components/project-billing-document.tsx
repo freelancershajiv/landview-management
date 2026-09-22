@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { billingQrSvg } from "@/lib/billing-qr";
 import type { SheetInvoices } from "@/lib/sheet-invoices";
 import styles from "@/app/admin/finance/invoices/invoice.module.css";
+import { sortServicesByStandardOrder, standardServiceLabel } from "@/lib/service-order";
 
 const money = (value: number) =>
   new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(Number(value || 0));
@@ -204,7 +205,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
   const renderTable = (category: SheetInvoices["invoices"][number], type: "bill" | "deposit") => {
     if (type === "bill") {
       if (!category.items.length) return <p className={styles.empty}>No bill records.</p>;
-      return <div className={styles.tableWrap}><table className={styles.billTable}><thead><tr><th>SL.</th><th>Description</th><th>Rate (BDT)</th><th>QTY</th><th>AMOUNT (BDT)</th></tr></thead><tbody>{category.items.map((item,index)=>{const soilTest=isSoilTestService(item.service);return <tr key={index}><td>{index+1}</td><td>{item.service||"—"}</td><td>{soilTest&&item.price?amountText(item.price):""}</td><td>{soilTest&&item.quantity?item.quantity:""}</td><td className={styles.moneyCell}>{amountText(item.amount)}</td></tr>;})}</tbody></table></div>;
+      return <div className={styles.tableWrap}><table className={styles.billTable}><thead><tr><th>SL.</th><th>Description</th><th>Rate (BDT)</th><th>QTY</th><th>AMOUNT (BDT)</th></tr></thead><tbody>{sortServicesByStandardOrder(category.items).map((item,index)=>{const soilTest=isSoilTestService(item.service);return <tr key={index}><td>{index+1}</td><td>{standardServiceLabel(item.service)||item.service||"—"}</td><td>{soilTest&&item.price?amountText(item.price):""}</td><td>{soilTest&&item.quantity?item.quantity:""}</td><td className={styles.moneyCell}>{amountText(item.amount)}</td></tr>;})}</tbody></table></div>;
     }
 
     if (!category.payments.length) return <p className={styles.empty}>No deposit records.</p>;
