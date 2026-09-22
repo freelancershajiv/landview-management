@@ -83,6 +83,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const [trustedDevice, setTrustedDevice] = useState(false);
   const [trustedUntil, setTrustedUntil] = useState<number | null>(null);
   const [quickBusy, setQuickBusy] = useState(false);
+  const [estimateOpen, setEstimateOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -259,9 +260,15 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
         <Link href="/admin" aria-current={pathname === "/admin" ? "page" : undefined} className={pathname === "/admin" ? "active dashboard-nav" : "dashboard-nav"} onClick={()=>setMobileOpen(false)}>Dashboard</Link>
         {orderedVisibleNav.map((item) => {
           const active = currentMatches(pathname, item.href);
-          return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}>
-            {item.label}
-          </Link>;
+          if(item.href !== "/admin/estimate") return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}>{item.label}</Link>;
+          return <div key={item.href} className={`estimate-nav-wrap ${active ? "active-wrap" : ""}`}>
+            <button type="button" className={`estimate-nav-trigger ${active ? "active" : ""}`} aria-haspopup="menu" aria-expanded={estimateOpen} onClick={()=>setEstimateOpen(v=>!v)}>Estimates <span aria-hidden="true">▾</span></button>
+            {estimateOpen && <div className="estimate-nav-menu" role="menu">
+              <Link href="/admin/estimate?view=pile" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Pile Estimate</Link>
+              <Link href="/admin/estimate?view=summary" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Summary Estimate</Link>
+              <Link href="/admin/estimate?view=detailed" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Detailed Estimate</Link>
+            </div>}
+          </div>;
         })}
       </div></nav>
     </header>
