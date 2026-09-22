@@ -140,8 +140,8 @@ function pendingExpense(record: Record<string, unknown>) {
   return normalizeStatus(field(record, ["Approval_Status", "Approval Status", "Status"])) === "pending";
 }
 
-function editableHistoricalTransaction(id: string, date: string) {
-  return (id.startsWith("TXN-HIST-2026-") || id.startsWith("TXN-LEDGER-2025-")) && dateKey(date) < HISTORICAL_EDIT_CUTOFF;
+function editableLedgerTransaction(id: string, date: string) {
+  return Boolean(id && date);
 }
 
 function ledgerEntryRank(debit: number, credit: number) {
@@ -252,7 +252,7 @@ function StatementTable({
                 <td className="num debit">{row.debit ? money(row.debit) : "—"}</td>
                 <td className="num credit">{row.credit ? money(row.credit) : "—"}</td>
                 <td className={`num balance ${row.balance < 0 ? "negative" : "positive"}`}>{money(row.balance)}</td>
-                {onEdit && <td>{editableHistoricalTransaction(row.id, row.date) ? <button className="ledger-edit-btn" type="button" onClick={() => onEdit(row)}>Edit</button> : <span className="ledger-source-lock">Source record</span>}</td>}
+                {onEdit && <td><button className="ledger-edit-btn" type="button" disabled={!editableLedgerTransaction(row.id, row.date)} onClick={() => onEdit(row)}>Edit</button></td>}
               </tr>
             );
           })}
@@ -522,7 +522,7 @@ export default function AccountsBankStatementPage() {
   const allCredit = ledgerRows.reduce((sum, row) => sum + row.credit, 0);
   const allDebit = ledgerRows.reduce((sum, row) => sum + row.debit, 0);
 
-  function beginHistoricalEdit(row: RunningRow) {
+  function beginLedgerEdit(row: RunningRow) {
     setMessage("");
     setEditError("");
     setEdit({
@@ -539,11 +539,11 @@ export default function AccountsBankStatementPage() {
     });
   }
 
-  async function saveHistoricalEdit() {
+  async function saveLedgerEdit() {
     if (!edit) return;
     const value = Number(edit.amount.replace(/,/g, ""));
     if (!edit.date) return setEditError("Choose a transaction date.");
-    if (edit.date >= HISTORICAL_EDIT_CUTOFF) return setEditError("Historical ledger entries must stay before September 2026.");
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(edit.date)) return setEditError("Choose a valid transaction date.");
     if (!edit.description.trim()) return setEditError("Description is required.");
     if (!Number.isFinite(value) || value <= 0) return setEditError("Enter a valid amount greater than zero.");
 
@@ -569,10 +569,10 @@ export default function AccountsBankStatementPage() {
         }),
       });
       const json = await response.json().catch(() => null);
-      if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not update historical ledger entry."));
+      if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not update ledger entry."));
       const id = edit.id;
       setEdit(null);
-      setMessage(`${id} updated. Running balances were recalculated from the edited history.`);
+      setMessage(`${id} updated successfully. Running balances were recalculated.`);
       setRevision((value) => value + 1);
     } catch (err) {
       setEditError(err instanceof Error ? err.message : "Could not update historical ledger entry.");
@@ -683,7 +683,7 @@ export default function AccountsBankStatementPage() {
             monthKey={monthKey}
             showOpening={mode !== "ledger" && mode !== "personal"}
             emptyText={mode === "ledger" ? "No matching ledger transactions." : mode === "personal" ? "No Eng Rony personal transactions." : mode === "income" ? `No posted income in ${monthLabel}.` : mode === "expenses" ? `No posted expenses in ${monthLabel}.` : `No posted transactions in ${monthLabel}.`}
-            onEdit={mode === "ledger" ? beginHistoricalEdit : undefined}
+            onEdit={mode === "ledger" ? beginLedgerEdit : undefined}
           />
         )}
 
@@ -695,11 +695,11 @@ export default function AccountsBankStatementPage() {
 
       {edit && <div className="ledger-modal-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target && !savingEdit) setEdit(null); }}>
         <section className="ledger-modal">
-          <h2>Edit historical ledger</h2>
-          <p className="ledger-modal-intro">{edit.id} · Imported historical entries can be corrected here. Source-linked billing/payment rows stay locked so Accounts and Billing cannot drift apart.</p>
+          <h2>Edit ledger entry</h2>
+          <p className="ledger-modal-intro">{edit.id} · Admins can correct the date, type, category, description, amount, project, account, payment method and reference for any posted ledger entry.</p>
           {editError && <div className="ledger-modal-error">{editError}</div>}
           <div className="ledger-modal-grid">
-            <label>Date<input type="date" max="2026-08-31" value={edit.date} onChange={(event) => setEdit({ ...edit, date: event.target.value })}/></label>
+            <label>Date<input type="date" value={edit.date} onChange={(event) => setEdit({ ...edit, date: event.target.value })}/></label>
             <label>Type<select value={edit.type} onChange={(event) => setEdit({ ...edit, type: event.target.value as "Income" | "Expense" })}><option>Income</option><option>Expense</option></select></label>
             <label>Category<input value={edit.category} onChange={(event) => setEdit({ ...edit, category: event.target.value })}/></label>
             <label>Amount (BDT)<input inputMode="decimal" value={edit.amount} onChange={(event) => setEdit({ ...edit, amount: event.target.value.replace(/[^0-9.]/g, "") })}/></label>
@@ -708,11 +708,11 @@ export default function AccountsBankStatementPage() {
             <label>Account<input value={edit.account} onChange={(event) => setEdit({ ...edit, account: event.target.value })} placeholder="Cash / Bank / account name"/></label>
             <label>Payment method<select value={edit.method} onChange={(event) => setEdit({ ...edit, method: event.target.value })}><option value="">Not specified</option>{LEDGER_METHODS.map((item) => <option key={item}>{item}</option>)}</select></label>
             <label>Reference<input value={edit.reference} onChange={(event) => setEdit({ ...edit, reference: event.target.value })} placeholder="Optional reference"/></label>
-            <div className="ledger-modal-note">Saving updates only this imported historical transaction and writes an audit-log entry. The ledger running balance is then rebuilt automatically from the historical transactions.</div>
+            <div className="ledger-modal-note">Saving updates this ledger transaction and writes an audit-log entry. The running balance is rebuilt automatically after the correction.</div>
           </div>
           <div className="ledger-modal-actions">
             <button className="bank-btn" type="button" disabled={savingEdit} onClick={() => setEdit(null)}>Cancel</button>
-            <button className="bank-btn primary" type="button" disabled={savingEdit} onClick={() => void saveHistoricalEdit()}>{savingEdit ? "Saving…" : "Save correction"}</button>
+            <button className="bank-btn primary" type="button" disabled={savingEdit} onClick={() => void saveLedgerEdit()}>{savingEdit ? "Saving…" : "Save correction"}</button>
           </div>
         </section>
       </div>}
