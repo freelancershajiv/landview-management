@@ -10,14 +10,15 @@ const SERVICES=[
   ["Architectural Design","Engineering"],["Structural Design","Engineering"],["3D Design Exterior","Engineering"],
   ["Electrical Design","Engineering"],["Plumbing Design","Engineering"],["Estimate & Costing","Engineering"],
   ["Plan Approval Design","Engineering"],
-  ["Architectural & Structural Design Book","Engineering"],
-  ["A4 Site Book","Engineering"],
-  ["3D Design Book","Engineering"],
-  ["Electrical Design Book","Engineering"],
-  ["Plumbing Design Book","Engineering"],
-  ["Soil Test Book","Engineering"],
-  ["Municipality Approval Sheet","Engineering"],
-  ["Digital Survey Report","Engineering"],
+  ["Design Books","Design Books"],
+  
+  
+  
+  
+  
+  
+  
+  
   ["Soil Test","Others"],["Digital Survey","Others"],
   ["Municipality File Pass","Others"],["Site Supervision","Supervision"],["Custom Service","Others"],
 ] as const;
