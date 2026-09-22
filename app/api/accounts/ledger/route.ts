@@ -46,13 +46,13 @@ export async function PATCH(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     if (!EDIT_ROLES.has(roleOf(user))) {
       return NextResponse.json({ success: false, error: "Admin, manager or accounts access is required to edit ledger entries." }, { status: 403 });
-    }}
+    }
 
     const body = await request.json() as Record<string, unknown>;
     const transactionCode = text(body.Transaction_ID || body.transactionId, 140);
     if (!transactionCode || !isEditableTransactionCode(transactionCode)) {
       return NextResponse.json({ success: false, error: "A valid ledger transaction ID is required." }, { status: 400 });
-    }}
+    }
 
     const found = await selectRows("transactions", { filters: { transaction_code: transactionCode }, limit: 1 });
     if (!found.length) return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
