@@ -15,6 +15,14 @@ const ENGINEERING_SERVICES = new Set([
   "plumbing design",
   "estimate & costing",
   "plan approval design",
+  "architectural & structural design book",
+  "a4 site book",
+  "3d design book",
+  "electrical design book",
+  "plumbing design book",
+  "soil test book",
+  "municipality approval sheet",
+  "digital survey report",
 ]);
 
 const SUPERVISION_SERVICES = new Set([
@@ -44,7 +52,7 @@ function firstText(record: Record<string, unknown> | null | undefined, keys: str
 function isEngineering(item: ProposalItem) {
   const service = normalize(item.Service);
   const category = normalize(item.Category);
-  return category === "engineering" || ENGINEERING_SERVICES.has(service);
+  return category === "engineering" || category === "design books" || ENGINEERING_SERVICES.has(service);
 }
 
 function isSupervision(item: ProposalItem) {
