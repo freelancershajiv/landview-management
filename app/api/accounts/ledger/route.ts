@@ -12,6 +12,10 @@ function text(value: unknown, max = 1500) {
   return String(value ?? "").trim().slice(0, max);
 }
 
+function normalizeStatus(value: unknown) {
+  return text(value, 100).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+
 function number(value: unknown) {
   const n = Number(text(value).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : Number.NaN;
@@ -28,8 +32,8 @@ function sameOrigin(request: NextRequest) {
   try { return new URL(origin).host === request.nextUrl.host; } catch { return false; }
 }
 
-function isEditableHistoricalCode(code: string) {
-  return HISTORICAL_PREFIXES.some((prefix) => code.startsWith(prefix));
+function isEditableTransactionCode(code: string) {
+  return Boolean(code);
 }
 
 export async function PATCH(request: NextRequest) {
@@ -41,14 +45,14 @@ export async function PATCH(request: NextRequest) {
     const user = await requireLocalSession(request);
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     if (!EDIT_ROLES.has(roleOf(user))) {
-      return NextResponse.json({ success: false, error: "Admin, manager or accounts access is required to edit historical ledger entries." }, { status: 403 });
-    }
+      return NextResponse.json({ success: false, error: "Admin, manager or accounts access is required to edit ledger entries." }, { status: 403 });
+    }}
 
     const body = await request.json() as Record<string, unknown>;
     const transactionCode = text(body.Transaction_ID || body.transactionId, 140);
-    if (!transactionCode || !isEditableHistoricalCode(transactionCode)) {
-      return NextResponse.json({ success: false, error: "Only imported historical ledger entries can be edited here." }, { status: 400 });
-    }
+    if (!transactionCode || !isEditableTransactionCode(transactionCode)) {
+      return NextResponse.json({ success: false, error: "A valid ledger transaction ID is required." }, { status: 400 });
+    }}
 
     const found = await selectRows("transactions", { filters: { transaction_code: transactionCode }, limit: 1 });
     if (!found.length) return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
@@ -56,8 +60,8 @@ export async function PATCH(request: NextRequest) {
 
     const transactionDate = validDate(body.Transaction_Date || body.date);
     if (!transactionDate) return NextResponse.json({ success: false, error: "Enter a valid transaction date." }, { status: 400 });
-    if (transactionDate >= "2026-09-01") {
-      return NextResponse.json({ success: false, error: "Historical ledger editing is limited to entries before September 2026." }, { status: 400 });
+    if (normalizeStatus(current.status) !== "posted") {
+      return NextResponse.json({ success: false, error: "Only posted ledger entries can be edited." }, { status: 400 });
     }
 
     const entryType = text(body.Entry_Type || body.type, 30).toLowerCase();
