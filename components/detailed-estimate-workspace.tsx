@@ -136,18 +136,6 @@ export default function DetailedEstimateWorkspace(){
     <div className="de-layout"><main>
       {step===1&&<>
         <section className="de-card"><div className="de-card-head"><div><small>Step 01</small><strong>Preliminary Costing</strong></div><div className="de-section-actions"><button className="de-btn" onClick={()=>setPreliminary(v=>[...v,newPreliminary()])}>+ Add item</button></div></div><div className="de-table-wrap"><table className="de-table compact"><thead><tr><th>Item</th><th>Unit</th><th>Qty</th><th>Material Rate</th><th>Labour Rate</th><th className="num">Amount</th><th></th></tr></thead><tbody>{preliminary.map(r=><tr key={r.id}><td className="wide"><TextInput value={r.item} onChange={v=>setPreliminary(x=>patch(x,r.id,{item:v}))}/></td><td><TextInput value={r.unit} onChange={v=>setPreliminary(x=>patch(x,r.id,{unit:v}))}/></td><td><NumberInput value={r.qty} onChange={v=>setPreliminary(x=>patch(x,r.id,{qty:v}))}/></td><td><NumberInput value={r.materialRate} onChange={v=>setPreliminary(x=>patch(x,r.id,{materialRate:v}))}/></td><td><NumberInput value={r.labourRate} onChange={v=>setPreliminary(x=>patch(x,r.id,{labourRate:v}))}/></td><td className="num"><strong>{money(amount(r.qty,r.materialRate,r.labourRate))}</strong></td><td><button className="de-btn ghost" onClick={()=>setPreliminary(x=>x.filter(y=>y.id!==r.id))}>Remove</button></td></tr>)}</tbody></table></div></section>
-        {step===6&&<section className="de-card de-summary-estimate">
-        <div className="de-card-head"><div><small>Step 06</small><strong>Summary Estimate</strong></div><div style={{textAlign:"right"}}><small>Project</small><strong>{projectName||"Project"}</strong></div></div>
-        <div className="de-body">
-          <div className="de-note" style={{marginBottom:12}}><b>Automatically calculated.</b> This summary is generated from the same quantities and rates used in the Detailed BOQ.</div>
-          <div className="de-summary-row"><span>Preliminary Costing</span><strong>{money(totals.preliminary)}</strong></div>
-          <div className="de-summary-row"><span>{foundationType}</span><strong>{money(totals.foundation)}</strong></div>
-          <div className="de-summary-row"><span>Grade Beam &amp; Ground Preparation</span><strong>{money(totals.grade)}</strong></div>
-          {floorGroups.map(g=><div className="de-summary-row" key={`summary-${g.floor.id}`}><span>{g.floor.name} · RCC + Finishing</span><strong>{money(g.rccTotal+g.finishTotal)}</strong></div>)}
-          <div className="de-summary-row total"><span>Total Estimated Construction Cost</span><strong>{money(totals.grand)}</strong></div>
-        </div>
-      </section>}
-
       <div className="de-spacer"/>
         <section className="de-card"><div className="de-card-head"><div><small>Working rates</small><strong>Structural &amp; ground-work rate sheet</strong></div></div><div className="de-body"><div className="de-note"><b>Enter current rates once.</b> Structural calculations below use these material and labour rates automatically. A central LAND VIEW Rate Library can replace this manual rate sheet later.</div><div className="de-spacer"/><div className="de-rate-grid">{(Object.keys(rates) as RateKey[]).map(k=><div className="de-rate" key={k}><div><b>{rates[k].label}</b><small>per {rates[k].unit}</small></div><div><label>Material</label><NumberInput value={rates[k].material} onChange={v=>updateRate(k,"material",v)}/></div><div><label>Labour</label><NumberInput value={rates[k].labour} onChange={v=>updateRate(k,"labour",v)}/></div></div>)}</div></div></section>
       </>}
@@ -172,6 +160,18 @@ export default function DetailedEstimateWorkspace(){
       </section>}
 
       {step===5&&<section className="de-card"><div className="de-print-title"><h1>LAND VIEW — Detailed Building Estimate</h1><p>{projectName||"Project"}{location?` · ${location}`:""}</p></div><div className="de-card-head"><div><small>Step 05</small><strong>Generated Detailed BOQ</strong></div></div><div className="de-table-wrap"><table className="de-table"><thead><tr><th>Section</th><th>Subsection</th><th>Item</th><th>Unit</th><th className="num">Qty</th><th className="num">Material Rate</th><th className="num">Labour Rate</th><th className="num">Total Rate</th><th className="num">Amount</th></tr></thead><tbody>{allLines.filter(x=>x.qty>0).map((r,i)=><tr key={`${r.section}-${r.item}-${i}`}><td>{r.section}</td><td>{r.subsection}</td><td>{r.item}</td><td>{r.unit}</td><td className="num">{num(r.qty)}</td><td className="num">{money(r.materialRate)}</td><td className="num">{money(r.labourRate)}</td><td className="num">{money(r.materialRate+r.labourRate)}</td><td className="num"><strong>{money(r.amount)}</strong></td></tr>)}{!allLines.some(x=>x.qty>0)&&<tr><td colSpan={9} style={{textAlign:"center",padding:30,color:"#87939d"}}>Enter quantities and rates in the previous steps to generate the BOQ.</td></tr>}</tbody></table></div><div className="de-body"><div className="de-summary-row"><span>Preliminary Costing</span><strong>{money(totals.preliminary)}</strong></div><div className="de-summary-row"><span>{foundationType}</span><strong>{money(totals.foundation)}</strong></div><div className="de-summary-row"><span>Grade Beam &amp; Ground Preparation</span><strong>{money(totals.grade)}</strong></div>{floorGroups.map(g=><div className="de-summary-row" key={g.floor.id}><span>{g.floor.name} · RCC {money(g.rccTotal)} + Finishing {money(g.finishTotal)}</span><strong>{money(g.rccTotal+g.finishTotal)}</strong></div>)}<div className="de-summary-row total"><span>Detailed Estimate Total</span><strong>{money(totals.grand)}</strong></div></div></section>}
+
+      {step===6&&<section className="de-card de-summary-estimate">
+        <div className="de-card-head"><div><small>Step 06</small><strong>Summary Estimate</strong></div><div style={{textAlign:"right"}}><small>Project</small><strong>{projectName||"Project"}</strong></div></div>
+        <div className="de-body">
+          <div className="de-note" style={{marginBottom:12}}><b>Automatically calculated.</b> This summary is generated from the same quantities and rates used in the Detailed BOQ.</div>
+          <div className="de-summary-row"><span>Preliminary Costing</span><strong>{money(totals.preliminary)}</strong></div>
+          <div className="de-summary-row"><span>{foundationType}</span><strong>{money(totals.foundation)}</strong></div>
+          <div className="de-summary-row"><span>Grade Beam &amp; Ground Preparation</span><strong>{money(totals.grade)}</strong></div>
+          {floorGroups.map(g=><div className="de-summary-row" key={`summary-${g.floor.id}`}><span>{g.floor.name} · RCC + Finishing</span><strong>{money(g.rccTotal+g.finishTotal)}</strong></div>)}
+          <div className="de-summary-row total"><span>Total Estimated Construction Cost</span><strong>{money(totals.grand)}</strong></div>
+        </div>
+      </section>
 
       <div className="de-spacer"/><div className="de-actions de-no-print" style={{justifyContent:"space-between"}}><button className="de-btn" disabled={step===1} onClick={()=>setStep(s=>Math.max(1,s-1))}>← Previous</button><button className="de-btn red" disabled={step===6} onClick={()=>setStep(s=>Math.min(6,s+1))}>Next →</button></div>
     </main>
