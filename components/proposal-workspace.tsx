@@ -8,25 +8,20 @@ import { getProposal, getProposalPermissions, saveProposal, updateProposalAction
 import { sortServicesByStandardOrder, standardServiceLabel } from "@/lib/service-order";
 
 const SERVICES=[
-  ["Architectural Design","Engineering"],["Structural Design","Engineering"],["3D Design Exterior","Engineering"],
+  ["Architectural Design","Engineering"],["Structural Design","Engineering"],["3D Design - Exterior","Engineering"],
   ["Electrical Design","Engineering"],["Plumbing Design","Engineering"],["Estimate & Costing","Engineering"],
-  ["Plan Approval Design","Engineering"],
-  ["Design Books","Design Books"],
-  
-  
-  
-  
-  
-  
-  
-  
+  ["Design Books","Engineering"],["Plan Approval Design","Engineering"],["Re-Design Fees","Engineering"],
   ["Soil Test","Others"],["Digital Survey","Others"],
   ["Municipality File Pass","Others"],["Site Supervision","Supervision"],["Custom Service","Others"],
 ] as const;
 
 function money(v:number){return new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v)||0)}
 function dateText(v?:string){if(!v)return "—";const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}
-function blankItem(service="Architectural Design",category="Engineering"):ProposalItem{return{Service:service,Description:"",Quantity:1,Unit:"Job",Rate:0,Amount:0,Category:category}}\nfunction normalizeAndOrderItems(items: ProposalItem[]) {\n  const normalized = items.map((item) => ({ ...item, Service: standardServiceLabel(item.Service) || item.Service }));\n  return sortServicesByStandardOrder(normalized).map((item, index) => ({ ...item, Sort_Order: index + 1 }));\n}
+function blankItem(service="Architectural Design",category="Engineering"):ProposalItem{return{Service:service,Description:"",Quantity:1,Unit:"Job",Rate:0,Amount:0,Category:category}}
+function normalizeAndOrderItems(items: ProposalItem[]) {
+  const normalized = items.map((item) => ({ ...item, Service: standardServiceLabel(item.Service) || item.Service }));
+  return sortServicesByStandardOrder(normalized).map((item, index) => ({ ...item, Sort_Order: index + 1 }));
+}
 function emptyProposal():ProposalRecord{return{Client_Name:"",Phone:"",Email:"",Address:"",Source:"",Referred_By:"",Ref_Contact:"",Project_Title:"",Project_Location:"",Project_Type:"Residential",Plot_Area:"",Floors:"",Discount:0,Validity_Days:30,Status:"Draft",Assigned_To:"",Notes:""}}
 
 export default function ProposalWorkspace({proposalId}:{proposalId?:string}){

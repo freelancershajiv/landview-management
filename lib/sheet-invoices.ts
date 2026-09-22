@@ -134,7 +134,8 @@ function categoryFromWorkspaceValue(value: unknown): InvoiceCategoryName | "" {
 
 function recalculateBilling(billing: SheetInvoices) {
   for (const category of billing.invoices) {
-    category.items = sortServicesByStandardOrder(category.items);\n    category.gross = category.items.reduce((sum, item) => sum + item.amount, 0);
+    category.items = sortServicesByStandardOrder(category.items);
+    category.gross = category.items.reduce((sum, item) => sum + item.amount, 0);
     category.paid = category.payments.reduce((sum, payment) => sum + payment.amount, 0);
     category.due = category.gross - category.discount - category.paid;
   }
