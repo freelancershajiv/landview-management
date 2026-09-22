@@ -1,4 +1,5 @@
 import type { FinanceSheetData } from "./api";
+import { sortServicesByStandardOrder } from "./service-order";
 
 export const invoiceTabs = ["Summary", "File List", "Design Bill", "Design Deposit", "Design Books Bill", "Design Books Deposit", "Supervision Bill", "S Deposit", "Others Bill", "Others Bill Deposit"];
 
@@ -62,12 +63,12 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
   ];
 
   const invoices = categories.map((category) => {
-    const items = matching(category.bill).map((row) => ({
+    const items = sortServicesByStandardOrder(matching(category.bill).map((row) => ({
       service: cleanBillDescription(row[1]),
       price: row[2],
       quantity: row[3],
       amount: sheetAmount(row[4]),
-    }));
+    })));
 
     const payments = matching(category.deposit).map((row) => ({
       date: row[1],
@@ -133,7 +134,7 @@ function categoryFromWorkspaceValue(value: unknown): InvoiceCategoryName | "" {
 
 function recalculateBilling(billing: SheetInvoices) {
   for (const category of billing.invoices) {
-    category.gross = category.items.reduce((sum, item) => sum + item.amount, 0);
+    category.items = sortServicesByStandardOrder(category.items);\n    category.gross = category.items.reduce((sum, item) => sum + item.amount, 0);
     category.paid = category.payments.reduce((sum, payment) => sum + payment.amount, 0);
     category.due = category.gross - category.discount - category.paid;
   }
