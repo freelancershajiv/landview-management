@@ -13,7 +13,7 @@ const SERVICES=[
   ["Design Books","Engineering"],["Plan Approval Design","Engineering"],["Re-Design Fees","Engineering"],
   ["Soil Test","Others"],["Digital Survey","Others"],
   ["Municipality File Pass","Others"],["Site Supervision","Supervision"],["Custom Service","Others"],
-
+] as const;
 
 function money(v:number){return new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v)||0)}
 function dateText(v?:string){if(!v)return "—";const d=new Date(v);return Number.isNaN(d.getTime())?v:d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}
