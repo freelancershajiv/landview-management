@@ -171,7 +171,7 @@ export default function DetailedEstimateWorkspace(){
           {floorGroups.map(g=><div className="de-summary-row" key={`summary-${g.floor.id}`}><span>{g.floor.name} · RCC + Finishing</span><strong>{money(g.rccTotal+g.finishTotal)}</strong></div>)}
           <div className="de-summary-row total"><span>Total Estimated Construction Cost</span><strong>{money(totals.grand)}</strong></div>
         </div>
-      </section>
+      </section>}
 
       <div className="de-spacer"/><div className="de-actions de-no-print" style={{justifyContent:"space-between"}}><button className="de-btn" disabled={step===1} onClick={()=>setStep(s=>Math.max(1,s-1))}>← Previous</button><button className="de-btn red" disabled={step===6} onClick={()=>setStep(s=>Math.min(6,s+1))}>Next →</button></div>
     </main>
