@@ -16,6 +16,12 @@ export function sheetAmount(value: string | undefined) {
   return number;
 }
 
+function cleanBillDescription(value: unknown) {
+  return String(value || "")
+    .replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "")
+    .trim();
+}
+
 export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
   const id = normalizeFileId(input);
   if (!id) throw new Error("Enter a valid File ID, such as 209 or LV-209.");
@@ -57,7 +63,7 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
 
   const invoices = categories.map((category) => {
     const items = matching(category.bill).map((row) => ({
-      service: row[1],
+      service: cleanBillDescription(row[1]),
       price: row[2],
       quantity: row[3],
       amount: sheetAmount(row[4]),
@@ -139,9 +145,7 @@ function recalculateBilling(billing: SheetInvoices) {
 }
 
 function normalizedBillDescription(value: unknown) {
-  return String(value || "")
-    .replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "")
-    .trim()
+  return cleanBillDescription(value)
     .toLowerCase()
     .replace(/\s+/g, " ");
 }
