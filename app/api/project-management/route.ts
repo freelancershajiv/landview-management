@@ -6,6 +6,37 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
+const EXPENSE_CATEGORIES = ["Cash","Bricks","Masonry","Stone & Sand","Cement & Steel","Security","Other Expenses","Electric Contractor","Electrical Material","Plumbing Contractor","Plumbing Material","Tiles","Door","Grills"] as const;
+
+function normalizeExpenseCategory(value: unknown) {
+  const raw = clean(value, 120).toLowerCase().replace(/&/g, "and").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  const aliases: Record<string,string> = {
+    cash:"Cash",bricks:"Bricks",masonry:"Masonry","stone and sand":"Stone & Sand",stone:"Stone & Sand",sand:"Stone & Sand",
+    "cement and steel":"Cement & Steel",cement:"Cement & Steel",steel:"Cement & Steel",security:"Security",
+    "other expenses":"Other Expenses",other:"Other Expenses","electric contractor":"Electric Contractor",
+    "electrical material":"Electrical Material",electrical:"Electrical Material","plumbing contractor":"Plumbing Contractor",
+    "plumbing material":"Plumbing Material",plumbing:"Plumbing Material",tiles:"Tiles",door:"Door",doors:"Door",
+    "door and woods":"Door",grill:"Grills",grills:"Grills","ss grill":"Grills"
+  };
+  return aliases[raw] || "Other Expenses";
+}
+function guessExpenseCategory(category: unknown, description: unknown) {
+  const raw = `${clean(category,180)} ${clean(description,500)}`.toLowerCase();
+  if (/security|guard/.test(raw)) return "Security";
+  if (/brick|brick chip/.test(raw)) return "Bricks";
+  if (/masonry|mason|worker|labour|labor|rcc|casting/.test(raw)) return "Masonry";
+  if (/stone|sand|soil|syleth/.test(raw)) return "Stone & Sand";
+  if (/cement|steel|rod|rebar|binding cable/.test(raw)) return "Cement & Steel";
+  if (/electrical contractor|electric contractor|electrician|electrical work/.test(raw)) return "Electric Contractor";
+  if (/electrical material|socket|cable|light|fan|switch|wire|electrical/.test(raw)) return "Electrical Material";
+  if (/plumbing contractor|plumber/.test(raw)) return "Plumbing Contractor";
+  if (/plumbing material|pipe|fitting|sanitary|sewerage/.test(raw)) return "Plumbing Material";
+  if (/tile/.test(raw)) return "Tiles";
+  if (/door|wood/.test(raw)) return "Door";
+  if (/grill/.test(raw)) return "Grills";
+  if (/cash|cash advance/.test(raw)) return "Cash";
+  return "Other Expenses";
+}
 const clean = (v: unknown, max = 1000) => String(v ?? "").trim().slice(0, max);
 const num = (v: unknown) => { const n = Number(String(v ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; };
 const roleOf = (u: Row | null) => clean(u?.role || u?.Role, 30).toLowerCase();
