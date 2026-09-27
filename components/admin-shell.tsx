@@ -245,7 +245,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   const name = user?.name || user?.Name || user?.username || user?.Username || "LAND VIEW User";
   const role = user?.role || user?.Role || "User";
-  const visibleNav = nav.filter((item) => (!item.adminOnly || roleOf(user) === "admin") && (String(role).toLowerCase() !== "accounts" || item.accounts));
+  const visibleNav = nav.filter((item) => (!item.adminOnly || isAdminWorkspaceRole(roleOf(user))) && (String(role).toLowerCase() !== "accounts" || item.accounts));
   const daysLeft = trustedUntil ? Math.max(1, Math.ceil((trustedUntil - Date.now()) / (24 * 60 * 60 * 1000))) : 0;
 
   return (
