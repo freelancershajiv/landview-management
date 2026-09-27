@@ -70,11 +70,19 @@ async function workspace(user: Row, requested?: string) {
   const entries = calculate(rows);
   const debit = entries.reduce((s,r) => s + num(r.debit), 0);
   const credit = entries.reduce((s,r) => s + num(r.credit), 0);
+  const categories = EXPENSE_CATEGORIES.map(category => ({
+    category,
+    total: entries.filter(r => normalizeExpenseCategory(r.category) === category).reduce((s,r) => s + num(r.debit), 0),
+    count: entries.filter(r => normalizeExpenseCategory(r.category) === category).length
+  }));
+  const masterLedger = await masterLedgerFor(user, selected);
   return {
     projects: projects.map(p => ({ id:p.id, projectCode:p.project_code, projectName:p.project_name || p.project_code, clientName:p.client_name_snapshot || "", location:p.location || "", status:p.status || "" })),
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
     totals: { debit, credit, balance: credit - debit },
+    categories,
+    masterLedger,
     readOnly: !isAdmin(user),
   };
 }
@@ -94,7 +102,7 @@ const EXPENSE_CATEGORIES = ["Cash","Bricks","Masonry","Stone & Sand","Cement & S
 type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 
 function normalizeExpenseCategory(value: unknown): ExpenseCategory {
-  const raw = clean(value, 120).toLowerCase().replace(/&/g, "and").replace(/[_-]+/g, " ").replace(/\\s+/g, " ").trim();
+  const raw = clean(value, 120).toLowerCase().replace(/&/g, "and").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
   const aliases: Record<string, ExpenseCategory> = {
     cash:"Cash", bricks:"Bricks", masonry:"Masonry", "stone and sand":"Stone & Sand", stone:"Stone & Sand", sand:"Stone & Sand",
     "cement and steel":"Cement & Steel", cement:"Cement & Steel", steel:"Cement & Steel", security:"Security",
@@ -168,6 +176,35 @@ export async function POST(request: NextRequest) {
     if (!isAdmin(user)) return fail("Admin permission required.",403);
     const body = await request.json() as Row;
     const project = await projectFor(user, body.projectId || body.Project_ID);
+    if (body.action === "pullMaster") {
+      const sourceType = clean(body.sourceType, 30).toLowerCase();
+      const sourceId = clean(body.sourceId, 100);
+      if (!["transaction","expense"].includes(sourceType) || !sourceId) return fail("Master ledger source is required.",400);
+      const category = normalizeExpenseCategory(body.category);
+      const duplicate = await selectRows("project_management_ledger", { filters: { project_id: project.id, memo: `MASTER_LEDGER:${sourceType}:${sourceId}` }, limit: 1 });
+      if (duplicate.length) return fail("This master ledger entry has already been pulled into Project Management.",409);
+      let source: Row | null = null;
+      if (sourceType === "transaction") {
+        const rows = await selectRows("transactions", { filters: { id: sourceId, project_id: project.id }, limit: 1 });
+        source = rows[0] || null;
+      } else {
+        const rows = await selectRows("expenses", { filters: { id: sourceId, project_id: project.id }, limit: 1 });
+        source = rows[0] || null;
+      }
+      if (!source) return fail("Master ledger entry not found for this project.",404);
+      const amount = sourceType === "transaction" ? num(source.debit || source.amount) : num(source.amount);
+      if (!(amount > 0)) return fail("Only debit/expense master-ledger entries can be pulled.",400);
+      const row = {
+        project_id: project.id, project_code_snapshot: project.project_code,
+        entry_date: source.transaction_date || source.expense_date || new Date().toISOString().slice(0,10),
+        details: source.description || source.category || "Master ledger expense",
+        sft: 0, rate: 0, debit: amount, credit: 0, category,
+        memo: `MASTER_LEDGER:${sourceType}:${sourceId}`, source: "master_ledger",
+        created_by: employeeCodeOf(user) || userIdOf(user) || "LAND VIEW"
+      };
+      const saved = await insertRows("project_management_ledger", row);
+      return ok(saved[0] || row);
+    }
     const v = await validateEntry(body);
     const row = { project_id:project.id, project_code_snapshot:project.project_code, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:v.memo, source:"project_management", created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW" };
     const saved = await insertRows("project_management_ledger", row);
