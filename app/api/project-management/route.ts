@@ -90,6 +90,66 @@ export async function GET(request: NextRequest) {
   catch (e) { const m = e instanceof Error ? e.message : String(e); return fail(m, errorStatus(m)); }
 }
 
+const EXPENSE_CATEGORIES = ["Cash","Bricks","Masonry","Stone & Sand","Cement & Steel","Security","Other Expenses","Electric Contractor","Electrical Material","Plumbing Contractor","Plumbing Material","Tiles","Door","Grills"] as const;
+type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
+
+function normalizeExpenseCategory(value: unknown): ExpenseCategory {
+  const raw = clean(value, 120).toLowerCase().replace(/&/g, "and").replace(/[_-]+/g, " ").replace(/\\s+/g, " ").trim();
+  const aliases: Record<string, ExpenseCategory> = {
+    cash:"Cash", bricks:"Bricks", masonry:"Masonry", "stone and sand":"Stone & Sand", stone:"Stone & Sand", sand:"Stone & Sand",
+    "cement and steel":"Cement & Steel", cement:"Cement & Steel", steel:"Cement & Steel", security:"Security",
+    "other expenses":"Other Expenses", other:"Other Expenses", "electric contractor":"Electric Contractor",
+    "electrical material":"Electrical Material", electrical:"Electrical Material", "plumbing contractor":"Plumbing Contractor",
+    "plumbing material":"Plumbing Material", plumbing:"Plumbing Material", tiles:"Tiles", door:"Door", doors:"Door",
+    "door and woods":"Door", grill:"Grills", grills:"Grills", "ss grill":"Grills"
+  };
+  return aliases[raw] || "Other Expenses";
+}
+
+function guessExpenseCategory(category: unknown, description: unknown): ExpenseCategory {
+  const raw = `${clean(category, 180)} ${clean(description, 500)}`.toLowerCase();
+  if (/security|guard/.test(raw)) return "Security";
+  if (/brick|brick chip/.test(raw)) return "Bricks";
+  if (/masonry|mason/.test(raw)) return "Masonry";
+  if (/stone|sand|soil|syleth/.test(raw)) return "Stone & Sand";
+  if (/cement|steel|rod|rebar|binding cable/.test(raw)) return "Cement & Steel";
+  if (/electrical contractor|electric contractor|electrician|electrical work/.test(raw)) return "Electric Contractor";
+  if (/electrical material|socket|cable|light|fan|switch|wire|electrical/.test(raw)) return "Electrical Material";
+  if (/plumbing contractor|plumber/.test(raw)) return "Plumbing Contractor";
+  if (/plumbing material|pipe|fitting|sanitary|sewerage/.test(raw)) return "Plumbing Material";
+  if (/tile/.test(raw)) return "Tiles";
+  if (/door|wood/.test(raw)) return "Door";
+  if (/grill|ss grill/.test(raw)) return "Grills";
+  if (/cash|cash advance|cash handling/.test(raw)) return "Cash";
+  return "Other Expenses";
+}
+
+async function masterLedgerFor(user: Row, project: Row) {
+  if (!isAdmin(user)) return [];
+  const [transactions, expenses] = await Promise.all([
+    selectRows("transactions", { filters: { project_id: project.id }, order: "transaction_date:asc", limit: 5000 }),
+    selectRows("expenses", { filters: { project_id: project.id }, order: "expense_date:asc", limit: 5000 })
+  ]);
+  const txRows = transactions
+    .filter(r => num(r.debit) > 0 || String(r.transaction_type || "").toLowerCase() === "expense")
+    .map(r => ({
+      sourceType: "transaction", sourceId: r.id, sourceCode: r.transaction_code || r.id,
+      entryDate: r.transaction_date || "", details: r.description || r.category || "Master ledger expense",
+      amount: num(r.debit || r.amount), masterCategory: r.category || "", suggestedCategory: guessExpenseCategory(r.category, r.description),
+      reference: r.reference_no || "", status: r.status || ""
+    }))
+    .filter(r => r.amount > 0);
+  const expenseRows = expenses.map(r => ({
+    sourceType: "expense", sourceId: r.id, sourceCode: r.expense_code || r.id,
+    entryDate: r.expense_date || "", details: r.description || r.category || "Master expense",
+    amount: num(r.amount), masterCategory: r.category || "", suggestedCategory: guessExpenseCategory(r.category, r.description),
+    reference: r.reference_no || r.reference || "", status: r.status || r.approval_status || ""
+  })).filter(r => r.amount > 0);
+  const existing = await selectRows("project_management_ledger", { filters: { project_id: project.id }, limit: 10000 });
+  const used = new Set(existing.map(r => String(r.memo || "").match(/^MASTER_LEDGER:(transaction|expense):(.+)$/)?.[0]).filter(Boolean));
+  return [...txRows, ...expenseRows].map(r => ({ ...r, pulled: used.has(`MASTER_LEDGER:${r.sourceType}:${r.sourceId}`) }));
+}
+
 async function validateEntry(body: Row) {
   const debit = Math.max(0, num(body.debit ?? body.Debit));
   const credit = Math.max(0, num(body.credit ?? body.Credit));
