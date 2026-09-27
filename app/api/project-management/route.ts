@@ -1,7 +1,7 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
-import { employeeCodeOf, insertRows, normalizeProjectCode, selectRows, updateRows, deleteRows } from "@/lib/supabase-data";
+import { employeeCodeOf, insertRows, normalizeProjectCode, selectRows, updateRows, deleteRows, upsertRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -95,6 +95,16 @@ function calculate(rows: Row[]) {
     return { ...row, debit, credit, sft: num(row.sft), rate: num(row.rate), balance };
   });
 }
+async function projectSummaryFor(project: Row) {
+  const rows = await selectRows("project_management_summary", { filters: { project_id: project.id }, limit: 1 });
+  const row = rows[0] || {};
+  return {
+    supplierAdvance: num(row.supplier_advance),
+    chequeOnHold: num(row.cheque_on_hold),
+    notes: clean(row.notes, 2000)
+  };
+}
+
 async function masterLedgerFor(user: Row, project: Row) {
   if (!isAdmin(user)) return [];
   const [transactions, expenses] = await Promise.all([
@@ -140,6 +150,7 @@ async function workspace(user: Row, requested?: string) {
       selectedProject: null,
       entries: [],
       totals: { debit: 0, credit: 0, balance: 0 },
+      summary: { supplierAdvance: 0, chequeOnHold: 0, engShajivBalance: 0, notes: "" },
       categories: [],
       masterLedger: [],
       readOnly: !isAdmin(user),
@@ -153,11 +164,14 @@ async function workspace(user: Row, requested?: string) {
   const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Other Expenses", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
   const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
   const masterLedger = await masterLedgerFor(user, selected);
+  const summary = await projectSummaryFor(selected);
+  const engShajivBalance = debit - credit - summary.supplierAdvance - summary.chequeOnHold;
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
     totals: { debit, credit, balance: debit - credit },
+    summary: { ...summary, engShajivBalance },
     categories,
     masterLedger,
     readOnly: !isAdmin(user),
@@ -193,6 +207,24 @@ export async function POST(request: NextRequest) {
     if (!isAdmin(user)) return fail("Admin permission required.",403);
     const body = await request.json() as Row;
     const project = await projectFor(user, body.projectId || body.Project_ID);
+    if (body.action === "updateSummary") {
+      const supplierAdvance = Math.max(0, num(body.supplierAdvance));
+      const chequeOnHold = Math.max(0, num(body.chequeOnHold));
+      const notes = clean(body.notes, 2000) || null;
+      const saved = await upsertRows("project_management_summary", {
+        project_id: project.id,
+        supplier_advance: supplierAdvance,
+        cheque_on_hold: chequeOnHold,
+        notes,
+        updated_at: new Date().toISOString(),
+      }, "project_id");
+      const row = saved[0] || { project_id: project.id, supplier_advance: supplierAdvance, cheque_on_hold: chequeOnHold, notes };
+      return ok({
+        supplierAdvance: num(row.supplier_advance),
+        chequeOnHold: num(row.cheque_on_hold),
+        notes: clean(row.notes, 2000),
+      });
+    }
     if (body.action === "pullMaster") {
       const sourceType = clean(body.sourceType, 30).toLowerCase();
       const sourceId = clean(body.sourceId, 100);
