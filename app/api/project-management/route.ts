@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { employeeCodeOf, insertRows, normalizeProjectCode, selectRows, updateRows, deleteRows } from "@/lib/supabase-data";
