@@ -19,7 +19,7 @@ const nav = [
   { href: "/admin/certificate-requests", label: "Requests" },
   { href: "/admin/certificates", label: "Certificates" },
   { href: "/admin/finance", label: "Finance", accounts: true },
-  { href: "/projectmanagement", label: "Project Management", accounts: true },
+  { href: "/projectmanagement", label: "Project Management", accounts: true, adminOnly: true },
 ];
 
 const SESSION_WATCHDOG_MS = 15000;
@@ -245,7 +245,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
 
   const name = user?.name || user?.Name || user?.username || user?.Username || "LAND VIEW User";
   const role = user?.role || user?.Role || "User";
-  const visibleNav = String(role).toLowerCase() === "accounts" ? nav.filter((item) => item.accounts) : nav;
+  const visibleNav = nav.filter((item) => (!item.adminOnly || roleOf(user) === "admin") && (String(role).toLowerCase() !== "accounts" || item.accounts));
   const daysLeft = trustedUntil ? Math.max(1, Math.ceil((trustedUntil - Date.now()) / (24 * 60 * 60 * 1000))) : 0;
 
   return (
