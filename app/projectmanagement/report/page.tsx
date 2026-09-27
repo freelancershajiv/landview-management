@@ -320,7 +320,6 @@ const styles = `
   .rpt-closing{margin-top:5px;border-radius:0;padding:7px 9px}.rpt-closing span{font-size:6px}.rpt-closing strong{font-size:7px}.rpt-closing .formula{font-size:7px}
   .rpt-note-box{margin-top:5px;border-radius:0;padding:7px 9px;display:flex;flex-direction:row}.rpt-note-box span{font-size:6px}.rpt-note-box strong{font-size:7px}.rpt-note-box p{font-size:5.5px}.rpt-note-values{grid-template-columns:repeat(3,minmax(100px,1fr));gap:0}.rpt-note-values>div{padding:0 9px;border-left:1px solid #e4dbc0;border-top:0;margin-top:0}.rpt-note-values strong{font-size:7px}.rpt-signoff{gap:18px;margin-top:8px;padding-top:7px}.rpt-signoff span{font-size:6px}.rpt-signoff strong{font-size:7px;margin-top:7px}.rpt-signoff i{font-size:5.5px}.rpt-footer{margin-top:6px;padding-top:5px;font-size:5.5px}
 }
-`
   @media print{
     .rpt-letterhead,.rpt-project-card,.rpt-account-bar,.rpt-controls,.rpt-summary-grid,.rpt-closing,.rpt-note-box,.rpt-signoff,.rpt-footer,.rpt-statement-head{display:none!important}
     .rpt-page{background:#fff!important;padding:0!important}
@@ -371,4 +370,4 @@ const styles = `
     .print-ledger-footer strong{color:#111!important;font-weight:800!important}
     *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   }
-;
+`;
