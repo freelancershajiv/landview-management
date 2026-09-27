@@ -12,7 +12,7 @@ const blank=()=>({entryDate:new Date().toISOString().slice(0,10),supplier:"",det
 
 export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
-  const [tab,setTab]=useState("Summary"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
+  const [ledgerView,setLedgerView]=useState("all"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
 
   async function load(code=project){
@@ -38,20 +38,23 @@ export default function ProjectManagementPage(){
     return Array.from(new Set(fromData.length?fromData:CATEGORIES));
   },[data]);
 
+  const incomeCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.debit)>0)),[entries,categories]);
+  const expenseCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.credit)>0)),[entries,categories]);
   const filtered=useMemo(()=>{
     const q=search.trim().toLowerCase();
     return entries
-      .filter((r:any)=>
-        (tab==="Summary"||String(r.category||"Other Expenses")===tab) &&
-        (!q||[r.details,r.supplier,r.category,r.memo,r.entry_date].join(" ").toLowerCase().includes(q))
-      )
+      .filter((r:any)=>{
+        const matchesView=ledgerView==="all" || (ledgerView==="income" ? num(r.debit)>0 : num(r.credit)>0);
+        const matchesCategory=ledgerCategory==="all" || String(r.category||"Other Expenses")===ledgerCategory;
+        return matchesView && matchesCategory && (!q||[r.details,r.supplier,r.category,r.memo,r.entry_date].join(" ").toLowerCase().includes(q));
+      })
       .slice()
       .sort((a:any,b:any)=>{
         const d=String(a.entry_date||"").localeCompare(String(b.entry_date||""));
         if(d)return d;
         return String(a.created_at||"").localeCompare(String(b.created_at||""));
       });
-  },[entries,tab,search]);
+  },[entries,ledgerView,ledgerCategory,search]);
 
   const categoryTotals=useMemo(()=>{
     const x:any={};
@@ -176,6 +179,8 @@ export default function ProjectManagementPage(){
   const totalDebit=num(data?.totals?.debit);
   const totalCredit=num(data?.totals?.credit);
   const balance=num(data?.totals?.balance);
+  const currentTitle = ledgerView==="income" ? (ledgerCategory==="all" ? "Income" : ledgerCategory) : ledgerView==="expense" ? (ledgerCategory==="all" ? "Expenses" : ledgerCategory) : "All Ledger Entries";
+  const currentCount = filtered.length;
 
   return (
     <main className="pm-page">
@@ -256,27 +261,40 @@ export default function ProjectManagementPage(){
           <div className="pm-category-bar">
             <div className="pm-category-title">
               <span className="pm-label">LEDGER VIEW</span>
-              <strong>Expense categories</strong>
+              <strong>Choose income or expense</strong>
             </div>
-            <div className="pm-category-scroller">
-              <button className={"pm-category "+(tab==="Summary"?"is-active":"")} onClick={()=>setTab("Summary")}>
-                <span>All Entries</span><b>{entries.length}</b>
+            <div className="pm-ledger-selects">
+              <label className={"pm-ledger-dropdown pm-income-dropdown "+(ledgerView==="income"?"is-open":"")}>
+                <span className="pm-ledger-icon">↗</span>
+                <span className="pm-ledger-copy"><small>INCOME</small><strong>Income</strong></span>
+                <select value={ledgerView==="income"?ledgerCategory:""} onChange={e=>{setLedgerView("income");setLedgerCategory(e.target.value)}}>
+                  <option value="" disabled>Income</option>
+                  <option value="all">All Income</option>
+                  {incomeCategories.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+              <label className={"pm-ledger-dropdown pm-expense-dropdown "+(ledgerView==="expense"?"is-open":"")}>
+                <span className="pm-ledger-icon">↙</span>
+                <span className="pm-ledger-copy"><small>EXPENSE</small><strong>Expense</strong></span>
+                <select value={ledgerView==="expense"?ledgerCategory:""} onChange={e=>{setLedgerView("expense");setLedgerCategory(e.target.value)}}>
+                  <option value="" disabled>Expense</option>
+                  <option value="all">All Expenses</option>
+                  {expenseCategories.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </label>
+              <button className={"pm-all-ledger "+(ledgerView==="all"?"is-active":"")} onClick={()=>{setLedgerView("all");setLedgerCategory("all")}}>
+                <span>All Entries</span><b>{entries.length.toLocaleString("en-BD")}</b>
               </button>
-              {categories.map(c=>
-                <button key={c} className={"pm-category "+(tab===c?"is-active":"")} onClick={()=>setTab(c)}>
-                  <span>{c}</span><b>{entries.filter((r:any)=>String(r.category||"Other Expenses")===c).length}</b>
-                </button>
-              )}
             </div>
           </div>
 
           <div className="pm-toolbar">
             <div>
-              <div className="pm-view-title">{tab==="Summary"?"All Ledger Entries":tab}</div>
-              <div className="pm-view-sub">{filtered.length.toLocaleString("en-BD")} records · sorted by date ascending</div>
+              <div className="pm-view-title">{currentTitle}</div>
+              <div className="pm-view-sub">{currentCount.toLocaleString("en-BD")} records · sorted by date ascending</div>
             </div>
             <div className="pm-toolbar-right">
-              {tab!=="Summary"&&<span className="pm-total-pill">Category total {money(categoryTotals[tab]||0)}</span>}
+              {ledgerCategory!=="all"&&<span className="pm-total-pill">Category total {money(categoryTotals[ledgerCategory]||0)}</span>}
               <div className="pm-search">
                 <span>⌕</span>
                 <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search supplier, details, category…"/>
@@ -474,6 +492,18 @@ export default function ProjectManagementPage(){
         .pm-category-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
         .pm-category-title .pm-label{margin:0}
         .pm-category-title strong{font-size:13px;margin-left:auto;color:#5a676e}
+        .pm-ledger-selects{display:grid;grid-template-columns:minmax(260px,1fr) minmax(260px,1fr) auto;gap:10px}
+        .pm-ledger-dropdown{min-height:60px;display:flex;align-items:center;gap:10px;padding:9px 12px;border:1px solid #e1e7e9;border-radius:12px;background:#fafcfc}
+        .pm-ledger-dropdown.is-open{border-color:#75a890;box-shadow:0 0 0 3px rgba(29,107,82,.07)}
+        .pm-ledger-icon{width:30px;height:30px;display:grid;place-items:center;border-radius:9px;background:#edf5f2;color:#1d6b52;font-weight:900}
+        .pm-ledger-copy{display:flex;flex-direction:column;gap:2px;min-width:68px}
+        .pm-ledger-copy small{font-size:9px;letter-spacing:.10em;font-weight:850;color:#8b969c}
+        .pm-ledger-copy strong{font-size:12px;color:#27353c}
+        .pm-ledger-dropdown select{min-width:0;flex:1;height:38px;border:1px solid #e2e8ea;background:#fff;color:#26353d;outline:0;border-radius:8px;padding:0 9px;font:inherit;font-size:12px;font-weight:680}
+        .pm-expense-dropdown .pm-ledger-icon{background:#eef3f8;color:#46698d}
+        .pm-all-ledger{align-self:stretch;border:1px solid #dfe6e8;border-radius:12px;background:#fff;color:#5d6a71;padding:0 18px;cursor:pointer;font:inherit;font-size:12px;font-weight:760}
+        .pm-all-ledger:hover{background:#f6f9f9}
+        .pm-all-ledger.is-active{background:#17242b;color:#fff;border-color:#17242b}
         .pm-category-scroller{display:flex;gap:6px;overflow-x:auto;scrollbar-width:thin;padding-bottom:2px}
         .pm-category{flex:0 0 auto;background:#f5f7f8;color:#59656c;border:1px solid #e6ebed;border-radius:10px;padding:8px 10px;display:flex;gap:8px;align-items:center}
         .pm-category span{font-size:12px;font-weight:700}
@@ -559,6 +589,8 @@ export default function ProjectManagementPage(){
           .pm-stats{grid-template-columns:1fr}
           .pm-stat>strong{font-size:24px}
           .pm-category-title strong{display:none}
+          .pm-ledger-selects{grid-template-columns:1fr}
+          .pm-all-ledger{min-height:48px}
           .pm-toolbar-right{flex-direction:column;align-items:stretch}
           .pm-total-pill{display:inline-flex;justify-content:center}
           .pm-search{width:100%}
