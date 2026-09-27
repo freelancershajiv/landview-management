@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
     if (body.action === "pullMaster") {
       const sourceType = clean(body.sourceType, 30).toLowerCase();
       const sourceId = clean(body.sourceId, 100);
-      if (!["transaction","expense"].includes(sourceType) || !sourceId) return fail("Master ledger source is required.",400);
+      if (sourceType !== "transaction" && sourceType !== "expense" || !sourceId) return fail("Master ledger source is required.",400);
       const category = normalizeExpenseCategory(body.category);
       const duplicate = await selectRows("project_management_ledger", { filters: { project_id: project.id, memo: `MASTER_LEDGER:${sourceType}:${sourceId}` }, limit: 1 });
       if (duplicate.length) return fail("This master ledger entry has already been pulled into Project Management.",409);
