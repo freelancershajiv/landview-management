@@ -242,8 +242,6 @@ export default function ProjectFinanceReportPage(){
             <strong className="deposit">BDT {money(statement.deposits)}</strong>
             <strong>BDT {money(statement.closing)}</strong>
           </div>
-            </table>
-          </div>
         </section>
 
         <section className="rpt-closing">
