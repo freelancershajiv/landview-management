@@ -28,7 +28,13 @@ export default function ProjectManagementPage(){
     finally{setLoading(false);}
   }
 
-  useEffect(()=>{void load();},[]);
+  useEffect(()=>{
+    const queryProject=typeof window!=="undefined"
+      ? new URLSearchParams(window.location.search).get("projectId") || ""
+      : "";
+    if(queryProject)setProject(queryProject);
+    void load(queryProject);
+  },[]);
 
   const admin=Boolean(data&&!data.readOnly);
   const entries=data?.entries||[];
@@ -82,8 +88,7 @@ export default function ProjectManagementPage(){
     setLedgerCategory("all");
     setSearch("");
     if(typeof window!=="undefined"){
-      window.location.assign("/projectmanagement?projectId="+encodeURIComponent(normalized));
-      return;
+      window.history.replaceState(null,"","/projectmanagement?projectId="+encodeURIComponent(normalized));
     }
     void load(normalized);
   }
