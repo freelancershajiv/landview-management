@@ -61,7 +61,7 @@ function calculate(rows: Row[]) {
 }
 async function workspace(user: Row, requested?: string) {
   const projects = await projectsFor(user);
-  if (!projects.length) return { projects: [], selectedProject: null, entries: [], totals: { debit: 0, credit: 0, balance: 0 }, readOnly: !isAdmin(user) };
+  if (!projects.length) return { projects: [], selectedProject: null, entries: [], totals: { debit: 0, credit: 0, balance: 0 }, categories: [], masterLedger: [], readOnly: !isAdmin(user) };
   const selected = requested
     ? projects.find(p => normalizeProjectCode(p.project_code) === normalizeProjectCode(requested))
     : projects[0];
