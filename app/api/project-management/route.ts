@@ -97,7 +97,7 @@ async function masterLedgerFor(user: Row, project: Row) {
     selectRows("transactions", { filters: { project_id: project.id }, order: "transaction_date:asc", limit: 5000 }),
     selectRows("expenses", { filters: { project_id: project.id }, order: "expense_date:asc", limit: 5000 })
   ]);
-  const txRows = transactions.map((r:any) => ({
+  const txRows = transactions.filter((r:any) => num(r.debit) > 0 || String(r.transaction_type || "").toLowerCase() === "expense").map((r:any) => ({
     sourceType:"transaction", sourceId:r.id, sourceCode:r.transaction_code || r.id,
     entryDate:r.transaction_date || "", details:r.description || r.category || "Master ledger expense",
     amount:num(r.debit || r.amount), masterCategory:r.category || "", suggestedCategory:guessExpenseCategory(r.category,r.description)
