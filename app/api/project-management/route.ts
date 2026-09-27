@@ -6,9 +6,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
-
-const EXPENSE_CATEGORIES = ["Cash","Bricks","Masonry","Stone & Sand","Cement & Steel","Security","Other Expenses","Electric Contractor","Electrical Material","Plumbing Contractor","Plumbing Material","Tiles","Door","Grills"] as const;
-type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 const clean = (v: unknown, max = 1000) => String(v ?? "").trim().slice(0, max);
 const num = (v: unknown) => { const n = Number(String(v ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; };
 const roleOf = (u: Row | null) => clean(u?.role || u?.Role, 30).toLowerCase();
@@ -64,7 +61,7 @@ function calculate(rows: Row[]) {
 }
 async function workspace(user: Row, requested?: string) {
   const projects = await projectsFor(user);
-  if (!projects.length) return { projects: [], selectedProject: null, entries: [], totals: { debit: 0, credit: 0, balance: 0 }, categories: [], masterLedger: [], readOnly: !isAdmin(user) };
+  if (!projects.length) return { projects: [], selectedProject: null, entries: [], totals: { debit: 0, credit: 0, balance: 0 }, readOnly: !isAdmin(user) };
   const selected = requested
     ? projects.find(p => normalizeProjectCode(p.project_code) === normalizeProjectCode(requested))
     : projects[0];
@@ -73,19 +70,11 @@ async function workspace(user: Row, requested?: string) {
   const entries = calculate(rows);
   const debit = entries.reduce((s,r) => s + num(r.debit), 0);
   const credit = entries.reduce((s,r) => s + num(r.credit), 0);
-  const categories = EXPENSE_CATEGORIES.map(category => ({
-    category,
-    total: entries.filter(r => normalizeExpenseCategory(r.category) === category).reduce((s,r) => s + num(r.debit), 0),
-    count: entries.filter(r => normalizeExpenseCategory(r.category) === category).length
-  }));
-  const masterLedger = await masterLedgerFor(user, selected);
   return {
     projects: projects.map(p => ({ id:p.id, projectCode:p.project_code, projectName:p.project_name || p.project_code, clientName:p.client_name_snapshot || "", location:p.location || "", status:p.status || "" })),
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
     totals: { debit, credit, balance: credit - debit },
-    categories,
-    masterLedger,
     readOnly: !isAdmin(user),
   };
 }
@@ -99,65 +88,6 @@ function errorStatus(message: string) {
 export async function GET(request: NextRequest) {
   try { const user = await requireUser(request); return ok(await workspace(user, request.nextUrl.searchParams.get("projectId") || "")); }
   catch (e) { const m = e instanceof Error ? e.message : String(e); return fail(m, errorStatus(m)); }
-}
-
-
-
-function normalizeExpenseCategory(value: unknown): ExpenseCategory {
-  const raw = clean(value, 120).toLowerCase().replace(/&/g, "and").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
-  const aliases: Record<string, ExpenseCategory> = {
-    cash:"Cash", bricks:"Bricks", masonry:"Masonry", "stone and sand":"Stone & Sand", stone:"Stone & Sand", sand:"Stone & Sand",
-    "cement and steel":"Cement & Steel", cement:"Cement & Steel", steel:"Cement & Steel", security:"Security",
-    "other expenses":"Other Expenses", other:"Other Expenses", "electric contractor":"Electric Contractor",
-    "electrical material":"Electrical Material", electrical:"Electrical Material", "plumbing contractor":"Plumbing Contractor",
-    "plumbing material":"Plumbing Material", plumbing:"Plumbing Material", tiles:"Tiles", door:"Door", doors:"Door",
-    "door and woods":"Door", grill:"Grills", grills:"Grills", "ss grill":"Grills"
-  };
-  return aliases[raw] || "Other Expenses";
-}
-
-function guessExpenseCategory(category: unknown, description: unknown): ExpenseCategory {
-  const raw = `${clean(category, 180)} ${clean(description, 500)}`.toLowerCase();
-  if (/security|guard/.test(raw)) return "Security";
-  if (/brick|brick chip/.test(raw)) return "Bricks";
-  if (/masonry|mason/.test(raw)) return "Masonry";
-  if (/stone|sand|soil|syleth/.test(raw)) return "Stone & Sand";
-  if (/cement|steel|rod|rebar|binding cable/.test(raw)) return "Cement & Steel";
-  if (/electrical contractor|electric contractor|electrician|electrical work/.test(raw)) return "Electric Contractor";
-  if (/electrical material|socket|cable|light|fan|switch|wire|electrical/.test(raw)) return "Electrical Material";
-  if (/plumbing contractor|plumber/.test(raw)) return "Plumbing Contractor";
-  if (/plumbing material|pipe|fitting|sanitary|sewerage/.test(raw)) return "Plumbing Material";
-  if (/tile/.test(raw)) return "Tiles";
-  if (/door|wood/.test(raw)) return "Door";
-  if (/grill|ss grill/.test(raw)) return "Grills";
-  if (/cash|cash advance|cash handling/.test(raw)) return "Cash";
-  return "Other Expenses";
-}
-
-async function masterLedgerFor(user: Row, project: Row) {
-  if (!isAdmin(user)) return [];
-  const [transactions, expenses] = await Promise.all([
-    selectRows("transactions", { filters: { project_id: project.id }, order: "transaction_date:asc", limit: 5000 }),
-    selectRows("expenses", { filters: { project_id: project.id }, order: "expense_date:asc", limit: 5000 })
-  ]);
-  const txRows = transactions
-    .filter(r => num(r.debit) > 0 || String(r.transaction_type || "").toLowerCase() === "expense")
-    .map(r => ({
-      sourceType: "transaction", sourceId: r.id, sourceCode: r.transaction_code || r.id,
-      entryDate: r.transaction_date || "", details: r.description || r.category || "Master ledger expense",
-      amount: num(r.debit || r.amount), masterCategory: r.category || "", suggestedCategory: guessExpenseCategory(r.category, r.description),
-      reference: r.reference_no || "", status: r.status || ""
-    }))
-    .filter(r => r.amount > 0);
-  const expenseRows = expenses.map(r => ({
-    sourceType: "expense", sourceId: r.id, sourceCode: r.expense_code || r.id,
-    entryDate: r.expense_date || "", details: r.description || r.category || "Master expense",
-    amount: num(r.amount), masterCategory: r.category || "", suggestedCategory: guessExpenseCategory(r.category, r.description),
-    reference: r.reference_no || r.reference || "", status: r.status || r.approval_status || ""
-  })).filter(r => r.amount > 0);
-  const existing = await selectRows("project_management_ledger", { filters: { project_id: project.id }, limit: 10000 });
-  const used = new Set(existing.map(r => String(r.memo || "").match(/^MASTER_LEDGER:(transaction|expense):(.+)$/)?.[0]).filter(Boolean));
-  return [...txRows, ...expenseRows].map(r => ({ ...r, pulled: used.has(`MASTER_LEDGER:${r.sourceType}:${r.sourceId}`) }));
 }
 
 async function validateEntry(body: Row) {
@@ -178,35 +108,6 @@ export async function POST(request: NextRequest) {
     if (!isAdmin(user)) return fail("Admin permission required.",403);
     const body = await request.json() as Row;
     const project = await projectFor(user, body.projectId || body.Project_ID);
-    if (body.action === "pullMaster") {
-      const sourceType = clean(body.sourceType, 30).toLowerCase();
-      const sourceId = clean(body.sourceId, 100);
-      if (!["transaction","expense"].includes(sourceType) || !sourceId) return fail("Master ledger source is required.",400);
-      const category = normalizeExpenseCategory(body.category);
-      const duplicate = await selectRows("project_management_ledger", { filters: { project_id: project.id, memo: `MASTER_LEDGER:${sourceType}:${sourceId}` }, limit: 1 });
-      if (duplicate.length) return fail("This master ledger entry has already been pulled into Project Management.",409);
-      let source: Row | null = null;
-      if (sourceType === "transaction") {
-        const rows = await selectRows("transactions", { filters: { id: sourceId, project_id: project.id }, limit: 1 });
-        source = rows[0] || null;
-      } else {
-        const rows = await selectRows("expenses", { filters: { id: sourceId, project_id: project.id }, limit: 1 });
-        source = rows[0] || null;
-      }
-      if (!source) return fail("Master ledger entry not found for this project.",404);
-      const amount = sourceType === "transaction" ? num(source.debit || source.amount) : num(source.amount);
-      if (!(amount > 0)) return fail("Only debit/expense master-ledger entries can be pulled.",400);
-      const row = {
-        project_id: project.id, project_code_snapshot: project.project_code,
-        entry_date: source.transaction_date || source.expense_date || new Date().toISOString().slice(0,10),
-        details: source.description || source.category || "Master ledger expense",
-        sft: 0, rate: 0, debit: amount, credit: 0, category,
-        memo: `MASTER_LEDGER:${sourceType}:${sourceId}`, source: "master_ledger",
-        created_by: employeeCodeOf(user) || userIdOf(user) || "LAND VIEW"
-      };
-      const saved = await insertRows("project_management_ledger", row);
-      return ok(saved[0] || row);
-    }
     const v = await validateEntry(body);
     const row = { project_id:project.id, project_code_snapshot:project.project_code, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:v.memo, source:"project_management", created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW" };
     const saved = await insertRows("project_management_ledger", row);
