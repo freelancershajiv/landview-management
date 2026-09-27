@@ -234,14 +234,14 @@ export default function ProjectFinanceReportPage(){
                 </tr>)}
                 {!period.length&&<tr><td colSpan={5} className="empty">No ledger transactions were recorded in this month.</td></tr>}
               </tbody>
-              <tfoot>
-                <tr className="ledger-total-row">
-                  <td colSpan={2}><span>MONTH TOTAL</span><small>{period.length.toLocaleString("en-BD")} ledger entries</small></td>
-                  <td className="num expense">{money(statement.expenses)}</td>
-                  <td className="num deposit">{money(statement.deposits)}</td>
-                  <td className="num balance">{money(statement.closing)}</td>
-                </tr>
-              </tfoot>
+            </table>
+          </div>
+          <div className="print-only print-month-total">
+            <div><span>MONTH TOTAL</span><small>{period.length.toLocaleString("en-BD")} ledger entries</small></div>
+            <strong className="expense">BDT {money(statement.expenses)}</strong>
+            <strong className="deposit">BDT {money(statement.deposits)}</strong>
+            <strong>BDT {money(statement.closing)}</strong>
+          </div>
             </table>
           </div>
         </section>
@@ -272,6 +272,8 @@ export default function ProjectFinanceReportPage(){
           <div><span>Reviewed / Approved</span><strong>____________________________</strong><i>Authorized Signature</i></div>
           <div><span>Statement Reference</span><strong>{reportCode(projectInfo.projectCode,statement.selectedMonth)}</strong><i>Keep with project accounts records</i></div>
         </section>
+
+        <div className="print-only print-page-number" aria-hidden="true">Page</div>
 
         <footer className="rpt-footer">
           <div><strong>LAND VIEW Architects and Engineers</strong><br/>Project Finance Statement · {projectInfo.projectCode||"—"} · {monthText(statement.selectedMonth)}</div>
@@ -323,6 +325,7 @@ const styles = `
   .rpt-note-box{margin-top:5px;border-radius:0;padding:7px 9px;display:flex;flex-direction:row}.rpt-note-box span{font-size:6px}.rpt-note-box strong{font-size:7px}.rpt-note-box p{font-size:5.5px}.rpt-note-values{grid-template-columns:repeat(3,minmax(100px,1fr));gap:0}.rpt-note-values>div{padding:0 9px;border-left:1px solid #e4dbc0;border-top:0;margin-top:0}.rpt-note-values strong{font-size:7px}.rpt-signoff{gap:18px;margin-top:8px;padding-top:7px}.rpt-signoff span{font-size:6px}.rpt-signoff strong{font-size:7px;margin-top:7px}.rpt-signoff i{font-size:5.5px}.rpt-footer{margin-top:6px;padding-top:5px;font-size:5.5px}
 }
   @media print{
+    .rpt-page{counter-reset:page}
     .rpt-letterhead,.rpt-project-card,.rpt-account-bar,.rpt-controls,.rpt-summary-grid,.rpt-closing,.rpt-note-box,.rpt-signoff,.rpt-footer,.rpt-statement-head{display:none!important}
     .rpt-page{background:#fff!important;padding:0!important}
     .rpt-shell{max-width:none!important}
@@ -351,6 +354,12 @@ const styles = `
     .rpt-table-wrap{overflow:visible!important}
     .rpt-statement table{width:100%!important;min-width:0!important;border-collapse:collapse!important;table-layout:fixed!important}
     .rpt-statement thead{display:table-header-group!important}
+    .rpt-statement tfoot{display:none!important}
+    .print-month-total{display:grid!important;grid-template-columns:1fr 1fr 1fr 1fr!important;margin-top:3mm!important;border:.3mm solid #cfd5d9!important;background:#fff!important;break-inside:avoid!important;page-break-inside:avoid!important}
+    .print-month-total>*{padding:2mm 2.5mm!important;border-right:.3mm solid #cfd5d9!important;font-size:6.5pt!important;color:#111!important;box-sizing:border-box!important}
+    .print-month-total>*:last-child{border-right:0!important}.print-month-total span{display:block!important;font-weight:900!important;letter-spacing:.3px!important}.print-month-total small{display:block!important;margin-top:.5mm!important;color:#666!important;font-size:5.3pt!important}.print-month-total strong{text-align:right!important;font-variant-numeric:tabular-nums!important}
+    .print-page-number{display:block!important;position:fixed!important;right:0!important;bottom:-5mm!important;font-size:6pt!important;color:#666!important}
+    .print-page-number:after{content:"Page " counter(page) " of " counter(pages)!important}
     .rpt-statement th{position:static!important;background:#34393d!important;color:#fff!important;font-size:6.5pt!important;padding:1.75mm 1.35mm!important;border:.25mm solid #34393d!important;line-height:1.05!important;vertical-align:middle!important}
     .rpt-statement td{font-size:6.55pt!important;color:#111!important;background:#fff!important;padding:1.55mm 1.35mm!important;border:.25mm solid #cfd5d9!important;line-height:1.18!important;vertical-align:top!important;overflow-wrap:break-word!important}
     .rpt-statement tbody tr:nth-child(even) td{background:#f7f8f9!important}
