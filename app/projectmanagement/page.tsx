@@ -14,6 +14,7 @@ export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
   const [ledgerView,setLedgerView]=useState("all"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
+  const [summaryOpen,setSummaryOpen]=useState(false),[summarySaving,setSummarySaving]=useState(false),[summaryForm,setSummaryForm]=useState({supplierAdvance:"0",chequeOnHold:"0",notes:""});
 
   async function load(code=project){
     setLoading(true);setError("");
@@ -165,6 +166,40 @@ export default function ProjectManagementPage(){
     finally{setPulling("");}
   }
 
+  function openSummaryEdit(){
+    setSummaryForm({
+      supplierAdvance:String(data?.summary?.supplierAdvance||0),
+      chequeOnHold:String(data?.summary?.chequeOnHold||0),
+      notes:String(data?.summary?.notes||"")
+    });
+    setSummaryOpen(true);
+  }
+
+  async function saveSummary(){
+    if(!data?.selectedProject)return;
+    setSummarySaving(true);setError("");
+    try{
+      const r=await fetch("/api/project-management",{
+        method:"POST",
+        credentials:"same-origin",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          action:"updateSummary",
+          projectId:data.selectedProject.projectCode,
+          supplierAdvance:num(summaryForm.supplierAdvance),
+          chequeOnHold:num(summaryForm.chequeOnHold),
+          notes:summaryForm.notes
+        })
+      });
+      const j=await r.json();
+      if(!r.ok||!j?.success)throw new Error(j?.error||"Could not update project financial summary.");
+      setSummaryOpen(false);
+      setMessage("Project financial summary updated.");
+      await load(data.selectedProject.projectCode);
+    }catch(e:any){setError(e?.message||"Could not update project financial summary.");}
+    finally{setSummarySaving(false);}
+  }
+
   if(loading&&!data){
     return (
       <main className="pm-loading">
@@ -296,26 +331,45 @@ export default function ProjectManagementPage(){
           </div>
         </section>
 
-        <section className="pm-stats">
-          <div className="pm-stat pm-stat-debit">
-            <div className="pm-stat-head"><span>Total Debit</span><b>↗</b></div>
-            <strong>{money(totalDebit)}</strong>
-            <small>Project ledger inflow / charge</small>
+        <section className="pm-finance-summary">
+          <div className="pm-finance-summary-head">
+            <div>
+              <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
+              <strong>Fund position</strong>
+              <small>Deposit and recognized expenses come from the ledger. Supplier advance and cheque on hold are tracked separately.</small>
+            </div>
+            {admin&&<button className="pm-summary-edit" onClick={openSummaryEdit}>✎ Edit Adjustments</button>}
           </div>
-          <div className="pm-stat pm-stat-credit">
-            <div className="pm-stat-head"><span>Total Credit / Expense</span><b>↙</b></div>
-            <strong>{money(totalCredit)}</strong>
-            <small>Recorded project expenses</small>
+          <div className="pm-stats">
+            <div className="pm-stat pm-stat-debit">
+              <div className="pm-stat-head"><span>Total Deposit</span><b>↗</b></div>
+              <strong>{money(totalDebit)}</strong>
+              <small>Total project funds recorded as debit</small>
+            </div>
+            <div className="pm-stat pm-stat-credit">
+              <div className="pm-stat-head"><span>Total Expense</span><b>↙</b></div>
+              <strong>{money(totalCredit)}</strong>
+              <small>Recognized / received project expense</small>
+            </div>
+            <div className="pm-stat pm-stat-advance">
+              <div className="pm-stat-head"><span>Supplier Advance</span><b>⌁</b></div>
+              <strong>{money(data?.summary?.supplierAdvance)}</strong>
+              <small>Outstanding supplier prepayment</small>
+            </div>
+            <div className="pm-stat pm-stat-hold">
+              <div className="pm-stat-head"><span>Cheque on Hold</span><b>◷</b></div>
+              <strong>{money(data?.summary?.chequeOnHold)}</strong>
+              <small>Committed but not treated as expense</small>
+            </div>
+            <div className="pm-stat pm-stat-balance pm-stat-shajiv">
+              <div className="pm-stat-head"><span>Eng Shajiv Balance</span><b>＝</b></div>
+              <strong>{money(data?.summary?.engShajivBalance)}</strong>
+              <small>Deposit − Expense − Advance − Hold</small>
+            </div>
           </div>
-          <div className="pm-stat pm-stat-balance">
-            <div className="pm-stat-head"><span>Balance</span><b>＝</b></div>
-            <strong>{money(balance)}</strong>
-            <small>Debit less credit</small>
-          </div>
-          <div className="pm-stat pm-stat-count">
-            <div className="pm-stat-head"><span>Ledger Entries</span><b>№</b></div>
-            <strong>{entries.length.toLocaleString("en-BD")}</strong>
-            <small>{filtered.length.toLocaleString("en-BD")} shown in current view</small>
+          <div className="pm-finance-foot">
+            <span>Formula: <strong>Total Deposit − Total Expense − Supplier Advance − Cheque on Hold</strong></span>
+            <span>{entries.length.toLocaleString("en-BD")} ledger entries</span>
           </div>
         </section>
 
@@ -456,6 +510,30 @@ export default function ProjectManagementPage(){
         </div>
       }
 
+      {summaryOpen&&admin&&
+        <div className="pm-modal-backdrop">
+          <section className="pm-modal pm-entry-modal">
+            <div className="pm-modal-head">
+              <div>
+                <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
+                <h2>Edit Adjustments</h2>
+                <p>These values are kept separate from the transaction ledger and affect Eng Shajiv Balance only.</p>
+              </div>
+              <button className="pm-close" onClick={()=>setSummaryOpen(false)}>×</button>
+            </div>
+            <div className="pm-form-grid">
+              <label><span>Supplier Advance</span><input value={summaryForm.supplierAdvance} onChange={e=>setSummaryForm({...summaryForm,supplierAdvance:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
+              <label><span>Cheque on Hold</span><input value={summaryForm.chequeOnHold} onChange={e=>setSummaryForm({...summaryForm,chequeOnHold:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
+              <label className="full"><span>Notes</span><input value={summaryForm.notes} onChange={e=>setSummaryForm({...summaryForm,notes:e.target.value})} placeholder="Optional reconciliation note"/></label>
+            </div>
+            <div className="pm-modal-foot">
+              <button className="pm-btn pm-btn-secondary" onClick={()=>setSummaryOpen(false)}>Cancel</button>
+              <button className="pm-btn pm-btn-primary" onClick={()=>void saveSummary()} disabled={summarySaving}>{summarySaving?"Saving…":"Save Summary"}</button>
+            </div>
+          </section>
+        </div>
+      }
+
       {masterOpen&&admin&&
         <div className="pm-modal-backdrop">
           <section className="pm-modal pm-master-modal">
@@ -549,6 +627,19 @@ export default function ProjectManagementPage(){
         .pm-stat-credit{border-top:3px solid #1d6b52}
         .pm-stat-balance{border-top:3px solid #a36a34}
         .pm-stat-count{border-top:3px solid #5f6d77}
+        .pm-finance-summary{background:#fff;border:1px solid #e1e7e9;border-radius:18px;overflow:hidden;box-shadow:0 12px 34px rgba(20,38,29,.04);margin-bottom:16px}
+        .pm-finance-summary-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;padding:16px 18px;border-bottom:1px solid #edf0f2}
+        .pm-finance-summary-head .pm-label{margin-bottom:5px}
+        .pm-finance-summary-head strong{display:block;font-size:18px;color:#17242b;letter-spacing:-.02em}
+        .pm-finance-summary-head small{display:block;max-width:760px;margin-top:5px;color:#8a969c;font-size:10px;line-height:1.5}
+        .pm-summary-edit{border:1px solid #dce5e3;background:#f5faf8;color:#356a58;border-radius:9px;padding:9px 12px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}
+        .pm-summary-edit:hover{background:#edf6f2}
+        .pm-finance-summary .pm-stats{grid-template-columns:repeat(5,1fr);padding:14px;margin:0}
+        .pm-stat-advance{border-top:3px solid #8a6b31}
+        .pm-stat-hold{border-top:3px solid #86606b}
+        .pm-stat-shajiv{border-top:3px solid #1d6b52}
+        .pm-finance-foot{display:flex;justify-content:space-between;gap:14px;padding:10px 16px;background:#fafcfc;border-top:1px solid #edf0f2;color:#8c989e;font-size:10px}
+        .pm-finance-foot strong{color:#59676d}
         .pm-workspace{background:#fff;border:1px solid #e1e7e9;border-radius:18px;overflow:hidden;box-shadow:0 14px 38px rgba(20,38,29,.045)}
         .pm-category-bar{border-bottom:1px solid #edf0f2;padding:15px 17px 10px}
         .pm-category-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
@@ -633,6 +724,9 @@ export default function ProjectManagementPage(){
         .pm-mini-btn{background:#1d6b52;color:#fff;border-radius:8px;padding:7px 10px;font-size:10px;font-weight:800}
         .pm-mini-btn:hover{background:#175a45}
         .pm-pulled{font-size:10px;font-weight:850;color:#2f725b}
+        @media (max-width:1250px){
+          .pm-finance-summary .pm-stats{grid-template-columns:repeat(3,1fr)}
+        }
         @media (max-width:1100px){
           .pm-stats{grid-template-columns:repeat(2,1fr)}
           .pm-project-card{grid-template-columns:1fr 1fr}
@@ -648,8 +742,10 @@ export default function ProjectManagementPage(){
           .pm-actions .pm-btn{flex:1;justify-content:center}
           .pm-project-card{grid-template-columns:1fr;padding:15px}
           .pm-project-date{text-align:left}
-          .pm-stats{grid-template-columns:1fr}
+          .pm-stats,.pm-finance-summary .pm-stats{grid-template-columns:1fr}
           .pm-stat>strong{font-size:24px}
+          .pm-finance-summary-head{align-items:flex-start;flex-direction:column}
+          .pm-finance-foot{flex-direction:column}
           .pm-category-title strong{display:none}
           .pm-ledger-selects{grid-template-columns:1fr}
           .pm-all-ledger{min-height:48px}
