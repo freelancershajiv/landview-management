@@ -75,11 +75,17 @@ export default function ProjectManagementPage(){
   },[data,masterSearch]);
 
   function chooseProject(code:string){
-    setProject(code);
+    const normalized=String(code||"").trim();
+    if(!normalized)return;
+    setProject(normalized);
     setLedgerView("all");
     setLedgerCategory("all");
     setSearch("");
-    void load(code);
+    if(typeof window!=="undefined"){
+      window.location.assign("/projectmanagement?projectId="+encodeURIComponent(normalized));
+      return;
+    }
+    void load(normalized);
   }
 
   function openNew(){setEditing(null);setForm(blank());setFormOpen(true);}
@@ -251,6 +257,7 @@ export default function ProjectManagementPage(){
                 </button>
               ))}
             </div>
+            {error&&<div className="pm-alert pm-alert-error"><span>!</span><div>{error}</div><button onClick={()=>setError("")}>×</button></div>}
             {!availableProjects.length&&<div className="pm-no-projects">No projects are currently available for Project Management.</div>}
           </div>
         </div>
