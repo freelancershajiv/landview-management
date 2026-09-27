@@ -111,6 +111,39 @@ export default function ProjectFinanceReportPage(){
 
         {error&&<div className="rpt-error">{error}</div>}
 
+        <div className="print-only print-ledger-header">
+          <div className="print-brand-row">
+            <div className="print-brand">
+              <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
+              <div><strong>LAND <span>VIEW</span></strong><small>ENGINEERS AND ARCHITECTS</small></div>
+            </div>
+            <div className="print-contact">
+              <strong>F. Rahman AC Market (2nd Floor)</strong><br />
+              SSK Road, Feni Sadar, Feni<br />
+              +88 0140 80 80 400 · +88 01902 500 400
+            </div>
+            <div className="print-title">
+              <small>Generated {new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}</small>
+              <b>Project Finance Ledger</b>
+              <strong>{projectInfo.projectCode||"Project"}</strong>
+              <small>{projectInfo.projectName||"—"} · {monthText(statement.selectedMonth)}</small>
+            </div>
+          </div>
+        </div>
+
+        <div className="print-only print-project-line">
+          <span><strong>Project:</strong> {projectInfo.projectName||"—"}</span>
+          <span><strong>Project Code:</strong> {projectInfo.projectCode||"—"}</span>
+          <span><strong>Period:</strong> {monthText(statement.selectedMonth)}</span>
+        </div>
+
+        <div className="print-only print-summary">
+          <div><span>Opening Balance</span><strong>BDT {money(statement.opening)}</strong></div>
+          <div><span>Total Deposit</span><strong>BDT {money(statement.deposits)}</strong></div>
+          <div><span>Total Expense</span><strong>BDT {money(statement.expenses)}</strong></div>
+          <div className="closing"><span>Closing Balance</span><strong>BDT {money(statement.closing)}</strong></div>
+        </div>
+
         <header className="rpt-letterhead">
           <div className="rpt-brand-block">
             <div className="rpt-mark">LV</div>
@@ -181,19 +214,29 @@ export default function ProjectFinanceReportPage(){
           </div>
           <div className="rpt-table-wrap">
             <table>
-              <thead><tr><th className="date-col">Date</th><th className="details-col">Particulars / Details</th><th>Category</th><th className="num amount-head">Deposit</th><th className="num amount-head">Expense</th><th className="num amount-head balance-head">Running Balance</th></tr></thead>
+              <thead><tr><th>Date</th><th>Details</th><th className="num">Expense</th><th className="num">Income</th><th className="num">Balance</th></tr></thead>
               <tbody>
-                {period.map((r:any)=><tr key={r.id}><td>{dateText(r.entry_date)}</td><td><strong>{r.details||"—"}</strong>{r.memo&&<small>{r.memo}</small>}</td><td>{r.supplier||"—"}</td><td>{r.category||"—"}</td><td className="num deposit">{num(r.debit)>0?money(r.debit):"—"}</td><td className="num expense">{num(r.credit)>0?money(r.credit):"—"}</td><td className="num balance">{money(r.balance)}</td></tr>)}
-                {!period.length&&<tr><td colSpan={7} className="empty">No ledger transactions were recorded in this month.</td></tr>}
+                <tr className="opening-line">
+                  <td>{dateText(statement.start)}</td>
+                  <td><strong>OPENING BALANCE</strong><small>Balance brought forward before selected period</small></td>
+                  <td className="num">—</td>
+                  <td className="num">—</td>
+                  <td className="num balance">{money(statement.opening)}</td>
+                </tr>
+                {period.map((r:any)=><tr key={r.id}>
+                  <td>{dateText(r.entry_date)}</td>
+                  <td><strong>{r.details||"—"}</strong><small>{r.category||"Uncategorized"}{r.memo?" · "+r.memo:""}</small></td>
+                  <td className="num expense">{num(r.credit)>0?money(r.credit):"—"}</td>
+                  <td className="num deposit">{num(r.debit)>0?money(r.debit):"—"}</td>
+                  <td className="num balance">{money(r.balance)}</td>
+                </tr>)}
+                {!period.length&&<tr><td colSpan={5} className="empty">No ledger transactions were recorded in this month.</td></tr>}
               </tbody>
               <tfoot>
                 <tr className="ledger-total-row">
-                  <td colSpan={3}>
-                    <span>MONTH TOTAL</span>
-                    <small>{period.length.toLocaleString("en-BD")} ledger entries</small>
-                  </td>
-                  <td className="num deposit">{money(statement.deposits)}</td>
+                  <td colSpan={2}><span>MONTH TOTAL</span><small>{period.length.toLocaleString("en-BD")} ledger entries</small></td>
                   <td className="num expense">{money(statement.expenses)}</td>
+                  <td className="num deposit">{money(statement.deposits)}</td>
                   <td className="num balance">{money(statement.closing)}</td>
                 </tr>
               </tfoot>
@@ -277,4 +320,55 @@ const styles = `
   .rpt-closing{margin-top:5px;border-radius:0;padding:7px 9px}.rpt-closing span{font-size:6px}.rpt-closing strong{font-size:7px}.rpt-closing .formula{font-size:7px}
   .rpt-note-box{margin-top:5px;border-radius:0;padding:7px 9px;display:flex;flex-direction:row}.rpt-note-box span{font-size:6px}.rpt-note-box strong{font-size:7px}.rpt-note-box p{font-size:5.5px}.rpt-note-values{grid-template-columns:repeat(3,minmax(100px,1fr));gap:0}.rpt-note-values>div{padding:0 9px;border-left:1px solid #e4dbc0;border-top:0;margin-top:0}.rpt-note-values strong{font-size:7px}.rpt-signoff{gap:18px;margin-top:8px;padding-top:7px}.rpt-signoff span{font-size:6px}.rpt-signoff strong{font-size:7px;margin-top:7px}.rpt-signoff i{font-size:5.5px}.rpt-footer{margin-top:6px;padding-top:5px;font-size:5.5px}
 }
-`;
+`
+  @media print{
+    .rpt-letterhead,.rpt-project-card,.rpt-account-bar,.rpt-controls,.rpt-summary-grid,.rpt-closing,.rpt-note-box,.rpt-signoff,.rpt-footer,.rpt-statement-head{display:none!important}
+    .rpt-page{background:#fff!important;padding:0!important}
+    .rpt-shell{max-width:none!important}
+    .rpt-statement{position:static!important;margin-top:3mm!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}
+    .print-only{display:block!important}
+    .print-ledger-header{border-bottom:.7mm solid #d61f26!important;padding:0 0 3.8mm!important;margin:0 0 3mm!important}
+    .print-brand-row{display:grid!important;grid-template-columns:1.05fr 1.15fr .95fr!important;gap:4.5mm!important;align-items:start!important}
+    .print-brand{display:flex!important;align-items:center!important;gap:2.6mm!important;min-width:0!important}
+    .print-brand img{display:block!important;width:15mm!important;height:15mm!important;object-fit:contain!important;flex:0 0 15mm!important}
+    .print-brand strong{display:block!important;font-size:15pt!important;line-height:.95!important;letter-spacing:-.4px!important;color:#111!important;white-space:nowrap!important}
+    .print-brand strong span{color:#d61f26!important}
+    .print-brand small{display:block!important;margin-top:1.2mm!important;font-size:5.8pt!important;letter-spacing:.75px!important;color:#666!important;white-space:nowrap!important}
+    .print-contact{font-size:6.4pt!important;line-height:1.45!important;color:#333!important;padding-top:.8mm!important}
+    .print-contact strong{display:block!important;font-size:6.7pt!important;color:#111!important;margin-bottom:.4mm!important}
+    .print-title{text-align:right!important;min-width:0!important}
+    .print-title small{display:block!important;font-size:5.9pt!important;color:#666!important;line-height:1.35!important}
+    .print-title b{display:block!important;margin-top:1.1mm!important;font-size:10.5pt!important;color:#d61f26!important;line-height:1.05!important}
+    .print-title strong{display:block!important;margin-top:1.2mm!important;font-size:12pt!important;color:#111!important;line-height:1.05!important}
+    .print-project-line{display:flex!important;justify-content:space-between!important;gap:4mm!important;margin:0 0 3mm!important;padding:2.2mm 2.8mm!important;border:.3mm solid #cfd5d9!important;background:#f6f7f8!important;font-size:6.3pt!important;color:#333!important}
+    .print-summary{display:grid!important;grid-template-columns:1fr 1fr!important;border:.35mm solid #cfd5d9!important;margin:0 0 3.8mm!important;background:#fff!important}
+    .print-summary div{min-height:14mm!important;padding:2.5mm 3mm!important;border-right:.3mm solid #cfd5d9!important;border-bottom:.3mm solid #cfd5d9!important;display:flex!important;flex-direction:column!important;justify-content:center!important;box-sizing:border-box!important}
+    .print-summary div:nth-child(2n){border-right:0!important}.print-summary div:nth-last-child(-n+2){border-bottom:0!important}
+    .print-summary span{display:block!important;font-size:6.5pt!important;color:#555!important;text-transform:uppercase!important;letter-spacing:.35px!important}
+    .print-summary strong{display:block!important;margin-top:1.2mm!important;font-size:10.2pt!important;color:#111!important;font-variant-numeric:tabular-nums!important}
+    .print-summary .closing{background:#d61f26!important}.print-summary .closing span,.print-summary .closing strong{color:#fff!important}
+    .rpt-table-wrap{overflow:visible!important}
+    .rpt-statement table{width:100%!important;min-width:0!important;border-collapse:collapse!important;table-layout:fixed!important}
+    .rpt-statement thead{display:table-header-group!important}
+    .rpt-statement th{position:static!important;background:#34393d!important;color:#fff!important;font-size:6.5pt!important;padding:1.75mm 1.35mm!important;border:.25mm solid #34393d!important;line-height:1.05!important;vertical-align:middle!important}
+    .rpt-statement td{font-size:6.55pt!important;color:#111!important;background:#fff!important;padding:1.55mm 1.35mm!important;border:.25mm solid #cfd5d9!important;line-height:1.18!important;vertical-align:top!important;overflow-wrap:break-word!important}
+    .rpt-statement tbody tr:nth-child(even) td{background:#f7f8f9!important}
+    .rpt-statement tr{break-inside:avoid!important;page-break-inside:avoid!important}
+    .rpt-statement th:nth-child(1),.rpt-statement td:nth-child(1){width:13%!important}
+    .rpt-statement th:nth-child(2),.rpt-statement td:nth-child(2){width:49%!important}
+    .rpt-statement th:nth-child(3),.rpt-statement td:nth-child(3){width:13%!important}
+    .rpt-statement th:nth-child(4),.rpt-statement td:nth-child(4){width:13%!important}
+    .rpt-statement th:nth-child(5),.rpt-statement td:nth-child(5){width:12%!important}
+    .rpt-statement td.num,.rpt-statement th.num{text-align:right!important;white-space:nowrap!important;font-variant-numeric:tabular-nums!important}
+    .rpt-statement td strong{font-size:6.6pt!important;color:#111!important;font-weight:700!important}.rpt-statement td small{font-size:5.5pt!important;color:#555!important;margin-top:.5mm!important}
+    .rpt-statement td.balance{font-weight:800!important;color:#111!important;background:#eef3f1!important}
+    .rpt-statement tfoot td{background:#34393d!important;color:#fff!important;font-weight:900!important;padding:1.7mm 1.35mm!important}
+    .rpt-statement tfoot td.deposit{color:#e2edf6!important}.rpt-statement tfoot td.expense{color:#f7dddd!important}.rpt-statement tfoot td.balance{color:#fff!important;background:#34393d!important}
+    .ledger-total-row>td:first-child span{font-size:6.1pt!important}.ledger-total-row>td:first-child small{font-size:5.3pt!important;color:#c9d0d4!important}
+    .opening-line td{background:#f1f3f4!important;font-weight:800!important}
+    .opening-line td.balance{background:#eef3f1!important}
+    .print-ledger-footer{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:5mm!important;margin-top:4mm!important;border-top:.45mm solid #d61f26!important;padding:1.8mm .8mm 0!important;font-size:6pt!important;line-height:1.25!important;color:#555!important;background:#fff!important;box-sizing:border-box!important;break-inside:avoid!important;page-break-inside:avoid!important}
+    .print-ledger-footer strong{color:#111!important;font-weight:800!important}
+    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  }
+;
