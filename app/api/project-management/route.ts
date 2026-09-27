@@ -117,12 +117,35 @@ async function masterLedgerFor(user: Row, project: Row) {
 }
 
 async function workspace(user: Row, requested?: string) {
-  const projects = await projectsFor(user);
-  if (!projects.length) return { projects: [], selectedProject: null, entries: [], totals: { debit: 0, credit: 0, balance: 0 }, readOnly: !isAdmin(user) };
+  const allProjects = await projectsFor(user);
+  if (!allProjects.length) return { projects: [], selectedProject: null, entries: [], totals: { debit: 0, credit: 0, balance: 0 }, readOnly: !isAdmin(user) };
+
+  let projects = allProjects;
+  if (isAdmin(user)) {
+    const pmRows = await selectRows("project_management_ledger", { limit: 20000 });
+    const configuredIds = new Set(pmRows.map((r:any) => String(r.project_id || "")).filter(Boolean));
+    projects = allProjects.filter((p:any) => String(p.status || "").toLowerCase() === "active" || configuredIds.has(String(p.id)));
+  }
+
   const selected = requested
     ? projects.find(p => normalizeProjectCode(p.project_code) === normalizeProjectCode(requested))
-    : projects[0];
-  if (!selected) throw new Error("The selected project is not available to this account.");
+    : (isAdmin(user) ? null : projects[0]);
+
+  if (requested && !selected) throw new Error("The selected project is not available for Project Management.");
+  const projectList = projects.map(p => ({ id:p.id, projectCode:p.project_code, projectName:p.project_name || p.project_code, clientName:p.client_name_snapshot || "", location:p.location || "", status:p.status || "" }));
+
+  if (!selected) {
+    return {
+      projects: projectList,
+      selectedProject: null,
+      entries: [],
+      totals: { debit: 0, credit: 0, balance: 0 },
+      categories: [],
+      masterLedger: [],
+      readOnly: !isAdmin(user),
+    };
+  }
+
   const rows = await selectRows("project_management_ledger", { filters: { project_id: selected.id }, order: "entry_date:asc", limit: 10000 });
   const entries = calculate(rows);
   const debit = entries.reduce((s,r) => s + num(r.debit), 0);
@@ -131,7 +154,7 @@ async function workspace(user: Row, requested?: string) {
   const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
   const masterLedger = await masterLedgerFor(user, selected);
   return {
-    projects: projects.map(p => ({ id:p.id, projectCode:p.project_code, projectName:p.project_name || p.project_code, clientName:p.client_name_snapshot || "", location:p.location || "", status:p.status || "" })),
+    projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
     totals: { debit, credit, balance: debit - credit },
