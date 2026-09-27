@@ -11,7 +11,7 @@ const monthOf=(v:any)=>String(v||"").slice(0,7);
 export default function ProjectFinanceReportPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[month,setMonth]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState("");
 
-  async function load(code=""){
+  async function load(code="",requestedMonth=""){
     setLoading(true);setError("");
     try{
       const r=await fetch(code?"/api/project-management?projectId="+encodeURIComponent(code):"/api/project-management",{credentials:"same-origin",cache:"no-store"});
@@ -19,7 +19,7 @@ export default function ProjectFinanceReportPage(){
       if(!r.ok||!j?.success)throw new Error(j?.error||"Could not load project finance report.");
       setData(j.data);
       if(j.data?.selectedProject?.projectCode)setProject(j.data.selectedProject.projectCode);
-      if(!month && j.data?.entries?.length){
+      if(!requestedMonth && j.data?.entries?.length){
         const latest=[...j.data.entries].sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||"")))[0];
         if(latest?.entry_date)setMonth(monthOf(latest.entry_date));
       }
@@ -33,7 +33,7 @@ export default function ProjectFinanceReportPage(){
     const qMonth=params.get("month")||"";
     setProject(qProject);
     setMonth(qMonth);
-    void load(qProject);
+    void load(qProject,qMonth);
   },[]);
 
   const entries=[...(data?.entries||[])].sort((a:any,b:any)=>{
