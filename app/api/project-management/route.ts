@@ -5,7 +5,8 @@ import { employeeCodeOf, insertRows, normalizeProjectCode, selectRows, updateRow
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Row = Record<string, any>;
+type Row = Record<string, any>;\n\nconst EXPENSE_CATEGORIES = ["Cash","Bricks","Masonry","Stone & Sand","Cement & Steel","Security","Other Expenses","Electric Contractor","Electrical Material","Plumbing Contractor","Plumbing Material","Tiles","Door","Grills"] as const;
+type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
 const clean = (v: unknown, max = 1000) => String(v ?? "").trim().slice(0, max);
 const num = (v: unknown) => { const n = Number(String(v ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; };
 const roleOf = (u: Row | null) => clean(u?.role || u?.Role, 30).toLowerCase();
@@ -98,8 +99,7 @@ export async function GET(request: NextRequest) {
   catch (e) { const m = e instanceof Error ? e.message : String(e); return fail(m, errorStatus(m)); }
 }
 
-const EXPENSE_CATEGORIES = ["Cash","Bricks","Masonry","Stone & Sand","Cement & Steel","Security","Other Expenses","Electric Contractor","Electrical Material","Plumbing Contractor","Plumbing Material","Tiles","Door","Grills"] as const;
-type ExpenseCategory = typeof EXPENSE_CATEGORIES[number];
+
 
 function normalizeExpenseCategory(value: unknown): ExpenseCategory {
   const raw = clean(value, 120).toLowerCase().replace(/&/g, "and").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
