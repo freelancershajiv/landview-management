@@ -19,6 +19,7 @@ const nav = [
   { href: "/admin/certificate-requests", label: "Requests" },
   { href: "/admin/certificates", label: "Certificates" },
   { href: "/admin/finance", label: "Finance", accounts: true },
+  { href: "/projectmanagement", label: "Project Management", accounts: true },
 ];
 
 const SESSION_WATCHDOG_MS = 15000;
