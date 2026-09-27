@@ -181,14 +181,14 @@ export default function ProjectFinanceReportPage(){
           </div>
           <div className="rpt-table-wrap">
             <table>
-              <thead><tr><th className="date-col">Date</th><th className="details-col">Particulars / Details</th><th>Supplier</th><th>Category</th><th className="num amount-head">Deposit</th><th className="num amount-head">Expense</th><th className="num amount-head balance-head">Running Balance</th></tr></thead>
+              <thead><tr><th className="date-col">Date</th><th className="details-col">Particulars / Details</th><th>Category</th><th className="num amount-head">Deposit</th><th className="num amount-head">Expense</th><th className="num amount-head balance-head">Running Balance</th></tr></thead>
               <tbody>
                 {period.map((r:any)=><tr key={r.id}><td>{dateText(r.entry_date)}</td><td><strong>{r.details||"—"}</strong>{r.memo&&<small>{r.memo}</small>}</td><td>{r.supplier||"—"}</td><td>{r.category||"—"}</td><td className="num deposit">{num(r.debit)>0?money(r.debit):"—"}</td><td className="num expense">{num(r.credit)>0?money(r.credit):"—"}</td><td className="num balance">{money(r.balance)}</td></tr>)}
                 {!period.length&&<tr><td colSpan={7} className="empty">No ledger transactions were recorded in this month.</td></tr>}
               </tbody>
               <tfoot>
                 <tr className="ledger-total-row">
-                  <td colSpan={4}>
+                  <td colSpan={3}>
                     <span>MONTH TOTAL</span>
                     <small>{period.length.toLocaleString("en-BD")} ledger entries</small>
                   </td>
@@ -272,7 +272,7 @@ const styles = `
   .rpt-summary-grid{grid-template-columns:repeat(2,1fr);gap:5px;margin-top:5px}.rpt-summary-grid>div{border-radius:0;padding:7px 8px;border-top-width:2px}.rpt-summary-grid span{font-size:6px}.rpt-summary-grid strong{font-size:11px;margin-top:4px}.rpt-summary-grid small{font-size:6px;margin-top:3px}
   .rpt-statement{margin-top:6px;border-radius:0}.rpt-statement-head{padding:7px 9px 6px}.rpt-statement-head span{font-size:6px}.rpt-statement-head strong{font-size:11px;margin-top:2px}.rpt-statement-note{font-size:6px}
   .rpt-table-wrap{overflow:visible}.rpt-statement table{min-width:0;font-size:7px;table-layout:fixed}.rpt-statement th{font-size:6px;padding:5px 5px}.rpt-statement td{padding:5px 5px}.rpt-statement td strong{font-size:7px}.rpt-statement td small{font-size:5.5px}.rpt-statement td.balance{background:#eef6f1}
-  .rpt-statement th:nth-child(1),.rpt-statement td:nth-child(1){width:10%}.rpt-statement th:nth-child(2),.rpt-statement td:nth-child(2){width:29%}.rpt-statement th:nth-child(3),.rpt-statement td:nth-child(3){width:13%}.rpt-statement th:nth-child(4),.rpt-statement td:nth-child(4){width:12%}.rpt-statement th:nth-child(5),.rpt-statement td:nth-child(5){width:12%}.rpt-statement th:nth-child(6),.rpt-statement td:nth-child(6){width:12%}.rpt-statement th:nth-child(7),.rpt-statement td:nth-child(7){width:12%}
+  .rpt-statement th:nth-child(1),.rpt-statement td:nth-child(1){width:11%}.rpt-statement th:nth-child(2),.rpt-statement td:nth-child(2){width:43%}.rpt-statement th:nth-child(3),.rpt-statement td:nth-child(3){width:13%}.rpt-statement th:nth-child(4),.rpt-statement td:nth-child(4){width:11%}.rpt-statement th:nth-child(5),.rpt-statement td:nth-child(5){width:11%}.rpt-statement th:nth-child(6),.rpt-statement td:nth-child(6){width:11%}
   .rpt-statement thead{display:table-header-group}.rpt-statement tr{break-inside:avoid}.rpt-statement tfoot td{padding:6px 5px}.ledger-total-row>td:first-child span{font-size:6px}.ledger-total-row>td:first-child small{font-size:5.5px}
   .rpt-closing{margin-top:5px;border-radius:0;padding:7px 9px}.rpt-closing span{font-size:6px}.rpt-closing strong{font-size:7px}.rpt-closing .formula{font-size:7px}
   .rpt-note-box{margin-top:5px;border-radius:0;padding:7px 9px;display:flex;flex-direction:row}.rpt-note-box span{font-size:6px}.rpt-note-box strong{font-size:7px}.rpt-note-box p{font-size:5.5px}.rpt-note-values{grid-template-columns:repeat(3,minmax(100px,1fr));gap:0}.rpt-note-values>div{padding:0 9px;border-left:1px solid #e4dbc0;border-top:0;margin-top:0}.rpt-note-values strong{font-size:7px}.rpt-signoff{gap:18px;margin-top:8px;padding-top:7px}.rpt-signoff span{font-size:6px}.rpt-signoff strong{font-size:7px;margin-top:7px}.rpt-signoff i{font-size:5.5px}.rpt-footer{margin-top:6px;padding-top:5px;font-size:5.5px}
