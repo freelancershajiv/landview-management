@@ -7,13 +7,13 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
-const EXPENSE_CATEGORIES = ["Cash","Bricks","Masonry","Stone & Sand","Cement & Steel","Security","Other Expenses","Electric Contractor","Electrical Material","Plumbing Contractor","Plumbing Material","Tiles","Door","Grills"] as const;
+const EXPENSE_CATEGORIES = ["Cash","Bricks","Masonry","R.C.C Masonry","Finishing Masonry","Stone & Sand","Cement & Steel","Security","Other Expenses","Electric Contractor","Electrical Material","Plumbing Contractor","Plumbing Material","Tiles","Door","Grills"] as const;
 
 function normalizeExpenseCategory(value: unknown) {
   const raw = clean(value, 120).toLowerCase().replace(/&/g, "and").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
   const aliases: Record<string,string> = {
     cash:"Cash",bricks:"Bricks",masonry:"Masonry","stone and sand":"Stone & Sand",stone:"Stone & Sand",sand:"Stone & Sand",
-    "cement and steel":"Cement & Steel",cement:"Cement & Steel",steel:"Cement & Steel",security:"Security",
+    "cement and steel":"Cement & Steel",cement:"Cement & Steel",steel:"Cement & Steel",security:"Security","r.c.c masonry":"R.C.C Masonry","finishing masonry":"Finishing Masonry",
     "other expenses":"Other Expenses",other:"Other Expenses","electric contractor":"Electric Contractor",
     "electrical material":"Electrical Material",electrical:"Electrical Material","plumbing contractor":"Plumbing Contractor",
     "plumbing material":"Plumbing Material",plumbing:"Plumbing Material",tiles:"Tiles",door:"Door",doors:"Door",
@@ -25,7 +25,9 @@ function guessExpenseCategory(category: unknown, description: unknown) {
   const raw = `${clean(category,180)} ${clean(description,500)}`.toLowerCase();
   if (/security|guard/.test(raw)) return "Security";
   if (/brick|brick chip/.test(raw)) return "Bricks";
-  if (/masonry|mason|worker|labour|labor|rcc|casting/.test(raw)) return "Masonry";
+  if (/r\.c\.c|rcc|reinforced concrete/.test(raw)) return "R.C.C Masonry";
+  if (/finishing masonry|plaster|tiles|putty|paint|painting/.test(raw)) return "Finishing Masonry";
+  if (/masonry|mason|worker|labour|labor|casting/.test(raw)) return "Masonry";
   if (/stone|sand|soil|syleth/.test(raw)) return "Stone & Sand";
   if (/cement|steel|rod|rebar|binding cable/.test(raw)) return "Cement & Steel";
   if (/electrical contractor|electric contractor|electrician|electrical work/.test(raw)) return "Electric Contractor";
@@ -84,10 +86,12 @@ function calculate(rows: Row[]) {
   return rows.slice().sort((a,b) => {
     const d = String(a.entry_date || "").localeCompare(String(b.entry_date || ""));
     if (d) return d;
-    return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+    const c = String(a.created_at || "").localeCompare(String(b.created_at || ""));
+    if (c) return c;
+    return String(a.id || "").localeCompare(String(b.id || ""));
   }).map(row => {
     const debit = num(row.debit), credit = num(row.credit);
-    balance += credit - debit;
+    balance += debit - credit;
     return { ...row, debit, credit, sft: num(row.sft), rate: num(row.rate), balance };
   });
 }
@@ -123,13 +127,14 @@ async function workspace(user: Row, requested?: string) {
   const entries = calculate(rows);
   const debit = entries.reduce((s,r) => s + num(r.debit), 0);
   const credit = entries.reduce((s,r) => s + num(r.credit), 0);
-  const categories = EXPENSE_CATEGORIES.map(category => ({ category, total: entries.filter(r => normalizeExpenseCategory(r.category) === category).reduce((s,r) => s + num(r.credit || r.debit), 0), count: entries.filter(r => normalizeExpenseCategory(r.category) === category).length }));
+  const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Other Expenses", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
+  const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
   const masterLedger = await masterLedgerFor(user, selected);
   return {
     projects: projects.map(p => ({ id:p.id, projectCode:p.project_code, projectName:p.project_name || p.project_code, clientName:p.client_name_snapshot || "", location:p.location || "", status:p.status || "" })),
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
-    totals: { debit, credit, balance: credit - debit },
+    totals: { debit, credit, balance: debit - credit },
     categories,
     masterLedger,
     readOnly: !isAdmin(user),
@@ -155,7 +160,7 @@ async function validateEntry(body: Row) {
   if (!details) throw new Error("Details are required.");
   const entryDate = clean(body.entryDate ?? body.Date, 20) || new Date().toISOString().slice(0,10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) throw new Error("Enter a valid entry date.");
-  return { debit, credit, details, entryDate, sft:Math.max(0,num(body.sft ?? body.SFT)), rate:Math.max(0,num(body.rate ?? body.Rate)), category:clean(body.category ?? body.Category,120) || null, memo:clean(body.memo ?? body.Memo,1000) || null };
+  return { debit, credit, details, entryDate, sft:Math.max(0,num(body.sft ?? body.SFT)), rate:Math.max(0,num(body.rate ?? body.Rate)), supplier:clean(body.supplier ?? body.Supplier,160) || null, category:clean(body.category ?? body.Category,120) || null, memo:clean(body.memo ?? body.Memo,1000) || null };
 }
 
 export async function POST(request: NextRequest) {
@@ -185,6 +190,7 @@ export async function POST(request: NextRequest) {
       if (!(amount > 0)) return fail("Only debit/expense master-ledger entries can be pulled.",400);
       const row = {
         project_id:project.id, project_code_snapshot:project.project_code,
+        supplier:clean(source.supplier || source.vendor || source.vendor_name || source.payee || source.supplier_name,160) || null,
         entry_date:source.transaction_date || source.expense_date || new Date().toISOString().slice(0,10),
         details:source.description || source.category || "Master ledger expense",
         sft:0, rate:0, debit:amount, credit:0, category,
@@ -195,7 +201,7 @@ export async function POST(request: NextRequest) {
       return ok(saved[0] || row);
     }
     const v = await validateEntry(body);
-    const row = { project_id:project.id, project_code_snapshot:project.project_code, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:v.memo, source:"project_management", created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW" };
+    const row = { project_id:project.id, project_code_snapshot:project.project_code, supplier:v.supplier, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:v.memo, source:"project_management", created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW" };
     const saved = await insertRows("project_management_ledger", row);
     return ok(saved[0] || row);
   } catch (e) { return fail(e, errorStatus(e instanceof Error ? e.message : String(e))); }
@@ -210,7 +216,7 @@ export async function PUT(request: NextRequest) {
     const id = clean(body.id,100);
     if (!id) return fail("Ledger entry ID is required.",400);
     const v = await validateEntry(body);
-    const saved = await updateRows("project_management_ledger", { id }, { entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:v.memo, updated_at:new Date().toISOString() });
+    const saved = await updateRows("project_management_ledger", { id }, { supplier:v.supplier, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:v.memo, updated_at:new Date().toISOString() });
     if (!saved.length) return fail("Ledger entry not found.",404);
     return ok(saved[0]);
   } catch (e) { return fail(e, errorStatus(e instanceof Error ? e.message : String(e))); }
