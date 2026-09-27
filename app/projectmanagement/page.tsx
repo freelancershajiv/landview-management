@@ -73,6 +73,14 @@ export default function ProjectManagementPage(){
     );
   },[data,masterSearch]);
 
+  function chooseProject(code:string){
+    setProject(code);
+    setLedgerView("all");
+    setLedgerCategory("all");
+    setSearch("");
+    void load(code);
+  }
+
   function openNew(){setEditing(null);setForm(blank());setFormOpen(true);}
   function openEdit(r:any){
     setEditing(r);
@@ -182,6 +190,60 @@ export default function ProjectManagementPage(){
   const currentTitle = ledgerView==="income" ? (ledgerCategory==="all" ? "Income" : ledgerCategory) : ledgerView==="expense" ? (ledgerCategory==="all" ? "Expenses" : ledgerCategory) : "All Ledger Entries";
   const currentCount = filtered.length;
 
+  if(data&&!data.selectedProject){
+    const availableProjects=data.projects||[];
+    return (
+      <main className="pm-page">
+        <div className="pm-shell pm-chooser-shell">
+          <div className="pm-chooser">
+            <div className="pm-chooser-kicker">LAND VIEW · PROJECT MANAGEMENT</div>
+            <h1>Select a Project</h1>
+            <p>Choose the project you want to manage. Project Management will open only after you select a project.</p>
+            <div className="pm-project-options">
+              {availableProjects.map((p:any)=>(
+                <button key={p.id} className="pm-project-option" onClick={()=>chooseProject(p.projectCode)}>
+                  <div className="pm-option-code">{p.projectCode}</div>
+                  <div className="pm-option-name">{p.projectName}</div>
+                  <div className="pm-option-meta">
+                    <span>{p.clientName||"Client not recorded"}</span>
+                    {p.location&&<><span>•</span><span>{p.location}</span></>}
+                  </div>
+                  <div className="pm-option-footer">
+                    <span className={"pm-status-dot "+(String(p.status||"").toLowerCase()==="active"?"active":"configured")}></span>
+                    <span>{p.status||"Configured for Project Management"}</span>
+                    <span className="pm-option-open">Open →</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {!availableProjects.length&&<div className="pm-no-projects">No projects are currently available for Project Management.</div>}
+          </div>
+        </div>
+        <style jsx>{`
+          .pm-chooser-shell{min-height:calc(100vh - 90px);display:grid;place-items:center}
+          .pm-chooser{width:min(920px,100%);background:#fff;border:1px solid #e2e8ea;border-radius:22px;padding:34px;box-shadow:0 22px 60px rgba(20,38,29,.08)}
+          .pm-chooser-kicker{font-size:10px;letter-spacing:.15em;font-weight:900;color:#1d6b52}
+          .pm-chooser h1{margin:10px 0 8px;font-size:clamp(30px,4vw,42px);letter-spacing:-.04em;color:#17242b}
+          .pm-chooser>p{margin:0;max-width:650px;color:#77858c;font-size:13px;line-height:1.65}
+          .pm-project-options{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:24px}
+          .pm-project-option{display:block;text-align:left;padding:18px;border:1px solid #dfe6e8;border-radius:16px;background:#fafcfc;color:#24333b;cursor:pointer;transition:.18s ease}
+          .pm-project-option:hover{border-color:#6da38b;background:#fff;box-shadow:0 12px 28px rgba(29,107,82,.10);transform:translateY(-2px)}
+          .pm-option-code{font-size:10px;letter-spacing:.12em;font-weight:900;color:#1d6b52}
+          .pm-option-name{margin-top:7px;font-size:18px;font-weight:820;letter-spacing:-.02em}
+          .pm-option-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:6px;color:#87939a;font-size:11px}
+          .pm-option-footer{display:flex;align-items:center;gap:7px;margin-top:15px;padding-top:12px;border-top:1px solid #ebeff0;color:#738087;font-size:10px;font-weight:700}
+          .pm-status-dot{width:7px;height:7px;border-radius:50%;background:#7f8d94}
+          .pm-status-dot.active{background:#1d6b52}
+          .pm-status-dot.configured{background:#a36a34}
+          .pm-option-open{margin-left:auto;color:#1d6b52;font-weight:850}
+          .pm-no-projects{margin-top:22px;padding:28px;border:1px dashed #d7dfe2;border-radius:14px;text-align:center;color:#8a969c;font-size:12px}
+          @media(max-width:650px){.pm-chooser{padding:24px 18px}.pm-project-options{grid-template-columns:1fr}}
+        `}
+        </style>
+      </main>
+    );
+  }
+
   return (
     <main className="pm-page">
       <div className="pm-shell">
@@ -211,7 +273,7 @@ export default function ProjectManagementPage(){
             <span className="pm-label">SELECT PROJECT</span>
             <select
               value={data?.selectedProject?.projectCode||project}
-              onChange={e=>{setProject(e.target.value);void load(e.target.value)}}
+              onChange={e=>chooseProject(e.target.value)}
             >
               {(data?.projects||[]).map((p:any)=>
                 <option key={p.id} value={p.projectCode}>{p.projectCode+" — "+(p.clientName||p.projectName)}</option>
