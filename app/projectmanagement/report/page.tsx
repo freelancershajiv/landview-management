@@ -141,7 +141,9 @@ export default function ProjectFinanceReportPage(){
           <div><span>Opening Balance</span><strong>BDT {money(statement.opening)}</strong></div>
           <div><span>Total Deposit</span><strong>BDT {money(statement.deposits)}</strong></div>
           <div><span>Total Expense</span><strong>BDT {money(statement.expenses)}</strong></div>
-          <div className="closing"><span>Closing Balance</span><strong>BDT {money(statement.closing)}</strong></div>
+          <div><span>Supplier Advance</span><strong>BDT {money(summary.supplierAdvance)}</strong></div>
+          <div><span>Cheque on Hold</span><strong>BDT {money(summary.chequeOnHold)}</strong></div>
+          <div className="closing"><span>Eng Shajiv Balance</span><strong>BDT {money(currentAdjusted)}</strong></div>
         </div>
 
         <header className="rpt-letterhead">
@@ -340,9 +342,9 @@ const styles = `
     .print-title b{display:block!important;margin-top:1.1mm!important;font-size:10.5pt!important;color:#d61f26!important;line-height:1.05!important}
     .print-title strong{display:block!important;margin-top:1.2mm!important;font-size:12pt!important;color:#111!important;line-height:1.05!important}
     .print-project-line{display:flex!important;justify-content:space-between!important;gap:4mm!important;margin:0 0 3mm!important;padding:2.2mm 2.8mm!important;border:.3mm solid #cfd5d9!important;background:#f6f7f8!important;font-size:6.3pt!important;color:#333!important}
-    .print-summary{display:grid!important;grid-template-columns:1fr 1fr!important;border:.35mm solid #cfd5d9!important;margin:0 0 3.8mm!important;background:#fff!important}
+    .print-summary{display:grid!important;grid-template-columns:repeat(3,1fr)!important;border:.35mm solid #cfd5d9!important;margin:0 0 3.8mm!important;background:#fff!important}
     .print-summary div{min-height:14mm!important;padding:2.5mm 3mm!important;border-right:.3mm solid #cfd5d9!important;border-bottom:.3mm solid #cfd5d9!important;display:flex!important;flex-direction:column!important;justify-content:center!important;box-sizing:border-box!important}
-    .print-summary div:nth-child(2n){border-right:0!important}.print-summary div:nth-last-child(-n+2){border-bottom:0!important}
+    .print-summary div:nth-child(3n){border-right:0!important}.print-summary div:nth-last-child(-n+3){border-bottom:0!important}
     .print-summary span{display:block!important;font-size:6.5pt!important;color:#555!important;text-transform:uppercase!important;letter-spacing:.35px!important}
     .print-summary strong{display:block!important;margin-top:1.2mm!important;font-size:10.2pt!important;color:#111!important;font-variant-numeric:tabular-nums!important}
     .print-summary .closing{background:#d61f26!important}.print-summary .closing span,.print-summary .closing strong{color:#fff!important}
