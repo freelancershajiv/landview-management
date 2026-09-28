@@ -4,26 +4,42 @@ import { useEffect, useMemo, useState } from "react";
 
 const CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling","Bricks","Brick Chips","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];
 const INCOME_CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling"];
-const CONTRACTOR_BY_PROJECT_CATEGORY:any = {
-  "LV-157": {
-    "Masonry": "Contractor Rasel",
-    "Electric Contractor": "Contractor Alauddin",
-    "Plumbing Contractor": "Contractor Ibrahim"
-  }
-};
-const suggestedContractor=(projectCode:string,category:string)=>String(CONTRACTOR_BY_PROJECT_CATEGORY?.[String(projectCode||"").trim()]?.[String(category||"").trim()]||"");
+function partyOptionsForCategory(data:any,category:string) {
+  const contracts=Array.isArray(data?.contractorBills?.contracts)?data.contractorBills.contracts:[];
+  const key=String(category||"").trim().toLowerCase();
+  return Array.from(new Set(
+    contracts
+      .filter((c:any)=>{
+        const ck=String(c.category||"").trim().toLowerCase();
+        return !key || ck===key || (key==="masonry" && ["masonry","r.c.c masonry","finishing masonry"].includes(ck));
+      })
+      .map((c:any)=>String(c.contractor_name||"").trim())
+      .filter(Boolean)
+  ));
+}
+function allPartyOptions(data:any,entries:any[]) {
+  const fromContracts=Array.isArray(data?.contractorBills?.contracts)
+    ? data.contractorBills.contracts.map((c:any)=>String(c.contractor_name||"").trim())
+    : [];
+  const fromLedger=entries.flatMap((r:any)=>[r.paid_to,r.supplier,r.received_from]).map((x:any)=>String(x||"").trim());
+  return Array.from(new Set([...fromContracts,...fromLedger].filter(Boolean))).sort((a,b)=>a.localeCompare(b));
+}
+function suggestedPartyForCategory(data:any,category:string) {
+  const options=partyOptionsForCategory(data,category);
+  return options.length===1 ? options[0] : "";
+}
 
 const money=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v||0));
 const compactMoney=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",notation:"compact",maximumFractionDigits:1}).format(Number(v||0));
 const num=(v:any)=>{const n=Number(String(v??"").replace(/,/g,"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0};
 const dateText=(v:any)=>{const d=new Date(String(v||"").slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?String(v||""):d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})};
-const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),supplier:"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",chequeStatus:"Cashed",memo:""});
+const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),receivedFrom:"",paidTo:"",supplier:"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",chequeStatus:"Cashed",memo:""});
 function chequeStatus(r:any){return /^CHEQUE_STATUS:ON_HOLD/i.test(String(r&&r.memo||""))?"On Hold":"Cashed";}
 function userMemo(r:any){return String(r&&r.memo||"").replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"").trim();}
 
 export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
-  const [ledgerView,setLedgerView]=useState("all"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
+  const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
   const [summaryOpen,setSummaryOpen]=useState(false),[summarySaving,setSummarySaving]=useState(false),[summaryForm,setSummaryForm]=useState({supplierAdvance:"0",chequeOnHold:"0",notes:""});
 
@@ -66,7 +82,7 @@ export default function ProjectManagementPage(){
       .filter((r:any)=>{
         const matchesView=ledgerView==="all" || (ledgerView==="income" ? num(r.debit)>0 : num(r.credit)>0);
         const matchesCategory=ledgerCategory==="all" || String(r.category||"Other Expenses")===ledgerCategory;
-        return matchesView && matchesCategory && (!q||[r.details,r.supplier,r.category,r.memo,r.entry_date].join(" ").toLowerCase().includes(q));
+        return matchesView && matchesCategory && (!q||[r.details,r.supplier,r.paid_to,r.received_from,r.category,r.memo,r.entry_date].join(" ").toLowerCase().includes(q));
       })
       .slice()
       .sort((a:any,b:any)=>{
@@ -98,7 +114,7 @@ export default function ProjectManagementPage(){
     const normalized=String(code||"").trim();
     if(!normalized)return;
     setProject(normalized);
-    setLedgerView("all");
+    setLedgerView("income");
     setLedgerCategory("all");
     setSearch("");
     if(typeof window!=="undefined"){
@@ -113,7 +129,9 @@ export default function ProjectManagementPage(){
     setEntryType(num(r.debit)>0 ? "income" : "expense");
     setForm({
       entryDate:String(r.entry_date||"").slice(0,10),
-      supplier:r.supplier||suggestedContractor(data?.selectedProject?.projectCode,r.category||"")||"",
+      receivedFrom:r.received_from||"",
+      paidTo:r.paid_to||r.supplier||suggestedPartyForCategory(data,r.category||"")||"",
+      supplier:r.paid_to||r.supplier||"",
       details:r.details||"",
       sft:r.sft||"",
       rate:r.rate||"",
@@ -133,7 +151,9 @@ export default function ProjectManagementPage(){
       const body={
         projectId:data.selectedProject.projectCode,
         entryDate:form.entryDate,
-        supplier:form.supplier,
+        receivedFrom:form.receivedFrom,
+        paidTo:form.paidTo,
+        supplier:form.paidTo,
         details:form.details,
         sft:num(form.sft),
         rate:num(form.rate),
@@ -249,7 +269,7 @@ export default function ProjectManagementPage(){
   const totalDebit=num(data?.totals?.debit);
   const totalCredit=num(data?.totals?.credit);
   const balance=num(data?.totals?.balance);
-  const currentTitle = ledgerView==="income" ? (ledgerCategory==="all" ? "Income" : ledgerCategory) : ledgerView==="expense" ? (ledgerCategory==="all" ? "Expenses" : ledgerCategory) : "All Ledger Entries";
+  const currentTitle = ledgerView==="income" ? (ledgerCategory==="all" ? "Income Ledger" : ledgerCategory) : ledgerView==="expense" ? (ledgerCategory==="all" ? "Expense Ledger" : ledgerCategory) : "All Ledger Entries";
   const currentCount = filtered.length;
 
   if(data&&!data.selectedProject){
@@ -453,61 +473,116 @@ export default function ProjectManagementPage(){
           <div className="pm-table-wrap">
             <table className="pm-table">
               <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Supplier</th>
-                  <th className="wide-col">Details</th>
-                  <th>Category</th>
-                  <th className="num-col">Qty / SFT</th>
-                  <th className="num-col">Rate</th>
-                  <th className="num-col">Debit</th>
-                  <th className="num-col">Credit</th>
-                  <th className="num-col">Balance</th>
-                  {admin&&<th className="action-col"/>}
-                </tr>
+                {ledgerView==="income" ? (
+                  <tr>
+                    <th>Date</th>
+                    <th>Received From</th>
+                    <th>Paid To</th>
+                    <th className="wide-col">Details</th>
+                    <th>Category</th>
+                    <th className="num-col">Income</th>
+                    <th className="num-col">Balance</th>
+                    {admin&&<th className="action-col"/>}
+                  </tr>
+                ) : ledgerView==="expense" ? (
+                  <tr>
+                    <th>Date</th>
+                    <th>Paid To</th>
+                    <th className="wide-col">Details</th>
+                    <th>Category</th>
+                    <th className="num-col">Qty / SFT</th>
+                    <th className="num-col">Rate</th>
+                    <th className="num-col">Expense</th>
+                    <th className="num-col">Balance</th>
+                    {admin&&<th className="action-col"/>}
+                  </tr>
+                ) : (
+                  <tr>
+                    <th>Date</th>
+                    <th>Paid To / Supplier</th>
+                    <th className="wide-col">Details</th>
+                    <th>Category</th>
+                    <th className="num-col">Qty / SFT</th>
+                    <th className="num-col">Rate</th>
+                    <th className="num-col">Debit</th>
+                    <th className="num-col">Credit</th>
+                    <th className="num-col">Balance</th>
+                    {admin&&<th className="action-col"/>}
+                  </tr>
+                )}
               </thead>
               <tbody>
                 {filtered.map((r:any)=>{
                   const isDebit=num(r.debit)>0;
+                  const party=r.paid_to||r.supplier||"—";
+                  const category=String(r.category||"Other Expenses");
                   return (
                     <tr key={r.id}>
-                      <td><span className="pm-date">{dateText(r.entry_date)}</span></td>
-                      <td><span className="pm-supplier">{r.supplier||"—"}</span></td>
-                      <td className="wide-col">
-                        <div className="pm-detail">{r.details}</div>
-                        {r.memo&&String(r.memo).startsWith("MASTER_LEDGER:")&&<span className="pm-source-tag">Master Ledger</span>}
-                        {r.memo&&!String(r.memo).startsWith("MASTER_LEDGER:")&&<div className="pm-memo">{String(r.memo)}</div>}
-                      </td>
-                      <td><span className="pm-category-tag">{r.category||"Other Expenses"}</span>{String(r.category||"").toLowerCase()==="cheque"&&num(r.debit)>0&&<span className={"pm-cheque-status "+(chequeStatus(r)==="On Hold"?"hold":"cashed")}>{chequeStatus(r)}</span>}</td>
-                      <td className="num-col">{r.sft||"—"}</td>
-                      <td className="num-col">{r.rate?money(r.rate):"—"}</td>
-                      <td className={"num-col "+(isDebit?"pm-money-debit":"pm-muted")}>{r.debit?money(r.debit):"—"}</td>
-                      <td className={"num-col "+(!isDebit&&num(r.credit)>0?"pm-money-credit":"pm-muted")}>{r.credit?money(r.credit):"—"}</td>
-                      <td className="num-col pm-balance">{money(r.balance)}</td>
-                      {admin&&<td className="action-col">
-                        <div className="pm-row-actions">
-                          <button className="pm-icon-btn" title="Edit" onClick={()=>openEdit(r)}>✎</button>
-                          <button className="pm-icon-btn pm-danger" title="Delete" onClick={()=>void remove(r)}>⌫</button>
-                        </div>
-                      </td>}
+                      {ledgerView==="income" ? (
+                        <>
+                          <td><span className="pm-date">{dateText(r.entry_date)}</span></td>
+                          <td><span className="pm-supplier">{r.received_from||"—"}</span></td>
+                          <td><span className="pm-supplier">{party}</span></td>
+                          <td className="wide-col">
+                            <div className="pm-detail">{r.details}</div>
+                            {r.memo&&<div className="pm-memo">{String(r.memo).replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"")}</div>}
+                          </td>
+                          <td>
+                            <span className="pm-category-tag">{category}</span>
+                            {category.toLowerCase()==="cheque"&&<span className={"pm-cheque-status "+(chequeStatus(r)==="On Hold"?"hold":"cashed")}>{chequeStatus(r)}</span>}
+                          </td>
+                          <td className="num-col pm-money-debit">{r.debit?money(r.debit):"—"}</td>
+                          <td className="num-col pm-balance">{money(r.balance)}</td>
+                          {admin&&<td className="action-col"><div className="pm-row-actions"><button className="pm-icon-btn" title="Edit" onClick={()=>openEdit(r)}>✎</button><button className="pm-icon-btn pm-danger" title="Delete" onClick={()=>void remove(r)}>⌫</button></div></td>}
+                        </>
+                      ) : ledgerView==="expense" ? (
+                        <>
+                          <td><span className="pm-date">{dateText(r.entry_date)}</span></td>
+                          <td><span className="pm-supplier">{party}</span></td>
+                          <td className="wide-col">
+                            <div className="pm-detail">{r.details}</div>
+                            {r.memo&&String(r.memo).startsWith("MASTER_LEDGER:")&&<span className="pm-source-tag">Master Ledger</span>}
+                            {r.memo&&!String(r.memo).startsWith("MASTER_LEDGER:")&&<div className="pm-memo">{String(r.memo).replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"")}</div>}
+                          </td>
+                          <td><span className="pm-category-tag">{category}</span></td>
+                          <td className="num-col">{r.sft||"—"}</td>
+                          <td className="num-col">{r.rate?money(r.rate):"—"}</td>
+                          <td className="num-col pm-money-credit">{r.credit?money(r.credit):"—"}</td>
+                          <td className="num-col pm-balance">{money(r.balance)}</td>
+                          {admin&&<td className="action-col"><div className="pm-row-actions"><button className="pm-icon-btn" title="Edit" onClick={()=>openEdit(r)}>✎</button><button className="pm-icon-btn pm-danger" title="Delete" onClick={()=>void remove(r)}>⌫</button></div></td>}
+                        </>
+                      ) : (
+                        <>
+                          <td><span className="pm-date">{dateText(r.entry_date)}</span></td>
+                          <td><span className="pm-supplier">{party}</span></td>
+                          <td className="wide-col">
+                            <div className="pm-detail">{r.details}</div>
+                            {r.memo&&String(r.memo).startsWith("MASTER_LEDGER:")&&<span className="pm-source-tag">Master Ledger</span>}
+                            {r.memo&&!String(r.memo).startsWith("MASTER_LEDGER:")&&<div className="pm-memo">{String(r.memo)}</div>}
+                          </td>
+                          <td><span className="pm-category-tag">{category}</span>{category.toLowerCase()==="cheque"&&isDebit&&<span className={"pm-cheque-status "+(chequeStatus(r)==="On Hold"?"hold":"cashed")}>{chequeStatus(r)}</span>}</td>
+                          <td className="num-col">{r.sft||"—"}</td>
+                          <td className="num-col">{r.rate?money(r.rate):"—"}</td>
+                          <td className={"num-col "+(isDebit?"pm-money-debit":"pm-muted")}>{r.debit?money(r.debit):"—"}</td>
+                          <td className={"num-col "+(!isDebit&&num(r.credit)>0?"pm-money-credit":"pm-muted")}>{r.credit?money(r.credit):"—"}</td>
+                          <td className="num-col pm-balance">{money(r.balance)}</td>
+                          {admin&&<td className="action-col"><div className="pm-row-actions"><button className="pm-icon-btn" title="Edit" onClick={()=>openEdit(r)}>✎</button><button className="pm-icon-btn pm-danger" title="Delete" onClick={()=>void remove(r)}>⌫</button></div></td>}
+                        </>
+                      )}
                     </tr>
                   );
                 })}
                 {!filtered.length&&
-                  <tr><td colSpan={admin?10:9} className="pm-empty">
+                  <tr><td colSpan={admin?(ledgerView==="income"?8:ledgerView==="expense"?9:10):ledgerView==="income"?7:ledgerView==="expense"?8:9} className="pm-empty">
                     <div className="pm-empty-icon">⌕</div>
                     <strong>No entries found</strong>
-                    <span>Try another search or select a different category.</span>
+                    <span>{ledgerView==="income"?"No income entries found.":"No expense entries found."}</span>
                   </td></tr>
                 }
               </tbody>
             </table>
           </div>
 
-          <div className="pm-table-footer">
-            <span>Showing <strong>{filtered.length.toLocaleString("en-BD")}</strong> of <strong>{entries.length.toLocaleString("en-BD")}</strong> ledger entries</span>
-            <span>Dates are displayed in ascending serial order</span>
-          </div>
         </section>
       </div>
 
@@ -518,28 +593,28 @@ export default function ProjectManagementPage(){
               <div>
                 <span className="pm-label">{editing?"EDIT LEDGER ENTRY":"NEW LEDGER ENTRY"}</span>
                 <h2>{editing ? (entryType==="income" ? "Edit Income" : "Edit Expense") : (entryType==="income" ? "Add Income" : "Add Expense")}</h2>
-                <p>{entryType==="income" ? "Record project income by payment source or scrap selling." : "Record the project expense with its category, supplier, quantity and amount."}</p>
+                <p>{entryType==="income" ? "Record project income and optionally link the payment to a supplier, contractor or other party." : "Record the actual project expense and connect it to its supplier or contractor."}</p>
               </div>
               <button className="pm-close" onClick={()=>setFormOpen(false)}>×</button>
             </div>
             <div className="pm-form-grid">
               <label><span>Date</span><input type="date" value={form.entryDate} onChange={e=>setForm({...form,entryDate:e.target.value})}/></label>
-              <label><span>{entryType==="income" ? "Supplier" : "Supplier / Contractor"}</span>{entryType==="expense" && suggestedContractor(data?.selectedProject?.projectCode,form.category) ? (
-                <select value={form.supplier||suggestedContractor(data?.selectedProject?.projectCode,form.category)} onChange={e=>setForm({...form,supplier:e.target.value})}>
-                  <option value={suggestedContractor(data?.selectedProject?.projectCode,form.category)}>{suggestedContractor(data?.selectedProject?.projectCode,form.category)}</option>
-                </select>
-              ) : (
-                <input value={form.supplier} onChange={e=>setForm({...form,supplier:e.target.value})} placeholder={entryType==="income" ? "Optional supplier / source" : "Supplier / contractor"}/>
-              )}</label>
-              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>{const category=e.target.value;const contractor=entryType==="expense"?suggestedContractor(data?.selectedProject?.projectCode,category):"";setForm({...form,category,supplier:contractor||"",chequeStatus:category==="Cheque"?form.chequeStatus:"Cashed"});}}>{(entryType==="income" ? incomeEntryCategories : expenseEntryCategories).map(c=><option key={c}>{c}</option>)}</select></label>
+              {entryType==="income"&&<label><span>Received From</span><input list="pm-party-options" value={form.receivedFrom} onChange={e=>setForm({...form,receivedFrom:e.target.value})} placeholder="Owner, client, source…"/></label>}
+              <label><span>Paid To</span><input list="pm-party-options" value={form.paidTo} onChange={e=>setForm({...form,paidTo:e.target.value,supplier:e.target.value})} placeholder="Supplier / contractor / other party"/></label>
+              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>{const category=e.target.value;const suggested=entryType==="expense"?suggestedPartyForCategory(data,category):"";setForm({...form,category,paidTo:suggested||form.paidTo,supplier:suggested||form.paidTo,chequeStatus:category==="Cheque"?form.chequeStatus:"Cashed"});}}>{(entryType==="income" ? incomeEntryCategories : expenseEntryCategories).map(c=><option key={c}>{c}</option>)}</select></label>
               {entryType==="income"&&form.category==="Cheque"&&<label><span>Cheque Status</span><select value={form.chequeStatus||"Cashed"} onChange={e=>setForm({...form,chequeStatus:e.target.value})}><option value="On Hold">On Hold</option><option value="Cashed">Cashed</option></select></label>}
-              <label className="full"><span>Details</span><input value={form.details} onChange={e=>setForm({...form,details:e.target.value})} placeholder={entryType==="income" ? "Describe the income / deposit" : "Describe the expense"}/></label>
-              <label><span>SFT / Qty</span><input value={form.sft} onChange={e=>setForm({...form,sft:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
-              <label><span>Rate</span><input value={form.rate} onChange={e=>setForm({...form,rate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
-              <label><span>Debit</span><input value={form.debit} onChange={e=>setForm({...form,debit:e.target.value,credit:e.target.value?"":form.credit})} inputMode="decimal" placeholder="0.00"/></label>
-              <label><span>Credit / Expense</span><input value={form.credit} onChange={e=>setForm({...form,credit:e.target.value,debit:e.target.value?"":form.debit})} inputMode="decimal" placeholder="0.00"/></label>
-              <label className="full"><span>Memo</span><input value={form.memo} onChange={e=>setForm({...form,memo:e.target.value})} placeholder="Optional note"/></label>
+              <label className="full"><span>Details</span><input value={form.details} onChange={e=>setForm({...form,details:e.target.value})} placeholder={entryType==="income" ? "Describe the income / transfer" : "Describe the expense"}/></label>
+              {entryType==="expense"&&<><label><span>Qty / SFT</span><input value={form.sft} onChange={e=>setForm({...form,sft:e.target.value})} inputMode="decimal" placeholder="0.000"/></label><label><span>Rate</span><input value={form.rate} onChange={e=>setForm({...form,rate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label></>}
+              {entryType==="income" ? (
+                <label><span>Income Amount</span><input value={form.debit} onChange={e=>setForm({...form,debit:e.target.value,credit:e.target.value?"":form.credit})} inputMode="decimal" placeholder="0.00"/></label>
+              ) : (
+                <label><span>Expense Amount</span><input value={form.credit} onChange={e=>setForm({...form,credit:e.target.value,debit:e.target.value?"":form.debit})} inputMode="decimal" placeholder="0.00"/></label>
+              )}
+              <label className="full"><span>Memo</span><input value={form.memo} onChange={e=>setForm({...form,memo:e.target.value})} placeholder="Optional note / reference"/></label>
             </div>
+            <datalist id="pm-party-options">
+              {allPartyOptions(data,entries).map((party:string)=><option key={party} value={party}/>)}
+            </datalist>
             <div className="pm-modal-foot">
               <button className="pm-btn pm-btn-secondary" onClick={()=>setFormOpen(false)}>Cancel</button>
               <button className="pm-btn pm-btn-primary" onClick={()=>void save()} disabled={saving}>{saving?"Saving…":editing?"Update Entry":"Save Entry"}</button>
