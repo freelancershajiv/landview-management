@@ -294,7 +294,12 @@ async function validateEntry(body: Row) {
   if (!details) throw new Error("Details are required.");
   const entryDate = clean(body.entryDate ?? body.Date, 20) || new Date().toISOString().slice(0,10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) throw new Error("Enter a valid entry date.");
-  const receivedFrom = clean(body.receivedFrom ?? body.received_from ?? body.Received_From,160) || null;
+  const receivedFromRaw = clean(body.receivedFrom ?? body.received_from ?? body.Received_From,160);
+  const allowedReceivedFrom = ["Mr. Mahi Bhai","Scrap Selling","Mr. Jamaluddin"];
+  const debit = Math.max(0, num(body.debit ?? body.Debit));
+  const receivedFrom = debit > 0 && !allowedReceivedFrom.includes(receivedFromRaw)
+    ? (()=>{ throw new Error("Select a valid Received From option."); })()
+    : (receivedFromRaw || null);
   const paidTo = clean(body.paidTo ?? body.paid_to ?? body.Paid_To ?? body.supplier ?? body.Supplier,160) || null;
   return {
     debit, credit, details, entryDate,
