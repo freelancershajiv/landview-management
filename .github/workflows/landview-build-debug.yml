@@ -1,4 +1,4 @@
-name: LAND VIEW Build Debug
+name: LAND VIEW Build Debug v2
 
 on:
   push:
