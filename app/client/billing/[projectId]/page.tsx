@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { landViewApi } from "@/lib/api";
 import {
+  buildSheetInvoices,
   normalizeFileId,
   verifySheetInvoicesWithPayments,
   type SheetInvoices,
@@ -138,56 +138,28 @@ export default function ClientBillingPage() {
 
   useEffect(() => {
     let active = true;
-
     async function load() {
       try {
-        const response = await fetch("/api/client-access", { cache: "no-store", credentials: "same-origin" });
-        const json = await response.json();
-        if (!response.ok || !json?.success) throw new Error(json?.error || "Unable to load your client billing.");
-
-        const access = json.data as ClientAccessData;
-        const projects = access.projects || [];
-        const project = requestedId
-          ? projects.find((candidate) => normalizeFileId(text(candidate.projectId)) === requestedId)
-          : projects[0];
-        if (!project) throw new Error(requestedId ? "This billing statement is not available for your client account." : "No project is linked to this client account.");
-
-        let billing = buildClientBilling(project);
-        try {
-          const detail = await landViewApi.getProject(billing.id);
-          billing = mergeProjectDetails(billing, detail);
-        } catch {
-          // Auto Invoice data remains the source of truth if the management project record is unavailable.
-        }
-        try {
-          const databasePayments = await landViewApi.getPayments(billing.id);
-          billing = verifySheetInvoicesWithPayments(billing, databasePayments);
-        } catch {
-          // The statement still renders safely; unavailable matches remain Unverified.
-        }
-
+        if (!requestedId) throw new Error("A valid project ID is required.");
+        const response = await fetch(`/api/project-billing?fileId=${encodeURIComponent(`LV-${requestedId}`)}`, { method: "GET", credentials: "same-origin", cache: "no-store" });
+        let json: any = null;
+        try { json = await response.json(); } catch { throw new Error("The billing service returned an invalid response."); }
+        if (!response.ok || !json?.success || !json?.data) throw new Error(String(json?.error || "Unable to load your client billing."));
+        if (!Array.isArray(json.data.sheets)) throw new Error("The billing service returned incomplete finance data.");
+        // Use the exact Supabase-backed payload used by Admin → Billing → LV-Auto Invoice.
+        let billing = buildSheetInvoices(json.data.sheets, requestedId);
+        billing = verifySheetInvoicesWithPayments(billing, Array.isArray(json.data.payments) ? json.data.payments : []);
         if (!active) return;
         setResult(billing);
-
         try {
-          const verificationResponse = await fetch("/api/billing-verification", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ fileId: billing.id, billing: billingVerificationSnapshot(billing) }),
-          });
+          const verificationResponse = await fetch("/api/billing-verification", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileId: billing.id, billing: billingVerificationSnapshot(billing) }) });
           const verificationJson = await verificationResponse.json();
           if (!verificationResponse.ok || !verificationJson?.success || !verificationJson?.url) throw new Error(verificationJson?.error || "Could not create verification link.");
           if (active) setVerificationUrl(String(verificationJson.url));
-        } catch (err) {
-          if (active) setVerificationError(err instanceof Error ? err.message : "Could not create verification link.");
-        }
-      } catch (err) {
-        if (active) setError(err instanceof Error ? err.message : "Could not load project billing.");
-      } finally {
-        if (active) setBusy(false);
-      }
+        } catch (err) { if (active) setVerificationError(err instanceof Error ? err.message : "Could not create verification link."); }
+      } catch (err) { if (active) setError(err instanceof Error ? err.message : "Could not load project billing."); }
+      finally { if (active) setBusy(false); }
     }
-
     void load();
     return () => { active = false; };
   }, [requestedId]);
