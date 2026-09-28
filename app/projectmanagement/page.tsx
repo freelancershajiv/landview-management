@@ -44,7 +44,7 @@ export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
   const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
-  const [summaryOpen,setSummaryOpen]=useState(false),[summarySaving,setSummarySaving]=useState(false),[summaryForm,setSummaryForm]=useState({supplierAdvance:"0",chequeOnHold:"0",notes:""});
+  const [summaryOpen,setSummaryOpen]=useState(false),[summarySaving,setSummarySaving]=useState(false),[summaryForm,setSummaryForm]=useState({chequeOnHold:"0",notes:""});
   const [partiesOpen,setPartiesOpen]=useState(false),[partySaving,setPartySaving]=useState(false),[partyForm,setPartyForm]=useState({name:"",partyType:"Supplier",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
 
   async function load(code=project){
@@ -220,7 +220,6 @@ export default function ProjectManagementPage(){
 
   function openSummaryEdit(){
     setSummaryForm({
-      supplierAdvance:String(data?.summary?.supplierAdvance||0),
       chequeOnHold:String(data?.summary?.chequeOnHold||0),
       notes:String(data?.summary?.notes||"")
     });
@@ -314,7 +313,6 @@ export default function ProjectManagementPage(){
         body:JSON.stringify({
           action:"updateSummary",
           projectId:data.selectedProject.projectCode,
-          supplierAdvance:num(summaryForm.supplierAdvance),
           chequeOnHold:num(summaryForm.chequeOnHold),
           notes:summaryForm.notes
         })
@@ -469,7 +467,7 @@ export default function ProjectManagementPage(){
             <div>
               <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
               <strong>Fund position</strong>
-              <small>Deposit and recognized expenses come from the ledger. Supplier advance and cheque on hold are tracked separately.</small>
+              <small>Deposit and recognized expenses come from the ledger. Supplier Advance is linked automatically to supplier billing, while cheque on hold is tracked separately.</small>
             </div>
             {admin&&<button className="pm-summary-edit" onClick={openSummaryEdit}>✎ Edit Adjustments</button>}
           </div>
@@ -487,7 +485,7 @@ export default function ProjectManagementPage(){
             <div className="pm-stat pm-stat-advance">
               <div className="pm-stat-head"><span>Supplier Advance</span><b>⌁</b></div>
               <strong>{money(data?.summary?.supplierAdvance)}</strong>
-              <small>Outstanding supplier prepayment</small>
+              <small>Linked from supplier billing: paid − certified</small>
             </div>
             <div className="pm-stat pm-stat-hold">
               <div className="pm-stat-head"><span>Cheque on Hold</span><b>◷</b></div>
@@ -808,18 +806,18 @@ export default function ProjectManagementPage(){
               <div>
                 <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
                 <h2>Edit Adjustments</h2>
-                <p>These values are kept separate from the transaction ledger and affect Eng Shajiv Balance only.</p>
+                <p>Supplier Advance is read-only and linked to supplier billing. Only cheque on hold and notes are editable here.</p>
               </div>
               <button className="pm-close" onClick={()=>setSummaryOpen(false)}>×</button>
             </div>
             <div className="pm-form-grid">
-              <label><span>Supplier Advance</span><input value={summaryForm.supplierAdvance} onChange={e=>setSummaryForm({...summaryForm,supplierAdvance:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
+              <label><span>Supplier Advance (Linked)</span><input value={money(data?.summary?.supplierAdvance)} readOnly aria-readonly="true"/></label>
               <label><span>Cheque on Hold</span><input value={summaryForm.chequeOnHold} onChange={e=>setSummaryForm({...summaryForm,chequeOnHold:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
               <label className="full"><span>Notes</span><input value={summaryForm.notes} onChange={e=>setSummaryForm({...summaryForm,notes:e.target.value})} placeholder="Optional reconciliation note"/></label>
             </div>
             <div className="pm-modal-foot">
               <button className="pm-btn pm-btn-secondary" onClick={()=>setSummaryOpen(false)}>Cancel</button>
-              <button className="pm-btn pm-btn-primary" onClick={()=>void saveSummary()} disabled={summarySaving}>{summarySaving?"Saving…":"Save Summary"}</button>
+              <button className="pm-btn pm-btn-primary" onClick={()=>void saveSummary()} disabled={summarySaving}>{summarySaving?"Saving…":"Save Adjustments"}</button>
             </div>
           </section>
         </div>
