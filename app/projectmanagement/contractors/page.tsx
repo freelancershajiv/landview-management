@@ -326,7 +326,7 @@ export default function ContractorBillsPage(){
               <span className="cb-label">CONTRACT SETUP</span>
               <h2>Contractors & Reconciliation</h2>
             </div>
-            {admin && <button className="cb-small-btn" onClick={openNewContract}>Add Contractor</button>}
+            {admin && <button className="cb-small-btn" onClick={openNewContract}>Add Supplier / Contractor</button>}
           </div>
 
           <div className="cb-table-wrap">
@@ -468,7 +468,7 @@ export default function ContractorBillsPage(){
           <div className="cb-backdrop">
             <section className="cb-modal">
               <div className="cb-modal-head">
-                <div><span className="cb-label">CONTRACT SETUP</span><h2>{contractForm.id?"Edit Contractor":"Add Contractor"}</h2><p>Set the project size/quantity and agreed contractor rate.</p></div>
+                <div><span className="cb-label">CONTRACT SETUP</span><h2>{contractForm.id?"Edit Supplier / Contractor":"Add Supplier / Contractor"}</h2><p>Set the project size/quantity and agreed rate for this party in this category.</p></div>
                 <button className="cb-close" onClick={()=>setContractOpen(false)}>×</button>
               </div>
               <div className="cb-form">
