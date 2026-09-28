@@ -341,13 +341,14 @@ export async function POST(request: NextRequest) {
       const contractQuantity = Math.max(0,num(body.contractQuantity));
       const agreedRate = Math.max(0,num(body.agreedRate));
       const notes = clean(body.notes,2000) || null;
-      if (!contractorName || !category) return fail("Contractor name and category are required.",400);
+      const partyType = ["Supplier","Contractor"].includes(clean(body.partyType,30)) ? clean(body.partyType,30) : "Contractor";
+      if (!contractorName || !category) return fail("Supplier / contractor name and category are required.",400);
       const duplicate = await selectRows("project_contractor_contracts",{filters:{project_id:project.id,category},limit:1});
       if (duplicate.length && String(duplicate[0].id)!==id) {
         if (!duplicate[0].active) {
           const reactivated = await updateRows("project_contractor_contracts",{id:duplicate[0].id},{
             contractor_name:contractorName,category,billing_unit:billingUnit,
-            contract_quantity:contractQuantity,agreed_rate:agreedRate,notes,active:true,
+            contract_quantity:contractQuantity,agreed_rate:agreedRate,notes,party_type:partyType,active:true,
             updated_at:new Date().toISOString()
           });
           if (!reactivated.length) return fail("Supplier / contractor could not be reactivated.",404);
@@ -355,7 +356,7 @@ export async function POST(request: NextRequest) {
         }
         return fail("A contractor / supplier already exists for this category in this project.",409);
       }
-      const row = {project_id:project.id,contractor_name:contractorName,category,billing_unit:billingUnit,contract_quantity:contractQuantity,agreed_rate:agreedRate,notes,active:true,updated_at:new Date().toISOString()};
+      const row = {project_id:project.id,contractor_name:contractorName,category,billing_unit:billingUnit,contract_quantity:contractQuantity,agreed_rate:agreedRate,notes,party_type:partyType,active:true,updated_at:new Date().toISOString()};
       const saved = id ? await updateRows("project_contractor_contracts",{id},row) : await insertRows("project_contractor_contracts",row);
       if (!saved.length) return fail("Supplier / contractor could not be saved.",404);
       return ok(saved[0]);
