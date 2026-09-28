@@ -109,6 +109,14 @@ async function projectSummaryFor(project: Row) {
 function contractorCategoryKey(value: unknown) {
   return clean(value,120).toLowerCase().replace(/&/g,"and").replace(/[_-]+/g," ").replace(/\s+/g," ").trim();
 }
+function ledgerCategoriesForContract(contract:any) {
+  const key=contractorCategoryKey(contract?.category);
+  if (key==="masonry") return ["masonry","r.c.c masonry","finishing masonry"];
+  return [key];
+}
+function contractorPaymentNameKey(value: unknown) {
+  return contractorCategoryKey(value).replace(/\bcontactor\b/g,"contractor");
+}
 function contractorBillCode() {
   return "CB-" + crypto.randomUUID().replace(/-/g,"").slice(0,10).toUpperCase();
 }
@@ -121,10 +129,12 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
   const validBills = bills.filter(validContractorBill);
   const contractorRows = contracts.map((contract:any) => {
     const contractBills = validBills.filter((b:any)=>String(b.contract_id)===String(contract.id));
+    const ledgerCategories=ledgerCategoriesForContract(contract);
+    const contractorNameKey=contractorPaymentNameKey(contract.contractor_name);
     const paidEntries = entries.filter((e:any) =>
       num(e.credit)>0 &&
-      contractorCategoryKey(e.category)===contractorCategoryKey(contract.category) &&
-      contractorCategoryKey(e.supplier)===contractorCategoryKey(contract.contractor_name)
+      ledgerCategories.includes(contractorCategoryKey(e.category)) &&
+      contractorPaymentNameKey(e.supplier)===contractorNameKey
     );
     const contractValue = num(contract.contract_quantity) * num(contract.agreed_rate);
     const certified = contractBills.reduce((sum:number,b:any)=>sum+num(b.net_amount ?? b.gross_amount),0);
