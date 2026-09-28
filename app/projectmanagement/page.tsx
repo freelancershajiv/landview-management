@@ -529,7 +529,7 @@ export default function ProjectManagementPage(){
                     <th className="wide-col">Details</th>
                     <th>Category</th>
                     <th className="num-col">Income</th>
-                    <th className="num-col">Balance</th>
+                    <th className="num-col">Income Balance</th>
                     {admin&&<th className="action-col"/>}
                   </tr>
                 ) : ledgerView==="expense" ? (
@@ -541,7 +541,7 @@ export default function ProjectManagementPage(){
                     <th className="num-col">Qty / SFT</th>
                     <th className="num-col">Rate</th>
                     <th className="num-col">Expense</th>
-                    <th className="num-col">Balance</th>
+                    <th className="num-col">Expense Balance</th>
                     {admin&&<th className="action-col"/>}
                   </tr>
                 ) : (
@@ -580,7 +580,7 @@ export default function ProjectManagementPage(){
                             {category.toLowerCase()==="cheque"&&<span className={"pm-cheque-status "+(chequeStatus(r)==="On Hold"?"hold":"cashed")}>{chequeStatus(r)}</span>}
                           </td>
                           <td className="num-col pm-money-debit">{r.debit?money(r.debit):"—"}</td>
-                          <td className="num-col pm-balance">{money(r.balance)}</td>
+                          <td className="num-col pm-balance">{money(r.income_balance)}</td>
                           {admin&&<td className="action-col"><div className="pm-row-actions"><button className="pm-icon-btn" title="Edit" onClick={()=>openEdit(r)}>✎</button><button className="pm-icon-btn pm-danger" title="Delete" onClick={()=>void remove(r)}>⌫</button></div></td>}
                         </>
                       ) : ledgerView==="expense" ? (
@@ -596,7 +596,7 @@ export default function ProjectManagementPage(){
                           <td className="num-col">{r.sft||"—"}</td>
                           <td className="num-col">{r.rate?money(r.rate):"—"}</td>
                           <td className="num-col pm-money-credit">{r.credit?money(r.credit):"—"}</td>
-                          <td className="num-col pm-balance">{money(r.balance)}</td>
+                          <td className="num-col pm-balance">{money(r.expense_balance)}</td>
                           {admin&&<td className="action-col"><div className="pm-row-actions"><button className="pm-icon-btn" title="Edit" onClick={()=>openEdit(r)}>✎</button><button className="pm-icon-btn pm-danger" title="Delete" onClick={()=>void remove(r)}>⌫</button></div></td>}
                         </>
                       ) : (
