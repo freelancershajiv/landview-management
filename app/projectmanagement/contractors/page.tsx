@@ -62,7 +62,6 @@ export default function ContractorBillsPage(){
   const [contractForm,setContractForm] = useState<any>(blankContract);
   const [billForm,setBillForm] = useState<any>(blankBill);
   const [expanded,setExpanded] = useState("");
-  const [statement,setStatement] = useState("");
 
   async function load(code = project){
     setLoading(true);
@@ -96,15 +95,6 @@ export default function ContractorBillsPage(){
 
   const contractMap = useMemo(()=>new Map(contractors.map((c:any)=>[String(c.id),c])),[contractors]);
 
-  const selectedContractor = useMemo(
-    ()=>contractors.find((c:any)=>String(c.id)===statement) || null,
-    [contractors,statement]
-  );
-
-  const selectedBills = useMemo(
-    ()=>selectedContractor ? bills.filter((b:any)=>String(b.contract_id)===String(selectedContractor.id)) : [],
-    [bills,selectedContractor]
-  );
 
   function openNewContract(){
     setContractForm({...blankContract});
@@ -333,7 +323,7 @@ export default function ContractorBillsPage(){
                           <div className="cb-actions">
                             {admin && <button className="cb-icon" title="Edit contract" onClick={()=>openEditContract(c)}>✎</button>}
                             {admin && <button className="cb-icon" title="New bill" onClick={()=>openNewBill(c)}>＋</button>}
-                            <button className="cb-icon" title="Statement" onClick={()=>{setStatement(c.id);setExpanded(isExpanded?"":c.id)}}>{isExpanded?"−":"▤"}</button>
+                            <button className="cb-icon" title="Statement" onClick={()=>setExpanded(isExpanded?"":c.id)}>{isExpanded?"−":"▤"}</button>
                           </div>
                         </div>
                         {isExpanded && (
@@ -360,7 +350,6 @@ export default function ContractorBillsPage(){
                             </div>
                           </div>
                         )}
-                        {isStatement && null}
                       </td>
                     </tr>
                   );
