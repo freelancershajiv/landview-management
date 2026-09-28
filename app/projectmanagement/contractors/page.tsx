@@ -375,13 +375,25 @@ export default function ContractorBillsPage(){
                         {isExpanded && (
                           <div className="cb-detail">
                             <div className="cb-detail-grid">
-                              <div className="cb-detail-card">
-                                <span>Payment Reconciliation</span>
+                              <div className="cb-detail-card cb-party-ledger-card">
+                                <span>Party Ledger · Debit / Credit</span>
                                 <strong>{money(c.paidAmount)}</strong>
-                                <small>Matched from ledger by category + contractor</small>
-                                <div className="cb-mini-list">
-                                  {(c.payments||[]).map((p:any)=><div key={p.id}><span>{dateText(p.date)}</span><b>{p.details}</b><strong>{money(p.amount)}</strong></div>)}
-                                  {!c.payments?.length && <div className="cb-empty-inline">No matching contractor payments found in the ledger.</div>}
+                                <small>All ledger entries matched to this supplier / contractor</small>
+                                <div className="cb-party-ledger-wrap">
+                                  <table className="cb-party-ledger">
+                                    <thead><tr><th>Date</th><th>Details</th><th>Category</th><th className="num">Debit</th><th className="num">Credit</th><th className="num">Balance</th></tr></thead>
+                                    <tbody>
+                                      {(c.partyLedger||[]).map((p:any)=><tr key={p.id}>
+                                        <td>{dateText(p.date)}</td>
+                                        <td title={p.details}>{p.details||"—"}</td>
+                                        <td>{p.category||"—"}</td>
+                                        <td className="num cb-ledger-debit">{p.debit?money(p.debit):"—"}</td>
+                                        <td className="num cb-ledger-credit">{p.credit?money(p.credit):"—"}</td>
+                                        <td className="num cb-ledger-balance">{money(p.balance)}</td>
+                                      </tr>)}
+                                      {!(c.partyLedger||[]).length && <tr><td colSpan={6} className="cb-empty-inline">No matching ledger entries found.</td></tr>}
+                                    </tbody>
+                                  </table>
                                 </div>
                               </div>
                               <div className="cb-detail-card">
@@ -562,6 +574,12 @@ export default function ContractorBillsPage(){
 .cb-detail{padding:0 14px 14px}
 .cb-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .cb-detail-card{border:1px solid #e2e7e9;border-radius:12px;background:#fff;padding:12px}.cb-detail-card>span{display:block;color:#6f7d83;font-size:10px;font-weight:800}.cb-detail-card>strong{display:block;font-size:18px;color:#18262d;margin-top:5px}.cb-detail-card>small{display:block;color:#9aa5aa;font-size:9px;margin-top:3px}
+.cb-party-ledger-wrap{margin-top:9px;border:1px solid #eef2f1;border-radius:10px;overflow:auto;max-height:360px}
+.cb-party-ledger{width:100%;min-width:760px;border-collapse:collapse;font-size:10px}
+.cb-party-ledger th{position:sticky;top:0;background:#f8fafb;color:#87949a;border-bottom:1px solid #e7ecee;padding:8px;text-align:left;font-size:8px;letter-spacing:.08em;text-transform:uppercase;z-index:1}
+.cb-party-ledger td{padding:8px;border-bottom:1px solid #f1f3f3;color:#4b585f;white-space:nowrap}
+.cb-party-ledger tr:last-child td{border-bottom:0}.cb-party-ledger td:nth-child(2){max-width:260px;overflow:hidden;text-overflow:ellipsis}.cb-party-ledger .num{text-align:right}
+.cb-ledger-debit{color:#2f668e;font-weight:700}.cb-ledger-credit{color:#8a5b2c;font-weight:800}.cb-ledger-balance{color:#245c48;font-weight:800}
 .cb-mini-list{margin-top:9px;border-top:1px solid #eef2f1}.cb-mini-list>div{display:grid;grid-template-columns:85px 1fr auto;gap:8px;padding:8px 0;border-bottom:1px solid #f1f3f3;font-size:10px}.cb-mini-list>div:last-child{border-bottom:0}.cb-mini-list span{color:#8d989d}.cb-mini-list b{font-weight:700;color:#4b585f}.cb-mini-list strong{color:#245c48}.cb-empty-inline{grid-template-columns:1fr!important;color:#a0aaae}
 .cb-empty{text-align:center!important;padding:70px 20px!important;color:#89959b!important}.cb-empty strong{display:block;color:#59666d;font-size:13px}.cb-empty span{display:block;font-size:11px;margin-top:4px}
 .cb-status{display:inline-flex;padding:4px 7px;border-radius:999px;font-size:9px;font-weight:850}.cb-status.certified{background:#edf8f2;color:#2f7058;border:1px solid #d4ebdd}.cb-status.draft{background:#fff3df;color:#946020;border:1px solid #efd7aa}.cb-status.void{background:#fff0ee;color:#a4483f;border:1px solid #f3d3ce}
