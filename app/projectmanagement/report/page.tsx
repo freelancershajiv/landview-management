@@ -275,6 +275,8 @@ export default function ProjectFinanceReportPage(){
           <div><strong>LAND VIEW Architects and Engineers</strong><br/>Project Finance Statement · {projectInfo.projectCode||"—"} · {monthText(statement.selectedMonth)}</div>
           <div>Confidential project accounts document · Generated from the LAND VIEW Project Management ledger.</div>
         </footer>
+
+        <div className="print-only print-page-number" aria-hidden="true"></div>
       </div>
 
       <style jsx>{styles}</style>
