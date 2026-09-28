@@ -72,11 +72,38 @@ export default function LoginPage(){
   const [quickBusy,setQuickBusy] = useState(false);
 
   useEffect(()=>{
+    let cancelled = false;
+
+    async function restoreExistingSession(){
+      try{
+        const response = await fetch("/api/session-refresh", {
+          method:"GET",
+          credentials:"same-origin",
+          cache:"no-store",
+        });
+        const json = await response.json().catch(()=>null);
+        if(cancelled || !response.ok || !json?.success || !json?.data?.authenticated || !json?.data?.user) return;
+
+        const role = normalizeRole(json.data.user?.role || json.data.user?.Role);
+        const activePortal = portalForRole(role);
+        if(!activePortal) return;
+
+        saveSessionCache({authenticated:true,user:json.data.user});
+        try{ localStorage.setItem(PORTAL_KEY,activePortal); }catch{}
+        window.location.replace(portalPath(activePortal));
+      }catch{
+        // No active session (or a transient refresh failure): keep the normal login form available.
+      }
+    }
+
     try{
       const stored = localStorage.getItem(PORTAL_KEY) as PortalType | null;
       if(stored === "employee" || stored === "client") setPortal(stored);
     }catch{}
     setQuickConfigured(false);
+    void restoreExistingSession();
+
+    return ()=>{ cancelled = true; };
   },[]);
 
   const selected = useMemo(()=>portals.find(p=>p.id===portal) || portals[0],[portal]);
