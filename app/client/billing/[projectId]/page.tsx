@@ -151,14 +151,29 @@ export default function ClientBillingPage() {
         billing = verifySheetInvoicesWithPayments(billing, Array.isArray(json.data.payments) ? json.data.payments : []);
         if (!active) return;
         setResult(billing);
-        try {
-          const verificationResponse = await fetch("/api/billing-verification", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ fileId: billing.id, billing: billingVerificationSnapshot(billing) }) });
-          const verificationJson = await verificationResponse.json();
-          if (!verificationResponse.ok || !verificationJson?.success || !verificationJson?.url) throw new Error(verificationJson?.error || "Could not create verification link.");
-          if (active) setVerificationUrl(String(verificationJson.url));
-        } catch (err) { if (active) setVerificationError(err instanceof Error ? err.message : "Could not create verification link."); }
-      } catch (err) { if (active) setError(err instanceof Error ? err.message : "Could not load project billing."); }
-      finally { if (active) setBusy(false); }
+        if (active) setBusy(false);
+
+        // QR verification is supplemental and must never delay the billing statement.
+        void (async () => {
+          try {
+            const verificationResponse = await fetch("/api/billing-verification", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ fileId: billing.id, billing: billingVerificationSnapshot(billing) }),
+            });
+            const verificationJson = await verificationResponse.json();
+            if (!verificationResponse.ok || !verificationJson?.success || !verificationJson?.url) {
+              throw new Error(verificationJson?.error || "Could not create verification link.");
+            }
+            if (active) setVerificationUrl(String(verificationJson.url));
+          } catch (err) {
+            if (active) setVerificationError(err instanceof Error ? err.message : "Could not create verification link.");
+          }
+        })();
+      } catch (err) {
+        if (active) setError(err instanceof Error ? err.message : "Could not load project billing.");
+        if (active) setBusy(false);
+      }
     }
     void load();
     return () => { active = false; };
