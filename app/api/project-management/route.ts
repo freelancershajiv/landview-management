@@ -41,20 +41,6 @@ function guessExpenseCategory(category: unknown, description: unknown) {
   return "Other Expenses";
 }
 const clean = (v: unknown, max = 1000) => String(v ?? "").trim().slice(0, max);
-function chequeStatusOf(row: Row) {
-  const match = String(row?.memo || "").match(/^CHEQUE_STATUS:(ON_HOLD|CASHED)(?:\n|\r\n)?/i);
-  return match && String(match[1]).toUpperCase() === "ON_HOLD" ? "On Hold" : "Cashed";
-}
-function memoWithoutChequeStatus(memo: unknown) {
-  const value = clean(memo, 1000).replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)(?:\n|\r\n)?/i, "").trim();
-  return value || null;
-}
-function buildMemo(category: string | null, status: unknown, memo: unknown) {
-  const cleanMemo = memoWithoutChequeStatus(memo);
-  if (category !== "Cheque") return cleanMemo;
-  const normalizedStatus = String(status || "Cashed").toUpperCase() === "ON_HOLD" ? "ON_HOLD" : "CASHED";
-  return `CHEQUE_STATUS:${normalizedStatus}${cleanMemo ? `\n${cleanMemo}` : ""}`;
-}
 const num = (v: unknown) => { const n = Number(String(v ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; };
 const roleOf = (u: Row | null) => clean(u?.role || u?.Role, 30).toLowerCase();
 const userIdOf = (u: Row | null) => clean(u?.userId || u?.User_ID || u?.username || u?.Username, 120);
@@ -179,15 +165,13 @@ async function workspace(user: Row, requested?: string) {
   const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
   const masterLedger = await masterLedgerFor(user, selected);
   const summary = await projectSummaryFor(selected);
-  const chequeOnHold = entries.reduce((s,r) => s + (String(r.category || "").toLowerCase() === "cheque" && num(r.debit) > 0 && chequeStatusOf(r) === "On Hold" ? num(r.debit) : 0), 0);
-  const entriesWithChequeStatus = entries.map(r => ({ ...r, chequeStatus: String(r.category || "").toLowerCase() === "cheque" && num(r.debit) > 0 ? chequeStatusOf(r) : null }));
-  const engShajivBalance = debit - credit - summary.supplierAdvance - chequeOnHold;
+  const engShajivBalance = debit - credit - summary.supplierAdvance - summary.chequeOnHold;
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
-    entries:entriesWithChequeStatus,
+    entries,
     totals: { debit, credit, balance: debit - credit },
-    summary: { ...summary, chequeOnHold, engShajivBalance },
+    summary: { ...summary, engShajivBalance },
     categories,
     masterLedger,
     readOnly: !isAdmin(user),
@@ -213,13 +197,7 @@ async function validateEntry(body: Row) {
   if (!details) throw new Error("Details are required.");
   const entryDate = clean(body.entryDate ?? body.Date, 20) || new Date().toISOString().slice(0,10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) throw new Error("Enter a valid entry date.");
-  const category = clean(body.category ?? body.Category,120) || null;
-  const chequeStatus = clean(body.chequeStatus ?? body.Cheque_Status,30) || "Cashed";
-  if (category === "Cheque") {
-    if (!(debit > 0)) throw new Error("Cheque income must be recorded as a Debit.");
-    if (chequeStatus !== "On Hold" && chequeStatus !== "Cashed") throw new Error("Choose On Hold or Cashed for a cheque.");
-  }
-  return { debit, credit, details, entryDate, sft:Math.max(0,num(body.sft ?? body.SFT)), rate:Math.max(0,num(body.rate ?? body.Rate)), supplier:clean(body.supplier ?? body.Supplier,160) || null, category, chequeStatus, memo:clean(body.memo ?? body.Memo,1000) || null };
+  return { debit, credit, details, entryDate, sft:Math.max(0,num(body.sft ?? body.SFT)), rate:Math.max(0,num(body.rate ?? body.Rate)), supplier:clean(body.supplier ?? body.Supplier,160) || null, category:clean(body.category ?? body.Category,120) || null, memo:clean(body.memo ?? body.Memo,1000) || null };
 }
 
 export async function POST(request: NextRequest) {
@@ -231,18 +209,19 @@ export async function POST(request: NextRequest) {
     const project = await projectFor(user, body.projectId || body.Project_ID);
     if (body.action === "updateSummary") {
       const supplierAdvance = Math.max(0, num(body.supplierAdvance));
+      const chequeOnHold = Math.max(0, num(body.chequeOnHold));
       const notes = clean(body.notes, 2000) || null;
       const saved = await upsertRows("project_management_summary", {
         project_id: project.id,
         supplier_advance: supplierAdvance,
-        cheque_on_hold: 0,
+        cheque_on_hold: chequeOnHold,
         notes,
         updated_at: new Date().toISOString(),
       }, "project_id");
-      const row = saved[0] || { project_id: project.id, supplier_advance: supplierAdvance, cheque_on_hold: 0, notes };
+      const row = saved[0] || { project_id: project.id, supplier_advance: supplierAdvance, cheque_on_hold: chequeOnHold, notes };
       return ok({
         supplierAdvance: num(row.supplier_advance),
-        chequeOnHold: 0,
+        chequeOnHold: num(row.cheque_on_hold),
         notes: clean(row.notes, 2000),
       });
     }
@@ -277,7 +256,7 @@ export async function POST(request: NextRequest) {
       return ok(saved[0] || row);
     }
     const v = await validateEntry(body);
-    const row = { project_id:project.id, project_code_snapshot:project.project_code, supplier:v.supplier, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:buildMemo(v.category,v.chequeStatus,v.memo), source:"project_management", created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW" };
+    const row = { project_id:project.id, project_code_snapshot:project.project_code, supplier:v.supplier, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:v.memo, source:"project_management", created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW" };
     const saved = await insertRows("project_management_ledger", row);
     return ok(saved[0] || row);
   } catch (e) { return fail(e, errorStatus(e instanceof Error ? e.message : String(e))); }
@@ -292,7 +271,7 @@ export async function PUT(request: NextRequest) {
     const id = clean(body.id,100);
     if (!id) return fail("Ledger entry ID is required.",400);
     const v = await validateEntry(body);
-    const saved = await updateRows("project_management_ledger", { id }, { supplier:v.supplier, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:buildMemo(v.category,v.chequeStatus,v.memo), updated_at:new Date().toISOString() });
+    const saved = await updateRows("project_management_ledger", { id }, { supplier:v.supplier, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:v.memo, updated_at:new Date().toISOString() });
     if (!saved.length) return fail("Ledger entry not found.",404);
     return ok(saved[0]);
   } catch (e) { return fail(e, errorStatus(e instanceof Error ? e.message : String(e))); }
