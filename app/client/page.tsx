@@ -26,6 +26,7 @@ export default function ClientPortalPage(){
   const [error,setError]=useState("");
   const [certificateSummary,setCertificateSummary]=useState<CertificateSummary|null>(null);
   const [updated,setUpdated]=useState<Date|null>(null);
+  const [projectFinance,setProjectFinance]=useState<any>(null);
 
   async function load(silent=false){
     if(silent)setRefreshing(true); else setLoading(true);
@@ -34,7 +35,16 @@ export default function ClientPortalPage(){
       const response=await fetch("/api/client-access",{cache:"no-store",credentials:"same-origin"});
       const json=await response.json();
       if(!response.ok||!json?.success) throw new Error(json?.error||"Unable to load your client workspace.");
-      setWorkspace(json.data as Workspace); setUpdated(new Date());
+      setWorkspace(json.data as Workspace);
+      const firstProject=(json.data as Workspace)?.projects?.[0];
+      if(firstProject?.projectId){
+        try{
+          const financeResponse=await fetch("/api/project-management?projectId="+encodeURIComponent(firstProject.projectId),{cache:"no-store",credentials:"same-origin"});
+          const financeJson=await financeResponse.json();
+          if(financeResponse.ok&&financeJson?.success) setProjectFinance(financeJson.data);
+        }catch{}
+      }
+      setUpdated(new Date());
     }catch(err:any){ setError(err?.message||"Unable to load your client workspace."); }
     finally{ setLoading(false); setRefreshing(false); }
   }
