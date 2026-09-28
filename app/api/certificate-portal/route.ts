@@ -43,28 +43,33 @@ function mapRequest(row: Row) {
     status: row.status || "Pending", certificateId: row.certificate_code || "", requestedAt: row.requested_at || "", reviewedAt: row.reviewed_at || "", reviewedBy: row.reviewed_by || "", adminNote: row.admin_note || "",
   };
 }
-function mapCertificate(row: Row) {
+function mapCertificate(request: NextRequest, row: Row) {
+  const token = clean(row.verification_token, 10000);
+  const verificationUrl = token ? `${request.nextUrl.protocol}//${request.nextUrl.host}/certificate/verify/${encodeURIComponent(token)}` : "";
   return {
     certificateId: row.certificate_code, type: row.type || "project", category: row.category || "", requestId: row.request_code || "", name: row.name || "", address: row.address || "",
     fatherName: row.father_name || "", motherName: row.mother_name || "", nidNo: row.nid_no || "", position: row.position || "", subject: row.subject || "", reference: row.reference || "", description: row.description || "",
     issuedAt: row.issued_at || "", expiresAt: row.expires_at || "", status: row.status || "Active", revision: Number(row.revision || 1), parentId: row.parent_code || "", supersededBy: row.superseded_by || "",
-    revokedAt: row.revoked_at || "", revokedReason: row.revoked_reason || "", deletedAt: row.deleted_at || "", deletedReason: row.deleted_reason || "",
+    revokedAt: row.revoked_at || "", revokedReason: row.revoked_reason || "", deletedAt: row.deleted_at || "", deletedReason: row.deleted_reason || "", verificationUrl,
   };
 }
-async function mine(user: Row) {
-  const role = roleOf(user), uid = userIdOf(user);
-  let requests: Row[] = [];
+async function mine(user: Row, request: NextRequest) {
+  const role = roleOf(user);
   if (role === "client") {
     const projectIds = projectIdsOf(user);
-    if (projectIds.length) requests = await selectRows("certificate_requests", { inFilters: { project_code: projectIds }, order: "requested_at:desc", limit: 5000 });
-  } else if (role === "employee") {
-    requests = await selectRows("certificate_requests", { filters: { requester_id: uid }, order: "requested_at:desc", limit: 5000 });
-  } else {
-    requests = await selectRows("certificate_requests", { filters: { requester_id: uid }, order: "requested_at:desc", limit: 5000 });
+    const candidates = projectIds.length ? await selectRows("certificates", { inFilters: { reference: projectIds }, order: "issued_at:desc", limit: 5000 }) : [];
+    const projectSet = new Set(projectIds.map(normalizeProjectCode));
+    const issued = candidates.filter((row: Row) => {
+      const type = clean(row.type, 30).toLowerCase();
+      return projectSet.has(normalizeProjectCode(row.reference)) && (type === "project" || type === "building");
+    });
+    return { requests: [], certificates: issued.map(row => mapCertificate(request, row)), backendMode: "supabase", certificatesAvailable: true, categories: [] };
   }
+  const uid = userIdOf(user);
+  const requests = await selectRows("certificate_requests", { filters: { requester_id: uid }, order: "requested_at:desc", limit: 5000 });
   const requestIds = requests.map(row => row.request_code).filter(Boolean);
   const certificates = requestIds.length ? await selectRows("certificates", { inFilters: { request_code: requestIds }, order: "issued_at:desc", limit: 5000 }) : [];
-  return { requests: requests.map(mapRequest), certificates: certificates.map(mapCertificate), backendMode: "supabase", certificatesAvailable: true, categories: supportedCategories };
+  return { requests: requests.map(mapRequest), certificates: certificates.map(row => mapCertificate(request, row)), backendMode: "supabase", certificatesAvailable: true, categories: supportedCategories };
 }
 async function adminRequests(user: Row) {
   if (!await permission(user, "requests.view")) throw new Error("Permission required: requests.view");
@@ -76,7 +81,7 @@ export async function GET(request: NextRequest) {
   const mode = clean(request.nextUrl.searchParams.get("mode"), 30).toLowerCase();
   try {
     const user = await requireUser(request);
-    const data = mode === "admin" ? await adminRequests(user) : await mine(user);
+    const data = mode === "admin" ? await adminRequests(user) : await mine(user, request);
     return NextResponse.json({ success: true, data }, { headers });
   } catch (error: any) {
     const message = error?.message || "Could not load certificate portal.";
@@ -92,15 +97,11 @@ export async function POST(request: NextRequest) {
     const action = clean(input?.action, 30).toLowerCase();
 
     if (action === "request") {
+      if (roleOf(user) === "client") throw new Error("Clients cannot request certificates. Certificates are issued by LAND VIEW administration.");
       const category = clean(input?.category, 40).toLowerCase();
       if (!supportedCategories.includes(category)) return NextResponse.json({ success: false, error: "This certificate category is not supported." }, { status: 400 });
-      let projectId = normalizeProjectCode(input?.projectId);
+      const projectId = normalizeProjectCode(input?.projectId);
       const role = roleOf(user);
-      if (role === "client") {
-        const allowed = projectIdsOf(user);
-        if (!projectId) projectId = allowed[0] || "";
-        if (!allowed.includes(projectId)) throw new Error("Access denied for this project.");
-      }
       const requestId = `CR-${Date.now()}-${crypto.randomUUID().slice(0,6).toUpperCase()}`;
       let clientName = clean(user.name || user.Name, 160), mobile = "";
       if (projectId) {
