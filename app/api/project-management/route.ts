@@ -251,7 +251,7 @@ async function workspace(user: Row, requested?: string) {
   const rows = await selectRows("project_management_ledger", { filters: { project_id: selected.id }, order: "entry_date:asc", limit: 10000 });
   const entries = calculate(rows).map((row:any) => ({
     ...row,
-    paid_to: clean(row.paid_to || row.supplier,160),
+    paid_to: clean(row.paid_to || (num(row.credit)>0 ? row.supplier : ""),160),
     received_from: clean(row.received_from,160),
   }));
   const debit = entries.reduce((s,r) => s + num(r.debit), 0);
