@@ -73,6 +73,7 @@ export default function ProjectFinanceReportPage(){
   const summary=data?.summary||{};
   const currentAdjusted=num(summary.engShajivBalance);
   const availableProjects=data?.projects||[];
+  const period=statement.period;
 
   const printChunks=useMemo(()=>{
     const chunkSize=22;
@@ -103,7 +104,6 @@ export default function ProjectFinanceReportPage(){
   }
 
   const projectInfo=data?.selectedProject||{};
-  const period=statement.period;
 
   return (
     <main className="rpt-page">
