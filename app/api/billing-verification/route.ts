@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { signProjectVerification } from "@/lib/billing-verification";
+import { requireLocalSession, readSignedWorkspaceUser, roleOf } from "@/lib/local-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -101,57 +102,38 @@ async function backend(token: string, action: string, payload: Record<string, un
 
 export async function POST(request: NextRequest) {
   try {
-    if (!sameOrigin(request)) {
-      return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
-    }
+    if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
 
-    const sessionToken = request.cookies.get(SESSION_COOKIE)?.value || "";
-    if (!sessionToken) {
-      return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
-    }
+    const fileId = cleanText((await request.json())?.fileId, 30).toUpperCase();
+    if (!/^LV-\\d+$/.test(fileId)) return NextResponse.json({ success: false, error: "Invalid File ID." }, { status: 400 });
 
-    const input = await request.json();
-    const fileId = cleanText(input?.fileId, 30).toUpperCase();
-    if (!/^LV-\d+$/.test(fileId)) {
-      return NextResponse.json({ success: false, error: "Invalid File ID." }, { status: 400 });
-    }
+    // QR generation must be local and fast. The billing page has already
+    // authenticated against Supabase, so do not make another Apps Script
+    // workspace request just to generate the deterministic verification URL.
+    let user = readSignedWorkspaceUser(request.cookies.get(QUICK_USER_COOKIE)?.value);
+    if (!user) user = await requireLocalSession(request);
+    if (!user) return NextResponse.json({ success: false, error: "Unauthorized." }, { status: 401 });
 
-    // The login route already stores a signed HttpOnly identity snapshot. For
-    // internal workspace roles, verify that signature locally rather than doing
-    // a fragile Apps Script getSession round trip merely to render the QR.
-    let user = readSignedQuickUser(request.cookies.get(QUICK_USER_COOKIE)?.value) as any;
-    if (!user) {
-      const session = await backend(sessionToken, "getSession");
-      user = session?.user || {};
-    }
-    const role = cleanText(user?.role || user?.Role, 30).toLowerCase().replace(/\s+/g, "");
-
+    const role = roleOf(user);
     if (role === "client") {
-      // Client authorization remains live and project-specific.
-      const workspace = await backend(sessionToken, "getPublicProjects", { _clientPortal: "1", clientOp: "workspace" });
-      const allowed = (workspace?.projects || []).some(
-        (item: any) => cleanText(item?.projectId, 30).toUpperCase() === fileId,
-      );
-      if (!allowed) {
+      const rawIds = String((user as any).projectIds || (user as any).Project_IDs || (user as any).project_ids || "");
+      const allowedIds = new Set(rawIds.split(/[;,\\s]+/).map((id) => cleanText(id, 30).toUpperCase()).filter(Boolean));
+      if (!allowedIds.has(fileId)) {
         return NextResponse.json({ success: false, error: "This project is not authorized for your client account." }, { status: 403 });
       }
     } else if (!["admin", "manager", "accounts"].includes(role)) {
       return NextResponse.json({ success: false, error: "Billing verification is not available for this role." }, { status: 403 });
     }
 
-    // Deterministic: same project + same secret = same token forever.
     const token = signProjectVerification(fileId);
     const origin = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
     const url = `${origin}/verify/${encodeURIComponent(token)}`;
-
     return NextResponse.json({ success: true, url, fileId, permanent: true }, {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
   } catch (error: any) {
     const message = error?.message || "Could not create verification link.";
-    const status = /unauthorized|session expired|authentication required|invalid session/i.test(message)
-      ? 401
-      : /access|role|authorized/i.test(message) ? 403 : 502;
+    const status = /unauthorized|session expired|authentication required|invalid session/i.test(message) ? 401 : /access|role|authorized/i.test(message) ? 403 : 502;
     return NextResponse.json({ success: false, error: message }, { status });
   }
 }
