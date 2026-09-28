@@ -60,6 +60,8 @@ export default function AccountsEntryPage() {
   const [ok, setOk] = useState("");
 
   useEffect(() => {
+    const requestedType = new URLSearchParams(window.location.search).get("type");
+    if (requestedType === "income" || requestedType === "expense") setType(requestedType);
     void landViewApi.getSession()
       .then((session) => setUserId(t(session?.user?.userId || session?.user?.User_ID || session?.user?.username || "admin")))
       .catch(() => {});
