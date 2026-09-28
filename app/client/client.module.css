@@ -5,10 +5,11 @@
 .financeUpdateHeader p{color:var(--muted);font-size:11px;line-height:1.55;margin-top:6px!important}
 .seeMoreButton{min-height:38px;padding:0 15px;border:1px solid #ef3038;background:#ef3038;color:#fff;border-radius:8px;font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap}
 .seeMoreButton:hover{background:#d9212c;border-color:#d9212c}
-.financeUpdateStats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:17px}
+.financeUpdateStats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-top:17px}
 .financeUpdateStats>div{border:1px solid #2a3944;border-radius:11px;background:#0d171f;padding:16px}
 .financeUpdateStats span{display:block;color:#aeb9c1;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase}
 .financeUpdateStats strong{display:block;margin-top:8px;font-size:24px;font-variant-numeric:tabular-nums}
 .financeUpdateStats small{display:block;margin-top:6px;color:#7f8d97;font-size:9px}
 .financeUpdateFooter{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:13px;padding-top:13px;color:#aeb8c0;font-size:10px}
+@media(max-width:1050px){.financeUpdateStats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:620px){.financeUpdate{padding:17px}.financeUpdateHeader{align-items:stretch;flex-direction:column}.seeMoreButton{width:100%}.financeUpdateStats{grid-template-columns:1fr}.financeUpdateFooter{display:grid}}
