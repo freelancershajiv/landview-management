@@ -60,7 +60,7 @@ export default function ClientPortalPage(){
           <span>{project?.projectId||"Project"}</span>
           <span>{project?.location||"LAND VIEW project"}</span>
           <span>{refreshing?"Updating…":updated?`Updated ${updated.toLocaleTimeString("en-BD",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Dhaka"})}`:"Live workspace"}</span>
-          <button type="button" className={styles.refresh} onClick={()=>void load(true)} disabled={refreshing}>{refreshing?"Refreshing…":"Refresh"}</button>
+          {project&&<button type="button" className={styles.refresh} onClick={()=>{window.location.href=`/projectmanagement?projectId=${encodeURIComponent(project.projectId)}`;}}>Project Finance</button>}<button type="button" className={styles.refresh} onClick={()=>void load(true)} disabled={refreshing}>{refreshing?"Refreshing…":"Refresh"}</button>
         </div>
       </div>
     </section>
@@ -76,6 +76,7 @@ export default function ClientPortalPage(){
           <div className={styles.client}>{project?.clientName||workspace?.client?.name||"Client"}</div>
           <div className={styles.location}>{project?.location||"Project location not recorded"}</div>
           <div className={styles.projectFooter}><span className={styles.statusPill}>{status.toUpperCase()}</span><small>{project?.completedServices||0}/{project?.totalServices||workflow.length||0} services completed</small></div>
+          {project&&<button type="button" className={styles.actionPrimary} style={{marginTop:14,width:"100%",justifyContent:"center"}} onClick={()=>{window.location.href=`/projectmanagement?projectId=${encodeURIComponent(project.projectId)}`;}}>▤ &nbsp; OPEN PROJECT FINANCE</button>}
         </div>
       </div>
       <div className={`${styles.card} ${styles.metricCard}`}><div className={styles.metricIcon}>▤</div><span>Total Bill</span><strong>৳ {money(totals.bill)}</strong><small>Project billing amount</small></div>
