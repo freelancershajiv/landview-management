@@ -139,7 +139,6 @@ export default function ProjectFinanceReportPage(){
   }
 
   const projectInfo=data?.selectedProject||{};
-  const period=statement.period;
 
   return (
     <main className="rpt-page">
