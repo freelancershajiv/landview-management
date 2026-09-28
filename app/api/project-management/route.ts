@@ -131,33 +131,44 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
     const contractBills = validBills.filter((b:any)=>String(b.contract_id)===String(contract.id));
     const ledgerCategories=ledgerCategoriesForContract(contract);
     const contractorNameKey=contractorPaymentNameKey(contract.contractor_name);
-    const paidEntries = entries.filter((e:any) =>
-      num(e.credit)>0 &&
-      ledgerCategories.includes(contractorCategoryKey(e.category)) &&
-      contractorPaymentNameKey(e.supplier)===contractorNameKey
-    );
+    const paidEntries = entries.filter((e:any) => {
+      if (num(e.credit) <= 0) return false;
+      if (!ledgerCategories.includes(contractorCategoryKey(e.category))) return false;
+      const supplierKey=contractorPaymentNameKey(e.supplier);
+      if (supplierKey) return supplierKey===contractorNameKey;
+      const candidates=contracts.filter((candidate:any)=>
+        ledgerCategoriesForContract(candidate).includes(contractorCategoryKey(e.category))
+      );
+      return candidates.length===1 && String(candidates[0].id)===String(contract.id);
+    });
     const contractValue = num(contract.contract_quantity) * num(contract.agreed_rate);
+    const contractConfigured = num(contract.contract_quantity)>0 && num(contract.agreed_rate)>0;
     const certified = contractBills.reduce((sum:number,b:any)=>sum+num(b.net_amount ?? b.gross_amount),0);
     const billedQuantity = contractBills.reduce((sum:number,b:any)=>sum+num(b.quantity),0);
     const paid = paidEntries.reduce((sum:number,e:any)=>sum+num(e.credit),0);
     const advance = Math.max(0, paid-certified);
     const balancePayable = Math.max(0, certified-paid);
-    const remainingContract = Math.max(0, contractValue-certified);
+    const remainingContract = contractConfigured ? Math.max(0, contractValue-certified) : 0;
+    const overCertified = contractConfigured ? Math.max(0, certified-contractValue) : 0;
     return {
       ...contract,
       contract_quantity:num(contract.contract_quantity),
       agreed_rate:num(contract.agreed_rate),
       contractValue,
+      contractConfigured,
       certifiedAmount:certified,
       billedQuantity,
       paidAmount:paid,
       advance,
       balancePayable,
       remainingContract,
+      overCertified,
       paymentCount:paidEntries.length,
       payments:paidEntries.map((e:any)=>({id:e.id,date:e.entry_date,details:e.details,amount:num(e.credit),category:e.category,supplier:e.supplier,memo:e.memo||""}))
     };
   });
+  const configuredContracts=contractorRows.filter((c:any)=>c.contractConfigured);
+
   return {
     contracts:contractorRows,
     bills:bills.map((b:any)=>({...b,quantity:num(b.quantity),rate:num(b.rate),gross_amount:num(b.gross_amount),deduction:num(b.deduction),net_amount:num(b.net_amount),status:b.status||"Certified"})),
@@ -167,7 +178,10 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
       paidAmount:contractorRows.reduce((s:number,c:any)=>s+c.paidAmount,0),
       advance:contractorRows.reduce((s:number,c:any)=>s+c.advance,0),
       balancePayable:contractorRows.reduce((s:number,c:any)=>s+c.balancePayable,0),
-      remainingContract:contractorRows.reduce((s:number,c:any)=>s+c.remainingContract,0)
+      remainingContract:configuredContracts.reduce((s:number,c:any)=>s+c.remainingContract,0),
+      overCertified:configuredContracts.reduce((s:number,c:any)=>s+c.overCertified,0),
+      configuredContractCount:configuredContracts.length,
+      unconfiguredContractCount:contractorRows.length-configuredContracts.length
     }
   };
 }
