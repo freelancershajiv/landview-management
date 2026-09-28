@@ -159,15 +159,15 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
     };
   });
   return {
-    contracts:contractRows,
+    contracts:contractorRows,
     bills:bills.map((b:any)=>({...b,quantity:num(b.quantity),rate:num(b.rate),gross_amount:num(b.gross_amount),deduction:num(b.deduction),net_amount:num(b.net_amount),status:b.status||"Certified"})),
     totals:{
-      contractValue:contractRows.reduce((s:number,c:any)=>s+c.contractValue,0),
-      certifiedAmount:contractRows.reduce((s:number,c:any)=>s+c.certifiedAmount,0),
-      paidAmount:contractRows.reduce((s:number,c:any)=>s+c.paidAmount,0),
-      advance:contractRows.reduce((s:number,c:any)=>s+c.advance,0),
-      balancePayable:contractRows.reduce((s:number,c:any)=>s+c.balancePayable,0),
-      remainingContract:contractRows.reduce((s:number,c:any)=>s+c.remainingContract,0)
+      contractValue:contractorRows.reduce((s:number,c:any)=>s+c.contractValue,0),
+      certifiedAmount:contractorRows.reduce((s:number,c:any)=>s+c.certifiedAmount,0),
+      paidAmount:contractorRows.reduce((s:number,c:any)=>s+c.paidAmount,0),
+      advance:contractorRows.reduce((s:number,c:any)=>s+c.advance,0),
+      balancePayable:contractorRows.reduce((s:number,c:any)=>s+c.balancePayable,0),
+      remainingContract:contractorRows.reduce((s:number,c:any)=>s+c.remainingContract,0)
     }
   };
 }
