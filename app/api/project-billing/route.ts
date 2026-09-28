@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireLocalSession } from "@/lib/local-session";
+import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { handleLandviewDataAction, normalizeProjectCode } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -36,6 +36,11 @@ export async function GET(request: NextRequest) {
     if(!projectId) return NextResponse.json({success:false,error:"Enter a valid File ID such as LV-209."},{status:400});
     const user=await requireLocalSession(request);
     if(!user) return NextResponse.json({success:false,error:"Session expired."},{status:401});
+    if (roleOf(user as Row) === "client") {
+      const rawIds=String((user as Row).projectIds || (user as Row).Project_IDs || (user as Row).project_ids || "");
+      const allowedIds=new Set(rawIds.split(/[;,\s]+/).map(normalizeProjectCode).filter(Boolean));
+      if (!allowedIds.has(projectId)) return NextResponse.json({success:false,error:"Access denied for this project."},{status:403});
+    }
     const [project,billing]=await Promise.all([
       handleLandviewDataAction("getProject",{projectId},user) as Promise<Row>,
       handleLandviewDataAction("getProjectBilling",{projectId},user) as Promise<Row>,
