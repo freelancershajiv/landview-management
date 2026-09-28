@@ -13,7 +13,7 @@ const blank=()=>({entryDate:new Date().toISOString().slice(0,10),supplier:"",det
 export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
   const [ledgerView,setLedgerView]=useState("all"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
-  const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
+  const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
   const [summaryOpen,setSummaryOpen]=useState(false),[summarySaving,setSummarySaving]=useState(false),[summaryForm,setSummaryForm]=useState({supplierAdvance:"0",chequeOnHold:"0",notes:""});
 
   async function load(code=project){
@@ -93,9 +93,10 @@ export default function ProjectManagementPage(){
     void load(normalized);
   }
 
-  function openNew(){setEditing(null);setForm(blank());setFormOpen(true);}
+  function openNew(type:"income"|"expense"="expense"){setEditing(null);setEntryType(type);setForm(blank());setFormOpen(true);}
   function openEdit(r:any){
     setEditing(r);
+    setEntryType(num(r.debit)>0 ? "income" : "expense");
     setForm({
       entryDate:String(r.entry_date||"").slice(0,10),
       supplier:r.supplier||"",
@@ -136,7 +137,7 @@ export default function ProjectManagementPage(){
       });
       const j=await r.json();
       if(!r.ok||!j?.success)throw new Error(j?.error||"Could not save entry.");
-      setFormOpen(false);setEditing(null);setMessage(editing?"Expense updated.":"Expense added.");
+      setFormOpen(false);setEditing(null);setMessage(editing ? (entryType==="income" ? "Income updated." : "Expense updated.") : (entryType==="income" ? "Income added." : "Expense added."));
       await load(data.selectedProject.projectCode);
     }catch(e:any){setError(e?.message||"Could not save entry.");}
     finally{setSaving(false);}
@@ -308,7 +309,8 @@ export default function ProjectManagementPage(){
           <div className="pm-actions">
             <button className="pm-btn pm-btn-secondary" onClick={()=>window.location.assign("/projectmanagement/report?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}><span>▤</span> Monthly Report</button>
             <button className="pm-btn pm-btn-secondary" onClick={()=>void load(project)}><span>↻</span> Refresh</button>
-            {admin&&<button className="pm-btn pm-btn-primary" onClick={openNew}><span>＋</span> Add Expense</button>}
+            {admin&&<button className="pm-btn pm-btn-income" onClick={()=>openNew("income")}><span>＋</span> Add Income</button>}
+            {admin&&<button className="pm-btn pm-btn-primary" onClick={()=>openNew("expense")}><span>＋</span> Add Expense</button>}
             {admin&&<button className="pm-btn pm-btn-dark" onClick={()=>setMasterOpen(true)}><span>⇩</span> Master Ledger</button>}
           </div>
         </header>
@@ -507,8 +509,8 @@ export default function ProjectManagementPage(){
             <div className="pm-form-grid">
               <label><span>Date</span><input type="date" value={form.entryDate} onChange={e=>setForm({...form,entryDate:e.target.value})}/></label>
               <label><span>Supplier</span><input value={form.supplier} onChange={e=>setForm({...form,supplier:e.target.value})} placeholder="Supplier / contractor"/></label>
-              <label><span>Expense Category</span><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{categories.map(c=><option key={c}>{c}</option>)}</select></label>
-              <label className="full"><span>Details</span><input value={form.details} onChange={e=>setForm({...form,details:e.target.value})} placeholder="Describe the expense"/></label>
+              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{categories.map(c=><option key={c}>{c}</option>)}</select></label>
+              <label className="full"><span>Details</span><input value={form.details} onChange={e=>setForm({...form,details:e.target.value})} placeholder={entryType==="income" ? "Describe the income / deposit" : "Describe the expense"}/></label>
               <label><span>SFT / Qty</span><input value={form.sft} onChange={e=>setForm({...form,sft:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
               <label><span>Rate</span><input value={form.rate} onChange={e=>setForm({...form,rate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
               <label><span>Debit</span><input value={form.debit} onChange={e=>setForm({...form,debit:e.target.value,credit:e.target.value?"":form.credit})} inputMode="decimal" placeholder="0.00"/></label>
@@ -605,7 +607,7 @@ export default function ProjectManagementPage(){
         .pm-actions{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}
         .pm-btn,.pm-mini-btn,.pm-icon-btn,.pm-close,.pm-category{font:inherit;border:0;cursor:pointer;transition:.18s ease}
         .pm-btn{height:42px;padding:0 15px;border-radius:11px;font-size:13px;font-weight:780;display:inline-flex;align-items:center;gap:8px}
-        .pm-btn-primary{background:#1d6b52;color:#fff;box-shadow:0 8px 18px rgba(29,107,82,.18)}
+        .pm-btn-income{background:#d8f1e5;color:#14583f;border:1px solid #a9d8bf}.pm-btn-income:hover{background:#c7e9d8}.pm-btn-primary{background:#1d6b52;color:#fff;box-shadow:0 8px 18px rgba(29,107,82,.18)}
         .pm-btn-primary:hover{background:#175a45;transform:translateY(-1px)}
         .pm-btn-secondary{background:#fff;color:#243038;border:1px solid #dfe5e8}
         .pm-btn-secondary:hover{background:#f8fafb}
