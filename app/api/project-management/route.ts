@@ -113,7 +113,7 @@ function contractorBillCode() {
   return "CB-" + crypto.randomUUID().replace(/-/g,"").slice(0,10).toUpperCase();
 }
 function validContractorBill(row: Row) {
-  return !["void","cancelled","canceled"].includes(clean(row.status,30).toLowerCase());
+  return clean(row.status,30).toLowerCase() === "certified";
 }
 async function contractorWorkspaceFor(project: Row, entries: Row[]) {
   const contracts = await selectRows("project_contractor_contracts", { filters:{ project_id:project.id, active:true }, order:"category:asc", limit:500 });
