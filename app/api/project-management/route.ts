@@ -153,6 +153,31 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
     const certified = contractBills.reduce((sum:number,b:any)=>sum+num(b.net_amount ?? b.gross_amount),0);
     const billedQuantity = contractBills.reduce((sum:number,b:any)=>sum+num(b.quantity),0);
     const paid = paidEntries.reduce((sum:number,e:any)=>sum+num(e.credit),0);
+    const partyLedger = entries
+      .filter((e:any)=>{
+        const entryParty=contractorPaymentNameKey(e.paid_to || e.supplier || e.received_from);
+        return entryParty && entryParty===contractorNameKey;
+      })
+      .sort((a:any,b:any)=>{
+        const d=String(a.entry_date||"").localeCompare(String(b.entry_date||""));
+        if(d) return d;
+        return String(a.created_at||"").localeCompare(String(b.created_at||""));
+      })
+      .reduce((acc:any[],e:any)=>{
+        const prev=acc.length ? num(acc[acc.length-1].balance) : 0;
+        const debit=num(e.debit), credit=num(e.credit);
+        acc.push({
+          id:e.id,
+          date:e.entry_date,
+          details:e.details,
+          category:e.category,
+          debit,
+          credit,
+          balance:prev+debit-credit,
+          memo:e.memo||""
+        });
+        return acc;
+      },[]);
     const advance = Math.max(0, paid-certified);
     const balancePayable = Math.max(0, certified-paid);
     const remainingContract = contractConfigured ? Math.max(0, contractValue-certified) : 0;
@@ -171,7 +196,8 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
       remainingContract,
       overCertified,
       paymentCount:paidEntries.length,
-      payments:paidEntries.map((e:any)=>({id:e.id,date:e.entry_date,details:e.details,amount:num(e.credit),category:e.category,supplier:e.supplier,memo:e.memo||""}))
+      payments:paidEntries.map((e:any)=>({id:e.id,date:e.entry_date,details:e.details,amount:num(e.credit),category:e.category,supplier:e.supplier,memo:e.memo||""})),
+      partyLedger
     };
   });
   const configuredContracts=contractorRows.filter((c:any)=>c.contractConfigured);
