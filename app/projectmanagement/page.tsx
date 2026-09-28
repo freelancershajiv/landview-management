@@ -44,7 +44,7 @@ export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
   const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
-  const [summaryOpen,setSummaryOpen]=useState(false),[summarySaving,setSummarySaving]=useState(false),[summaryForm,setSummaryForm]=useState({chequeOnHold:"0",notes:""});
+
   const [partiesOpen,setPartiesOpen]=useState(false),[partySaving,setPartySaving]=useState(false),[partyForm,setPartyForm]=useState({name:"",partyType:"Supplier",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
 
   async function load(code=project){
@@ -216,14 +216,6 @@ export default function ProjectManagementPage(){
       await load(data?.selectedProject?.projectCode||project);
     }catch(e:any){setError(e?.message||"Could not pull master ledger entry.");}
     finally{setPulling("");}
-  }
-
-  function openSummaryEdit(){
-    setSummaryForm({
-      chequeOnHold:String(data?.summary?.chequeOnHold||0),
-      notes:String(data?.summary?.notes||"")
-    });
-    setSummaryOpen(true);
   }
 
   async function saveParty(){
@@ -469,7 +461,7 @@ export default function ProjectManagementPage(){
               <strong>Fund position</strong>
               <small>Deposit and recognized expenses come from the ledger. Supplier Advance is linked automatically to Sattapur Brick Field (Bricks), while cheque on hold is tracked separately.</small>
             </div>
-            {admin&&<button className="pm-summary-edit" onClick={openSummaryEdit}>✎ Edit Adjustments</button>}
+
           </div>
           <div className="pm-stats">
             <div className="pm-stat pm-stat-debit">
@@ -794,30 +786,6 @@ export default function ProjectManagementPage(){
 
             <div className="pm-modal-foot">
               <button className="pm-btn pm-btn-secondary" onClick={()=>setPartiesOpen(false)}>Close</button>
-            </div>
-          </section>
-        </div>
-      }
-
-      {summaryOpen&&admin&&
-        <div className="pm-modal-backdrop">
-          <section className="pm-modal pm-entry-modal">
-            <div className="pm-modal-head">
-              <div>
-                <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
-                <h2>Edit Adjustments</h2>
-                <p>Supplier Advance is read-only and linked to supplier billing. Only cheque on hold and notes are editable here.</p>
-              </div>
-              <button className="pm-close" onClick={()=>setSummaryOpen(false)}>×</button>
-            </div>
-            <div className="pm-form-grid">
-              <label><span>Supplier Advance (Linked)</span><input value={money(data?.summary?.supplierAdvance)} readOnly aria-readonly="true"/></label>
-              <label><span>Cheque on Hold</span><input value={summaryForm.chequeOnHold} onChange={e=>setSummaryForm({...summaryForm,chequeOnHold:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
-              <label className="full"><span>Notes</span><input value={summaryForm.notes} onChange={e=>setSummaryForm({...summaryForm,notes:e.target.value})} placeholder="Optional reconciliation note"/></label>
-            </div>
-            <div className="pm-modal-foot">
-              <button className="pm-btn pm-btn-secondary" onClick={()=>setSummaryOpen(false)}>Cancel</button>
-              <button className="pm-btn pm-btn-primary" onClick={()=>void saveSummary()} disabled={summarySaving}>{summarySaving?"Saving…":"Save Adjustments"}</button>
             </div>
           </section>
         </div>
