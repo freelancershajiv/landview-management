@@ -9,7 +9,8 @@ const money=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"B
 const compactMoney=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",notation:"compact",maximumFractionDigits:1}).format(Number(v||0));
 const num=(v:any)=>{const n=Number(String(v??"").replace(/,/g,"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0};
 const dateText=(v:any)=>{const d=new Date(String(v||"").slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?String(v||""):d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})};
-const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),supplier:"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",memo:""});
+const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),supplier:"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",chequeStatus:"Cashed",memo:""});
+const chequeStatusOf=(r:any)=>String(r?.chequeStatus||"Cashed").toLowerCase()==="on_hold"?"On Hold":"Cashed";
 
 export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
@@ -66,6 +67,8 @@ export default function ProjectManagementPage(){
       });
   },[entries,ledgerView,ledgerCategory,search]);
 
+  const currentChequeOnHold=useMemo(()=>entries.reduce((s:number,r:any)=>s+(String(r.category||"").toLowerCase()==="cheque"&&num(r.debit)>0&&chequeStatusOf(r)==="On Hold"?num(r.debit):0),0),[entries]);
+
   const categoryTotals=useMemo(()=>{
     const x:any={};
     for(const c of categories){
@@ -109,7 +112,8 @@ export default function ProjectManagementPage(){
       debit:r.debit||"",
       credit:r.credit||"",
       category:r.category||"Other Expenses",
-      memo:r.memo||""
+      memo:r.memo&&!String(r.memo).startsWith("CHEQUE_STATUS:")?r.memo:"",
+      chequeStatus:chequeStatusOf(r)
     });
     setFormOpen(true);
   }
@@ -128,6 +132,7 @@ export default function ProjectManagementPage(){
         debit:num(form.debit),
         credit:num(form.credit),
         category:form.category,
+        chequeStatus:form.category==="Cheque" ? form.chequeStatus : "Cashed",
         memo:form.memo
       };
       if(!form.details.trim())throw new Error("Details are required.");
@@ -184,7 +189,6 @@ export default function ProjectManagementPage(){
   function openSummaryEdit(){
     setSummaryForm({
       supplierAdvance:String(data?.summary?.supplierAdvance||0),
-      chequeOnHold:String(data?.summary?.chequeOnHold||0),
       notes:String(data?.summary?.notes||"")
     });
     setSummaryOpen(true);
@@ -202,7 +206,6 @@ export default function ProjectManagementPage(){
           action:"updateSummary",
           projectId:data.selectedProject.projectCode,
           supplierAdvance:num(summaryForm.supplierAdvance),
-          chequeOnHold:num(summaryForm.chequeOnHold),
           notes:summaryForm.notes
         })
       });
@@ -376,8 +379,8 @@ export default function ProjectManagementPage(){
             </div>
             <div className="pm-stat pm-stat-hold">
               <div className="pm-stat-head"><span>Cheque on Hold</span><b>◷</b></div>
-              <strong>{money(data?.summary?.chequeOnHold)}</strong>
-              <small>Committed but not treated as expense</small>
+              <strong>{money(currentChequeOnHold)}</strong>
+              <small>Current uncleared cheque amount</small>
             </div>
             <div className="pm-stat pm-stat-balance pm-stat-shajiv">
               <div className="pm-stat-head"><span>Eng Shajiv Balance</span><b>＝</b></div>
@@ -386,7 +389,7 @@ export default function ProjectManagementPage(){
             </div>
           </div>
           <div className="pm-finance-foot">
-            <span>Formula: <strong>Total Deposit − Total Expense − Supplier Advance − Cheque on Hold</strong></span>
+            <span>Formula: <strong>Total Deposit − Total Expense − Supplier Advance − Current Cheque on Hold</strong></span>
             <span>{entries.length.toLocaleString("en-BD")} ledger entries</span>
           </div>
         </section>
@@ -465,7 +468,7 @@ export default function ProjectManagementPage(){
                         {r.memo&&String(r.memo).startsWith("MASTER_LEDGER:")&&<span className="pm-source-tag">Master Ledger</span>}
                         {r.memo&&!String(r.memo).startsWith("MASTER_LEDGER:")&&<div className="pm-memo">{String(r.memo)}</div>}
                       </td>
-                      <td><span className="pm-category-tag">{r.category||"Other Expenses"}</span></td>
+                      <td><span className="pm-category-tag">{r.category||"Other Expenses"}</span>{String(r.category||"").toLowerCase()==="cheque"&&num(r.debit)>0&&<span className={"pm-cheque-status "+(chequeStatusOf(r)==="On Hold"?"hold":"cashed")}>{chequeStatusOf(r)}</span>}</td>
                       <td className="num-col">{r.sft||"—"}</td>
                       <td className="num-col">{r.rate?money(r.rate):"—"}</td>
                       <td className={"num-col "+(isDebit?"pm-money-debit":"pm-muted")}>{r.debit?money(r.debit):"—"}</td>
@@ -512,13 +515,14 @@ export default function ProjectManagementPage(){
             <div className="pm-form-grid">
               <label><span>Date</span><input type="date" value={form.entryDate} onChange={e=>setForm({...form,entryDate:e.target.value})}/></label>
               <label><span>Supplier</span><input value={form.supplier} onChange={e=>setForm({...form,supplier:e.target.value})} placeholder="Supplier / contractor"/></label>
-              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{(entryType==="income" ? incomeEntryCategories : expenseEntryCategories).map(c=><option key={c}>{c}</option>)}</select></label>
+              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>setForm({...form,category:e.target.value,chequeStatus:e.target.value==="Cheque"?form.chequeStatus:"Cashed"})}>{(entryType==="income" ? incomeEntryCategories : expenseEntryCategories).map(c=><option key={c}>{c}</option>)}</select></label>
+              {entryType==="income"&&form.category==="Cheque"&&<label><span>Cheque Status</span><select value={form.chequeStatus||"Cashed"} onChange={e=>setForm({...form,chequeStatus:e.target.value})}><option value="On Hold">On Hold</option><option value="Cashed">Cashed</option></select></label>}
               <label className="full"><span>Details</span><input value={form.details} onChange={e=>setForm({...form,details:e.target.value})} placeholder={entryType==="income" ? "Describe the income / deposit" : "Describe the expense"}/></label>
               <label><span>SFT / Qty</span><input value={form.sft} onChange={e=>setForm({...form,sft:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
               <label><span>Rate</span><input value={form.rate} onChange={e=>setForm({...form,rate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
               <label><span>Debit</span><input value={form.debit} onChange={e=>setForm({...form,debit:e.target.value,credit:e.target.value?"":form.credit})} inputMode="decimal" placeholder="0.00"/></label>
               <label><span>Credit / Expense</span><input value={form.credit} onChange={e=>setForm({...form,credit:e.target.value,debit:e.target.value?"":form.debit})} inputMode="decimal" placeholder="0.00"/></label>
-              <label className="full"><span>Memo</span><input value={form.memo} onChange={e=>setForm({...form,memo:e.target.value})} placeholder="Optional note"/></label>
+              <label className={entryType==="income"&&form.category==="Cheque"?"":"full"}><span>Memo</span><input value={form.memo} onChange={e=>setForm({...form,memo:e.target.value})} placeholder="Optional note"/></label>
             </div>
             <div className="pm-modal-foot">
               <button className="pm-btn pm-btn-secondary" onClick={()=>setFormOpen(false)}>Cancel</button>
@@ -535,13 +539,12 @@ export default function ProjectManagementPage(){
               <div>
                 <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
                 <h2>Edit Adjustments</h2>
-                <p>These values are kept separate from the transaction ledger and affect Eng Shajiv Balance only.</p>
+                <p>Supplier advance remains a manual adjustment. Cheque on Hold is calculated automatically from cheque entries marked On Hold.</p>
               </div>
               <button className="pm-close" onClick={()=>setSummaryOpen(false)}>×</button>
             </div>
             <div className="pm-form-grid">
               <label><span>Supplier Advance</span><input value={summaryForm.supplierAdvance} onChange={e=>setSummaryForm({...summaryForm,supplierAdvance:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
-              <label><span>Cheque on Hold</span><input value={summaryForm.chequeOnHold} onChange={e=>setSummaryForm({...summaryForm,chequeOnHold:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
               <label className="full"><span>Notes</span><input value={summaryForm.notes} onChange={e=>setSummaryForm({...summaryForm,notes:e.target.value})} placeholder="Optional reconciliation note"/></label>
             </div>
             <div className="pm-modal-foot">
@@ -705,6 +708,7 @@ export default function ProjectManagementPage(){
         .pm-detail{font-weight:720;color:#26353d;line-height:1.38}
         .pm-memo{display:block;color:#9ba5a9;font-size:10px;margin-top:3px;max-width:390px;overflow:hidden;text-overflow:ellipsis}
         .pm-source-tag{display:inline-flex;margin-top:5px;padding:3px 7px;border-radius:999px;background:#edf5f2;color:#37735f;font-size:9px;font-weight:800}
+        .pm-cheque-status{display:inline-flex;margin-left:5px;padding:4px 7px;border-radius:999px;font-size:9px;font-weight:850}.pm-cheque-status.hold{background:#fff3df;color:#946020;border:1px solid #efd7aa}.pm-cheque-status.cashed{background:#edf8f2;color:#2f7058;border:1px solid #d4ebdd}
         .pm-category-tag{display:inline-flex;max-width:185px;padding:5px 8px;background:#f3f6f5;border:1px solid #e5ebe8;border-radius:8px;color:#5b696f;font-size:10px;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
         .pm-money-debit{color:#3b5f86;font-weight:780}
         .pm-money-credit{color:#1d6b52;font-weight:780}
