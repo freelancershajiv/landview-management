@@ -100,22 +100,17 @@ export default function ClientPortalPage(){
 
     <section id="finance-update" className={styles.financeUpdate}>
       <div className={styles.financeUpdateHeader}>
-        <div>
-          <span className={styles.label}>PROJECT FINANCE</span>
-          <h2>Finance Update</h2>
-          <p>Current billing position and the latest financial activity for your project.</p>
-        </div>
+        <div><span className={styles.label}>PROJECT FINANCE</span><h2>Finance Update</h2><p>Live project fund position from Project Management.</p></div>
         {project&&<button type="button" className={styles.seeMoreButton} onClick={()=>{window.location.href="/projectmanagement?projectId="+encodeURIComponent(project.projectId);}}>See More →</button>}
       </div>
       <div className={styles.financeUpdateStats}>
-        <div><span>Total Bill</span><strong>৳ {money(totals.bill)}</strong><small>{latestBill?"Latest bill "+dateText(billDate):"No bills recorded"}</small></div>
-        <div><span>Total Paid</span><strong>৳ {money(totals.paid)}</strong><small>{latestPayment?"Latest payment "+dateText(paymentDate):"No payments recorded"}</small></div>
-        <div><span>Balance Due</span><strong>৳ {money(totals.due)}</strong><small>{totals.due>0?"Outstanding balance":"Account settled"}</small></div>
+        <div><span>Total Paid</span><strong>৳ {money(projectFinance?.totals?.debit ?? totals.paid)}</strong><small>Project funds received</small></div>
+        <div><span>Expenses</span><strong>৳ {money(projectFinance?.totals?.credit ?? 0)}</strong><small>Recognized project expenses</small></div>
+        <div><span>Supplier Advance</span><strong>৳ {money(projectFinance?.summary?.supplierAdvance ?? 0)}</strong><small>Outstanding supplier prepayment</small></div>
+        <div><span>Cheque on Hold</span><strong>৳ {money(projectFinance?.summary?.chequeOnHold ?? 0)}</strong><small>Committed, not treated as expense</small></div>
+        <div><span>Eng Shajiv Cash</span><strong>৳ {money(projectFinance?.summary?.engShajivBalance ?? 0)}</strong><small>Paid − Expenses − Advance − Hold</small></div>
       </div>
-      <div className={styles.financeUpdateFooter}>
-        <span>{latestPayment ? "Last payment: ৳ "+money(latestPayment.amount) : "No recent payment activity"}</span>
-        <span>{project?.finance ? "Engineering ৳ "+money(project.finance.engineeringDue)+" due · Supervision ৳ "+money(project.finance.supervisionDue)+" due · Others ৳ "+money(project.finance.othersDue)+" due" : ""}</span>
-      </div>
+      <div className={styles.financeUpdateFooter}><span>{projectFinance ? (projectFinance.entries?.length||0)+" project ledger entries" : "Loading project finance…"}</span><span>View-only financial summary</span></div>
     </section>
     <section className={styles.middleGrid}>
       <div className={`${styles.card} ${styles.progressCard}`}>
