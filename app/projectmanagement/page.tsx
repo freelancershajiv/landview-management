@@ -573,7 +573,6 @@ export default function ProjectManagementPage(){
                           <td><span className="pm-supplier">{r.paid_to||"—"}</span></td>
                           <td className="wide-col">
                             <div className="pm-detail">{r.details}</div>
-                            {r.memo&&<div className="pm-memo">{String(r.memo).replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"")}</div>}
                           </td>
                           <td>
                             <span className="pm-category-tag">{category}</span>
@@ -590,7 +589,6 @@ export default function ProjectManagementPage(){
                           <td className="wide-col">
                             <div className="pm-detail">{r.details}</div>
                             {r.memo&&String(r.memo).startsWith("MASTER_LEDGER:")&&<span className="pm-source-tag">Master Ledger</span>}
-                            {r.memo&&!String(r.memo).startsWith("MASTER_LEDGER:")&&<div className="pm-memo">{String(r.memo).replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"")}</div>}
                           </td>
                           <td><span className="pm-category-tag">{category}</span></td>
                           <td className="num-col">{r.sft||"—"}</td>
@@ -606,7 +604,6 @@ export default function ProjectManagementPage(){
                           <td className="wide-col">
                             <div className="pm-detail">{r.details}</div>
                             {r.memo&&String(r.memo).startsWith("MASTER_LEDGER:")&&<span className="pm-source-tag">Master Ledger</span>}
-                            {r.memo&&!String(r.memo).startsWith("MASTER_LEDGER:")&&<div className="pm-memo">{String(r.memo)}</div>}
                           </td>
                           <td><span className="pm-category-tag">{category}</span>{category.toLowerCase()==="cheque"&&isDebit&&<span className={"pm-cheque-status "+(chequeStatus(r)==="On Hold"?"hold":"cashed")}>{chequeStatus(r)}</span>}</td>
                           <td className="num-col">{r.sft||"—"}</td>
@@ -918,7 +915,6 @@ export default function ProjectManagementPage(){
         .pm-date{font-weight:740;color:#4f5e66;font-size:13px}
         .pm-supplier{color:#66747b;font-weight:680;font-size:13px}
         .pm-detail{font-weight:720;color:#26353d;line-height:1.42;font-size:13px}
-        .pm-memo{display:block;color:#9ba5a9;font-size:10px;margin-top:3px;max-width:390px;overflow:hidden;text-overflow:ellipsis}
         .pm-source-tag{display:inline-flex;margin-top:5px;padding:3px 7px;border-radius:999px;background:#edf5f2;color:#37735f;font-size:9px;font-weight:800}
         .pm-cheque-status{display:inline-flex;margin-left:5px;padding:4px 7px;border-radius:999px;font-size:9px;font-weight:850}.pm-cheque-status.hold{background:#fff3df;color:#946020;border:1px solid #efd7aa}.pm-cheque-status.cashed{background:#edf8f2;color:#2f7058;border:1px solid #d4ebdd}
         .pm-category-tag{display:inline-flex;max-width:185px;padding:5px 8px;background:#f3f6f5;border:1px solid #e5ebe8;border-radius:8px;color:#5b696f;font-size:10px;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
