@@ -47,7 +47,9 @@ export default function ProjectManagementPage(){
   },[data]);
 
   const incomeCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.debit)>0)),[entries,categories]);
-  const incomeEntryCategories=INCOME_CATEGORIES;\n  const expenseEntryCategories=categories.filter(c=>!INCOME_CATEGORIES.includes(c));\n  const expenseCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.credit)>0)),[entries,categories]);
+  const incomeEntryCategories=INCOME_CATEGORIES;
+  const expenseEntryCategories=categories.filter(c=>!INCOME_CATEGORIES.includes(c));
+  const expenseCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.credit)>0)),[entries,categories]);
   const filtered=useMemo(()=>{
     const q=search.trim().toLowerCase();
     return entries
@@ -145,7 +147,9 @@ export default function ProjectManagementPage(){
   }
 
   async function remove(r:any){
-    if(!confirm("Delete this entry?\n\n"+r.details))return;
+    if(!confirm("Delete this entry?
+
+"+r.details))return;
     try{
       const x=await fetch("/api/project-management?id="+encodeURIComponent(r.id),{method:"DELETE",credentials:"same-origin"});
       const j=await x.json();
