@@ -364,6 +364,7 @@ export async function POST(request: NextRequest) {
     const accessToken = request.cookies.get(SESSION_COOKIE)?.value || "";
     if (action === "createUser") { await requireAdmin(request); return ok(await supabaseAuthGateway("createUser", { accessToken, user: input.user || input })); }
     if (action === "resetUserPassword") { await requireAdmin(request); return ok(await supabaseAuthGateway("adminResetPassword", { accessToken, userId:text(input.userId) })); }
+    if (action === "deleteUser") { await requireAdmin(request); return ok(await supabaseAuthGateway("adminDeleteUser", { accessToken, userId:text(input.userId) })); }
     if (action === "changeOwnPassword") return ok(await supabaseAuthGateway("changeOwnPassword", { accessToken, currentPassword:String(input.currentPassword||""), newPassword:String(input.newPassword||input.password||"") }));
     if (action === "createPermission") {
       await requireAdmin(request); const r=(input.permission&&typeof input.permission==="object"?input.permission:input) as Row;

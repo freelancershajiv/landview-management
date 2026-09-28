@@ -365,6 +365,7 @@ export const landViewApi = {
   getUsers: () => get<Record<string, unknown>[]>("getUsers"),
   createUser: (user: Record<string, unknown>) => post<unknown>("createUser", { user }),
   resetUserPassword: (userId: string) => post<{ userId: string; username: string; temporaryPassword: string }>("resetUserPassword", { userId }),
+  deleteUser: (userId: string) => post<{ deleted: boolean; userId: string }>("deleteUser", { userId }),
   changeOwnPassword: (currentPassword: string, newPassword: string) => post<{ changed: boolean }>("changeOwnPassword", { currentPassword, newPassword }),
   getProjects: () => get<Record<string, unknown>[]>("getProjects"),
   getProject: (projectId: string) => get<Record<string, unknown>>("getProject", { projectId }),
