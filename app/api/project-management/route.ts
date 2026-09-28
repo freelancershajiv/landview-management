@@ -105,6 +105,63 @@ async function projectSummaryFor(project: Row) {
   };
 }
 
+
+function contractorCategoryKey(value: unknown) {
+  return clean(value,120).toLowerCase().replace(/&/g,"and").replace(/[_-]+/g," ").replace(/\s+/g," ").trim();
+}
+function contractorBillCode() {
+  return "CB-" + crypto.randomUUID().replace(/-/g,"").slice(0,10).toUpperCase();
+}
+function validContractorBill(row: Row) {
+  return !["void","cancelled","canceled"].includes(clean(row.status,30).toLowerCase());
+}
+async function contractorWorkspaceFor(project: Row, entries: Row[]) {
+  const contracts = await selectRows("project_contractor_contracts", { filters:{ project_id:project.id, active:true }, order:"category:asc", limit:500 });
+  const bills = await selectRows("project_contractor_bills", { filters:{ project_id:project.id }, order:"bill_date:asc", limit:5000 });
+  const validBills = bills.filter(validContractorBill);
+  const contractorRows = contracts.map((contract:any) => {
+    const contractBills = validBills.filter((b:any)=>String(b.contract_id)===String(contract.id));
+    const paidEntries = entries.filter((e:any) =>
+      num(e.credit)>0 &&
+      contractorCategoryKey(e.category)===contractorCategoryKey(contract.category) &&
+      contractorCategoryKey(e.supplier)===contractorCategoryKey(contract.contractor_name)
+    );
+    const contractValue = num(contract.contract_quantity) * num(contract.agreed_rate);
+    const certified = contractBills.reduce((sum:number,b:any)=>sum+num(b.net_amount ?? b.gross_amount),0);
+    const billedQuantity = contractBills.reduce((sum:number,b:any)=>sum+num(b.quantity),0);
+    const paid = paidEntries.reduce((sum:number,e:any)=>sum+num(e.credit),0);
+    const advance = Math.max(0, paid-certified);
+    const balancePayable = Math.max(0, certified-paid);
+    const remainingContract = Math.max(0, contractValue-certified);
+    return {
+      ...contract,
+      contract_quantity:num(contract.contract_quantity),
+      agreed_rate:num(contract.agreed_rate),
+      contractValue,
+      certifiedAmount:certified,
+      billedQuantity,
+      paidAmount:paid,
+      advance,
+      balancePayable,
+      remainingContract,
+      paymentCount:paidEntries.length,
+      payments:paidEntries.map((e:any)=>({id:e.id,date:e.entry_date,details:e.details,amount:num(e.credit),category:e.category,supplier:e.supplier,memo:e.memo||""}))
+    };
+  });
+  return {
+    contracts:contractRows,
+    bills:bills.map((b:any)=>({...b,quantity:num(b.quantity),rate:num(b.rate),gross_amount:num(b.gross_amount),deduction:num(b.deduction),net_amount:num(b.net_amount),status:b.status||"Certified"})),
+    totals:{
+      contractValue:contractRows.reduce((s:number,c:any)=>s+c.contractValue,0),
+      certifiedAmount:contractRows.reduce((s:number,c:any)=>s+c.certifiedAmount,0),
+      paidAmount:contractRows.reduce((s:number,c:any)=>s+c.paidAmount,0),
+      advance:contractRows.reduce((s:number,c:any)=>s+c.advance,0),
+      balancePayable:contractRows.reduce((s:number,c:any)=>s+c.balancePayable,0),
+      remainingContract:contractRows.reduce((s:number,c:any)=>s+c.remainingContract,0)
+    }
+  };
+}
+
 async function masterLedgerFor(user: Row, project: Row) {
   if (!isAdmin(user)) return [];
   const [transactions, expenses] = await Promise.all([
@@ -165,6 +222,7 @@ async function workspace(user: Row, requested?: string) {
   const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
   const masterLedger = await masterLedgerFor(user, selected);
   const summary = await projectSummaryFor(selected);
+  const contractorBills = await contractorWorkspaceFor(selected, entries);
   const engShajivBalance = debit - credit - summary.supplierAdvance - summary.chequeOnHold;
   return {
     projects: projectList,
@@ -174,6 +232,7 @@ async function workspace(user: Row, requested?: string) {
     summary: { ...summary, engShajivBalance },
     categories,
     masterLedger,
+    contractorBills,
     readOnly: !isAdmin(user),
   };
 }
@@ -224,6 +283,43 @@ export async function POST(request: NextRequest) {
         chequeOnHold: num(row.cheque_on_hold),
         notes: clean(row.notes, 2000),
       });
+    }
+    if (body.action === "saveContractorContract") {
+      const id = clean(body.id,100);
+      const contractorName = clean(body.contractorName,160);
+      const category = clean(body.category,120);
+      const billingUnit = clean(body.billingUnit,40) || "SFT";
+      const contractQuantity = Math.max(0,num(body.contractQuantity));
+      const agreedRate = Math.max(0,num(body.agreedRate));
+      const notes = clean(body.notes,2000) || null;
+      if (!contractorName || !category) return fail("Contractor name and category are required.",400);
+      const duplicate = await selectRows("project_contractor_contracts",{filters:{project_id:project.id,category},limit:1});
+      if (duplicate.length && String(duplicate[0].id)!==id) return fail("A contractor contract already exists for this category in this project.",409);
+      const row = {project_id:project.id,contractor_name:contractorName,category,billing_unit:billingUnit,contract_quantity:contractQuantity,agreed_rate:agreedRate,notes,active:true,updated_at:new Date().toISOString()};
+      const saved = id ? await updateRows("project_contractor_contracts",{id},row) : await insertRows("project_contractor_contracts",row);
+      if (!saved.length) return fail("Contractor contract could not be saved.",404);
+      return ok(saved[0]);
+    }
+    if (body.action === "saveContractorBill") {
+      const id = clean(body.id,100);
+      const contractId = clean(body.contractId,100);
+      const description = clean(body.description,1000);
+      const billDate = clean(body.billDate,20) || new Date().toISOString().slice(0,10);
+      const quantity = Math.max(0,num(body.quantity));
+      const rate = Math.max(0,num(body.rate));
+      const deduction = Math.max(0,num(body.deduction));
+      const grossAmount = quantity * rate;
+      const netAmount = grossAmount - deduction;
+      const status = ["Draft","Certified","Void"].includes(clean(body.status,20)) ? clean(body.status,20) : "Certified";
+      if(!contractId || !description) return fail("Contractor contract and bill description are required.",400);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(billDate)) return fail("Enter a valid bill date.",400);
+      if(netAmount < 0) return fail("Deduction cannot exceed the gross bill amount.",400);
+      const contracts = await selectRows("project_contractor_contracts",{filters:{id:contractId,project_id:project.id},limit:1});
+      if(!contracts.length) return fail("Contractor contract not found.",404);
+      const row = {project_id:project.id,contract_id:contractId,bill_code:id ? clean(body.billCode,80) : contractorBillCode(),bill_date:billDate,description,quantity,rate,gross_amount:grossAmount,deduction,net_amount:netAmount,status,notes:clean(body.notes,2000)||null,created_by:employeeCodeOf(user)||userIdOf(user)||"LAND VIEW",updated_at:new Date().toISOString()};
+      const saved = id ? await updateRows("project_contractor_bills",{id},row) : await insertRows("project_contractor_bills",row);
+      if(!saved.length) return fail("Contractor bill could not be saved.",404);
+      return ok(saved[0]);
     }
     if (body.action === "pullMaster") {
       const sourceType = clean(body.sourceType, 30).toLowerCase();
@@ -283,7 +379,18 @@ export async function DELETE(request: NextRequest) {
     const user = await requireUser(request);
     if (!isAdmin(user)) return fail("Admin permission required.",403);
     const id = clean(request.nextUrl.searchParams.get("id"),100);
-    if (!id) return fail("Ledger entry ID is required.",400);
+    const type = clean(request.nextUrl.searchParams.get("type"),40);
+    if (!id) return fail("Record ID is required.",400);
+    if (type === "contractor-bill") {
+      const deleted = await deleteRows("project_contractor_bills",{id});
+      if (!deleted.length) return fail("Contractor bill not found.",404);
+      return ok({deleted:true,id,type});
+    }
+    if (type === "contractor-contract") {
+      const deleted = await deleteRows("project_contractor_contracts",{id});
+      if (!deleted.length) return fail("Contractor contract not found.",404);
+      return ok({deleted:true,id,type});
+    }
     const deleted = await deleteRows("project_management_ledger", { id });
     if (!deleted.length) return fail("Ledger entry not found.",404);
     return ok({ deleted:true, id });
