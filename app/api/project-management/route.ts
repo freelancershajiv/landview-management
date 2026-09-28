@@ -116,7 +116,13 @@ function ledgerCategoriesForContract(contract:any) {
   return [key];
 }
 function contractorPaymentNameKey(value: unknown) {
-  return contractorCategoryKey(value).replace(/\bcontactor\b/g,"contractor");
+  // Normalize contractor/supplier naming variants so the ledger and billing
+  // stay connected even when one side uses a business suffix.
+  return contractorCategoryKey(value)
+    .replace(/\bcontactor\b/g,"contractor")
+    .replace(/\b(contractor|supplier|brick\s*field|brickfield|bf)\b/g," ")
+    .replace(/\s+/g," ")
+    .trim();
 }
 function contractorBillCode() {
   return "CB-" + crypto.randomUUID().replace(/-/g,"").slice(0,10).toUpperCase();
