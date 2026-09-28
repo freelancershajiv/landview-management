@@ -69,6 +69,7 @@ const moneyOrUnset = (v:any, configured:boolean) => configured ? money(v) : "Not
 const blankContract = {
   id:"",
   contractorName:"",
+  partyType:"Contractor",
   category:"Masonry",
   billingUnit:"SFT",
   contractQuantity:"",
@@ -149,6 +150,7 @@ export default function ContractorBillsPage(){
     setContractForm({
       id:c.id,
       contractorName:c.contractor_name || "",
+      partyType:c.party_type || partyLabel(c.category),
       category:c.category || "Masonry",
       billingUnit:c.billing_unit || "SFT",
       contractQuantity:String(c.contract_quantity ?? ""),
@@ -204,6 +206,7 @@ export default function ContractorBillsPage(){
           projectId:data?.selectedProject?.projectCode || project,
           id:contractForm.id || undefined,
           contractorName:contractForm.contractorName,
+          partyType:contractForm.partyType,
           category:contractForm.category,
           billingUnit:contractForm.billingUnit,
           contractQuantity:num(contractForm.contractQuantity),
@@ -469,7 +472,8 @@ export default function ContractorBillsPage(){
                 <button className="cb-close" onClick={()=>setContractOpen(false)}>×</button>
               </div>
               <div className="cb-form">
-                <label><span>{partyLabel(contractForm.category)} Name</span><input value={contractForm.contractorName} onChange={e=>setContractForm({...contractForm,contractorName:e.target.value})} placeholder="Contractor / supplier name"/></label>
+                <label><span>Party Type</span><select value={contractForm.partyType} onChange={e=>setContractForm({...contractForm,partyType:e.target.value})}><option>Supplier</option><option>Contractor</option></select></label>
+                <label><span>Party Name</span><input value={contractForm.contractorName} onChange={e=>setContractForm({...contractForm,contractorName:e.target.value})} placeholder="Supplier / contractor name"/></label>
                 <label><span>Category</span><select value={contractForm.category} onChange={e=>setContractForm({...contractForm,category:e.target.value})}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></label>
                 <label><span>Billing Unit</span><input value={contractForm.billingUnit} onChange={e=>setContractForm({...contractForm,billingUnit:e.target.value})} placeholder="SFT / POINT / FLAT"/></label>
                 <label><span>Contract Quantity / Project Size</span><input value={contractForm.contractQuantity} onChange={e=>setContractForm({...contractForm,contractQuantity:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
