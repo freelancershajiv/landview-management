@@ -352,29 +352,6 @@ export async function POST(request: NextRequest) {
     if (!isAdmin(user)) return fail("Admin permission required.",403);
     const body = await request.json() as Row;
     const project = await projectFor(user, body.projectId || body.Project_ID);
-    if (body.action === "updateSummary") {
-      const existingSummary = await projectSummaryFor(project);
-      const chequeOnHold = Math.max(0, num(body.chequeOnHold));
-      const notes = clean(body.notes, 2000) || null;
-      const saved = await upsertRows("project_management_summary", {
-        project_id: project.id,
-        supplier_advance: existingSummary.supplierAdvance,
-        cheque_on_hold: chequeOnHold,
-        notes,
-        updated_at: new Date().toISOString(),
-      }, "project_id");
-      const row = saved[0] || {
-        project_id: project.id,
-        supplier_advance: existingSummary.supplierAdvance,
-        cheque_on_hold: chequeOnHold,
-        notes
-      };
-      return ok({
-        supplierAdvance: num(row.supplier_advance),
-        chequeOnHold: num(row.cheque_on_hold),
-        notes: clean(row.notes, 2000),
-      });
-    }
     if (body.action === "saveContractorContract") {
       const id = clean(body.id,100);
       const contractorName = clean(body.contractorName,160);
