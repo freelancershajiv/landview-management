@@ -905,7 +905,7 @@ export default function ProjectManagementPage(){
         .pm-search button{border:0;background:transparent;color:#7e8a90;cursor:pointer;font-size:16px}
         .pm-table-wrap{overflow:auto}
         .pm-table{width:100%;min-width:1160px;border-collapse:separate;border-spacing:0;font-size:13px}
-        .pm-table th{position:sticky;top:0;z-index:2;background:#f8fafb;color:#3f4c54;border-bottom:1px solid #d9e0e3;padding:11px 12px;text-align:left;font-size:10px;letter-spacing:.08em;font-weight:900;text-transform:uppercase;white-space:nowrap}
+        .pm-table th{position:sticky;top:0;z-index:2;background:#eef2f3;color:#18252c;border-bottom:2px solid #bcc7cc;padding:12px 12px;text-align:left;font-size:11px;letter-spacing:.06em;font-weight:950;text-transform:uppercase;white-space:nowrap}
         .pm-table td{padding:11px 12px;font-size:13px;border-bottom:1px solid #f0f3f4;color:#38464e;vertical-align:middle;white-space:nowrap}
         .pm-table tbody tr:hover{background:#fafcfb}
         .pm-table tbody tr:last-child td{border-bottom:0}
