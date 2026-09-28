@@ -294,30 +294,6 @@ export default function ProjectManagementPage(){
     finally{setPartySaving(false);}
   }
 
-  async function saveSummary(){
-    if(!data?.selectedProject)return;
-    setSummarySaving(true);setError("");
-    try{
-      const r=await fetch("/api/project-management",{
-        method:"POST",
-        credentials:"same-origin",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          action:"updateSummary",
-          projectId:data.selectedProject.projectCode,
-          chequeOnHold:num(summaryForm.chequeOnHold),
-          notes:summaryForm.notes
-        })
-      });
-      const j=await r.json();
-      if(!r.ok||!j?.success)throw new Error(j?.error||"Could not update project financial summary.");
-      setSummaryOpen(false);
-      setMessage("Project financial summary updated.");
-      await load(data.selectedProject.projectCode);
-    }catch(e:any){setError(e?.message||"Could not update project financial summary.");}
-    finally{setSummarySaving(false);}
-  }
-
   if(loading&&!data){
     return (
       <main className="pm-loading">
