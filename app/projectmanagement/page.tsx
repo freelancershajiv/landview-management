@@ -132,8 +132,7 @@ export default function ProjectManagementPage(){
         debit:num(form.debit),
         credit:num(form.credit),
         category:form.category,
-        chequeStatus:form.category==="Cheque" ? form.chequeStatus : "Cashed",
-        memo:form.memo
+        memo:form.category==="Cheque" ? `CHEQUE_STATUS:${form.chequeStatus==="On Hold"?"ON_HOLD":"CASHED"}${form.memo.trim()?`\n${form.memo.trim()}`:""}` : form.memo
       };
       if(!form.details.trim())throw new Error("Details are required.");
       if((body.debit>0)===(body.credit>0))throw new Error("Enter either Debit or Credit.");
