@@ -71,8 +71,51 @@ export default function ProjectFinanceReportPage(){
   },[entries,month,availableMonths]);
 
   const summary=data?.summary||{};
-  const currentAdjusted=num(summary.engShajivBalance);
   const availableProjects=data?.projects||[];
+  const period=statement.period;
+
+  // Monthly reports use month-end reconciliation values, not current all-time values.
+  const monthEnd=statement.end;
+  const isBeforeMonthEnd=(value:any)=>String(value||"")<monthEnd;
+  const isSattapurSupplier=(contract:any)=>
+    String(contract?.party_type||"").trim().toLowerCase()==="supplier" &&
+    String(contract?.category||"").trim().toLowerCase()==="bricks" &&
+    String(contract?.contractor_name||"").trim().toLowerCase().replace(/\\s+/g," ").trim()==="sattapur";
+
+  const monthlySupplierAdvance=useMemo(()=>{
+    const contracts=Array.isArray(data?.contractorBills?.contracts)?data.contractorBills.contracts:[];
+    const bills=Array.isArray(data?.contractorBills?.bills)?data.contractorBills.bills:[];
+    return contracts.filter(isSattapurSupplier).reduce((sum:number,contract:any)=>{
+      const certifiedToDate=bills
+        .filter((bill:any)=>
+          String(bill?.contract_id||"")===String(contract?.id||"") &&
+          String(bill?.status||"Certified").trim().toLowerCase()==="certified" &&
+          isBeforeMonthEnd(bill?.bill_date)
+        )
+        .reduce((s:number,bill:any)=>s+num(bill?.net_amount ?? bill?.gross_amount),0);
+      const paidToDate=(Array.isArray(contract?.payments)?contract.payments:[])
+        .filter((payment:any)=>isBeforeMonthEnd(payment?.date))
+        .reduce((s:number,payment:any)=>s+num(payment?.amount),0);
+      return sum+Math.max(0,certifiedToDate-paidToDate);
+    },0);
+  },[data,monthEnd]);
+
+  const monthlyChequeOnHold=useMemo(()=>entries
+    .filter((r:any)=>
+      String(r.category||"").trim().toLowerCase()==="cheque" &&
+      num(r.debit)>0 &&
+      /^CHEQUE_STATUS:ON_HOLD/i.test(String(r.memo||"")) &&
+      isBeforeMonthEnd(r.entry_date)
+    )
+    .reduce((s:number,r:any)=>s+num(r.debit),0),[entries,monthEnd]);
+
+  const monthEndDebit=useMemo(()=>entries
+    .filter((r:any)=>isBeforeMonthEnd(r.entry_date))
+    .reduce((s:number,r:any)=>s+num(r.debit),0),[entries,monthEnd]);
+  const monthEndCredit=useMemo(()=>entries
+    .filter((r:any)=>isBeforeMonthEnd(r.entry_date))
+    .reduce((s:number,r:any)=>s+num(r.credit),0),[entries,monthEnd]);
+  const monthEndEngShajivBalance=monthEndDebit-monthEndCredit-monthlySupplierAdvance-monthlyChequeOnHold;
 
   function chooseProject(code:string){
     const normalized=String(code||"").trim();
@@ -141,9 +184,9 @@ export default function ProjectFinanceReportPage(){
           <div><span>Opening Balance</span><strong>BDT {money(statement.opening)}</strong></div>
           <div><span>Total Deposit</span><strong>BDT {money(statement.deposits)}</strong></div>
           <div><span>Total Expense</span><strong>BDT {money(statement.expenses)}</strong></div>
-          <div><span>Supplier Advance</span><strong>BDT {money(summary.supplierAdvance)}</strong></div>
-          <div><span>Cheque on Hold</span><strong>BDT {money(summary.chequeOnHold)}</strong></div>
-          <div className="closing"><span>Eng Shajiv Balance</span><strong>BDT {money(currentAdjusted)}</strong></div>
+          <div><span>Supplier Advance (Month End)</span><strong>BDT {money(monthlySupplierAdvance)}</strong></div>
+          <div><span>Cheque on Hold (Month End)</span><strong>BDT {money(monthlyChequeOnHold)}</strong></div>
+          <div className="closing"><span>Eng Shajiv Balance</span><strong>BDT {money(monthEndEngShajivBalance)}</strong></div>
         </div>
 
         <header className="rpt-letterhead">
@@ -198,11 +241,11 @@ export default function ProjectFinanceReportPage(){
         </section>
 
         <section className="rpt-reconciliation">
-          <div><div><span>CURRENT RECONCILIATION SNAPSHOT</span><strong>Items tracked outside the ledger balance</strong></div><p>Supplier advance and cheque on hold are separate from the bank-statement running balance. The figure below uses the current Project Management reconciliation settings.</p></div>
+          <div><div><span>MONTH-END RECONCILIATION SNAPSHOT</span><strong>Items tracked outside the ledger balance</strong></div><p>Supplier advance and cheque on hold are separate from the bank-statement running balance. The figures below are calculated from project activity and reconciliation items up to the end of the selected month.</p></div>
           <div className="rpt-recon-values">
-            <div><span>Supplier Advance</span><strong>{money(summary.supplierAdvance)}</strong></div>
-            <div><span>Cheque on Hold</span><strong>{money(summary.chequeOnHold)}</strong></div>
-            <div><span>Current Eng Shajiv Balance</span><strong>{money(currentAdjusted)}</strong></div>
+            <div><span>Supplier Advance (Month End)</span><strong>{money(monthlySupplierAdvance)}</strong></div>
+            <div><span>Cheque on Hold (Month End)</span><strong>{money(monthlyChequeOnHold)}</strong></div>
+            <div><span>Month-End Eng Shajiv Balance</span><strong>{money(monthEndEngShajivBalance)}</strong></div>
           </div>
         </section>
 
@@ -259,9 +302,9 @@ export default function ProjectFinanceReportPage(){
             <p>Supplier Advance and Cheque on Hold are tracked separately from the ledger running balance and are reflected in the Project Management reconciliation summary.</p>
           </div>
           <div className="rpt-note-values">
-            <div><span>Supplier Advance</span><strong>{money(summary.supplierAdvance)}</strong></div>
-            <div><span>Cheque on Hold</span><strong>{money(summary.chequeOnHold)}</strong></div>
-            <div><span>Adjusted Eng Shajiv Balance</span><strong>{money(currentAdjusted)}</strong></div>
+            <div><span>Supplier Advance (Month End)</span><strong>{money(monthlySupplierAdvance)}</strong></div>
+            <div><span>Cheque on Hold (Month End)</span><strong>{money(monthlyChequeOnHold)}</strong></div>
+            <div><span>Month-End Eng Shajiv Balance</span><strong>{money(monthEndEngShajivBalance)}</strong></div>
           </div>
         </section>
 
