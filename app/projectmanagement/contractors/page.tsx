@@ -1,5 +1,6 @@
 "use client";
 // @ts-nocheck
+// build-debug trigger
 /* eslint-disable */
 
 /* Contractor workspace intentionally performs async state updates from its loader effect. */
