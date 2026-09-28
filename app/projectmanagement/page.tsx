@@ -130,7 +130,7 @@ export default function ProjectManagementPage(){
     setForm({
       entryDate:String(r.entry_date||"").slice(0,10),
       receivedFrom:r.received_from||"",
-      paidTo:r.paid_to||r.supplier||suggestedPartyForCategory(data,r.category||"")||"",
+      paidTo:r.paid_to||((num(r.credit)>0?r.supplier:"")||suggestedPartyForCategory(data,r.category||"")||""),
       supplier:r.paid_to||r.supplier||"",
       details:r.details||"",
       sft:r.sft||"",
@@ -522,7 +522,7 @@ export default function ProjectManagementPage(){
                         <>
                           <td><span className="pm-date">{dateText(r.entry_date)}</span></td>
                           <td><span className="pm-supplier">{r.received_from||"—"}</span></td>
-                          <td><span className="pm-supplier">{party}</span></td>
+                          <td><span className="pm-supplier">{r.paid_to||"—"}</span></td>
                           <td className="wide-col">
                             <div className="pm-detail">{r.details}</div>
                             {r.memo&&<div className="pm-memo">{String(r.memo).replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"")}</div>}
