@@ -24,7 +24,8 @@ function normalizeExpenseCategory(value: unknown) {
 function guessExpenseCategory(category: unknown, description: unknown) {
   const raw = `${clean(category,180)} ${clean(description,500)}`.toLowerCase();
   if (/security|guard/.test(raw)) return "Security";
-  if (/brick\s*chips?/.test(raw)) return "Brick Chips";\n  if (/brick/.test(raw)) return "Bricks";
+  if (/brick\s*chips?/.test(raw)) return "Brick Chips";
+  if (/brick/.test(raw)) return "Bricks";
   if (/r\.c\.c|rcc|reinforced concrete/.test(raw)) return "R.C.C Masonry";
   if (/finishing masonry|plaster|tiles|putty|paint|painting/.test(raw)) return "Finishing Masonry";
   if (/masonry|mason|worker|labour|labor|casting/.test(raw)) return "Masonry";
