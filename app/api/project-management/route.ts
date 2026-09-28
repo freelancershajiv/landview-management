@@ -7,14 +7,14 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
-const EXPENSE_CATEGORIES = ["Cash","Bricks","Masonry","R.C.C Masonry","Finishing Masonry","Stone & Sand","Cement & Steel","Security","Other Expenses","Electric Contractor","Electrical Material","Plumbing Contractor","Plumbing Material","Tiles","Door","Grills"] as const;
+const EXPENSE_CATEGORIES = ["Cash","Bricks","Brick Chips","Masonry","R.C.C Masonry","Finishing Masonry","Stone & Sand","Cement & Steel","Security","Other Expenses","Electric Contractor","Electrical Material","Plumbing Contractor","Plumbing Material","Tiles","Door","Grills"] as const;
 
 function normalizeExpenseCategory(value: unknown) {
   const raw = clean(value, 120).toLowerCase().replace(/&/g, "and").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
   const aliases: Record<string,string> = {
     cash:"Cash",bricks:"Bricks",masonry:"Masonry","stone and sand":"Stone & Sand",stone:"Stone & Sand",sand:"Stone & Sand",
     "cement and steel":"Cement & Steel",cement:"Cement & Steel",steel:"Cement & Steel",security:"Security","r.c.c masonry":"R.C.C Masonry","finishing masonry":"Finishing Masonry",
-    "other expenses":"Other Expenses",other:"Other Expenses","electric contractor":"Electric Contractor",
+    "other expenses":"Other Expenses",other:"Other Expenses","brick chips":"Brick Chips","electric contractor":"Electric Contractor",
     "electrical material":"Electrical Material",electrical:"Electrical Material","plumbing contractor":"Plumbing Contractor",
     "plumbing material":"Plumbing Material",plumbing:"Plumbing Material",tiles:"Tiles",door:"Door",doors:"Door",
     "door and woods":"Door",grill:"Grills",grills:"Grills","ss grill":"Grills"
@@ -24,7 +24,7 @@ function normalizeExpenseCategory(value: unknown) {
 function guessExpenseCategory(category: unknown, description: unknown) {
   const raw = `${clean(category,180)} ${clean(description,500)}`.toLowerCase();
   if (/security|guard/.test(raw)) return "Security";
-  if (/brick|brick chip/.test(raw)) return "Bricks";
+  if (/brick\s*chips?/.test(raw)) return "Brick Chips";\n  if (/brick/.test(raw)) return "Bricks";
   if (/r\.c\.c|rcc|reinforced concrete/.test(raw)) return "R.C.C Masonry";
   if (/finishing masonry|plaster|tiles|putty|paint|painting/.test(raw)) return "Finishing Masonry";
   if (/masonry|mason|worker|labour|labor|casting/.test(raw)) return "Masonry";
