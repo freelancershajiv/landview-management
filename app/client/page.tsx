@@ -47,6 +47,20 @@ export default function ClientPortalPage(){
   const progress=Math.max(0,Math.min(100,Number(project?.progress||0)));
   const recent=workflow.slice(-5).reverse();
   const status=project?.status|| (progress>=100?"Completed":"Ongoing");
+  const financeRows=project?.billing ? [
+    ...(Array.isArray(project.billing["Design Deposit"])?project.billing["Design Deposit"]:[]),
+    ...(Array.isArray(project.billing["S Deposit"])?project.billing["S Deposit"]:[]),
+    ...(Array.isArray(project.billing["Others Bill Deposit"])?project.billing["Others Bill Deposit"]:[])
+  ].sort((a:any,b:any)=>String(b.payment_date||b.date||b.created_at||"").localeCompare(String(a.payment_date||a.date||a.created_at||""))) : [];
+  const billRows=project?.billing ? [
+    ...(Array.isArray(project.billing["Design Bill"])?project.billing["Design Bill"]:[]),
+    ...(Array.isArray(project.billing["Supervision Bill"])?project.billing["Supervision Bill"]:[]),
+    ...(Array.isArray(project.billing["Others Bill"])?project.billing["Others Bill"]:[])
+  ].sort((a:any,b:any)=>String(b.bill_date||b.date||b.created_at||"").localeCompare(String(a.bill_date||a.date||a.created_at||""))) : [];
+  const latestPayment=financeRows[0];
+  const latestBill=billRows[0];
+  const paymentDate=latestPayment?.payment_date||latestPayment?.date||latestPayment?.created_at;
+  const billDate=latestBill?.bill_date||latestBill?.date||latestBill?.created_at;
 
   if(loading)return <div className={styles.skeleton} role="status"><span/><span/><span/><span/><span/><span/></div>;
 
@@ -60,7 +74,7 @@ export default function ClientPortalPage(){
           <span>{project?.projectId||"Project"}</span>
           <span>{project?.location||"LAND VIEW project"}</span>
           <span>{refreshing?"Updating…":updated?`Updated ${updated.toLocaleTimeString("en-BD",{hour:"2-digit",minute:"2-digit",timeZone:"Asia/Dhaka"})}`:"Live workspace"}</span>
-          {project&&<button type="button" className={styles.refresh} onClick={()=>{window.location.href=`/projectmanagement?projectId=${encodeURIComponent(project.projectId)}`;}}>Project Finance</button>}<button type="button" className={styles.refresh} onClick={()=>void load(true)} disabled={refreshing}>{refreshing?"Refreshing…":"Refresh"}</button>
+          {project&&<button type="button" className={styles.refresh} onClick={()=>{window.location.href=`/projectmanagement?projectId=${encodeURIComponent(project.projectId)}`;}}>View Project Management</button>}<button type="button" className={styles.refresh} onClick={()=>void load(true)} disabled={refreshing}>{refreshing?"Refreshing…":"Refresh"}</button>
         </div>
       </div>
     </section>
@@ -76,7 +90,7 @@ export default function ClientPortalPage(){
           <div className={styles.client}>{project?.clientName||workspace?.client?.name||"Client"}</div>
           <div className={styles.location}>{project?.location||"Project location not recorded"}</div>
           <div className={styles.projectFooter}><span className={styles.statusPill}>{status.toUpperCase()}</span><small>{project?.completedServices||0}/{project?.totalServices||workflow.length||0} services completed</small></div>
-          {project&&<button type="button" className={styles.actionPrimary} style={{marginTop:14,width:"100%",justifyContent:"center"}} onClick={()=>{window.location.href=`/projectmanagement?projectId=${encodeURIComponent(project.projectId)}`;}}>▤ &nbsp; OPEN PROJECT FINANCE</button>}
+          {project&&<button type="button" className={styles.actionPrimary} style={{marginTop:14,width:"100%",justifyContent:"center"}} onClick={()=>{window.location.href=`/projectmanagement?projectId=${encodeURIComponent(project.projectId)}`;}}>▤ &nbsp; VIEW PROJECT MANAGEMENT</button>}
         </div>
       </div>
       <div className={`${styles.card} ${styles.metricCard}`}><div className={styles.metricIcon}>▤</div><span>Total Bill</span><strong>৳ {money(totals.bill)}</strong><small>Project billing amount</small></div>
@@ -84,6 +98,25 @@ export default function ClientPortalPage(){
       <div className={`${styles.card} ${styles.metricCard}`}><div className={styles.metricIcon}>◔</div><span>Balance Due</span><strong>৳ {money(totals.due)}</strong><small>{totals.due>0?"Current outstanding balance":"No outstanding balance"}</small></div>
     </section>
 
+    <section id="finance-update" className={styles.financeUpdate}>
+      <div className={styles.financeUpdateHeader}>
+        <div>
+          <span className={styles.label}>PROJECT FINANCE</span>
+          <h2>Finance Update</h2>
+          <p>Current billing position and the latest financial activity for your project.</p>
+        </div>
+        {project&&<button type="button" className={styles.seeMoreButton} onClick={()=>{window.location.href="/projectmanagement?projectId="+encodeURIComponent(project.projectId);}}>See More →</button>}
+      </div>
+      <div className={styles.financeUpdateStats}>
+        <div><span>Total Bill</span><strong>৳ {money(totals.bill)}</strong><small>{latestBill?"Latest bill "+dateText(billDate):"No bills recorded"}</small></div>
+        <div><span>Total Paid</span><strong>৳ {money(totals.paid)}</strong><small>{latestPayment?"Latest payment "+dateText(paymentDate):"No payments recorded"}</small></div>
+        <div><span>Balance Due</span><strong>৳ {money(totals.due)}</strong><small>{totals.due>0?"Outstanding balance":"Account settled"}</small></div>
+      </div>
+      <div className={styles.financeUpdateFooter}>
+        <span>{latestPayment ? "Last payment: ৳ "+money(latestPayment.amount) : "No recent payment activity"}</span>
+        <span>{project?.finance ? "Engineering ৳ "+money(project.finance.engineeringDue)+" due · Supervision ৳ "+money(project.finance.supervisionDue)+" due · Others ৳ "+money(project.finance.othersDue)+" due" : ""}</span>
+      </div>
+    </section>
     <section className={styles.middleGrid}>
       <div className={`${styles.card} ${styles.progressCard}`}>
         <div className={styles.sectionTitle}><h2>Project Progress</h2><strong>{progress}%</strong></div>
@@ -94,7 +127,7 @@ export default function ClientPortalPage(){
         <div className={styles.sectionTitle}><h2>Quick Actions</h2></div>
         <div className={styles.quickActions}>
           <button className={`${styles.action} ${styles.actionPrimary}`} onClick={()=>project&&(window.location.href=`/client/billing/${encodeURIComponent(project.projectId)}`)}><span className={styles.actionIcon}>▤</span><span><strong>Generate Invoice</strong><small>View detailed bill</small></span></button>
-          {project&&<button className={styles.action} onClick={()=>{window.location.href=`/projectmanagement?projectId=${encodeURIComponent(project.projectId)}`;}}><span className={styles.actionIcon}>▤</span><span><strong>Project Finance</strong><small>View project ledger & generate PDF</small></span></button>}
+          {project&&<button className={styles.action} onClick={()=>{window.location.href=`/projectmanagement?projectId=${encodeURIComponent(project.projectId)}`;}}><span className={styles.actionIcon}>▤</span><span><strong>Project Finance</strong><small>Open full project ledger</small></span></button>}
           <a className={styles.action} href="#certificates"><span className={styles.actionIcon}>◫</span><span><strong>Request Certificate</strong><small>Get project certificate</small></span></a>
           <a className={styles.action} href="#documents"><span className={styles.actionIcon}>□</span><span><strong>View Documents</strong><small>Project files & drawings</small></span></a>
           <a className={styles.action} href="mailto:landviewcivil@gmail.com"><span className={styles.actionIcon}>◌</span><span><strong>Message Us</strong><small>Send a message</small></span></a>
