@@ -453,7 +453,7 @@ export default function ContractorBillsPage(){
           </div>
         )}
 
-        <style jsx>{`.cb-page{min-height:100vh;background:#f3f6f5;color:#17232b;padding:30px 28px 60px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+        <style jsx>{`.cb-page{min-height:100vh;background:#fff;color:#17232b;padding:30px 28px 60px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 .cb-shell{max-width:1540px;margin:0 auto}
 .cb-header{display:flex;justify-content:space-between;gap:28px;align-items:flex-end;margin-bottom:22px}
 .cb-kicker{display:flex;align-items:center;gap:8px;color:#1d6b52;font-size:11px;letter-spacing:.15em;font-weight:850}
@@ -515,7 +515,7 @@ export default function ContractorBillsPage(){
 .cb-form{display:grid;grid-template-columns:1fr 1fr;gap:13px;padding:20px 21px;overflow:auto}.cb-form label{display:block}.cb-form label.full{grid-column:1/-1}.cb-form label span{display:block;font-size:10px;font-weight:800;color:#758289;margin-bottom:6px;letter-spacing:.03em}.cb-form input,.cb-form select,.cb-form textarea{width:100%;box-sizing:border-box;border:1px solid #dfe6e9;background:#fbfcfc;color:#1e2b31;border-radius:10px;min-height:42px;padding:0 12px;outline:none;font:inherit;font-size:13px}.cb-form textarea{padding:11px 12px;min-height:78px;resize:vertical}.cb-form input:focus,.cb-form select:focus,.cb-form textarea:focus{border-color:#79ad98;box-shadow:0 0 0 3px rgba(29,107,82,.08)}
 .cb-calc{border:1px solid #deebe5;background:#f6faf8;border-radius:11px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}.cb-calc span{font-size:9px;color:#718078;font-weight:800}.cb-calc strong{font-size:20px;margin-top:3px;color:#1d6b52}.cb-calc small{font-size:9px;color:#8a969b;margin-top:2px}
 .cb-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 21px;background:#fafcfc;border-top:1px solid #edf0f2}
-.cb-loading{min-height:100vh;display:grid;place-items:center;align-content:center;gap:8px;color:#26343b}.cb-loading span{font-size:11px;color:#89959a}.cb-spinner{width:28px;height:28px;border-radius:50%;border:3px solid #e5ebea;border-top-color:#1d6b52;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.cb-loading{min-height:100vh;display:grid;place-items:center;align-content:center;gap:8px;background:#fff;color:#26343b}.cb-loading span{font-size:11px;color:#89959a}.cb-spinner{width:28px;height:28px;border-radius:50%;border:3px solid #e5ebea;border-top-color:#1d6b52;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
 @media (max-width:1250px){.cb-stats{grid-template-columns:repeat(3,1fr)}.cb-row-main{min-width:1380px}.cb-table{min-width:1500px}.cb-detail-grid{grid-template-columns:1fr}}
 @media (max-width:1100px){.cb-stats{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:800px){.cb-page{padding:18px 12px 45px}.cb-header{align-items:flex-start;flex-direction:column}.cb-header-actions{justify-content:flex-start;width:100%}.cb-header-actions .cb-btn{flex:1;justify-content:center}.cb-stats{grid-template-columns:1fr 1fr}.cb-explain{flex-direction:column}.cb-form{grid-template-columns:1fr}.cb-form label.full{grid-column:auto}}
