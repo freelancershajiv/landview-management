@@ -343,10 +343,15 @@ export async function POST(request: NextRequest) {
       const notes = clean(body.notes,2000) || null;
       const partyType = ["Supplier","Contractor"].includes(clean(body.partyType,30)) ? clean(body.partyType,30) : "Contractor";
       if (!contractorName || !category) return fail("Supplier / contractor name and category are required.",400);
-      const duplicate = await selectRows("project_contractor_contracts",{filters:{project_id:project.id,category},limit:1});
-      if (duplicate.length && String(duplicate[0].id)!==id) {
-        if (!duplicate[0].active) {
-          const reactivated = await updateRows("project_contractor_contracts",{id:duplicate[0].id},{
+      const sameCategoryParties = await selectRows("project_contractor_contracts",{
+        filters:{project_id:project.id,category},
+        limit:500
+      });
+      const partyKey = contractorName.trim().toLowerCase();
+      const duplicate = sameCategoryParties.find((row:any)=>String(row.id)!==id && String(row.contractor_name||"").trim().toLowerCase()===partyKey);
+      if (duplicate) {
+        if (!duplicate.active && !id) {
+          const reactivated = await updateRows("project_contractor_contracts",{id:duplicate.id},{
             contractor_name:contractorName,category,billing_unit:billingUnit,
             contract_quantity:contractQuantity,agreed_rate:agreedRate,notes,party_type:partyType,active:true,
             updated_at:new Date().toISOString()
@@ -354,7 +359,10 @@ export async function POST(request: NextRequest) {
           if (!reactivated.length) return fail("Supplier / contractor could not be reactivated.",404);
           return ok(reactivated[0]);
         }
-        return fail("A contractor / supplier already exists for this category in this project.",409);
+        if (!duplicate.active && id && String(duplicate.id)!==String(id)) {
+          return fail("Another inactive party with the same name already exists in this category.",409);
+        }
+        return fail("A supplier / contractor with this name already exists in this category and project.",409);
       }
       const row = {project_id:project.id,contractor_name:contractorName,category,billing_unit:billingUnit,contract_quantity:contractQuantity,agreed_rate:agreedRate,notes,party_type:partyType,active:true,updated_at:new Date().toISOString()};
       const saved = id ? await updateRows("project_contractor_contracts",{id},row) : await insertRows("project_contractor_contracts",row);
