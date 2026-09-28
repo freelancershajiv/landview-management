@@ -343,11 +343,34 @@ export async function POST(request: NextRequest) {
       const notes = clean(body.notes,2000) || null;
       if (!contractorName || !category) return fail("Contractor name and category are required.",400);
       const duplicate = await selectRows("project_contractor_contracts",{filters:{project_id:project.id,category},limit:1});
-      if (duplicate.length && String(duplicate[0].id)!==id) return fail("A contractor contract already exists for this category in this project.",409);
+      if (duplicate.length && String(duplicate[0].id)!==id) {
+        if (!duplicate[0].active) {
+          const reactivated = await updateRows("project_contractor_contracts",{id:duplicate[0].id},{
+            contractor_name:contractorName,category,billing_unit:billingUnit,
+            contract_quantity:contractQuantity,agreed_rate:agreedRate,notes,active:true,
+            updated_at:new Date().toISOString()
+          });
+          if (!reactivated.length) return fail("Supplier / contractor could not be reactivated.",404);
+          return ok(reactivated[0]);
+        }
+        return fail("A contractor / supplier already exists for this category in this project.",409);
+      }
       const row = {project_id:project.id,contractor_name:contractorName,category,billing_unit:billingUnit,contract_quantity:contractQuantity,agreed_rate:agreedRate,notes,active:true,updated_at:new Date().toISOString()};
       const saved = id ? await updateRows("project_contractor_contracts",{id},row) : await insertRows("project_contractor_contracts",row);
-      if (!saved.length) return fail("Contractor contract could not be saved.",404);
+      if (!saved.length) return fail("Supplier / contractor could not be saved.",404);
       return ok(saved[0]);
+    }
+    if (body.action === "removeContractorContract") {
+      const id = clean(body.id,100);
+      if (!id) return fail("Supplier / contractor ID is required.",400);
+      const rows = await selectRows("project_contractor_contracts",{filters:{id,project_id:project.id},limit:1});
+      if (!rows.length) return fail("Supplier / contractor not found.",404);
+      const saved = await updateRows("project_contractor_contracts",{id},{
+        active:false,
+        updated_at:new Date().toISOString()
+      });
+      if (!saved.length) return fail("Supplier / contractor could not be removed.",404);
+      return ok({removed:true,id});
     }
     if (body.action === "saveContractorBill") {
       const id = clean(body.id,100);
