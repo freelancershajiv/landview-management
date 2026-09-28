@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const CATEGORIES = ["Cash","Bank Transfer","Cheque","Scrap","Bricks","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];
+const CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling","Bricks","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];\nconst INCOME_CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling"];
 
 const money=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v||0));
 const compactMoney=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",notation:"compact",maximumFractionDigits:1}).format(Number(v||0));
 const num=(v:any)=>{const n=Number(String(v??"").replace(/,/g,"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0};
 const dateText=(v:any)=>{const d=new Date(String(v||"").slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?String(v||""):d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})};
-const blank=()=>({entryDate:new Date().toISOString().slice(0,10),supplier:"",details:"",sft:"",rate:"",debit:"",credit:"",category:"Other Expenses",memo:""});
+const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),supplier:"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",memo:""});
 
 export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
@@ -46,7 +46,7 @@ export default function ProjectManagementPage(){
   },[data]);
 
   const incomeCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.debit)>0)),[entries,categories]);
-  const expenseCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.credit)>0)),[entries,categories]);
+  const incomeEntryCategories=INCOME_CATEGORIES;\n  const expenseEntryCategories=categories.filter(c=>!INCOME_CATEGORIES.includes(c));\n  const expenseCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.credit)>0)),[entries,categories]);
   const filtered=useMemo(()=>{
     const q=search.trim().toLowerCase();
     return entries
@@ -93,7 +93,7 @@ export default function ProjectManagementPage(){
     void load(normalized);
   }
 
-  function openNew(type:"income"|"expense"="expense"){setEditing(null);setEntryType(type);setForm(blank());setFormOpen(true);}
+  function openNew(type:"income"|"expense"="expense"){setEditing(null);setEntryType(type);setForm(blank(type));setFormOpen(true);}
   function openEdit(r:any){
     setEditing(r);
     setEntryType(num(r.debit)>0 ? "income" : "expense");
@@ -501,15 +501,15 @@ export default function ProjectManagementPage(){
             <div className="pm-modal-head">
               <div>
                 <span className="pm-label">{editing?"EDIT LEDGER ENTRY":"NEW LEDGER ENTRY"}</span>
-                <h2>{editing?"Edit Expense":"Add Expense"}</h2>
-                <p>Record the project expense with its category, supplier, quantity and amount.</p>
+                <h2>{editing ? (entryType==="income" ? "Edit Income" : "Edit Expense") : (entryType==="income" ? "Add Income" : "Add Expense")}</h2>
+                <p>{entryType==="income" ? "Record project income by payment source or scrap selling." : "Record the project expense with its category, supplier, quantity and amount."}</p>
               </div>
               <button className="pm-close" onClick={()=>setFormOpen(false)}>×</button>
             </div>
             <div className="pm-form-grid">
               <label><span>Date</span><input type="date" value={form.entryDate} onChange={e=>setForm({...form,entryDate:e.target.value})}/></label>
               <label><span>Supplier</span><input value={form.supplier} onChange={e=>setForm({...form,supplier:e.target.value})} placeholder="Supplier / contractor"/></label>
-              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{categories.map(c=><option key={c}>{c}</option>)}</select></label>
+              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>setForm({...form,category:e.target.value})}>{(entryType==="income" ? incomeEntryCategories : expenseEntryCategories).map(c=><option key={c}>{c}</option>)}</select></label>
               <label className="full"><span>Details</span><input value={form.details} onChange={e=>setForm({...form,details:e.target.value})} placeholder={entryType==="income" ? "Describe the income / deposit" : "Describe the expense"}/></label>
               <label><span>SFT / Qty</span><input value={form.sft} onChange={e=>setForm({...form,sft:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
               <label><span>Rate</span><input value={form.rate} onChange={e=>setForm({...form,rate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
