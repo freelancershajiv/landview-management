@@ -93,13 +93,13 @@ export default function ContractorBillsPage(){
     void load(code);
   },[]);
 
-  const contractors = data?.contractorBills?.contracts || [];
-  const bills = data?.contractorBills?.bills || [];
-  const totals = data?.contractorBills?.totals || {
+  const contractors: any[] = data?.contractorBills?.contracts || [];
+  const bills: any[] = data?.contractorBills?.bills || [];
+  const totals: any = data?.contractorBills?.totals || {
     contractValue:0,certifiedAmount:0,paidAmount:0,advance:0,balancePayable:0,remainingContract:0
   };
 
-  const contractMap = useMemo(()=>new Map(contractors.map((c:any)=>[String(c.id),c])),[contractors]);
+  const contractMap = useMemo<Map<string, any>>(()=>new Map<string, any>(contractors.map((c:any)=>[String(c.id),c])),[contractors]);
 
 
   function openNewContract(){
