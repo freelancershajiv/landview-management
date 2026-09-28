@@ -228,7 +228,7 @@ export async function POST(request: NextRequest) {
         notes,
         updated_at: new Date().toISOString(),
       }, "project_id");
-      const row = saved[0] || { project_id: project.id, supplier_advance: supplierAdvance, cheque_on_hold: chequeOnHold, notes };
+      const row = saved[0] || { project_id: project.id, supplier_advance: supplierAdvance, cheque_on_hold: 0, notes };
       return ok({
         supplierAdvance: num(row.supplier_advance),
         chequeOnHold: 0,
