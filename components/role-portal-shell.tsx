@@ -28,6 +28,7 @@ const employeeNav = [
 const clientNav = [
   { href: "/client#dashboard", label: "Dashboard", icon: "⌂" },
   { href: "/client#project", label: "My Project", icon: "▱" },
+  { href: "/projectmanagement", label: "Project Management", icon: "▤" },
   { href: "/client#finance", label: "Invoices & Payments", icon: "▣" },
   { href: "/client#certificates", label: "Certificates", icon: "◫" },
   { href: "/client#workflow", label: "Project Updates", icon: "↗" },
