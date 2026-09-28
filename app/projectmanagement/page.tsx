@@ -4,6 +4,8 @@ import { useEffect, useMemo, useState } from "react";
 
 const CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling","Bricks","Brick Chips","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];
 const INCOME_CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling"];
+const SUPPLIER_CATEGORIES = new Set(["Bricks","Brick Chips","Stone","Stone & Sand","Cement","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Electrical Material","Electrical Materials","Plumbing Material","Plumbing Materials","Tiles","Door","Doors & Wood","Grills","SS Grills & Works"]);
+const partyLabel=(category:string)=>SUPPLIER_CATEGORIES.has(String(category||"").trim())?"Supplier":"Contractor";
 function partyOptionsForCategory(data:any,category:string) {
   const contracts=Array.isArray(data?.contractorBills?.contracts)?data.contractorBills.contracts:[];
   const key=String(category||"").trim().toLowerCase();
@@ -42,6 +44,7 @@ export default function ProjectManagementPage(){
   const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
   const [summaryOpen,setSummaryOpen]=useState(false),[summarySaving,setSummarySaving]=useState(false),[summaryForm,setSummaryForm]=useState({supplierAdvance:"0",chequeOnHold:"0",notes:""});
+  const [partiesOpen,setPartiesOpen]=useState(false),[partySaving,setPartySaving]=useState(false),[partyForm,setPartyForm]=useState({name:"",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
 
   async function load(code=project){
     setLoading(true);setError("");
@@ -222,6 +225,53 @@ export default function ProjectManagementPage(){
     setSummaryOpen(true);
   }
 
+  async function saveParty(){
+    if(!data?.selectedProject)return;
+    if(!partyForm.name.trim()){setError("Supplier / contractor name is required.");return;}
+    setPartySaving(true);setError("");
+    try{
+      const r=await fetch("/api/project-management",{
+        method:"POST",
+        credentials:"same-origin",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          action:"saveContractorContract",
+          projectId:data.selectedProject.projectCode,
+          contractorName:partyForm.name.trim(),
+          category:partyForm.category,
+          billingUnit:partyForm.billingUnit,
+          contractQuantity:num(partyForm.quantity),
+          agreedRate:num(partyForm.rate),
+          notes:partyForm.notes.trim()
+        })
+      });
+      const j=await r.json();
+      if(!r.ok||!j?.success)throw new Error(j?.error||"Could not save supplier / contractor.");
+      setPartyForm({name:"",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
+      setMessage(partyLabel(partyForm.category)+" added.");
+      await load(data.selectedProject.projectCode);
+    }catch(e:any){setError(e?.message||"Could not save supplier / contractor.");}
+    finally{setPartySaving(false);}
+  }
+
+  async function removeParty(row:any){
+    if(!confirm("Remove "+partyLabel(row.category)+" “"+row.contractor_name+"” from the active list?\n\nExisting ledger payments and bills will remain intact."))return;
+    setPartySaving(true);setError("");
+    try{
+      const r=await fetch("/api/project-management",{
+        method:"POST",
+        credentials:"same-origin",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({action:"removeContractorContract",projectId:data.selectedProject.projectCode,id:row.id})
+      });
+      const j=await r.json();
+      if(!r.ok||!j?.success)throw new Error(j?.error||"Could not remove supplier / contractor.");
+      setMessage(partyLabel(row.category)+" removed from the active list.");
+      await load(data.selectedProject.projectCode);
+    }catch(e:any){setError(e?.message||"Could not remove supplier / contractor.");}
+    finally{setPartySaving(false);}
+  }
+
   async function saveSummary(){
     if(!data?.selectedProject)return;
     setSummarySaving(true);setError("");
@@ -343,7 +393,8 @@ export default function ProjectManagementPage(){
           </div>
           <div className="pm-actions">
             <button className="pm-btn pm-btn-secondary" onClick={()=>window.location.assign("/projectmanagement/report?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}><span>▤</span> Monthly Report</button>
-            {admin&&<button className="pm-btn pm-btn-dark" onClick={()=>window.location.assign("/projectmanagement/contractors?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}><span>▥</span> Contractor Bills</button>}
+            {admin&&<button className="pm-btn pm-btn-dark" onClick={()=>setPartiesOpen(true)}><span>♙</span> Suppliers / Contractors</button>
+            {admin&&<button className="pm-btn pm-btn-secondary" onClick={()=>window.location.assign("/projectmanagement/contractors?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}><span>▥</span> Billing & Bills</button>
             <button className="pm-btn pm-btn-secondary" onClick={()=>void load(project)}><span>↻</span> Refresh</button>
             {admin&&<button className="pm-btn pm-btn-income" onClick={()=>openNew("income")}><span>＋</span> Add Income</button>}
             {admin&&<button className="pm-btn pm-btn-primary" onClick={()=>openNew("expense")}><span>＋</span> Add Expense</button>}
@@ -623,6 +674,69 @@ export default function ProjectManagementPage(){
         </div>
       }
 
+      {partiesOpen&&admin&&
+        <div className="pm-modal-backdrop">
+          <section className="pm-modal pm-party-modal">
+            <div className="pm-modal-head">
+              <div>
+                <span className="pm-label">PROJECT PARTIES</span>
+                <h2>Suppliers / Contractors</h2>
+                <p>Add or remove the active suppliers and contractors for this project. Removing one keeps all old ledger and billing history.</p>
+              </div>
+              <button className="pm-close" onClick={()=>setPartiesOpen(false)}>×</button>
+            </div>
+
+            <div className="pm-party-add">
+              <div className="pm-party-add-head">
+                <div>
+                  <strong>Add Supplier / Contractor</strong>
+                  <span>Select a category to determine whether the party is treated as a Supplier or Contractor.</span>
+                </div>
+              </div>
+              <div className="pm-form-grid pm-party-form-grid">
+                <label className="full"><span>Party Name</span><input value={partyForm.name} onChange={e=>setPartyForm({...partyForm,name:e.target.value})} placeholder="Supplier / contractor name"/></label>
+                <label><span>Category</span><select value={partyForm.category} onChange={e=>setPartyForm({...partyForm,category:e.target.value})}>{expenseEntryCategories.map(c=><option key={c}>{c}</option>)}</select></label>
+                <label><span>Party Type</span><input value={partyLabel(partyForm.category)} readOnly/></label>
+                <label><span>Billing Unit</span><input value={partyForm.billingUnit} onChange={e=>setPartyForm({...partyForm,billingUnit:e.target.value})} placeholder="SFT / POINT / CFT"/></label>
+                <label><span>Contract Quantity</span><input value={partyForm.quantity} onChange={e=>setPartyForm({...partyForm,quantity:e.target.value})} inputMode="decimal"/></label>
+                <label><span>Agreed Rate</span><input value={partyForm.rate} onChange={e=>setPartyForm({...partyForm,rate:e.target.value})} inputMode="decimal"/></label>
+                <label className="full"><span>Notes</span><input value={partyForm.notes} onChange={e=>setPartyForm({...partyForm,notes:e.target.value})} placeholder="Optional notes"/></label>
+              </div>
+              <div className="pm-party-add-foot">
+                <button className="pm-btn pm-btn-primary" onClick={()=>void saveParty()} disabled={partySaving}>{partySaving?"Saving…":"＋ Add "+partyLabel(partyForm.category)}</button>
+              </div>
+            </div>
+
+            <div className="pm-party-list-wrap">
+              <div className="pm-party-list-head">
+                <div><strong>Active Suppliers / Contractors</strong><span>{(data?.contractorBills?.contracts||[]).length.toLocaleString("en-BD")} active parties</span></div>
+              </div>
+              <div className="pm-party-list">
+                {(data?.contractorBills?.contracts||[]).map((row:any)=>(
+                  <div className="pm-party-row" key={row.id}>
+                    <div className="pm-party-main">
+                      <span className={"pm-party-type "+(partyLabel(row.category)==="Supplier"?"supplier":"contractor")}>{partyLabel(row.category)}</span>
+                      <strong>{row.contractor_name}</strong>
+                      <span>{row.category}</span>
+                    </div>
+                    <div className="pm-party-meta">
+                      <span>{row.billing_unit||"—"}</span>
+                      <span>{row.contractConfigured?money(row.agreed_rate)+" / "+row.billing_unit:"Rate not set"}</span>
+                    </div>
+                    <button className="pm-party-remove" onClick={()=>void removeParty(row)} disabled={partySaving}>Remove</button>
+                  </div>
+                ))}
+                {!(data?.contractorBills?.contracts||[]).length&&<div className="pm-party-empty">No active suppliers or contractors are configured for this project.</div>}
+              </div>
+            </div>
+
+            <div className="pm-modal-foot">
+              <button className="pm-btn pm-btn-secondary" onClick={()=>setPartiesOpen(false)}>Close</button>
+            </div>
+          </section>
+        </div>
+      }
+
       {summaryOpen&&admin&&
         <div className="pm-modal-backdrop">
           <section className="pm-modal pm-entry-modal">
@@ -819,6 +933,30 @@ export default function ProjectManagementPage(){
         .pm-table-footer strong{color:#5b676d}
         .pm-modal-backdrop{position:fixed;inset:0;background:rgba(12,25,21,.52);backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;z-index:100}
         .pm-modal{background:#fff;border:1px solid #dfe6e7;border-radius:20px;box-shadow:0 28px 80px rgba(13,28,23,.22);max-height:92vh;overflow:hidden}
+        .pm-party-modal{width:min(980px,100%)}
+        .pm-party-add{border-bottom:1px solid #edf0f2;background:#fbfcfc}
+        .pm-party-add-head{padding:16px 21px 4px}
+        .pm-party-add-head strong{display:block;font-size:14px;color:#24333b}
+        .pm-party-add-head span{display:block;color:#8a969c;font-size:10px;margin-top:4px}
+        .pm-party-form-grid{padding-top:14px;padding-bottom:12px}
+        .pm-party-add-foot{display:flex;justify-content:flex-end;padding:0 21px 15px}
+        .pm-party-list-head{padding:15px 21px 10px;border-bottom:1px solid #edf0f2}
+        .pm-party-list-head strong{display:block;font-size:14px}
+        .pm-party-list-head span{display:block;color:#8b979d;font-size:10px;margin-top:3px}
+        .pm-party-list{max-height:34vh;overflow:auto}
+        .pm-party-row{display:grid;grid-template-columns:minmax(260px,1.7fr) minmax(180px,.8fr) auto;gap:14px;align-items:center;padding:13px 21px;border-bottom:1px solid #f0f3f4}
+        .pm-party-row:last-child{border-bottom:0}
+        .pm-party-main{display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap}
+        .pm-party-main strong{font-size:13px;color:#27353c}
+        .pm-party-main>span:last-child{color:#879299;font-size:10px}
+        .pm-party-type{padding:4px 7px;border-radius:7px;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}
+        .pm-party-type.supplier{background:#e9f6ef;color:#2d7056}
+        .pm-party-type.contractor{background:#eef3f8;color:#476889}
+        .pm-party-meta{display:flex;gap:9px;align-items:center;color:#7d898f;font-size:10px;justify-content:flex-end;flex-wrap:wrap}
+        .pm-party-remove{border:1px solid #efceca;background:#fff3f1;color:#a3483f;border-radius:9px;padding:8px 11px;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+        .pm-party-remove:hover{background:#ffe9e6}
+        .pm-party-remove:disabled{opacity:.5;cursor:not-allowed}
+        .pm-party-empty{padding:32px 21px;text-align:center;color:#89959b;font-size:11px}
         .pm-entry-modal{width:min(780px,100%)}
         .pm-master-modal{width:min(1160px,100%)}
         .pm-modal-head{display:flex;justify-content:space-between;gap:18px;padding:20px 21px;border-bottom:1px solid #edf0f2}
@@ -842,6 +980,8 @@ export default function ProjectManagementPage(){
           .pm-finance-summary .pm-stats{grid-template-columns:repeat(3,1fr)}
         }
         @media (max-width:1100px){
+          .pm-party-row{grid-template-columns:1fr}
+          .pm-party-meta{justify-content:flex-start}
           .pm-stats{grid-template-columns:repeat(2,1fr)}
           .pm-project-card{grid-template-columns:1fr 1fr}
           .pm-project-date{justify-self:start;border-left:0;padding-left:0}
