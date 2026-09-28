@@ -275,11 +275,19 @@ async function workspace(user: Row, requested?: string) {
   }
 
   const rows = await selectRows("project_management_ledger", { filters: { project_id: selected.id }, order: "entry_date:asc", limit: 10000 });
-  const entries = calculate(rows).map((row:any) => ({
-    ...row,
-    paid_to: clean(row.paid_to || (num(row.credit)>0 ? row.supplier : ""),160),
-    received_from: clean(row.received_from,160),
-  }));
+  let incomeBalance = 0;
+  let expenseBalance = 0;
+  const entries = calculate(rows).map((row:any) => {
+    incomeBalance += num(row.debit);
+    expenseBalance += num(row.credit);
+    return {
+      ...row,
+      income_balance: incomeBalance,
+      expense_balance: expenseBalance,
+      paid_to: clean(row.paid_to || (num(row.credit)>0 ? row.supplier : ""),160),
+      received_from: clean(row.received_from,160),
+    };
+  });
   const debit = entries.reduce((s,r) => s + num(r.debit), 0);
   const credit = entries.reduce((s,r) => s + num(r.credit), 0);
   const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Other Expenses", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
