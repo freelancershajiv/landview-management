@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-const CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling","Bricks","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];\nconst INCOME_CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling"];
+const CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling","Bricks","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];
+const INCOME_CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling"];
 
 const money=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v||0));
 const compactMoney=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",notation:"compact",maximumFractionDigits:1}).format(Number(v||0));
