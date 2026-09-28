@@ -105,7 +105,7 @@ export async function POST(request: NextRequest) {
     if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
 
     const fileId = cleanText((await request.json())?.fileId, 30).toUpperCase();
-    if (!/^LV-\\d+$/.test(fileId)) return NextResponse.json({ success: false, error: "Invalid File ID." }, { status: 400 });
+    if (!/^LV-\d+$/.test(fileId)) return NextResponse.json({ success: false, error: "Invalid File ID." }, { status: 400 });
 
     // QR generation must be local and fast. The billing page has already
     // authenticated against Supabase, so do not make another Apps Script
@@ -117,7 +117,7 @@ export async function POST(request: NextRequest) {
     const role = roleOf(user);
     if (role === "client") {
       const rawIds = String((user as any).projectIds || (user as any).Project_IDs || (user as any).project_ids || "");
-      const allowedIds = new Set(rawIds.split(/[;,\\s]+/).map((id) => cleanText(id, 30).toUpperCase()).filter(Boolean));
+      const allowedIds = new Set(rawIds.split(/[;,\s]+/).map((id) => cleanText(id, 30).toUpperCase()).filter(Boolean));
       if (!allowedIds.has(fileId)) {
         return NextResponse.json({ success: false, error: "This project is not authorized for your client account." }, { status: 403 });
       }
