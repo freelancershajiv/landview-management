@@ -41,9 +41,20 @@ function guessExpenseCategory(category: unknown, description: unknown) {
   return "Other Expenses";
 }
 const clean = (v: unknown, max = 1000) => String(v ?? "").trim().slice(0, max);
-const chequeStatusOf = (row: Row) => String(row?.memo || "").match(/^CHEQUE_STATUS:(ON_HOLD|CASHED)(?:\n|\r\n)?/i)?.[1]?.toUpperCase() === "ON_HOLD" ? "On Hold" : "Cashed";
-const memoWithoutChequeStatus = (memo: unknown) => clean(memo, 1000).replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)(?:\n|\r\n)?/i, "").trim() || null;
-const buildMemo = (category: string | null, status: unknown, memo: unknown) => category === "Cheque" ? `CHEQUE_STATUS:${String(status || "Cashed").toUpperCase()==="ON_HOLD"?"ON_HOLD":"CASHED"}${memoWithoutChequeStatus(memo) ? `\n${memoWithoutChequeStatus(memo)}` : ""}` : memoWithoutChequeStatus(memo);
+function chequeStatusOf(row: Row) {
+  const match = String(row?.memo || "").match(/^CHEQUE_STATUS:(ON_HOLD|CASHED)(?:\n|\r\n)?/i);
+  return match && String(match[1]).toUpperCase() === "ON_HOLD" ? "On Hold" : "Cashed";
+}
+function memoWithoutChequeStatus(memo: unknown) {
+  const value = clean(memo, 1000).replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)(?:\n|\r\n)?/i, "").trim();
+  return value || null;
+}
+function buildMemo(category: string | null, status: unknown, memo: unknown) {
+  const cleanMemo = memoWithoutChequeStatus(memo);
+  if (category !== "Cheque") return cleanMemo;
+  const normalizedStatus = String(status || "Cashed").toUpperCase() === "ON_HOLD" ? "ON_HOLD" : "CASHED";
+  return `CHEQUE_STATUS:${normalizedStatus}${cleanMemo ? `\n${cleanMemo}` : ""}`;
+}
 const num = (v: unknown) => { const n = Number(String(v ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; };
 const roleOf = (u: Row | null) => clean(u?.role || u?.Role, 30).toLowerCase();
 const userIdOf = (u: Row | null) => clean(u?.userId || u?.User_ID || u?.username || u?.Username, 120);
