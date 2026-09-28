@@ -14,6 +14,16 @@ const CATEGORIES = [
   "Finishing Masonry",
   "Electric Contractor",
   "Plumbing Contractor",
+  "Bricks",
+  "Brick Chips",
+  "Stone",
+  "Stone & Sand",
+  "Cement",
+  "Cement & Steel",
+  "Syleth Sand",
+  "Normal Sand",
+  "Filling Sand",
+  "Filling Soil",
   "Electrical Material",
   "Plumbing Material",
   "Tiles",
@@ -21,6 +31,28 @@ const CATEGORIES = [
   "Grills",
   "Other Expenses",
 ];
+
+const SUPPLIER_CATEGORIES = new Set([
+  "Bricks",
+  "Brick Chips",
+  "Stone",
+  "Stone & Sand",
+  "Cement",
+  "Cement & Steel",
+  "Syleth Sand",
+  "Normal Sand",
+  "Filling Sand",
+  "Filling Soil",
+  "Electrical Material",
+  "Plumbing Material",
+  "Tiles",
+  "Door",
+  "Grills",
+]);
+
+function partyLabel(category:any){
+  return SUPPLIER_CATEGORIES.has(String(category||"").trim()) ? "Supplier" : "Contractor";
+}
 
 const money = (v:any) => new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v||0));
 const num = (v:any) => {
@@ -180,9 +212,9 @@ export default function ContractorBillsPage(){
         })
       });
       const j=await r.json();
-      if(!r.ok || !j?.success) throw new Error(j?.error || "Could not save contractor contract.");
+      if(!r.ok || !j?.success) throw new Error(j?.error || "Could not save contractor / supplier contract.");
       setContractOpen(false);
-      setMessage(contractForm.id ? "Contractor contract updated." : "Contractor contract added.");
+      setMessage(contractForm.id ? "Contractor / supplier contract updated." : "Contractor / supplier added.");
       await load(data?.selectedProject?.projectCode || project);
     }catch(e:any){
       setError(e?.message || "Could not save contractor contract.");
@@ -260,7 +292,7 @@ export default function ContractorBillsPage(){
           <div className="cb-header-actions">
             <button className="cb-btn cb-btn-secondary" onClick={()=>window.location.assign("/projectmanagement?projectId="+encodeURIComponent(data?.selectedProject?.projectCode||project))}>← Ledger</button>
             <button className="cb-btn cb-btn-secondary" onClick={()=>void load(data?.selectedProject?.projectCode||project)}>↻ Refresh</button>
-            {admin && <button className="cb-btn cb-btn-primary" onClick={openNewContract}>＋ Add Contractor</button>}
+            {admin && <button className="cb-btn cb-btn-primary" onClick={openNewContract}>＋ Add Contractor / Supplier</button>}
             {admin && contractors.length>0 && <button className="cb-btn cb-btn-dark" onClick={()=>openNewBill()}>＋ New Bill</button>}
           </div>
         </header>
@@ -298,7 +330,7 @@ export default function ContractorBillsPage(){
             <table className="cb-table">
               <thead>
                 <tr>
-                  <th>Contractor</th>
+                  <th>Contractor / Supplier</th>
                   <th>Category</th>
                   <th>Unit</th>
                   <th className="num">Contract Qty</th>
@@ -366,7 +398,7 @@ export default function ContractorBillsPage(){
                   );
                 })}
                 {!contractors.length && (
-                  <tr><td colSpan={12} className="cb-empty"><strong>No contractor contracts set up for this project.</strong><span>Start by adding the contractor, category, project quantity and agreed rate.</span></td></tr>
+                  <tr><td colSpan={12} className="cb-empty"><strong>No contractor / supplier contracts set up for this project.</strong><span>Start by adding the contractor or supplier, category, project quantity and agreed rate.</span></td></tr>
                 )}
               </tbody>
             </table>
@@ -381,9 +413,9 @@ export default function ContractorBillsPage(){
             </div>
             <div className="cb-bill-register-actions">
               <label className="cb-bill-filter">
-                <span>VIEW CONTRACTOR</span>
+                <span>VIEW PARTY</span>
                 <select value={billContractFilter} onChange={e=>setBillContractFilter(e.target.value)}>
-                  <option value="all">All Contractors</option>
+                  <option value="all">All Contractors / Suppliers</option>
                   {contractors.map((c:any)=><option key={c.id} value={c.id}>{c.contractor_name} · {c.category}</option>)}
                 </select>
               </label>
@@ -392,8 +424,8 @@ export default function ContractorBillsPage(){
           </div>
           <div className="cb-filter-summary">
             {billContractFilter==="all"
-              ? <>Showing <strong>{filteredBills.length}</strong> bill{filteredBills.length===1?"":"s"} from all contractors.</>
-              : <>Showing <strong>{filteredBills.length}</strong> bill{filteredBills.length===1?"":"s"} for <strong>{selectedBillContract?.contractor_name || "selected contractor"}</strong>.</>}
+              ? <>Showing <strong>{filteredBills.length}</strong> bill{filteredBills.length===1?"":"s"} from all contractors / suppliers.</>
+              : <>Showing <strong>{filteredBills.length}</strong> bill{filteredBills.length===1?"":"s"} for <strong>{selectedBillContract?.contractor_name || "selected party"}</strong>.</>}
           </div>
           <div className="cb-table-wrap">
             <table className="cb-table cb-bills-table">
@@ -437,15 +469,15 @@ export default function ContractorBillsPage(){
                 <button className="cb-close" onClick={()=>setContractOpen(false)}>×</button>
               </div>
               <div className="cb-form">
-                <label><span>Contractor Name</span><input value={contractForm.contractorName} onChange={e=>setContractForm({...contractForm,contractorName:e.target.value})} placeholder="Contractor name"/></label>
-                <label><span>Expense Category</span><select value={contractForm.category} onChange={e=>setContractForm({...contractForm,category:e.target.value})}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></label>
+                <label><span>{partyLabel(contractForm.category)} Name</span><input value={contractForm.contractorName} onChange={e=>setContractForm({...contractForm,contractorName:e.target.value})} placeholder="Contractor / supplier name"/></label>
+                <label><span>Category</span><select value={contractForm.category} onChange={e=>setContractForm({...contractForm,category:e.target.value})}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></label>
                 <label><span>Billing Unit</span><input value={contractForm.billingUnit} onChange={e=>setContractForm({...contractForm,billingUnit:e.target.value})} placeholder="SFT / POINT / FLAT"/></label>
                 <label><span>Contract Quantity / Project Size</span><input value={contractForm.contractQuantity} onChange={e=>setContractForm({...contractForm,contractQuantity:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
                 <label><span>Agreed Rate</span><input value={contractForm.agreedRate} onChange={e=>setContractForm({...contractForm,agreedRate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
                 <div className="cb-calc"><span>Contract Value</span><strong>{money(num(contractForm.contractQuantity)*num(contractForm.agreedRate))}</strong><small>Quantity × Rate</small></div>
                 <label className="full"><span>Notes</span><textarea value={contractForm.notes} onChange={e=>setContractForm({...contractForm,notes:e.target.value})} placeholder="Optional contract note"/></label>
               </div>
-              <div className="cb-modal-foot"><button className="cb-btn cb-btn-secondary" onClick={()=>setContractOpen(false)}>Cancel</button><button className="cb-btn cb-btn-primary" onClick={()=>void saveContract()} disabled={saving}>{saving?"Saving…":"Save Contractor"}</button></div>
+              <div className="cb-modal-foot"><button className="cb-btn cb-btn-secondary" onClick={()=>setContractOpen(false)}>Cancel</button><button className="cb-btn cb-btn-primary" onClick={()=>void saveContract()} disabled={saving}>{saving?"Saving…":"Save Contractor / Supplier"}</button></div>
             </section>
           </div>
         )}
@@ -458,7 +490,7 @@ export default function ContractorBillsPage(){
                 <button className="cb-close" onClick={()=>setBillOpen(false)}>×</button>
               </div>
               <div className="cb-form">
-                <label className="full"><span>Contractor / Contract</span><select value={billForm.contractId} onChange={e=>{const id=e.target.value;const c=contractors.find((x:any)=>String(x.id)===String(id));setBillForm({...billForm,contractId:id,rate:String(c?.agreed_rate??""),description:c?(c.category+" work bill"):billForm.description});}}>{contractors.map(c=><option key={c.id} value={c.id}>{c.contractor_name+" · "+c.category}</option>)}</select></label>
+                <label className="full"><span>Contractor / Supplier / Contract</span><select value={billForm.contractId} onChange={e=>{const id=e.target.value;const c=contractors.find((x:any)=>String(x.id)===String(id));setBillForm({...billForm,contractId:id,rate:String(c?.agreed_rate??""),description:c?(c.category+" work bill"):billForm.description});}}>{contractors.map(c=><option key={c.id} value={c.id}>{c.contractor_name+" · "+c.category}</option>)}</select></label>
                 <label><span>Bill Date</span><input type="date" value={billForm.billDate} onChange={e=>setBillForm({...billForm,billDate:e.target.value})}/></label>
                 <label><span>Status</span><select value={billForm.status} onChange={e=>setBillForm({...billForm,status:e.target.value})}><option>Draft</option><option>Certified</option><option>Void</option></select></label>
                 <label className="full"><span>Description</span><input value={billForm.description} onChange={e=>setBillForm({...billForm,description:e.target.value})} placeholder="Ground floor masonry work / electrical points / plumbing work"/></label>
