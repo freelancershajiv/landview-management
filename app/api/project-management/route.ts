@@ -215,7 +215,10 @@ async function workspace(user: Row, requested?: string) {
   if (isAdmin(user)) {
     const pmRows = await selectRows("project_management_ledger", { limit: 20000 });
     const configuredIds = new Set(pmRows.map((r:any) => String(r.project_id || "")).filter(Boolean));
-    projects = allProjects.filter((p:any) => String(p.status || "").toLowerCase() === "active" || configuredIds.has(String(p.id)));
+    // Project Management is intentionally limited to projects that have
+    // actually been initialized with at least one Project Management ledger row.
+    // Project status alone must not make a project appear in this workspace.
+    projects = allProjects.filter((p:any) => configuredIds.has(String(p.id)));
   }
 
   const selected = requested
