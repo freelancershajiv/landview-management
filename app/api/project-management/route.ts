@@ -296,7 +296,6 @@ async function validateEntry(body: Row) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) throw new Error("Enter a valid entry date.");
   const receivedFromRaw = clean(body.receivedFrom ?? body.received_from ?? body.Received_From,160);
   const allowedReceivedFrom = ["Mr. Mahi Bhai","Scrap Selling","Mr. Jamaluddin"];
-  const debit = Math.max(0, num(body.debit ?? body.Debit));
   const receivedFrom = debit > 0 && !allowedReceivedFrom.includes(receivedFromRaw)
     ? (()=>{ throw new Error("Select a valid Received From option."); })()
     : (receivedFromRaw || null);
