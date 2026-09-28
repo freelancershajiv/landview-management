@@ -69,6 +69,7 @@ export default function ContractorBillsPage(){
   const [contractForm,setContractForm] = useState<any>(blankContract);
   const [billForm,setBillForm] = useState<any>(blankBill);
   const [expanded,setExpanded] = useState("");
+  const [billContractFilter,setBillContractFilter] = useState("all");
 
   async function load(code = project){
     setLoading(true);
@@ -101,6 +102,10 @@ export default function ContractorBillsPage(){
   };
 
   const contractMap = useMemo<Map<string, any>>(()=>new Map<string, any>(contractors.map((c:any)=>[String(c.id),c])),[contractors]);
+  const filteredBills = billContractFilter==="all"
+    ? bills
+    : bills.filter((b:any)=>String(b.contract_id)===String(billContractFilter));
+  const selectedBillContract = billContractFilter==="all" ? null : contractMap.get(String(billContractFilter));
 
 
   function openNewContract(){
@@ -369,12 +374,26 @@ export default function ContractorBillsPage(){
         </section>
 
         <section className="cb-panel">
-          <div className="cb-panel-head">
+          <div className="cb-panel-head cb-bill-register-head">
             <div>
               <span className="cb-label">BILL REGISTER</span>
               <h2>Certified Contractor Bills</h2>
             </div>
-            {admin && contractors.length>0 && <button className="cb-small-btn" onClick={()=>openNewBill()}>New Bill</button>}
+            <div className="cb-bill-register-actions">
+              <label className="cb-bill-filter">
+                <span>VIEW CONTRACTOR</span>
+                <select value={billContractFilter} onChange={e=>setBillContractFilter(e.target.value)}>
+                  <option value="all">All Contractors</option>
+                  {contractors.map((c:any)=><option key={c.id} value={c.id}>{c.contractor_name} · {c.category}</option>)}
+                </select>
+              </label>
+              {admin && contractors.length>0 && <button className="cb-small-btn" onClick={()=>void openNewBill(selectedBillContract || undefined)}>New Bill</button>}
+            </div>
+          </div>
+          <div className="cb-filter-summary">
+            {billContractFilter==="all"
+              ? <>Showing <strong>{filteredBills.length}</strong> bill{filteredBills.length===1?"":"s"} from all contractors.</>
+              : <>Showing <strong>{filteredBills.length}</strong> bill{filteredBills.length===1?"":"s"} for <strong>{selectedBillContract?.contractor_name || "selected contractor"}</strong>.</>}
           </div>
           <div className="cb-table-wrap">
             <table className="cb-table cb-bills-table">
@@ -385,7 +404,7 @@ export default function ContractorBillsPage(){
                 </tr>
               </thead>
               <tbody>
-                {bills.map((b:any)=>{
+                {filteredBills.map((b:any)=>{
                   const c=contractMap.get(String(b.contract_id));
                   return <tr key={b.id}>
                     <td><strong>{b.bill_code}</strong></td>
@@ -404,7 +423,7 @@ export default function ContractorBillsPage(){
                     </td>
                   </tr>
                 })}
-                {!bills.length && <tr><td colSpan={11} className="cb-empty"><strong>No contractor bills have been entered.</strong><span>Daily payments stay in the ledger; certified earned amounts are entered here.</span></td></tr>}
+                {!filteredBills.length && <tr><td colSpan={11} className="cb-empty"><strong>{billContractFilter==="all" ? "No contractor bills have been entered." : "No bills found for this contractor."}</strong><span>Daily payments stay in the ledger; certified earned amounts are entered here.</span></td></tr>}
               </tbody>
             </table>
           </div>
@@ -487,6 +506,7 @@ export default function ContractorBillsPage(){
 .cb-panel-head h2{margin:0;font-size:18px;color:#17242b;letter-spacing:-.02em}
 .cb-small-btn{border:1px solid #dce5e3;background:#f5faf8;color:#356a58;border-radius:9px;padding:9px 12px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}.cb-small-btn:hover{background:#edf6f2}
 .cb-table-wrap{overflow:auto}
+          .cb-bill-register-head{align-items:flex-end}.cb-bill-register-actions{display:flex;align-items:flex-end;gap:10px}.cb-bill-filter{display:flex;flex-direction:column;gap:5px}.cb-bill-filter span{font-size:9px;letter-spacing:.10em;font-weight:850;color:#8a969c}.cb-bill-filter select{min-width:260px;height:38px;padding:0 11px;border:1px solid #dfe6e9;background:#fbfcfc;color:#26353d;border-radius:9px;font:inherit;font-size:12px;font-weight:700;outline:none}.cb-bill-filter select:focus{border-color:#79ad98;box-shadow:0 0 0 3px rgba(29,107,82,.08)}.cb-filter-summary{padding:9px 18px;background:#fafcfc;border-bottom:1px solid #edf0f2;color:#89959b;font-size:10px}.cb-filter-summary strong{color:#55656c}@media(max-width:760px){.cb-bill-register-actions{width:100%;flex-direction:column;align-items:stretch}.cb-bill-filter select{width:100%;min-width:0}}
 .cb-table{width:100%;min-width:1380px;border-collapse:separate;border-spacing:0;font-size:12px}
 .cb-table th{position:sticky;top:0;z-index:2;background:#f8fafb;color:#819097;border-bottom:1px solid #e7ecee;padding:11px 12px;text-align:left;font-size:9px;letter-spacing:.10em;font-weight:850;text-transform:uppercase;white-space:nowrap}
 .cb-table td{padding:11px 12px;border-bottom:1px solid #f0f3f4;color:#38464e;vertical-align:middle;white-space:nowrap}
