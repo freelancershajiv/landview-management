@@ -287,13 +287,16 @@ async function workspace(user: Row, requested?: string) {
   const masterLedger = await masterLedgerFor(user, selected);
   const summary = await projectSummaryFor(selected);
   const contractorBills = await contractorWorkspaceFor(selected, entries);
-  const engShajivBalance = debit - credit - summary.supplierAdvance - summary.chequeOnHold;
+  const linkedSupplierAdvance = contractorBills.contracts
+    .filter((c:any) => String(c.party_type || "").trim().toLowerCase() === "supplier")
+    .reduce((sum:number,c:any) => sum + num(c.advance), 0);
+  const engShajivBalance = debit - credit - linkedSupplierAdvance - summary.chequeOnHold;
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
     totals: { debit, credit, balance: debit - credit },
-    summary: { ...summary, engShajivBalance },
+    summary: { ...summary, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"supplier_billing", engShajivBalance },
     categories,
     masterLedger,
     contractorBills,
@@ -346,17 +349,22 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as Row;
     const project = await projectFor(user, body.projectId || body.Project_ID);
     if (body.action === "updateSummary") {
-      const supplierAdvance = Math.max(0, num(body.supplierAdvance));
+      const existingSummary = await projectSummaryFor(project);
       const chequeOnHold = Math.max(0, num(body.chequeOnHold));
       const notes = clean(body.notes, 2000) || null;
       const saved = await upsertRows("project_management_summary", {
         project_id: project.id,
-        supplier_advance: supplierAdvance,
+        supplier_advance: existingSummary.supplierAdvance,
         cheque_on_hold: chequeOnHold,
         notes,
         updated_at: new Date().toISOString(),
       }, "project_id");
-      const row = saved[0] || { project_id: project.id, supplier_advance: supplierAdvance, cheque_on_hold: chequeOnHold, notes };
+      const row = saved[0] || {
+        project_id: project.id,
+        supplier_advance: existingSummary.supplierAdvance,
+        cheque_on_hold: chequeOnHold,
+        notes
+      };
       return ok({
         supplierAdvance: num(row.supplier_advance),
         chequeOnHold: num(row.cheque_on_hold),
