@@ -288,15 +288,19 @@ async function workspace(user: Row, requested?: string) {
   const summary = await projectSummaryFor(selected);
   const contractorBills = await contractorWorkspaceFor(selected, entries);
   const linkedSupplierAdvance = contractorBills.contracts
-    .filter((c:any) => String(c.party_type || "").trim().toLowerCase() === "supplier")
-    .reduce((sum:number,c:any) => sum + num(c.advance), 0);
+    .filter((c:any) =>
+      String(c.party_type || "").trim().toLowerCase() === "supplier" &&
+      contractorCategoryKey(c.category) === "bricks" &&
+      contractorPaymentNameKey(c.contractor_name) === "sattapur"
+    )
+    .reduce((sum:number,c:any) => sum + num(c.balancePayable), 0);
   const engShajivBalance = debit - credit - linkedSupplierAdvance - summary.chequeOnHold;
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
     totals: { debit, credit, balance: debit - credit },
-    summary: { ...summary, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"supplier_billing", engShajivBalance },
+    summary: { ...summary, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_balance_payable", engShajivBalance },
     categories,
     masterLedger,
     contractorBills,
