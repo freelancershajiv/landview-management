@@ -254,9 +254,16 @@ export default function LedgerExportPage() {
     return { start: applied.from, end: applied.to };
   }, [applied]);
 
+  // Keep the source rows chronological for balance calculations, but present
+  // the selected/exported entries newest-first.
   const selectedRows = useMemo(
     () => allRows.filter((row) => row.date >= range.start && row.date <= range.end),
     [allRows, range],
+  );
+
+  const displayRows = useMemo(
+    () => [...selectedRows].reverse(),
+    [selectedRows],
   );
 
   const openingBalance = useMemo(() => {
@@ -296,7 +303,7 @@ export default function LedgerExportPage() {
 
   function downloadCsv() {
     const header = ["Date","Transaction ID","Project ID","Category","Details","Account","Reference","Expense (Debit)","Income (Credit)","Running Balance"];
-    const body = selectedRows.map((row) => [
+    const body = displayRows.map((row) => [
       row.date,row.id,row.projectId,row.category,row.description,row.account || row.method,row.reference,
       row.debit ? row.debit.toFixed(2) : "",row.credit ? row.credit.toFixed(2) : "",row.balance.toFixed(2),
     ]);
@@ -470,7 +477,7 @@ export default function LedgerExportPage() {
                   <td className="num">—</td>
                   <td className="num">{money(openingBalance)}</td>
                 </tr>
-                {selectedRows.map((row) => <tr key={row.id}>
+                {displayRows.map((row) => <tr key={row.id}>
                   <td>{displayDate(row.date)}</td>
                   <td>
                     <span className="tx">{row.id}</span>
