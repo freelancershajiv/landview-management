@@ -535,7 +535,7 @@ export default function ProjectManagementPage(){
                 ) : ledgerView==="expense" ? (
                   <tr>
                     <th>Date</th>
-                    <th>Paid To</th>
+                    <th>To</th>
                     <th className="wide-col">Details</th>
                     <th>Category</th>
                     <th className="num-col">Qty / SFT</th>
@@ -907,17 +907,17 @@ export default function ProjectManagementPage(){
         .pm-search input{border:0;outline:0;background:transparent;min-height:40px;width:100%;font:inherit;font-size:12px;color:#1d2a31}
         .pm-search button{border:0;background:transparent;color:#7e8a90;cursor:pointer;font-size:16px}
         .pm-table-wrap{overflow:auto}
-        .pm-table{width:100%;min-width:1160px;border-collapse:separate;border-spacing:0;font-size:12px}
+        .pm-table{width:100%;min-width:1160px;border-collapse:separate;border-spacing:0;font-size:13px}
         .pm-table th{position:sticky;top:0;z-index:2;background:#f8fafb;color:#819097;border-bottom:1px solid #e7ecee;padding:11px 12px;text-align:left;font-size:9px;letter-spacing:.10em;font-weight:850;text-transform:uppercase;white-space:nowrap}
-        .pm-table td{padding:11px 12px;border-bottom:1px solid #f0f3f4;color:#38464e;vertical-align:middle;white-space:nowrap}
+        .pm-table td{padding:11px 12px;font-size:13px;border-bottom:1px solid #f0f3f4;color:#38464e;vertical-align:middle;white-space:nowrap}
         .pm-table tbody tr:hover{background:#fafcfb}
         .pm-table tbody tr:last-child td{border-bottom:0}
         .pm-table .wide-col{white-space:normal;min-width:300px}
         .pm-table .num-col{text-align:right}
         .pm-table .action-col{width:78px;text-align:center}
-        .pm-date{font-weight:740;color:#4f5e66}
-        .pm-supplier{color:#66747b;font-weight:650}
-        .pm-detail{font-weight:720;color:#26353d;line-height:1.38}
+        .pm-date{font-weight:740;color:#4f5e66;font-size:13px}
+        .pm-supplier{color:#66747b;font-weight:680;font-size:13px}
+        .pm-detail{font-weight:720;color:#26353d;line-height:1.42;font-size:13px}
         .pm-memo{display:block;color:#9ba5a9;font-size:10px;margin-top:3px;max-width:390px;overflow:hidden;text-overflow:ellipsis}
         .pm-source-tag{display:inline-flex;margin-top:5px;padding:3px 7px;border-radius:999px;background:#edf5f2;color:#37735f;font-size:9px;font-weight:800}
         .pm-cheque-status{display:inline-flex;margin-left:5px;padding:4px 7px;border-radius:999px;font-size:9px;font-weight:850}.pm-cheque-status.hold{background:#fff3df;color:#946020;border:1px solid #efd7aa}.pm-cheque-status.cashed{background:#edf8f2;color:#2f7058;border:1px solid #d4ebdd}
