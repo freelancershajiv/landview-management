@@ -10,7 +10,7 @@ const compactMoney=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",curr
 const num=(v:any)=>{const n=Number(String(v??"").replace(/,/g,"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0};
 const dateText=(v:any)=>{const d=new Date(String(v||"").slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?String(v||""):d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})};
 const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),supplier:"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",chequeStatus:"Cashed",memo:""});
-const chequeStatusOf=(r:any)=>String(r?.chequeStatus||"Cashed").toLowerCase()==="on_hold"?"On Hold":"Cashed";
+const chequeStatusOf=(r:any)=>String(r?.chequeStatus||"Cashed").toLowerCase().replace(/[_-]+/g," ")==="on hold"?"On Hold":"Cashed";
 
 export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
