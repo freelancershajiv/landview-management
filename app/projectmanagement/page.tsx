@@ -4,6 +4,14 @@ import { useEffect, useMemo, useState } from "react";
 
 const CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling","Bricks","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];
 const INCOME_CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling"];
+const CONTRACTOR_BY_PROJECT_CATEGORY:any = {
+  "LV-157": {
+    "Masonry": "Contractor Rasel",
+    "Electric Contractor": "Contractor Alauddin",
+    "Plumbing Contractor": "Contractor Ibrahim"
+  }
+};
+const suggestedContractor=(projectCode:string,category:string)=>String(CONTRACTOR_BY_PROJECT_CATEGORY?.[String(projectCode||"").trim()]?.[String(category||"").trim()]||"");
 
 const money=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v||0));
 const compactMoney=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",notation:"compact",maximumFractionDigits:1}).format(Number(v||0));
@@ -105,7 +113,7 @@ export default function ProjectManagementPage(){
     setEntryType(num(r.debit)>0 ? "income" : "expense");
     setForm({
       entryDate:String(r.entry_date||"").slice(0,10),
-      supplier:r.supplier||"",
+      supplier:r.supplier||suggestedContractor(data?.selectedProject?.projectCode,r.category||"")||"",
       details:r.details||"",
       sft:r.sft||"",
       rate:r.rate||"",
@@ -515,8 +523,14 @@ export default function ProjectManagementPage(){
             </div>
             <div className="pm-form-grid">
               <label><span>Date</span><input type="date" value={form.entryDate} onChange={e=>setForm({...form,entryDate:e.target.value})}/></label>
-              <label><span>Supplier</span><input value={form.supplier} onChange={e=>setForm({...form,supplier:e.target.value})} placeholder="Supplier / contractor"/></label>
-              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>setForm({...form,category:e.target.value,chequeStatus:e.target.value==="Cheque"?form.chequeStatus:"Cashed"})}>{(entryType==="income" ? incomeEntryCategories : expenseEntryCategories).map(c=><option key={c}>{c}</option>)}</select></label>
+              <label><span>{entryType==="income" ? "Supplier" : "Supplier / Contractor"}</span>{entryType==="expense" && suggestedContractor(data?.selectedProject?.projectCode,form.category) ? (
+                <select value={form.supplier||suggestedContractor(data?.selectedProject?.projectCode,form.category)} onChange={e=>setForm({...form,supplier:e.target.value})}>
+                  <option value={suggestedContractor(data?.selectedProject?.projectCode,form.category)}>{suggestedContractor(data?.selectedProject?.projectCode,form.category)}</option>
+                </select>
+              ) : (
+                <input value={form.supplier} onChange={e=>setForm({...form,supplier:e.target.value})} placeholder={entryType==="income" ? "Optional supplier / source" : "Supplier / contractor"}/>
+              )}</label>
+              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>{const category=e.target.value;const contractor=entryType==="expense"?suggestedContractor(data?.selectedProject?.projectCode,category):"";setForm({...form,category,supplier:contractor||"",chequeStatus:category==="Cheque"?form.chequeStatus:"Cashed"});}}>{(entryType==="income" ? incomeEntryCategories : expenseEntryCategories).map(c=><option key={c}>{c}</option>)}</select></label>
               {entryType==="income"&&form.category==="Cheque"&&<label><span>Cheque Status</span><select value={form.chequeStatus||"Cashed"} onChange={e=>setForm({...form,chequeStatus:e.target.value})}><option value="On Hold">On Hold</option><option value="Cashed">Cashed</option></select></label>}
               <label className="full"><span>Details</span><input value={form.details} onChange={e=>setForm({...form,details:e.target.value})} placeholder={entryType==="income" ? "Describe the income / deposit" : "Describe the expense"}/></label>
               <label><span>SFT / Qty</span><input value={form.sft} onChange={e=>setForm({...form,sft:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
