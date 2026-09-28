@@ -141,7 +141,7 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
     const paidEntries = entries.filter((e:any) => {
       if (num(e.credit) <= 0) return false;
       if (!ledgerCategories.includes(contractorCategoryKey(e.category))) return false;
-      const supplierKey=contractorPaymentNameKey(e.supplier);
+      const supplierKey=contractorPaymentNameKey(e.paid_to || e.supplier);
       if (supplierKey) return supplierKey===contractorNameKey;
       const candidates=contracts.filter((candidate:any)=>
         ledgerCategoriesForContract(candidate).includes(contractorCategoryKey(e.category))
@@ -249,7 +249,11 @@ async function workspace(user: Row, requested?: string) {
   }
 
   const rows = await selectRows("project_management_ledger", { filters: { project_id: selected.id }, order: "entry_date:asc", limit: 10000 });
-  const entries = calculate(rows);
+  const entries = calculate(rows).map((row:any) => ({
+    ...row,
+    paid_to: clean(row.paid_to || row.supplier,160),
+    received_from: clean(row.received_from,160),
+  }));
   const debit = entries.reduce((s,r) => s + num(r.debit), 0);
   const credit = entries.reduce((s,r) => s + num(r.credit), 0);
   const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Other Expenses", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
@@ -290,7 +294,18 @@ async function validateEntry(body: Row) {
   if (!details) throw new Error("Details are required.");
   const entryDate = clean(body.entryDate ?? body.Date, 20) || new Date().toISOString().slice(0,10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(entryDate)) throw new Error("Enter a valid entry date.");
-  return { debit, credit, details, entryDate, sft:Math.max(0,num(body.sft ?? body.SFT)), rate:Math.max(0,num(body.rate ?? body.Rate)), supplier:clean(body.supplier ?? body.Supplier,160) || null, category:clean(body.category ?? body.Category,120) || null, memo:clean(body.memo ?? body.Memo,1000) || null };
+  const receivedFrom = clean(body.receivedFrom ?? body.received_from ?? body.Received_From,160) || null;
+  const paidTo = clean(body.paidTo ?? body.paid_to ?? body.Paid_To ?? body.supplier ?? body.Supplier,160) || null;
+  return {
+    debit, credit, details, entryDate,
+    sft:Math.max(0,num(body.sft ?? body.SFT)),
+    rate:Math.max(0,num(body.rate ?? body.Rate)),
+    supplier:paidTo,
+    receivedFrom,
+    paidTo,
+    category:clean(body.category ?? body.Category,120) || null,
+    memo:clean(body.memo ?? body.Memo,1000) || null
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -376,6 +391,8 @@ export async function POST(request: NextRequest) {
       const row = {
         project_id:project.id, project_code_snapshot:project.project_code,
         supplier:clean(source.supplier || source.vendor || source.vendor_name || source.payee || source.supplier_name,160) || null,
+        paid_to:clean(source.supplier || source.vendor || source.vendor_name || source.payee || source.supplier_name,160) || null,
+        received_from:null,
         entry_date:source.transaction_date || source.expense_date || new Date().toISOString().slice(0,10),
         details:source.description || source.category || "Master ledger expense",
         sft:0, rate:0, debit:amount, credit:0, category,
@@ -386,7 +403,23 @@ export async function POST(request: NextRequest) {
       return ok(saved[0] || row);
     }
     const v = await validateEntry(body);
-    const row = { project_id:project.id, project_code_snapshot:project.project_code, supplier:v.supplier, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:v.memo, source:"project_management", created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW" };
+    const row = {
+      project_id:project.id,
+      project_code_snapshot:project.project_code,
+      supplier:v.paidTo,
+      paid_to:v.paidTo,
+      received_from:v.receivedFrom,
+      entry_date:v.entryDate,
+      details:v.details,
+      sft:v.sft,
+      rate:v.rate,
+      debit:v.debit,
+      credit:v.credit,
+      category:v.category,
+      memo:v.memo,
+      source:"project_management",
+      created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW"
+    };
     const saved = await insertRows("project_management_ledger", row);
     return ok(saved[0] || row);
   } catch (e) { return fail(e, errorStatus(e instanceof Error ? e.message : String(e))); }
@@ -401,7 +434,20 @@ export async function PUT(request: NextRequest) {
     const id = clean(body.id,100);
     if (!id) return fail("Ledger entry ID is required.",400);
     const v = await validateEntry(body);
-    const saved = await updateRows("project_management_ledger", { id }, { supplier:v.supplier, entry_date:v.entryDate, details:v.details, sft:v.sft, rate:v.rate, debit:v.debit, credit:v.credit, category:v.category, memo:v.memo, updated_at:new Date().toISOString() });
+    const saved = await updateRows("project_management_ledger", { id }, {
+      supplier:v.paidTo,
+      paid_to:v.paidTo,
+      received_from:v.receivedFrom,
+      entry_date:v.entryDate,
+      details:v.details,
+      sft:v.sft,
+      rate:v.rate,
+      debit:v.debit,
+      credit:v.credit,
+      category:v.category,
+      memo:v.memo,
+      updated_at:new Date().toISOString()
+    });
     if (!saved.length) return fail("Ledger entry not found.",404);
     return ok(saved[0]);
   } catch (e) { return fail(e, errorStatus(e instanceof Error ? e.message : String(e))); }
