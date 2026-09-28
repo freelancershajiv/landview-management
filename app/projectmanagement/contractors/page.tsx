@@ -32,6 +32,7 @@ const dateText = (v:any) => {
   return Number.isNaN(d.getTime()) ? String(v||"") : d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
 };
 const today = () => new Date().toISOString().slice(0,10);
+const moneyOrUnset = (v:any, configured:boolean) => configured ? money(v) : "Not set";
 
 const blankContract = {
   id:"",
@@ -96,7 +97,7 @@ export default function ContractorBillsPage(){
   const contractors: any[] = data?.contractorBills?.contracts || [];
   const bills: any[] = data?.contractorBills?.bills || [];
   const totals: any = data?.contractorBills?.totals || {
-    contractValue:0,certifiedAmount:0,paidAmount:0,advance:0,balancePayable:0,remainingContract:0
+    contractValue:0,certifiedAmount:0,paidAmount:0,advance:0,balancePayable:0,remainingContract:0,overCertified:0,configuredContractCount:0,unconfiguredContractCount:0
   };
 
   const contractMap = useMemo<Map<string, any>>(()=>new Map<string, any>(contractors.map((c:any)=>[String(c.id),c])),[contractors]);
@@ -271,12 +272,12 @@ export default function ContractorBillsPage(){
         </section>
 
         <section className="cb-stats">
-          <div className="cb-stat"><span>Contract Value</span><strong>{money(totals.contractValue)}</strong><small>Agreed quantity × agreed rate</small></div>
+          <div className="cb-stat"><span>Contract Value</span><strong>{totals.unconfiguredContractCount ? "Not set" : money(totals.contractValue)}</strong><small>{totals.unconfiguredContractCount ? "Set project quantity and agreed rate first" : "Agreed quantity × agreed rate"}</small></div>
           <div className="cb-stat"><span>Certified Bills</span><strong>{money(totals.certifiedAmount)}</strong><small>Certified work only</small></div>
           <div className="cb-stat"><span>Paid from Ledger</span><strong>{money(totals.paidAmount)}</strong><small>Existing contractor payments</small></div>
           <div className="cb-stat"><span>Advance</span><strong>{money(totals.advance)}</strong><small>Paid more than certified</small></div>
           <div className="cb-stat"><span>Balance Payable</span><strong>{money(totals.balancePayable)}</strong><small>Certified but not yet paid</small></div>
-          <div className="cb-stat"><span>Remaining Contract</span><strong>{money(totals.remainingContract)}</strong><small>Contract value less certified bills</small></div>
+          <div className="cb-stat"><span>Remaining Contract</span><strong>{totals.unconfiguredContractCount ? "Not set" : money(totals.remainingContract)}</strong><small>{totals.overCertified>0 ? money(totals.overCertified)+" over contract value" : "Contract value less certified bills"}</small></div>
         </section>
 
         <section className="cb-panel">
@@ -314,17 +315,17 @@ export default function ContractorBillsPage(){
                     <tr key={c.id} className={isExpanded?"cb-expanded-row":""}>
                       <td colSpan={12} className="cb-contractor-cell">
                         <div className="cb-row-main">
-                          <div className="cb-contractor-name"><strong>{c.contractor_name}</strong><small>{c.paymentCount||0} matched ledger payment{(c.paymentCount||0)===1?"":"s"}</small></div>
+                          <div className="cb-contractor-name"><strong>{c.contractor_name}</strong><small>{c.contractConfigured ? "" : "Contract quantity/rate not set · "}{c.paymentCount||0} matched ledger payment{(c.paymentCount||0)===1?"":"s"}</small></div>
                           <div><span className="cb-tag">{c.category}</span></div>
                           <div className="cb-center">{c.billing_unit}</div>
                           <div className="num">{num(c.contract_quantity).toLocaleString("en-BD",{maximumFractionDigits:3})}</div>
                           <div className="num">{money(c.agreed_rate)}</div>
-                          <div className="num cb-strong">{money(c.contractValue)}</div>
+                          <div className="num cb-strong">{moneyOrUnset(c.contractValue,c.contractConfigured)}</div>
                           <div className="num">{money(c.certifiedAmount)}</div>
                           <div className="num cb-paid">{money(c.paidAmount)}</div>
                           <div className="num cb-advance">{money(c.advance)}</div>
                           <div className="num cb-balance">{money(c.balancePayable)}</div>
-                          <div className="num">{money(c.remainingContract)}</div>
+                          <div className="num">{moneyOrUnset(c.remainingContract,c.contractConfigured)}</div>
                           <div className="cb-actions">
                             {admin && <button className="cb-icon" title="Edit contract" onClick={()=>openEditContract(c)}>✎</button>}
                             {admin && <button className="cb-icon" title="New bill" onClick={()=>openNewBill(c)}>＋</button>}
