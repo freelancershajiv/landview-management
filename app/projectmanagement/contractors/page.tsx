@@ -303,7 +303,6 @@ export default function ContractorBillsPage(){
               <tbody>
                 {contractors.map((c:any)=>{
                   const isExpanded=expanded===c.id;
-                  const isStatement=statement===c.id;
                   const contractBills=bills.filter((b:any)=>String(b.contract_id)===String(c.id));
                   return (
                     <tr key={c.id} className={isExpanded?"cb-expanded-row":""}>
