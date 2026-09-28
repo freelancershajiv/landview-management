@@ -323,6 +323,7 @@ export default function ProjectManagementPage(){
           </div>
           <div className="pm-actions">
             <button className="pm-btn pm-btn-secondary" onClick={()=>window.location.assign("/projectmanagement/report?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}><span>▤</span> Monthly Report</button>
+            {admin&&<button className="pm-btn pm-btn-dark" onClick={()=>window.location.assign("/projectmanagement/contractors?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}><span>▥</span> Contractor Bills</button>}
             <button className="pm-btn pm-btn-secondary" onClick={()=>void load(project)}><span>↻</span> Refresh</button>
             {admin&&<button className="pm-btn pm-btn-income" onClick={()=>openNew("income")}><span>＋</span> Add Income</button>}
             {admin&&<button className="pm-btn pm-btn-primary" onClick={()=>openNew("expense")}><span>＋</span> Add Expense</button>}
