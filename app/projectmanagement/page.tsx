@@ -44,7 +44,7 @@ export default function ProjectManagementPage(){
   const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
   const [summaryOpen,setSummaryOpen]=useState(false),[summarySaving,setSummarySaving]=useState(false),[summaryForm,setSummaryForm]=useState({supplierAdvance:"0",chequeOnHold:"0",notes:""});
-  const [partiesOpen,setPartiesOpen]=useState(false),[partySaving,setPartySaving]=useState(false),[partyForm,setPartyForm]=useState({name:"",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
+  const [partiesOpen,setPartiesOpen]=useState(false),[partySaving,setPartySaving]=useState(false),[partyForm,setPartyForm]=useState({name:"",partyType:"Supplier",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
 
   async function load(code=project){
     setLoading(true);setError("");
@@ -238,6 +238,7 @@ export default function ProjectManagementPage(){
           action:"saveContractorContract",
           projectId:data.selectedProject.projectCode,
           contractorName:partyForm.name.trim(),
+          partyType:partyForm.partyType,
           category:partyForm.category,
           billingUnit:partyForm.billingUnit,
           contractQuantity:num(partyForm.quantity),
@@ -247,10 +248,38 @@ export default function ProjectManagementPage(){
       });
       const j=await r.json();
       if(!r.ok||!j?.success)throw new Error(j?.error||"Could not save supplier / contractor.");
-      setPartyForm({name:"",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
+      setPartyForm({name:"",partyType:"Supplier",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
       setMessage(partyLabel(partyForm.category)+" added.");
       await load(data.selectedProject.projectCode);
     }catch(e:any){setError(e?.message||"Could not save supplier / contractor.");}
+    finally{setPartySaving(false);}
+  }
+
+  async function updateParty(row:any){
+    setPartySaving(true);setError("");
+    try{
+      const r=await fetch("/api/project-management",{
+        method:"POST",
+        credentials:"same-origin",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          action:"saveContractorContract",
+          projectId:data.selectedProject.projectCode,
+          id:row.id,
+          contractorName:row.contractor_name,
+          partyType:row.partyTypeEdit,
+          category:row.category,
+          billingUnit:row.billing_unit||"SFT",
+          contractQuantity:num(row.contract_quantity),
+          agreedRate:num(row.agreed_rate),
+          notes:row.notes||""
+        })
+      });
+      const j=await r.json();
+      if(!r.ok||!j?.success)throw new Error(j?.error||"Could not update supplier / contractor.");
+      setMessage("Party type updated.");
+      await load(data.selectedProject.projectCode);
+    }catch(e:any){setError(e?.message||"Could not update supplier / contractor.");}
     finally{setPartySaving(false);}
   }
 
@@ -681,7 +710,7 @@ export default function ProjectManagementPage(){
               <div>
                 <span className="pm-label">PROJECT PARTIES</span>
                 <h2>Suppliers / Contractors</h2>
-                <p>Add or remove the active suppliers and contractors for this project. Removing one keeps all old ledger and billing history.</p>
+                <p>Add parties and directly edit their type. The list is intentionally larger so the full party information is easy to read.</p>
               </div>
               <button className="pm-close" onClick={()=>setPartiesOpen(false)}>×</button>
             </div>
@@ -690,43 +719,76 @@ export default function ProjectManagementPage(){
               <div className="pm-party-add-head">
                 <div>
                   <strong>Add Supplier / Contractor</strong>
-                  <span>Select a category to determine whether the party is treated as a Supplier or Contractor.</span>
+                  <span>Party Type is now independent and editable; category can be material or work related.</span>
                 </div>
               </div>
               <div className="pm-form-grid pm-party-form-grid">
                 <label className="full"><span>Party Name</span><input value={partyForm.name} onChange={e=>setPartyForm({...partyForm,name:e.target.value})} placeholder="Supplier / contractor name"/></label>
+                <label><span>Party Type</span><select value={partyForm.partyType} onChange={e=>setPartyForm({...partyForm,partyType:e.target.value})}><option>Supplier</option><option>Contractor</option></select></label>
                 <label><span>Category</span><select value={partyForm.category} onChange={e=>setPartyForm({...partyForm,category:e.target.value})}>{expenseEntryCategories.map(c=><option key={c}>{c}</option>)}</select></label>
-                <label><span>Party Type</span><input value={partyLabel(partyForm.category)} readOnly/></label>
                 <label><span>Billing Unit</span><input value={partyForm.billingUnit} onChange={e=>setPartyForm({...partyForm,billingUnit:e.target.value})} placeholder="SFT / POINT / CFT"/></label>
                 <label><span>Contract Quantity</span><input value={partyForm.quantity} onChange={e=>setPartyForm({...partyForm,quantity:e.target.value})} inputMode="decimal"/></label>
                 <label><span>Agreed Rate</span><input value={partyForm.rate} onChange={e=>setPartyForm({...partyForm,rate:e.target.value})} inputMode="decimal"/></label>
                 <label className="full"><span>Notes</span><input value={partyForm.notes} onChange={e=>setPartyForm({...partyForm,notes:e.target.value})} placeholder="Optional notes"/></label>
               </div>
               <div className="pm-party-add-foot">
-                <button className="pm-btn pm-btn-primary" onClick={()=>void saveParty()} disabled={partySaving}>{partySaving?"Saving…":"＋ Add "+partyLabel(partyForm.category)}</button>
+                <button className="pm-btn pm-btn-primary" onClick={()=>void saveParty()} disabled={partySaving}>{partySaving?"Saving…":"＋ Add "+partyForm.partyType}</button>
               </div>
             </div>
 
             <div className="pm-party-list-wrap">
               <div className="pm-party-list-head">
-                <div><strong>Active Suppliers / Contractors</strong><span>{(data?.contractorBills?.contracts||[]).length.toLocaleString("en-BD")} active parties</span></div>
+                <strong>Active Suppliers / Contractors</strong>
+                <span>{(data?.contractorBills?.contracts||[]).length.toLocaleString("en-BD")} active parties</span>
               </div>
-              <div className="pm-party-list">
-                {(data?.contractorBills?.contracts||[]).map((row:any)=>(
-                  <div className="pm-party-row" key={row.id}>
-                    <div className="pm-party-main">
-                      <span className={"pm-party-type "+(partyLabel(row.category)==="Supplier"?"supplier":"contractor")}>{partyLabel(row.category)}</span>
-                      <strong>{row.contractor_name}</strong>
-                      <span>{row.category}</span>
-                    </div>
-                    <div className="pm-party-meta">
-                      <span>{row.billing_unit||"—"}</span>
-                      <span>{row.contractConfigured?money(row.agreed_rate)+" / "+row.billing_unit:"Rate not set"}</span>
-                    </div>
-                    <button className="pm-party-remove" onClick={()=>void removeParty(row)} disabled={partySaving}>Remove</button>
-                  </div>
-                ))}
-                {!(data?.contractorBills?.contracts||[]).length&&<div className="pm-party-empty">No active suppliers or contractors are configured for this project.</div>}
+              <div className="pm-party-table-scroll">
+                <table className="pm-party-table">
+                  <thead>
+                    <tr>
+                      <th>Party Name</th>
+                      <th>Party Type</th>
+                      <th>Category</th>
+                      <th>Unit</th>
+                      <th className="num-col">Qty</th>
+                      <th className="num-col">Rate</th>
+                      <th className="party-action-col">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(data?.contractorBills?.contracts||[]).map((row:any)=>{
+                      const partyType=row.partyTypeEdit||row.party_type||partyLabel(row.category);
+                      return (
+                        <tr key={row.id}>
+                          <td className="party-name-cell">{row.contractor_name}</td>
+                          <td>
+                            <select
+                              className="pm-party-type-select"
+                              value={partyType}
+                              onChange={e=>{
+                                const updated=(data?.contractorBills?.contracts||[]).map((x:any)=>String(x.id)===String(row.id)?{...x,partyTypeEdit:e.target.value}:x);
+                                setData({...data,contractorBills:{...data.contractorBills,contracts:updated}});
+                              }}
+                            >
+                              <option>Supplier</option>
+                              <option>Contractor</option>
+                            </select>
+                          </td>
+                          <td><span className="pm-party-category">{row.category}</span></td>
+                          <td>{row.billing_unit||"—"}</td>
+                          <td className="num-col">{row.contract_quantity?num(row.contract_quantity).toLocaleString("en-BD"):"—"}</td>
+                          <td className="num-col">{row.agreed_rate?money(row.agreed_rate):"—"}</td>
+                          <td className="party-action-col">
+                            <div className="pm-party-actions">
+                              <button className="pm-party-save" onClick={()=>void updateParty({...row,partyTypeEdit:partyType})} disabled={partySaving}>Save</button>
+                              <button className="pm-party-remove" onClick={()=>void removeParty(row)} disabled={partySaving}>Remove</button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {!(data?.contractorBills?.contracts||[]).length&&<tr><td colSpan={7} className="pm-party-empty">No active suppliers or contractors are configured for this project.</td></tr>}
+                  </tbody>
+                </table>
               </div>
             </div>
 
@@ -933,30 +995,33 @@ export default function ProjectManagementPage(){
         .pm-table-footer strong{color:#5b676d}
         .pm-modal-backdrop{position:fixed;inset:0;background:rgba(12,25,21,.52);backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;z-index:100}
         .pm-modal{background:#fff;border:1px solid #dfe6e7;border-radius:20px;box-shadow:0 28px 80px rgba(13,28,23,.22);max-height:92vh;overflow:hidden}
-        .pm-party-modal{width:min(980px,100%)}
+        .pm-party-modal{width:min(1180px,100%);max-height:94vh}
         .pm-party-add{border-bottom:1px solid #edf0f2;background:#fbfcfc}
         .pm-party-add-head{padding:16px 21px 4px}
-        .pm-party-add-head strong{display:block;font-size:14px;color:#24333b}
+        .pm-party-add-head strong{display:block;font-size:15px;color:#24333b}
         .pm-party-add-head span{display:block;color:#8a969c;font-size:10px;margin-top:4px}
         .pm-party-form-grid{padding-top:14px;padding-bottom:12px}
         .pm-party-add-foot{display:flex;justify-content:flex-end;padding:0 21px 15px}
-        .pm-party-list-head{padding:15px 21px 10px;border-bottom:1px solid #edf0f2}
-        .pm-party-list-head strong{display:block;font-size:14px}
-        .pm-party-list-head span{display:block;color:#8b979d;font-size:10px;margin-top:3px}
-        .pm-party-list{max-height:34vh;overflow:auto}
-        .pm-party-row{display:grid;grid-template-columns:minmax(260px,1.7fr) minmax(180px,.8fr) auto;gap:14px;align-items:center;padding:13px 21px;border-bottom:1px solid #f0f3f4}
-        .pm-party-row:last-child{border-bottom:0}
-        .pm-party-main{display:flex;align-items:center;gap:9px;min-width:0;flex-wrap:wrap}
-        .pm-party-main strong{font-size:13px;color:#27353c}
-        .pm-party-main>span:last-child{color:#879299;font-size:10px}
-        .pm-party-type{padding:4px 7px;border-radius:7px;font-size:9px;font-weight:850;text-transform:uppercase;letter-spacing:.06em}
-        .pm-party-type.supplier{background:#e9f6ef;color:#2d7056}
-        .pm-party-type.contractor{background:#eef3f8;color:#476889}
-        .pm-party-meta{display:flex;gap:9px;align-items:center;color:#7d898f;font-size:10px;justify-content:flex-end;flex-wrap:wrap}
-        .pm-party-remove{border:1px solid #efceca;background:#fff3f1;color:#a3483f;border-radius:9px;padding:8px 11px;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+        .pm-party-list-head{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 21px 11px;border-bottom:1px solid #edf0f2}
+        .pm-party-list-head strong{font-size:15px}
+        .pm-party-list-head span{color:#8b979d;font-size:10px}
+        .pm-party-table-scroll{max-height:46vh;overflow:auto}
+        .pm-party-table{width:100%;min-width:980px;border-collapse:separate;border-spacing:0;font-size:12px}
+        .pm-party-table th{position:sticky;top:0;z-index:2;background:#f7faf9;color:#7e8d94;border-bottom:1px solid #e5ebed;padding:11px 14px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.10em;white-space:nowrap}
+        .pm-party-table td{padding:13px 14px;border-bottom:1px solid #edf1f2;color:#4d5b62;vertical-align:middle;white-space:nowrap}
+        .pm-party-table tbody tr:hover{background:#fbfdfc}
+        .pm-party-table tbody tr:last-child td{border-bottom:0}
+        .party-name-cell{font-weight:800;color:#27353c;white-space:normal;min-width:320px;max-width:440px}
+        .pm-party-category{display:inline-flex;padding:5px 8px;border:1px solid #e2e9e7;background:#f4f8f7;border-radius:8px;font-size:10px;font-weight:760;color:#526169}
+        .pm-party-type-select{min-width:130px;min-height:36px;border:1px solid #d8e2df;border-radius:8px;background:#fff;padding:0 9px;font:inherit;font-size:11px;font-weight:780;color:#2e4740}
+        .pm-party-type-select:focus{border-color:#6eaa91;outline:0;box-shadow:0 0 0 3px rgba(29,107,82,.08)}
+        .pm-party-actions{display:flex;justify-content:flex-end;gap:6px}
+        .pm-party-save{border:1px solid #cfe4d9;background:#eef8f2;color:#25694f;border-radius:8px;padding:8px 11px;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
+        .pm-party-save:hover{background:#e1f3e9}
+        .pm-party-remove{border:1px solid #efceca;background:#fff3f1;color:#a3483f;border-radius:8px;padding:8px 11px;font:inherit;font-size:10px;font-weight:800;cursor:pointer}
         .pm-party-remove:hover{background:#ffe9e6}
-        .pm-party-remove:disabled{opacity:.5;cursor:not-allowed}
-        .pm-party-empty{padding:32px 21px;text-align:center;color:#89959b;font-size:11px}
+        .pm-party-remove:disabled,.pm-party-save:disabled{opacity:.5;cursor:not-allowed}
+        .pm-party-empty{padding:40px 21px;text-align:center;color:#89959b;font-size:11px}
         .pm-entry-modal{width:min(780px,100%)}
         .pm-master-modal{width:min(1160px,100%)}
         .pm-modal-head{display:flex;justify-content:space-between;gap:18px;padding:20px 21px;border-bottom:1px solid #edf0f2}
@@ -980,8 +1045,7 @@ export default function ProjectManagementPage(){
           .pm-finance-summary .pm-stats{grid-template-columns:repeat(3,1fr)}
         }
         @media (max-width:1100px){
-          .pm-party-row{grid-template-columns:1fr}
-          .pm-party-meta{justify-content:flex-start}
+          .pm-party-table{min-width:900px}
           .pm-stats{grid-template-columns:repeat(2,1fr)}
           .pm-project-card{grid-template-columns:1fr 1fr}
           .pm-project-date{justify-self:start;border-left:0;padding-left:0}
