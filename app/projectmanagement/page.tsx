@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 const CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling","Bricks","Brick Chips","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];
 const INCOME_CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling"];
+const RECEIVED_FROM_OPTIONS = ["Mr. Mahi Bhai","Scrap Selling","Mr. Jamaluddin"];
 const SUPPLIER_CATEGORIES = new Set(["Bricks","Brick Chips","Stone","Stone & Sand","Cement","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Electrical Material","Electrical Materials","Plumbing Material","Plumbing Materials","Tiles","Door","Doors & Wood","Grills","SS Grills & Works"]);
 const partyLabel=(category:string)=>SUPPLIER_CATEGORIES.has(String(category||"").trim())?"Supplier":"Contractor";
 function partyOptionsForCategory(data:any,category:string) {
@@ -35,7 +36,7 @@ const money=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"B
 const compactMoney=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",notation:"compact",maximumFractionDigits:1}).format(Number(v||0));
 const num=(v:any)=>{const n=Number(String(v??"").replace(/,/g,"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0};
 const dateText=(v:any)=>{const d=new Date(String(v||"").slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?String(v||""):d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})};
-const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),receivedFrom:"",paidTo:"",supplier:"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",chequeStatus:"Cashed",memo:""});
+const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),receivedFrom:type==="income"?"Mr. Mahi Bhai":"",paidTo:"",supplier:"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",chequeStatus:"Cashed",memo:""});
 function chequeStatus(r:any){return /^CHEQUE_STATUS:ON_HOLD/i.test(String(r&&r.memo||""))?"On Hold":"Cashed";}
 function userMemo(r:any){return String(r&&r.memo||"").replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"").trim();}
 
@@ -132,7 +133,7 @@ export default function ProjectManagementPage(){
     setEntryType(num(r.debit)>0 ? "income" : "expense");
     setForm({
       entryDate:String(r.entry_date||"").slice(0,10),
-      receivedFrom:r.received_from||"",
+      receivedFrom:RECEIVED_FROM_OPTIONS.includes(String(r.received_from||"")) ? String(r.received_from) : RECEIVED_FROM_OPTIONS[0],
       paidTo:r.paid_to||((num(r.credit)>0?r.supplier:"")||suggestedPartyForCategory(data,r.category||"")||""),
       supplier:r.paid_to||r.supplier||"",
       details:r.details||"",
@@ -167,6 +168,7 @@ export default function ProjectManagementPage(){
       };
       if(!form.details.trim())throw new Error("Details are required.");
       if((body.debit>0)===(body.credit>0))throw new Error("Enter either Debit or Credit.");
+      if(body.debit>0 && !RECEIVED_FROM_OPTIONS.includes(String(body.receivedFrom||"")))throw new Error("Select a valid Received From option.");
       const r=await fetch("/api/project-management",{
         method:editing?"PUT":"POST",
         credentials:"same-origin",
@@ -679,7 +681,7 @@ export default function ProjectManagementPage(){
             </div>
             <div className="pm-form-grid">
               <label><span>Date</span><input type="date" value={form.entryDate} onChange={e=>setForm({...form,entryDate:e.target.value})}/></label>
-              {entryType==="income"&&<label><span>Received From</span><input list="pm-party-options" value={form.receivedFrom} onChange={e=>setForm({...form,receivedFrom:e.target.value})} placeholder="Owner, client, source…"/></label>}
+              {entryType==="income"&&<label><span>Received From</span><select value={RECEIVED_FROM_OPTIONS.includes(form.receivedFrom)?form.receivedFrom:""} onChange={e=>setForm({...form,receivedFrom:e.target.value})}><option value="" disabled>Select source</option>{RECEIVED_FROM_OPTIONS.map(option=><option key={option} value={option}>{option}</option>)}</select></label>}
               <label><span>Paid To</span><input list="pm-party-options" value={form.paidTo} onChange={e=>setForm({...form,paidTo:e.target.value,supplier:e.target.value})} placeholder="Supplier / contractor / other party"/></label>
               <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>{const category=e.target.value;const suggested=entryType==="expense"?suggestedPartyForCategory(data,category):"";setForm({...form,category,paidTo:suggested||form.paidTo,supplier:suggested||form.paidTo,chequeStatus:category==="Cheque"?form.chequeStatus:"Cashed"});}}>{(entryType==="income" ? incomeEntryCategories : expenseEntryCategories).map(c=><option key={c}>{c}</option>)}</select></label>
               {entryType==="income"&&form.category==="Cheque"&&<label><span>Cheque Status</span><select value={form.chequeStatus||"Cashed"} onChange={e=>setForm({...form,chequeStatus:e.target.value})}><option value="On Hold">On Hold</option><option value="Cashed">Cashed</option></select></label>}
