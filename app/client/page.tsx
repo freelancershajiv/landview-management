@@ -93,6 +93,7 @@ export default function ClientPortalPage(){
         <div className={styles.sectionTitle}><h2>Quick Actions</h2></div>
         <div className={styles.quickActions}>
           <button className={`${styles.action} ${styles.actionPrimary}`} onClick={()=>project&&(window.location.href=`/client/billing/${encodeURIComponent(project.projectId)}`)}><span className={styles.actionIcon}>▤</span><span><strong>Generate Invoice</strong><small>View detailed bill</small></span></button>
+          {project&&<button className={styles.action} onClick={()=>{window.location.href=`/projectmanagement?projectId=${encodeURIComponent(project.projectId)}`;}}><span className={styles.actionIcon}>▤</span><span><strong>Project Finance</strong><small>View project ledger & generate PDF</small></span></button>}
           <a className={styles.action} href="#certificates"><span className={styles.actionIcon}>◫</span><span><strong>Request Certificate</strong><small>Get project certificate</small></span></a>
           <a className={styles.action} href="#documents"><span className={styles.actionIcon}>□</span><span><strong>View Documents</strong><small>Project files & drawings</small></span></a>
           <a className={styles.action} href="mailto:landviewcivil@gmail.com"><span className={styles.actionIcon}>◌</span><span><strong>Message Us</strong><small>Send a message</small></span></a>
