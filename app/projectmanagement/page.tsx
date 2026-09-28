@@ -467,7 +467,7 @@ export default function ProjectManagementPage(){
             <div>
               <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
               <strong>Fund position</strong>
-              <small>Deposit and recognized expenses come from the ledger. Supplier Advance is linked automatically to supplier billing, while cheque on hold is tracked separately.</small>
+              <small>Deposit and recognized expenses come from the ledger. Supplier Advance is linked automatically to Sattapur Brick Field (Bricks), while cheque on hold is tracked separately.</small>
             </div>
             {admin&&<button className="pm-summary-edit" onClick={openSummaryEdit}>✎ Edit Adjustments</button>}
           </div>
@@ -485,7 +485,7 @@ export default function ProjectManagementPage(){
             <div className="pm-stat pm-stat-advance">
               <div className="pm-stat-head"><span>Supplier Advance</span><b>⌁</b></div>
               <strong>{money(data?.summary?.supplierAdvance)}</strong>
-              <small>Linked from supplier billing: paid − certified</small>
+              <small>Sattapur Bricks: certified − paid</small>
             </div>
             <div className="pm-stat pm-stat-hold">
               <div className="pm-stat-head"><span>Cheque on Hold</span><b>◷</b></div>
