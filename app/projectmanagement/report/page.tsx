@@ -74,6 +74,13 @@ export default function ProjectFinanceReportPage(){
   const currentAdjusted=num(summary.engShajivBalance);
   const availableProjects=data?.projects||[];
 
+  const printChunks=useMemo(()=>{
+    const chunkSize=22;
+    const chunks:any[][]=[];
+    for(let i=0;i<period.length;i+=chunkSize) chunks.push(period.slice(i,i+chunkSize));
+    return chunks.length?chunks:[[]];
+  },[period]);
+
   function chooseProject(code:string){
     const normalized=String(code||"").trim();
     if(!normalized)return;
@@ -101,7 +108,98 @@ export default function ProjectFinanceReportPage(){
   return (
     <main className="rpt-page">
       <div className="rpt-shell">
-        <div className="rpt-screen-toolbar">
+        <div className="print-report" aria-hidden="true">
+        {printChunks.map((chunk:any[],pageIndex:number)=>{
+          const isFirst=pageIndex===0;
+          const isLast=pageIndex===printChunks.length-1;
+          return (
+            <section className="pfr-page" key={pageIndex}>
+              {isFirst ? (
+                <>
+                  <div className="pfr-header">
+                    <div className="pfr-brand">
+                      <img src="/land-view-logo.svg" alt="" />
+                      <div><strong>LAND <span>VIEW</span></strong><small>ENGINEERS AND ARCHITECTS</small></div>
+                    </div>
+                    <div className="pfr-contact">
+                      <strong>F. Rahman AC Market (2nd Floor)</strong>
+                      <span>SSK Road, Feni Sadar, Feni</span>
+                      <span>+88 0140 80 80 400 · +88 01902 500 400</span>
+                    </div>
+                    <div className="pfr-title">
+                      <small>Generated {new Date().toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})}</small>
+                      <b>Project Finance Ledger</b>
+                      <strong>{projectInfo.projectCode||"Project"}</strong>
+                      <span>{projectInfo.projectName||"—"} · {monthText(statement.selectedMonth)}</span>
+                    </div>
+                  </div>
+
+                  <div className="pfr-project-line">
+                    <span><b>Project:</b> {projectInfo.projectName||"—"}</span>
+                    <span><b>Project Code:</b> {projectInfo.projectCode||"—"}</span>
+                    <span><b>Period:</b> {monthText(statement.selectedMonth)}</span>
+                  </div>
+
+                  <div className="pfr-summary">
+                    <div><span>Opening Balance</span><strong>BDT {money(statement.opening)}</strong></div>
+                    <div><span>Total Deposit</span><strong>BDT {money(statement.deposits)}</strong></div>
+                    <div><span>Total Expense</span><strong>BDT {money(statement.expenses)}</strong></div>
+                    <div><span>Supplier Advance</span><strong>BDT {money(summary.supplierAdvance)}</strong></div>
+                    <div><span>Cheque on Hold</span><strong>BDT {money(summary.chequeOnHold)}</strong></div>
+                    <div className="closing"><span>Eng Shajiv Balance</span><strong>BDT {money(currentAdjusted)}</strong></div>
+                  </div>
+                </>
+              ) : (
+                <div className="pfr-continuation">
+                  <div><strong>LAND VIEW</strong> · Project Finance Ledger</div>
+                  <div>{projectInfo.projectCode||"—"} · {monthText(statement.selectedMonth)}</div>
+                </div>
+              )}
+
+              <table className="pfr-table">
+                <thead>
+                  <tr><th>Date</th><th>Details</th><th className="num">Expense</th><th className="num">Income</th><th className="num">Balance</th></tr>
+                </thead>
+                <tbody>
+                  {isFirst&&(
+                    <tr className="pfr-opening">
+                      <td>{dateText(statement.start)}</td>
+                      <td><strong>OPENING BALANCE</strong><small>Balance brought forward before selected period</small></td>
+                      <td className="num">—</td><td className="num">—</td><td className="num">{money(statement.opening)}</td>
+                    </tr>
+                  )}
+                  {chunk.map((r:any)=>(
+                    <tr key={r.id}>
+                      <td>{dateText(r.entry_date)}</td>
+                      <td><strong>{r.details||"—"}</strong><small>{r.category||"Uncategorized"}</small></td>
+                      <td className="num">{num(r.credit)>0?money(r.credit):"—"}</td>
+                      <td className="num">{num(r.debit)>0?money(r.debit):"—"}</td>
+                      <td className="num">{money(r.balance)}</td>
+                    </tr>
+                  ))}
+                  {!period.length&&isFirst&&<tr><td colSpan={5} className="pfr-empty">No ledger transactions were recorded in this month.</td></tr>}
+                </tbody>
+              </table>
+
+              {isLast&&(
+                <div className="pfr-month-total">
+                  <div><span>MONTH TOTAL</span><small>{period.length.toLocaleString("en-BD")} ledger entries</small></div>
+                  <strong>BDT {money(statement.expenses)}</strong>
+                  <strong>BDT {money(statement.deposits)}</strong>
+                  <strong>BDT {money(statement.closing)}</strong>
+                </div>
+              )}
+
+              <footer className="pfr-footer">
+                <span><b>LAND VIEW Engineers and Architects</b> · Financial Ledger</span>
+                <span>Page {pageIndex+1} of {printChunks.length}</span>
+              </footer>
+            </section>
+          );
+        })}
+      </div>
+
+      <div className="rpt-screen-toolbar">
           <a href={"/projectmanagement?projectId="+encodeURIComponent(projectInfo.projectCode||project)}>← Project Management</a>
           <div>
             <button onClick={()=>void load(projectInfo.projectCode||project)}>↻ Refresh</button>
@@ -285,6 +383,61 @@ export default function ProjectFinanceReportPage(){
 }
 
 const styles = `
+.print-report{display:none}
+@media print{
+  html,body{margin:0!important;padding:0!important;background:#fff!important;color:#111!important}
+  .rpt-page{min-height:0!important;background:#fff!important;padding:0!important}
+  .rpt-shell{max-width:none!important;margin:0!important}
+  .rpt-shell> :not(.print-report){display:none!important}
+  .print-report{display:block!important}
+  .pfr-page{display:block!important;background:#fff!important;color:#111!important;break-after:page!important;page-break-after:always!important}
+  .pfr-page:last-child{break-after:auto!important;page-break-after:auto!important}
+  .pfr-header{display:grid!important;grid-template-columns:1.05fr 1.15fr .95fr!important;gap:4.5mm!important;align-items:start!important;border-bottom:.7mm solid #d61f26!important;padding:0 0 3.8mm!important;margin-bottom:3mm!important}
+  .pfr-brand{display:flex!important;align-items:center!important;gap:2.6mm!important;min-width:0!important}
+  .pfr-brand img{display:block!important;width:15mm!important;height:15mm!important;object-fit:contain!important;flex:0 0 15mm!important}
+  .pfr-brand strong{display:block!important;font-size:15pt!important;line-height:.95!important;letter-spacing:-.4px!important;white-space:nowrap!important;color:#111!important}
+  .pfr-brand strong span{color:#d61f26!important}
+  .pfr-brand small{display:block!important;margin-top:1.2mm!important;font-size:5.8pt!important;letter-spacing:.75px!important;color:#666!important;white-space:nowrap!important}
+  .pfr-contact{font-size:6.4pt!important;line-height:1.45!important;color:#333!important;padding-top:.8mm!important}
+  .pfr-contact strong,.pfr-contact span{display:block!important}
+  .pfr-contact strong{font-size:6.7pt!important;color:#111!important;margin-bottom:.4mm!important}
+  .pfr-title{text-align:right!important;min-width:0!important}
+  .pfr-title small,.pfr-title span{display:block!important;font-size:5.9pt!important;color:#666!important;line-height:1.35!important}
+  .pfr-title b{display:block!important;margin-top:1.1mm!important;font-size:10.5pt!important;color:#d61f26!important;line-height:1.05!important}
+  .pfr-title strong{display:block!important;margin-top:1.2mm!important;font-size:12pt!important;color:#111!important;line-height:1.05!important}
+  .pfr-project-line{display:flex!important;justify-content:space-between!important;gap:4mm!important;margin-bottom:3mm!important;padding:2.2mm 2.8mm!important;border:.3mm solid #cfd5d9!important;background:#f6f7f8!important;font-size:6.3pt!important;color:#333!important}
+  .pfr-summary{display:grid!important;grid-template-columns:repeat(3,1fr)!important;border:.35mm solid #cfd5d9!important;margin-bottom:3.8mm!important;background:#fff!important}
+  .pfr-summary>div{min-height:14mm!important;padding:2.5mm 3mm!important;border-right:.3mm solid #cfd5d9!important;border-bottom:.3mm solid #cfd5d9!important;display:flex!important;flex-direction:column!important;justify-content:center!important;box-sizing:border-box!important}
+  .pfr-summary>div:nth-child(3n){border-right:0!important}
+  .pfr-summary>div:nth-last-child(-n+3){border-bottom:0!important}
+  .pfr-summary span{display:block!important;font-size:6.5pt!important;color:#555!important;text-transform:uppercase!important;letter-spacing:.35px!important}
+  .pfr-summary strong{display:block!important;margin-top:1.2mm!important;font-size:10.2pt!important;color:#111!important;font-variant-numeric:tabular-nums!important}
+  .pfr-summary .closing{background:#d61f26!important}.pfr-summary .closing span,.pfr-summary .closing strong{color:#fff!important}
+  .pfr-continuation{display:flex!important;justify-content:space-between!important;align-items:center!important;margin-bottom:2.5mm!important;padding-bottom:2mm!important;border-bottom:.5mm solid #d61f26!important;font-size:7pt!important;color:#555!important}
+  .pfr-continuation strong{font-size:10pt!important;color:#111!important}
+  .pfr-table{width:100%!important;border-collapse:collapse!important;table-layout:fixed!important;font-size:6.55pt!important}
+  .pfr-table thead{display:table-header-group!important}
+  .pfr-table th{background:#34393d!important;color:#fff!important;font-size:6.5pt!important;padding:1.75mm 1.35mm!important;border:.25mm solid #34393d!important;line-height:1.05!important;vertical-align:middle!important;text-align:left!important}
+  .pfr-table th.num,.pfr-table td.num{text-align:right!important;white-space:nowrap!important;font-variant-numeric:tabular-nums!important}
+  .pfr-table td{font-size:6.55pt!important;color:#111!important;background:#fff!important;padding:1.55mm 1.35mm!important;border:.25mm solid #cfd5d9!important;line-height:1.18!important;vertical-align:top!important;overflow-wrap:break-word!important}
+  .pfr-table th:nth-child(1),.pfr-table td:nth-child(1){width:13%!important}
+  .pfr-table th:nth-child(2),.pfr-table td:nth-child(2){width:49%!important}
+  .pfr-table th:nth-child(3),.pfr-table td:nth-child(3){width:13%!important}
+  .pfr-table th:nth-child(4),.pfr-table td:nth-child(4){width:13%!important}
+  .pfr-table th:nth-child(5),.pfr-table td:nth-child(5){width:12%!important}
+  .pfr-table tr{break-inside:avoid!important;page-break-inside:avoid!important}
+  .pfr-table td strong{display:block!important;font-size:6.6pt!important;font-weight:700!important;color:#111!important;line-height:1.17!important}
+  .pfr-table td small{display:block!important;font-size:5.5pt!important;color:#555!important;margin-top:.5mm!important;line-height:1.18!important;white-space:normal!important;overflow:visible!important}
+  .pfr-opening td{background:#f1f3f4!important;font-weight:800!important}
+  .pfr-empty{text-align:center!important;padding:12mm!important;color:#555!important}
+  .pfr-month-total{display:grid!important;grid-template-columns:1fr 1fr 1fr 1fr!important;margin-top:3mm!important;border:.3mm solid #cfd5d9!important;background:#fff!important;break-inside:avoid!important;page-break-inside:avoid!important}
+  .pfr-month-total>*{padding:2mm 2.5mm!important;border-right:.3mm solid #cfd5d9!important;font-size:6.5pt!important;color:#111!important;box-sizing:border-box!important}
+  .pfr-month-total>*:last-child{border-right:0!important}
+  .pfr-month-total div{display:flex!important;flex-direction:column!important}.pfr-month-total span{font-weight:900!important;letter-spacing:.3px!important}.pfr-month-total small{margin-top:.5mm!important;color:#666!important;font-size:5.3pt!important}.pfr-month-total strong{text-align:right!important;font-variant-numeric:tabular-nums!important}
+  .pfr-footer{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:5mm!important;margin-top:4mm!important;border-top:.45mm solid #d61f26!important;padding:1.8mm .8mm 0!important;font-size:6pt!important;line-height:1.25!important;color:#555!important;background:#fff!important;box-sizing:border-box!important;break-inside:avoid!important;page-break-inside:avoid!important}
+  .pfr-footer b{color:#111!important;font-weight:800!important}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
 .rpt-page{min-height:100vh;background:#eef2f1;color:#1b282e;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:28px 24px 70px}
 .rpt-shell{max-width:1440px;margin:0 auto}
 .rpt-loading{min-height:100vh;display:grid;place-items:center;background:#eef2f1;color:#1c2930;font-family:Inter,system-ui,sans-serif}.rpt-loading>div{display:flex;flex-direction:column;align-items:center;gap:8px}.rpt-loading span{font-size:12px;color:#839097}.rpt-spinner{width:30px;height:30px;border:3px solid #dfe7e4;border-top-color:#1d6b52;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:8px}@keyframes spin{to{transform:rotate(360deg)}}
