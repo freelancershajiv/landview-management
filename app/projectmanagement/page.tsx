@@ -57,9 +57,9 @@ export default function ProjectManagementPage(){
       })
       .slice()
       .sort((a:any,b:any)=>{
-        const d=String(a.entry_date||"").localeCompare(String(b.entry_date||""));
+        const d=String(b.entry_date||"").localeCompare(String(a.entry_date||""));
         if(d)return d;
-        return String(a.created_at||"").localeCompare(String(b.created_at||""));
+        return String(b.created_at||"").localeCompare(String(a.created_at||""));
       });
   },[entries,ledgerView,ledgerCategory,search]);
 
