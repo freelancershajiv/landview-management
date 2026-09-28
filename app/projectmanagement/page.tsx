@@ -147,9 +147,7 @@ export default function ProjectManagementPage(){
   }
 
   async function remove(r:any){
-    if(!confirm("Delete this entry?
-
-"+r.details))return;
+    if(!confirm("Delete this entry?\n\n"+r.details))return;
     try{
       const x=await fetch("/api/project-management?id="+encodeURIComponent(r.id),{method:"DELETE",credentials:"same-origin"});
       const j=await x.json();
