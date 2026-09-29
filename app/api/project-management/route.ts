@@ -419,6 +419,37 @@ export async function POST(request: NextRequest) {
     if (!isAdmin(user)) return fail("Admin permission required.",403);
     const body = await request.json() as Row;
     const project = await projectFor(user, body.projectId || body.Project_ID);
+    if (body.action === "saveSattapurDelivery") {
+      const deliveryDate = clean(body.deliveryDate ?? body.entryDate ?? body.Date, 20) || new Date().toISOString().slice(0,10);
+      const details = clean(body.details ?? body.Details, 1000);
+      const quantity = Math.max(0, num(body.quantity ?? body.sft ?? body.SFT));
+      const rate = Math.max(0, num(body.rate ?? body.Rate));
+      const memo = clean(body.memo ?? body.Memo, 1000) || null;
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(deliveryDate)) return fail("Enter a valid delivery date.",400);
+      if (!details) return fail("Delivery details are required.",400);
+      if (!(quantity > 0)) return fail("Delivery quantity must be greater than zero.",400);
+      if (!(rate > 0)) return fail("Delivery rate must be greater than zero.",400);
+      const value = quantity * rate;
+      const row = {
+        project_id:project.id,
+        project_code_snapshot:project.project_code,
+        supplier:"Sattapur Brick Field",
+        paid_to:"Sattapur Brick Field",
+        received_from:null,
+        entry_date:deliveryDate,
+        details,
+        sft:quantity,
+        rate,
+        debit:0,
+        credit:value,
+        category:"Bricks",
+        memo:[memo,"SATTPUR_BRICKS_DELIVERY"].filter(Boolean).join("\\n"),
+        source:"sattapur_bricks_delivery",
+        created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW"
+      };
+      const saved = await insertRows("project_management_ledger", row);
+      return ok(saved[0] || row);
+    }
     if (body.action === "saveContractorContract") {
       const id = clean(body.id,100);
       const contractorName = clean(body.contractorName,160);
