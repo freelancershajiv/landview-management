@@ -318,6 +318,7 @@ export default function ProjectManagementPage(){
   const balance=num(data?.totals?.balance);
   const currentTitle = ledgerView==="income" ? (ledgerCategory==="all" ? "Income Ledger" : ledgerCategory) : ledgerView==="expense" ? (ledgerCategory==="all" ? "Expense Ledger" : ledgerCategory) : "All Ledger Entries";
   const currentCount = filtered.length;
+  const sattapurBricks=data?.sattapurBricks||{depositAmount:0,depositCount:0,deliveredQuantity:0,deliveredValue:0,deliveryCount:0,holdAmount:0,overDeliveredValue:0,deposits:[],deliveries:[]};
 
   if(data&&!data.selectedProject){
     const availableProjects=data.projects||[];
@@ -435,7 +436,7 @@ export default function ProjectManagementPage(){
             <div>
               <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
               <strong>Fund position</strong>
-              <small>Deposit and recognized expenses come from the ledger. Supplier Advance is linked automatically to Sattapur Brick Field (Bricks), while cheque on hold is tracked separately.</small>
+              <small>Sattapur Bricks deposits are treated as expenses immediately because the cash has already been paid out. Brick deliveries are tracked separately and reduce the amount still held with Sattapur.</small>
             </div>
 
           </div>
@@ -451,9 +452,9 @@ export default function ProjectManagementPage(){
               <small>Recognized / received project expense</small>
             </div>
             <div className="pm-stat pm-stat-advance">
-              <div className="pm-stat-head"><span>Supplier Advance</span><b>⌁</b></div>
+              <div className="pm-stat-head"><span>Sattapur Hold</span><b>⌁</b></div>
               <strong>{money(data?.summary?.supplierAdvance)}</strong>
-              <small>Sattapur Bricks: certified − paid</small>
+              <small>Deposit paid − delivered brick value</small>
             </div>
             <div className="pm-stat pm-stat-hold">
               <div className="pm-stat-head"><span>Cheque on Hold</span><b>◷</b></div>
@@ -463,12 +464,50 @@ export default function ProjectManagementPage(){
             <div className="pm-stat pm-stat-balance pm-stat-shajiv">
               <div className="pm-stat-head"><span>Eng Shajiv Balance</span><b>＝</b></div>
               <strong>{money(totalDebit-totalCredit-num(data?.summary?.supplierAdvance)-currentChequeOnHold)}</strong>
-              <small>Deposit − Expense − Advance − Hold</small>
+              <small>Cash balance after expenses and cheque hold</small>
             </div>
           </div>
           <div className="pm-finance-foot">
-            <span>Formula: <strong>Total Deposit − Total Expense − Supplier Advance − Cheque on Hold</strong></span>
+            <span>Formula: <strong>Total Deposit − Total Expense − Sattapur Hold − Cheque on Hold</strong></span>
             <span>{entries.length.toLocaleString("en-BD")} ledger entries</span>
+          </div>
+        </section>
+
+        <section className="pm-sattapur-card">
+          <div className="pm-sattapur-head">
+            <div>
+              <span className="pm-label">SATTTAPUR BRICKS</span>
+              <strong>Deposit & Delivery Position</strong>
+              <small>Deposits reduce cash immediately. Deliveries are recorded here as quantities and value, without reducing cash a second time.</small>
+            </div>
+            <div className="pm-sattapur-hold">
+              <span>AMOUNT STILL ON HOLD</span>
+              <strong>{money(sattapurBricks.holdAmount)}</strong>
+            </div>
+          </div>
+          <div className="pm-sattapur-stats">
+            <div><span>Deposit Paid</span><strong>{money(sattapurBricks.depositAmount)}</strong><small>{sattapurBricks.depositCount} payment records</small></div>
+            <div><span>Delivered Quantity</span><strong>{num(sattapurBricks.deliveredQuantity).toLocaleString("en-BD")} SFT</strong><small>{sattapurBricks.deliveryCount} delivery records</small></div>
+            <div><span>Delivered Value</span><strong>{money(sattapurBricks.deliveredValue)}</strong><small>Based on delivery ledger values</small></div>
+            <div><span>Remaining Hold</span><strong>{money(sattapurBricks.holdAmount)}</strong><small>Deposit less delivered value</small></div>
+          </div>
+          <div className="pm-sattapur-table-wrap">
+            <table className="pm-sattapur-table">
+              <thead><tr><th>Date</th><th>Delivery Details</th><th className="num-col">Quantity (SFT)</th><th className="num-col">Rate</th><th className="num-col">Delivered Value</th></tr></thead>
+              <tbody>
+                {sattapurBricks.deliveries.map((r:any)=>(
+                  <tr key={r.id}>
+                    <td>{dateText(r.date)}</td>
+                    <td>{r.details}</td>
+                    <td className="num-col">{num(r.quantity).toLocaleString("en-BD")}</td>
+                    <td className="num-col">{money(r.rate)}</td>
+                    <td className="num-col pm-money-credit">{money(r.value)}</td>
+                  </tr>
+                ))}
+                {!sattapurBricks.deliveries.length&&<tr><td colSpan={5} className="pm-sattapur-empty">No Sattapur Bricks delivery quantities recorded yet.</td></tr>}
+              </tbody>
+              {!!sattapurBricks.deliveries.length&&<tfoot><tr><td colSpan={2}>Total Delivered</td><td className="num-col">{num(sattapurBricks.deliveredQuantity).toLocaleString("en-BD")} SFT</td><td></td><td className="num-col">{money(sattapurBricks.deliveredValue)}</td></tr></tfoot>}
+            </table>
           </div>
         </section>
 
@@ -870,6 +909,26 @@ export default function ProjectManagementPage(){
         .pm-stat-shajiv{border-top:3px solid #1d6b52}
         .pm-finance-foot{display:flex;justify-content:space-between;gap:14px;padding:10px 16px;background:#fafcfc;border-top:1px solid #edf0f2;color:#8c989e;font-size:10px}
         .pm-finance-foot strong{color:#59676d}
+        .pm-sattapur-card{background:#fff;border:1px solid #e1e7e9;border-radius:18px;overflow:hidden;box-shadow:0 12px 34px rgba(20,38,29,.04);margin-bottom:16px}
+        .pm-sattapur-head{display:flex;justify-content:space-between;gap:20px;align-items:flex-end;padding:17px 19px;border-bottom:1px solid #edf0f2}
+        .pm-sattapur-head strong{display:block;font-size:18px;color:#17242b;letter-spacing:-.02em}
+        .pm-sattapur-head small{display:block;max-width:850px;margin-top:5px;color:#8a969c;font-size:10px;line-height:1.5}
+        .pm-sattapur-hold{min-width:190px;text-align:right;padding:10px 13px;border:1px solid #eadfcf;background:#fffaf2;border-radius:11px}
+        .pm-sattapur-hold span{display:block;font-size:9px;letter-spacing:.11em;font-weight:850;color:#9a7a48}
+        .pm-sattapur-hold strong{margin-top:3px;color:#8a6128;font-size:21px}
+        .pm-sattapur-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-bottom:1px solid #edf0f2}
+        .pm-sattapur-stats>div{padding:14px 17px;border-right:1px solid #edf0f2}
+        .pm-sattapur-stats>div:last-child{border-right:0}
+        .pm-sattapur-stats span{display:block;color:#7b888e;font-size:10px;font-weight:800}
+        .pm-sattapur-stats strong{display:block;margin-top:6px;color:#26353c;font-size:19px;letter-spacing:-.02em}
+        .pm-sattapur-stats small{display:block;margin-top:4px;color:#9aa4a8;font-size:9px}
+        .pm-sattapur-table-wrap{max-height:330px;overflow:auto}
+        .pm-sattapur-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px;font-size:12px}
+        .pm-sattapur-table th{position:sticky;top:0;z-index:2;background:#f7faf9;color:#7e8d94;border-bottom:1px solid #e5ebed;padding:10px 13px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.08em}
+        .pm-sattapur-table td{padding:10px 13px;border-bottom:1px solid #f0f3f4;color:#4d5b62;white-space:nowrap}
+        .pm-sattapur-table tbody tr:hover{background:#fbfdfc}
+        .pm-sattapur-table tfoot td{font-weight:850;background:#fafcfc;border-top:1px solid #e5ebed;border-bottom:0;color:#334249}
+        .pm-sattapur-empty{text-align:center!important;color:#929da1!important;padding:28px!important}
         .pm-workspace{background:#fff;border:1px solid #e1e7e9;border-radius:18px;overflow:hidden;box-shadow:0 14px 38px rgba(20,38,29,.045)}
         .pm-category-bar{border-bottom:1px solid #edf0f2;padding:15px 17px 10px}
         .pm-category-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
@@ -1003,6 +1062,11 @@ export default function ProjectManagementPage(){
           .pm-stats,.pm-finance-summary .pm-stats{grid-template-columns:1fr}
           .pm-stat>strong{font-size:24px}
           .pm-finance-summary-head{align-items:flex-start;flex-direction:column}
+          .pm-sattapur-head{align-items:flex-start;flex-direction:column}
+          .pm-sattapur-hold{width:100%;text-align:left;box-sizing:border-box}
+          .pm-sattapur-stats{grid-template-columns:1fr}
+          .pm-sattapur-stats>div{border-right:0!important;border-bottom:1px solid #edf0f2}
+          .pm-sattapur-stats>div:last-child{border-bottom:0}
           .pm-finance-foot{flex-direction:column}
           .pm-category-title strong{display:none}
           .pm-ledger-selects{grid-template-columns:1fr}
