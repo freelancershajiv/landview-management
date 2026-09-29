@@ -150,7 +150,6 @@ export default function ProposalFinanceBillingDocument({ bundle }: { bundle: Pro
         .proposal-finance-billing{margin-top:18px}
         .proposal-finance-billing .proposal-note{margin:0 0 10px;padding:10px 12px;border:1px solid #35414a;border-radius:8px;background:#101820;color:#9aa6af;font-size:10px}
         .proposal-finance-billing .${styles.verificationBlock}{display:none!important}
-        .proposal-finance-billing .${styles.sheetHeaderQr}{display:none!important}
         @media print{
           .proposal-finance-billing .proposal-note{display:none!important}
         }
@@ -158,7 +157,7 @@ export default function ProposalFinanceBillingDocument({ bundle }: { bundle: Pro
       <p className="proposal-note">
         Review the saved proposal below before printing. A verification QR is issued once the proposal becomes a project.
       </p>
-      <ProjectBillingDocument result={financeInvoice} verificationUrl="" verificationError="" />
+      <ProjectBillingDocument result={financeInvoice} verificationUrl="" verificationError="" showVerification={false} />
     </section>
   );
 }
