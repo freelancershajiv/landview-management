@@ -83,6 +83,10 @@ async function projectFor(user: Row, value: unknown) {
   return rows[0];
 }
 function isSattapur(row: Row) {
+  // These two historical ledger entries must remain ordinary debit/credit
+  // entries and must never be reclassified as Sattapur Bricks accounting.
+  const date = String(row.entry_date || "").slice(0, 10);
+  if (date === "2025-11-20" || date === "2025-11-23") return false;
   const party = clean(row.paid_to || row.supplier || "", 160).toLowerCase();
   const text = clean(row.details || "", 500).toLowerCase();
   return party.includes("sattapur") || text.includes("sattapur brick");
