@@ -8,6 +8,7 @@ export const STANDARD_SERVICE_ORDER = [
   "Design Books",
   "Plan Approval Design",
   "Re-Design Fees",
+  "Fire Safety Design",
 ] as const;
 
 type ServiceLike = { Service?: unknown; service?: unknown };
