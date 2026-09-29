@@ -11,8 +11,10 @@ const SERVICES=[
   ["Architectural Design","Engineering"],["Structural Design","Engineering"],["3D Design - Exterior","Engineering"],
   ["Electrical Design","Engineering"],["Plumbing Design","Engineering"],["Estimate & Costing","Engineering"],
   ["Design Books","Engineering"],["Plan Approval Design","Engineering"],["Re-Design Fees","Engineering"],["Fire Safety Design","Engineering"],
-  ["Soil Test","Others"],["Digital Survey","Others"],
-  ["Municipality File Pass","Others"],["Site Supervision","Supervision"],["Custom Service","Others"],
+  ["Soil Test","Others"],["Digital Survey","Others"],["Municipality Land NOC","Others"],
+  ["Fire Service Approval","Others"],["Municipality Approval","Others"],["District Vetting Committee Approval","Others"],
+  ["Consultancy Fees","Others"],["Submission Fees","Others"],["Municipality File Pass","Others"],
+  ["Site Supervision","Supervision"],["Custom Service","Others"],
 ] as const;
 
 function money(v:number){return new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v)||0)}
