@@ -426,8 +426,8 @@ export default function ProjectManagementPage(){
             <div className="pm-eyebrow"><span className="pm-brand-dot"/> LAND VIEW <span>PROJECT MANAGEMENT</span></div>
             <div className="pm-title-row">
               <div>
-                <h1>Project Ledger</h1>
-                <p>Track construction costs by category, review the full ledger chronologically, and manage project expenses from one place.</p>
+                <h1>Project Management</h1>
+                <p>Manage project funds, expenses, suppliers, brick deliveries, bills and monthly reporting from one organized workspace.</p>
               </div>
               {data?.readOnly&&<span className="pm-readonly">VIEW ONLY</span>}
             </div>
@@ -457,6 +457,22 @@ export default function ProjectManagementPage(){
           <button onClick={()=>window.location.assign("/projectmanagement/contractors?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}>Billing & Bills</button>
         </nav>
 
+        <section className="pm-overview-history" style={{display:activeModule==="overview"?"block":"none"}}>
+          <div className="pm-overview-history-head">
+            <div><span className="pm-label">RECENT ACTIVITY</span><strong>Latest project transactions</strong><small>Recent activity only. Use Ledger, Income or Expenses for complete records.</small></div>
+            <button onClick={()=>{setActiveModule("ledger");setLedgerView("all");setLedgerCategory("all")}}>View Full Ledger →</button>
+          </div>
+          <div className="pm-table-wrap">
+            <table className="pm-table pm-overview-table">
+              <thead><tr><th>Date</th><th>Type</th><th>Party</th><th className="wide-col">Details</th><th>Category</th><th className="num-col">Amount</th></tr></thead>
+              <tbody>
+                {entries.slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))||String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,8).map((r:any)=>{const debit=num(r.debit)>0;return <tr key={r.id}><td><span className="pm-date">{dateText(r.entry_date)}</span></td><td><span className={"pm-overview-type "+(debit?"income":"expense")}>{debit?"Income":"Expense"}</span></td><td><span className="pm-supplier">{r.received_from||r.paid_to||r.supplier||"—"}</span></td><td className="wide-col"><div className="pm-detail">{r.details}</div></td><td><span className="pm-category-tag">{r.category||"Other Expenses"}</span></td><td className={"num-col "+(debit?"pm-money-debit":"pm-money-credit")}>{money(debit?r.debit:r.credit)}</td></tr>})}
+                {!entries.length&&<tr><td colSpan={6} className="pm-empty">No project transactions recorded yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <section className="pm-project-card">
           <div className="pm-project-select">
             <span className="pm-label">SELECT PROJECT</span>
@@ -485,7 +501,7 @@ export default function ProjectManagementPage(){
           </div>
         </section>
 
-        {activeModule==="overview"&&<>        <section className="pm-finance-summary">
+        <section className="pm-finance-summary" style={{display:activeModule==="overview"?"block":"none"}}>
           <div className="pm-finance-summary-head">
             <div>
               <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
@@ -527,10 +543,7 @@ export default function ProjectManagementPage(){
           </div>
         </section>
 
-</>
-          <section className="pm-overview-history"><div className="pm-overview-history-head"><div><span className="pm-label">RECENT ACTIVITY</span><strong>Latest project transactions</strong><small>Recent activity only; use Ledger, Income or Expenses for the full records.</small></div><button onClick={()=>{setActiveModule("ledger");setLedgerView("all");setLedgerCategory("all")}}>View Full Ledger →</button></div><div className="pm-table-wrap"><table className="pm-table pm-overview-table"><thead><tr><th>Date</th><th>Type</th><th>Party</th><th className="wide-col">Details</th><th>Category</th><th className="num-col">Amount</th></tr></thead><tbody>{entries.slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))||String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,8).map((r:any)=>{const debit=num(r.debit)>0;return <tr key={r.id}><td><span className="pm-date">{dateText(r.entry_date)}</span></td><td><span className={"pm-overview-type "+(debit?"income":"expense")}>{debit?"Income":"Expense"}</span></td><td><span className="pm-supplier">{r.received_from||r.paid_to||r.supplier||"—"}</span></td><td className="wide-col"><div className="pm-detail">{r.details}</div></td><td><span className="pm-category-tag">{r.category||"Other Expenses"}</span></td><td className={"num-col "+(debit?"pm-money-debit":"pm-money-credit")}>{money(debit?r.debit:r.credit)}</td></tr>})}{!entries.length&&<tr><td colSpan={6} className="pm-empty">No project transactions recorded yet.</td></tr>}</tbody></table></div></section>}
-
-        {activeModule==="sattapur"&&<><section className="pm-sattapur-card">
+        <section className="pm-sattapur-card" style={{display:activeModule==="sattapur"?"block":"none"}}>
           <div className="pm-sattapur-head"><div><span className="pm-label">SATTAPUR BRICKS</span><strong>Deposit & Delivery Dashboard</strong><small>Quick summary and recent history. Detailed deliveries and the Sattapur ledger are available separately.</small></div><div className="pm-sattapur-head-actions"><div className="pm-sattapur-hold"><span>AMOUNT STILL ON HOLD</span><strong>{money(sattapurBricks.holdAmount)}</strong></div>{admin&&<button className="pm-btn pm-btn-primary pm-sattapur-add" onClick={()=>setSattapurDeliveryOpen(true)}><span>＋</span> Add Delivery</button>}</div></div>
           <div className="pm-sattapur-stats"><div><span>Deposit Paid</span><strong>{money(sattapurBricks.depositAmount)}</strong><small>{sattapurBricks.depositCount} payment records</small></div><div><span>Delivered Quantity</span><strong>{num(sattapurBricks.deliveredQuantity).toLocaleString("en-BD")} SFT</strong><small>{sattapurBricks.deliveryCount} delivery records</small></div><div><span>Delivered Value</span><strong>{money(sattapurBricks.deliveredValue)}</strong><small>Recorded delivery value</small></div><div><span>Remaining Hold</span><strong>{money(sattapurBricks.holdAmount)}</strong><small>Deposit less delivered value</small></div></div>
           <div className="pm-sattapur-dashboard-actions"><button onClick={()=>setSattapurDeliveriesOpen(true)}>View Deliveries <span>→</span></button><button onClick={()=>setSattapurLedgerOpen(true)}>View Sattapur Ledger <span>→</span></button></div>
@@ -540,10 +553,9 @@ export default function ProjectManagementPage(){
               {!(sattapurBricks.deposits||[]).length&&!(sattapurBricks.deliveries||[]).length&&<tr><td colSpan={5} className="pm-sattapur-empty">No Sattapur activity recorded yet.</td></tr>}
             </tbody></table></div>
           </div>
-        </section></>}
+        </section>
 
-        {(activeModule==="ledger"||activeModule==="income"||activeModule==="expense")&&<>
-        <section className="pm-workspace">
+        <section className="pm-workspace" style={{display:(activeModule==="ledger"||activeModule==="income"||activeModule==="expense")?"block":"none"}}>
           <div className="pm-category-bar">
             <div className="pm-category-title">
               <span className="pm-label">LEDGER VIEW</span>
@@ -700,7 +712,6 @@ export default function ProjectManagementPage(){
           </div>
 
         </section>
-        </>
       </div>
 
       {formOpen&&admin&&
@@ -742,7 +753,6 @@ export default function ProjectManagementPage(){
 
         {sattapurDeliveriesOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurDeliveriesOpen(false)}}><div className="pm-modal pm-sattapur-detail-modal"><div className="pm-modal-head"><div><h2>Sattapur Deliveries</h2><p>Complete delivery history and quantities recorded for Sattapur Bricks.</p></div><button className="pm-close" onClick={()=>setSattapurDeliveriesOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-sattapur-table"><thead><tr><th>Date</th><th>Details</th><th className="num-col">Quantity (SFT)</th><th className="num-col">Rate</th><th className="num-col">Value</th></tr></thead><tbody>{(sattapurBricks.deliveries||[]).map((r:any)=><tr key={r.id}><td>{dateText(r.date)}</td><td>{r.details}</td><td className="num-col">{num(r.quantity).toLocaleString("en-BD")}</td><td className="num-col">{money(r.rate)}</td><td className="num-col pm-money-credit">{money(r.value)}</td></tr>)}{!(sattapurBricks.deliveries||[]).length&&<tr><td colSpan={5} className="pm-sattapur-empty">No deliveries recorded yet.</td></tr>}</tbody></table></div></div></div>)}
         {sattapurLedgerOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurLedgerOpen(false)}}><div className="pm-modal pm-sattapur-ledger-modal"><div className="pm-modal-head"><div><h2>Sattapur Ledger</h2><p>Financial entries connected to Sattapur Bricks.</p></div><button className="pm-close" onClick={()=>setSattapurLedgerOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-table pm-sattapur-ledger-table"><thead><tr><th>Date</th><th>Details</th><th>Category</th><th>Paid To / Supplier</th><th className="num-col">Debit</th><th className="num-col">Credit</th></tr></thead><tbody>{entries.filter((r:any)=>/sattapur/i.test([r.details,r.supplier,r.paid_to,r.received_from,r.memo,r.category].join(" "))).slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))).map((r:any)=><tr key={r.id}><td>{dateText(r.entry_date)}</td><td className="wide-col">{r.details}</td><td>{r.category||"—"}</td><td>{r.paid_to||r.supplier||r.received_from||"—"}</td><td className="num-col pm-money-debit">{num(r.debit)?money(r.debit):"—"}</td><td className="num-col pm-money-credit">{num(r.credit)?money(r.credit):"—"}</td></tr>)}{!entries.some((r:any)=>/sattapur/i.test([r.details,r.supplier,r.paid_to,r.received_from,r.memo,r.category].join(" ")))&&<tr><td colSpan={6} className="pm-empty">No Sattapur ledger entries found.</td></tr>}</tbody></table></div></div></div>)}
-
       {sattapurDeliveryOpen&&admin&&
         <div className="pm-modal-backdrop">
           <section className="pm-modal pm-entry-modal">
