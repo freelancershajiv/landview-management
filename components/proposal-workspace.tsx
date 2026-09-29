@@ -11,7 +11,7 @@ const SERVICES=[
   ["Architectural Design","Engineering"],["Structural Design","Engineering"],["3D Design - Exterior","Engineering"],["3D Design - Interior","Engineering"],
   ["Electrical Design","Engineering"],["Fire Safety Design","Engineering"],["Plumbing Design","Engineering"],["Plan Approval Design","Engineering"],
   ["Estimate & Costing","Engineering"],["Design Books","Engineering"],["Re-Design Fees","Engineering"],
-  ["Soil Test","Others"],["Digital Survey","Others"],["Municipality Land NOC","Others"],
+  ["Soil Test","Others"],["Digital Survey","Others"],["Site Visit - Soil Test Day","Others"],["Municipality Land NOC","Others"],
   ["Fire Service Approval","Others"],["Municipality Approval","Others"],["District Vetting Committee Approval","Others"],
   ["Consultancy Fees","Others"],["Submission Fees","Others"],["Municipality File Pass","Others"],
   ["Site Supervision","Supervision"],["Custom Service","Others"],
@@ -130,7 +130,7 @@ export default function ProposalWorkspace({proposalId}:{proposalId?:string}){
     </div></section>
     <section className="pw-panel"><div style={{display:"flex",justifyContent:"space-between",alignItems:"center",gap:12,marginBottom:12}}><h2 style={{margin:0}}>Proposed services & billing</h2><button className="pw-btn" type="button" onClick={addItem}>+ Add service</button></div><div className="pw-items">{items.map((item,index)=>{
       const normalizedService=standardServiceLabel(item.Service)||item.Service;
-      const movableService=normalizedService==="Soil Test"||normalizedService==="Digital Survey";
+      const movableService=normalizedService==="Soil Test"||normalizedService==="Digital Survey"||normalizedService==="Site Visit - Soil Test Day";
       const inEngineering=String(item.Category||"").trim().toLowerCase()==="engineering";
       return <div className="pw-item" key={index}>
       <label>Service<select value={SERVICES.some(([s])=>s===normalizedService)?normalizedService:"Custom Service"} onChange={e=>{const service=e.target.value;const found=SERVICES.find(([s])=>s===service);patchItem(index,{Service:service,Category:found?.[1]||"Others"})}}>{SERVICES.map(([service])=><option key={service}>{service}</option>)}</select></label>
