@@ -8,9 +8,9 @@ import { getProposal, getProposalPermissions, saveProposal, updateProposalAction
 import { sortServicesByStandardOrder, standardServiceLabel } from "@/lib/service-order";
 
 const SERVICES=[
-  ["Architectural Design","Engineering"],["Structural Design","Engineering"],["3D Design - Exterior","Engineering"],
-  ["Electrical Design","Engineering"],["Plumbing Design","Engineering"],["Estimate & Costing","Engineering"],
-  ["Design Books","Engineering"],["Plan Approval Design","Engineering"],["Re-Design Fees","Engineering"],["Fire Safety Design","Engineering"],
+  ["Architectural Design","Engineering"],["Structural Design","Engineering"],["3D Design - Exterior","Engineering"],["3D Design - Interior","Engineering"],
+  ["Electrical Design","Engineering"],["Fire Safety Design","Engineering"],["Plumbing Design","Engineering"],["Plan Approval Design","Engineering"],
+  ["Estimate & Costing","Engineering"],["Design Books","Engineering"],["Re-Design Fees","Engineering"],
   ["Soil Test","Others"],["Digital Survey","Others"],["Municipality Land NOC","Others"],
   ["Fire Service Approval","Others"],["Municipality Approval","Others"],["District Vetting Committee Approval","Others"],
   ["Consultancy Fees","Others"],["Submission Fees","Others"],["Municipality File Pass","Others"],
