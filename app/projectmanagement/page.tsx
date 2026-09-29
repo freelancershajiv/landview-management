@@ -42,7 +42,7 @@ function userMemo(r:any){return String(r&&r.memo||"").replace(/^CHEQUE_STATUS:(?
 
 export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
-  const [ledgerView,setLedgerView]=useState("all"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
+  const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
 
   const [partiesOpen,setPartiesOpen]=useState(false),[partySaving,setPartySaving]=useState(false),[partyForm,setPartyForm]=useState({name:"",partyType:"Supplier",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
@@ -562,7 +562,6 @@ export default function ProjectManagementPage(){
               <strong>Choose income or expense</strong>
             </div>
             <div className="pm-ledger-selects">
-               <button className={"pm-combined-ledger "+(ledgerView==="all"?"is-active":"")} onClick={()=>{setLedgerView("all");setLedgerCategory("all")}}><span className="pm-ledger-icon">↕</span><span className="pm-ledger-copy"><small>COMBINED</small><strong>Income & Expense</strong></span></button>
               <label className={"pm-ledger-dropdown pm-income-dropdown "+(ledgerView==="income"?"is-open":"")}>
                 <span className="pm-ledger-icon">↗</span>
                 <span className="pm-ledger-copy"><small>INCOME</small><strong>Income</strong></span>
