@@ -2,13 +2,13 @@ export const STANDARD_SERVICE_ORDER = [
   "Architectural Design",
   "Structural Design",
   "3D Design - Exterior",
+  "3D Design - Interior",
   "Electrical Design",
+  "Fire Safety Design",
   "Plumbing Design",
+  "Plan Approval Design",
   "Estimate & Costing",
   "Design Books",
-  "Plan Approval Design",
-  "Re-Design Fees",
-  "Fire Safety Design",
 ] as const;
 
 type ServiceLike = { Service?: unknown; service?: unknown };
@@ -25,7 +25,11 @@ export function standardServiceLabel(value: unknown) {
   if (normalized === "3d design exterior" || normalized === "3d exterior" || normalized === "exterior 3d" || normalized === "3d design") {
     return "3D Design - Exterior";
   }
+  if (normalized === "3d design interior" || normalized === "3d interior" || normalized === "interior 3d") {
+    return "3D Design - Interior";
+  }
   if (normalized === "redesign fees" || normalized === "re design fees") return "Re-Design Fees";
+  if (normalized === "fire safetry design" || normalized === "fire safety design") return "Fire Safety Design";
   return String(value ?? "").trim();
 }
 
