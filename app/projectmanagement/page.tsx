@@ -463,12 +463,12 @@ export default function ProjectManagementPage(){
             </div>
             <div className="pm-stat pm-stat-balance pm-stat-shajiv">
               <div className="pm-stat-head"><span>Eng Shajiv Balance</span><b>＝</b></div>
-              <strong>{money(totalDebit-totalCredit-num(data?.summary?.supplierAdvance)-currentChequeOnHold)}</strong>
+              <strong>{money(totalDebit-totalCredit-currentChequeOnHold)}</strong>
               <small>Cash balance after expenses and cheque hold</small>
             </div>
           </div>
           <div className="pm-finance-foot">
-            <span>Formula: <strong>Total Deposit − Total Expense − Sattapur Hold − Cheque on Hold</strong></span>
+            <span>Formula: <strong>Total Deposit − Total Expense − Cheque on Hold</strong></span>
             <span>{entries.length.toLocaleString("en-BD")} ledger entries</span>
           </div>
         </section>
