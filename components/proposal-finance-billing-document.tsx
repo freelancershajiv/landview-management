@@ -34,12 +34,6 @@ const SUPERVISION_SERVICES = new Set([
   "supervision",
 ]);
 
-const OTHER_SERVICES = new Set([
-  "soil test",
-  "digital survey",
-  "municipality file pass",
-]);
-
 function normalize(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -66,9 +60,8 @@ function isSupervision(item: ProposalItem) {
 }
 
 function isOtherService(item: ProposalItem) {
-  const service = normalize(item.Service);
   const category = normalize(item.Category);
-  return OTHER_SERVICES.has(service) || category === "others" || (!isEngineering(item) && !isSupervision(item));
+  return category === "others" || (!isEngineering(item) && !isSupervision(item));
 }
 
 function allocateDiscount(gross: number, totalGross: number, totalDiscount: number, remainder: number, isLast: boolean) {
