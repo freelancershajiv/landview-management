@@ -891,3 +891,60 @@
   .sheetThanks,.sheetSignature{font-size:8.5pt!important}
   .sheetQr{display:none!important}
 }
+
+
+/* Invoice typography enlargement v11 */
+.tableWrap table{font-size:12px!important}
+.tableWrap th{font-size:10px!important}
+.tableWrap td{font-size:12px!important}
+.empty{font-size:12px!important}
+.categoryHeader h2{font-size:24px!important}
+.metrics strong{font-size:19px!important}
+.projectCard strong{font-size:20px!important}
+.formula span{font-size:13px!important}
+.formula strong{font-size:18px!important}
+
+@media print{
+  .printPage{font-size:10pt!important;line-height:1.22!important}
+  .printPage .sheetContact,
+  .printPage .sheetContact *,
+  .printPage .sheetBrandWords small,
+  .printPage .sheetBrand > em,
+  .printPage .sheetTitle small,
+  .printPage .sheetMetaPair span,
+  .printPage .sheetMetaPair strong,
+  .printPage .sheetPanelTitles strong,
+  .printPage .sheetInfoRow span,
+  .printPage .sheetInfoRow strong,
+  .printPage .sheetMain th,
+  .printPage .sheetMain td,
+  .printPage .verificationVerified,
+  .printPage .verificationUnverified,
+  .printPage .verificationRef,
+  .printPage .sheetSummary > div,
+  .printPage .sheetFooter,
+  .printPage .sheetFooter *,
+  .printPage .sheetThanks,
+  .printPage .sheetSignature,
+  .printPage .sheetSignature *,
+  .printPage .sheetQr > div:last-child span,
+  .printPage .sheetQr > div:last-child b,
+  .printPage .sheetQr > div:last-child strong,
+  .printPage .empty{
+    font-size:10pt!important;
+  }
+  .printPage .sheetMetaPair span,
+  .printPage .sheetMetaPair strong,
+  .printPage .sheetInfoRow span,
+  .printPage .sheetInfoRow strong,
+  .printPage .sheetMain th,
+  .printPage .sheetMain td{
+    line-height:1.12!important;
+  }
+  .printPage .sheetBrandWords>strong{font-size:16pt!important}
+  .printPage .sheetTitle b{font-size:12pt!important}
+  .printPage .sheetTitle strong,
+  .printPage .sheetMain h2{font-size:14pt!important}
+  .printPage .sheetSummary h3{font-size:11pt!important}
+  .printPage .sheetFooter strong{font-size:10pt!important}
+}
