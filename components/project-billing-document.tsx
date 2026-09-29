@@ -182,9 +182,10 @@ type Props = {
   result: SheetInvoices;
   verificationUrl?: string;
   verificationError?: string;
+  showVerification?: boolean;
 };
 
-export default function ProjectBillingDocument({ result, verificationUrl = "", verificationError = "" }: Props) {
+export default function ProjectBillingDocument({ result, verificationUrl = "", verificationError = "", showVerification = true }: Props) {
   const issueDate = billingIssueDate(result);
   const qr = useMemo(() => {
     if (!verificationUrl) return { url: "", error: "" };
@@ -216,7 +217,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
     <header className={styles.sheetHeader}>
       <div className={styles.sheetBrand}><div className={styles.sheetBrandLockup}><img className={styles.sheetBrandLogo} src="/land-view-logo.svg" alt="LAND VIEW logo"/><div className={styles.sheetBrandWords}><strong>LAND <span>VIEW</span></strong><small>ENGINEERS AND ARCHITECTS</small></div></div><em>Building a safer tomorrow</em></div>
       <div className={styles.sheetTitle}><small>Page {page} of {totalPages}</small><b>Project Billing Statement</b><strong>{title}</strong></div>
-      <div className={styles.sheetHeaderQr}>{qrUrl ? <img data-billing-qr="true" className={styles.sheetHeaderQrImage} src={qrUrl} loading="eager" alt={`Verify ${result.id}`} width={96} height={96}/> : <div className={styles.sheetHeaderQrPlaceholder}>QR</div>}<small>Scan to verify</small></div>
+      {showVerification ? <div className={styles.sheetHeaderQr}>{qrUrl ? <img data-billing-qr="true" className={styles.sheetHeaderQrImage} src={qrUrl} loading="eager" alt={`Verify ${result.id}`} width={96} height={96}/> : <div className={styles.sheetHeaderQrPlaceholder}>QR</div>}<small>Scan to verify</small></div> : <div className={styles.sheetHeaderQr} aria-hidden="true" />}
     </header>
     <section className={styles.sheetInfoBoard}>
       <div className={styles.sheetInfoRow}><span>Invoice ID</span><strong>{statementRef}</strong><span>Issue Date</span><strong>{issueDate}</strong></div>
