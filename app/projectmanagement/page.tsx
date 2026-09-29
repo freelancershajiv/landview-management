@@ -46,6 +46,7 @@ export default function ProjectManagementPage(){
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
 
   const [partiesOpen,setPartiesOpen]=useState(false),[partySaving,setPartySaving]=useState(false),[partyForm,setPartyForm]=useState({name:"",partyType:"Supplier",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
+  const [sattapurDeliveryOpen,setSattapurDeliveryOpen]=useState(false),[sattapurDeliverySaving,setSattapurDeliverySaving]=useState(false),[sattapurDeliveryForm,setSattapurDeliveryForm]=useState({deliveryDate:new Date().toISOString().slice(0,10),details:"",quantity:"",rate:"14.50",memo:""});
 
   async function load(code=project){
     setLoading(true);setError("");
@@ -218,6 +219,39 @@ export default function ProjectManagementPage(){
     finally{setPulling("");}
   }
 
+  async function saveSattapurDelivery(){
+    if(!data?.selectedProject)return;
+    const quantity=num(sattapurDeliveryForm.quantity);
+    const rate=num(sattapurDeliveryForm.rate);
+    if(quantity<=0){setError("Delivery quantity must be greater than zero.");return;}
+    if(rate<=0){setError("Delivery rate must be greater than zero.");return;}
+    if(!sattapurDeliveryForm.details.trim()){setError("Delivery details are required.");return;}
+    setSattapurDeliverySaving(true);setError("");
+    try{
+      const r=await fetch("/api/project-management",{
+        method:"POST",
+        credentials:"same-origin",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({
+          action:"saveSattapurDelivery",
+          projectId:data.selectedProject.projectCode,
+          deliveryDate:sattapurDeliveryForm.deliveryDate,
+          details:sattapurDeliveryForm.details.trim(),
+          quantity,
+          rate,
+          memo:sattapurDeliveryForm.memo.trim()
+        })
+      });
+      const j=await r.json();
+      if(!r.ok||!j?.success)throw new Error(j?.error||"Could not save Sattapur delivery.");
+      setSattapurDeliveryOpen(false);
+      setSattapurDeliveryForm({deliveryDate:new Date().toISOString().slice(0,10),details:"",quantity:"",rate:"14.50",memo:""});
+      setMessage("Sattapur Bricks delivery added. Total Deposit was not changed.");
+      await load(data.selectedProject.projectCode);
+    }catch(e:any){setError(e?.message||"Could not save Sattapur delivery.");}
+    finally{setSattapurDeliverySaving(false);}
+  }
+
   async function saveParty(){
     if(!data?.selectedProject)return;
     if(!partyForm.name.trim()){setError("Supplier / contractor name is required.");return;}
@@ -308,7 +342,14 @@ export default function ProjectManagementPage(){
           .pm-loading-card span{color:#7b8794;font-size:13px}
           .pm-spinner{width:28px;height:28px;border-radius:50%;border:3px solid #e7ebef;border-top-color:#1d6b52;animation:spin .8s linear infinite;margin-bottom:7px}
           @keyframes spin{to{transform:rotate(360deg)}}
-        `}</style>
+          .pm-sattapur-head-actions{display:flex;align-items:center;gap:12px}
+        .pm-sattapur-add{white-space:nowrap}
+        .pm-delivery-preview{margin-top:14px;padding:14px 16px;border:1px solid #dce8e3;border-radius:12px;background:#f5faf7;display:flex;align-items:center;gap:16px}
+        .pm-delivery-preview span{font-size:9px;letter-spacing:.12em;font-weight:900;color:#71827b}
+        .pm-delivery-preview strong{font-size:22px;color:#1d6b52}
+        .pm-delivery-preview small{margin-left:auto;color:#7b8984;font-size:10px}
+        @media(max-width:700px){.pm-sattapur-head-actions{align-items:flex-end;flex-direction:column}.pm-delivery-preview{align-items:flex-start;flex-direction:column;gap:5px}.pm-delivery-preview small{margin-left:0}}
+      `}</style>
       </main>
     );
   }
@@ -480,9 +521,12 @@ export default function ProjectManagementPage(){
               <strong>Deposit & Delivery Position</strong>
               <small>Deposits reduce cash immediately. Deliveries are recorded here as quantities and value, without reducing cash a second time.</small>
             </div>
-            <div className="pm-sattapur-hold">
-              <span>AMOUNT STILL ON HOLD</span>
-              <strong>{money(sattapurBricks.holdAmount)}</strong>
+            <div className="pm-sattapur-head-actions">
+              <div className="pm-sattapur-hold">
+                <span>AMOUNT STILL ON HOLD</span>
+                <strong>{money(sattapurBricks.holdAmount)}</strong>
+              </div>
+              {admin&&<button className="pm-btn pm-btn-primary pm-sattapur-add" onClick={()=>setSattapurDeliveryOpen(true)}><span>＋</span> Add Delivery</button>}
             </div>
           </div>
           <div className="pm-sattapur-stats">
@@ -702,6 +746,38 @@ export default function ProjectManagementPage(){
             <div className="pm-modal-foot">
               <button className="pm-btn pm-btn-secondary" onClick={()=>setFormOpen(false)}>Cancel</button>
               <button className="pm-btn pm-btn-primary" onClick={()=>void save()} disabled={saving}>{saving?"Saving…":editing?"Update Entry":"Save Entry"}</button>
+            </div>
+          </section>
+        </div>
+      }
+
+      {sattapurDeliveryOpen&&admin&&
+        <div className="pm-modal-backdrop">
+          <section className="pm-modal pm-entry-modal">
+            <div className="pm-modal-head">
+              <div>
+                <span className="pm-label">SATTAPUR BRICKS</span>
+                <h2>Add Brick Delivery</h2>
+                <p>Record bricks received from Sattapur. This records the delivered value against the supplier hold and does not change Total Deposit or cash.</p>
+              </div>
+              <button className="pm-close" onClick={()=>setSattapurDeliveryOpen(false)}>×</button>
+            </div>
+            <div className="pm-form-grid">
+              <label><span>Delivery Date</span><input type="date" value={sattapurDeliveryForm.deliveryDate} onChange={e=>setSattapurDeliveryForm({...sattapurDeliveryForm,deliveryDate:e.target.value})}/></label>
+              <label><span>Supplier</span><input value="Sattapur Brick Field" readOnly/></label>
+              <label className="full"><span>Delivery Details</span><input value={sattapurDeliveryForm.details} onChange={e=>setSattapurDeliveryForm({...sattapurDeliveryForm,details:e.target.value})} placeholder="e.g. 2nd Floor Masonry Bricks"/></label>
+              <label><span>Quantity (SFT)</span><input value={sattapurDeliveryForm.quantity} onChange={e=>setSattapurDeliveryForm({...sattapurDeliveryForm,quantity:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
+              <label><span>Rate / SFT</span><input value={sattapurDeliveryForm.rate} onChange={e=>setSattapurDeliveryForm({...sattapurDeliveryForm,rate:e.target.value})} inputMode="decimal" placeholder="14.50"/></label>
+              <label className="full"><span>Memo</span><input value={sattapurDeliveryForm.memo} onChange={e=>setSattapurDeliveryForm({...sattapurDeliveryForm,memo:e.target.value})} placeholder="Optional delivery note / challan reference"/></label>
+            </div>
+            <div className="pm-delivery-preview">
+              <span>DELIVERY VALUE</span>
+              <strong>{money(num(sattapurDeliveryForm.quantity)*num(sattapurDeliveryForm.rate))}</strong>
+              <small>Will reduce Sattapur Hold only; Total Deposit remains unchanged.</small>
+            </div>
+            <div className="pm-modal-foot">
+              <button className="pm-btn pm-btn-secondary" onClick={()=>setSattapurDeliveryOpen(false)}>Cancel</button>
+              <button className="pm-btn pm-btn-primary" onClick={()=>void saveSattapurDelivery()} disabled={sattapurDeliverySaving}>{sattapurDeliverySaving?"Saving…":"Save Delivery"}</button>
             </div>
           </section>
         </div>
