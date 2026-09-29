@@ -352,7 +352,9 @@ async function workspace(user: Row, requested?: string) {
   const summary = await projectSummaryFor(selected);
   const contractorBills = await contractorWorkspaceFor(selected, entries);
   const linkedSupplierAdvance = sattapurBricks.holdAmount;
-  const engShajivBalance = debit - credit - linkedSupplierAdvance - summary.chequeOnHold;
+  // Sattapur deposits are already included in Total Expense, so the hold is
+  // shown separately and must not be deducted from cash a second time.
+  const engShajivBalance = debit - credit - summary.chequeOnHold;
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
