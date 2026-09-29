@@ -24,6 +24,7 @@ const ENGINEERING_SERVICES = new Set([
   "electrical design book",
   "plumbing design book",
   "soil test book",
+  "site visit - soil test day",
   "municipality approval sheet",
   "digital survey report",
 ]);
