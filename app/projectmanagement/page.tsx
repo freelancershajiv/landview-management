@@ -476,7 +476,7 @@ export default function ProjectManagementPage(){
         <section className="pm-sattapur-card">
           <div className="pm-sattapur-head">
             <div>
-              <span className="pm-label">SATTTAPUR BRICKS</span>
+              <span className="pm-label">SATTAPUR BRICKS</span>
               <strong>Deposit & Delivery Position</strong>
               <small>Deposits reduce cash immediately. Deliveries are recorded here as quantities and value, without reducing cash a second time.</small>
             </div>
@@ -1042,6 +1042,9 @@ export default function ProjectManagementPage(){
         .pm-pulled{font-size:10px;font-weight:850;color:#2f725b}
         @media (max-width:1250px){
           .pm-finance-summary .pm-stats{grid-template-columns:repeat(3,1fr)}
+          .pm-sattapur-stats{grid-template-columns:repeat(2,1fr)}
+          .pm-sattapur-stats>div:nth-child(2){border-right:0}
+          .pm-sattapur-stats>div:nth-child(-n+2){border-bottom:1px solid #edf0f2}
         }
         @media (max-width:1100px){
           .pm-party-table{min-width:900px}
