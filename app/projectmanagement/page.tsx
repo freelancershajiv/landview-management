@@ -700,6 +700,7 @@ export default function ProjectManagementPage(){
           </div>
 
         </section>
+        </>
       </div>
 
       {formOpen&&admin&&
