@@ -157,7 +157,7 @@ export default function ProposalFinanceBillingDocument({ bundle }: { bundle: Pro
       <p className="proposal-note">
         Review the saved proposal below before printing. A verification QR is issued once the proposal becomes a project.
       </p>
-      <ProjectBillingDocument result={financeInvoice} verificationUrl="" verificationError="" showVerification={false} />
+      <ProjectBillingDocument result={financeInvoice} verificationUrl="" verificationError="" />
     </section>
   );
 }
