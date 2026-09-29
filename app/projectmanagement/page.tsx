@@ -42,6 +42,7 @@ function userMemo(r:any){return String(r&&r.memo||"").replace(/^CHEQUE_STATUS:(?
 
 export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
+  const [activeModule,setActiveModule]=useState<"overview"|"ledger"|"income"|"expense"|"sattapur">("overview");
   const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
 
@@ -121,6 +122,7 @@ export default function ProjectManagementPage(){
     setProject(normalized);
     setLedgerView("income");
     setLedgerCategory("all");
+    setActiveModule("overview");
     setSearch("");
     if(typeof window!=="undefined"){
       window.history.replaceState(null,"","/projectmanagement?projectId="+encodeURIComponent(normalized));
@@ -444,6 +446,17 @@ export default function ProjectManagementPage(){
         {error&&<div className="pm-alert pm-alert-error"><span>!</span><div>{error}</div><button onClick={()=>setError("")}>×</button></div>}
         {message&&<div className="pm-alert pm-alert-success"><span>✓</span><div>{message}</div><button onClick={()=>setMessage("")}>×</button></div>}
 
+        <nav className="pm-module-nav" aria-label="Project Management modules">
+          <button className={activeModule==="overview"?"is-active":""} onClick={()=>setActiveModule("overview")}>Overview</button>
+          <button className={activeModule==="ledger"?"is-active":""} onClick={()=>{setActiveModule("ledger");setLedgerView("all");setLedgerCategory("all")}}>Ledger</button>
+          <button className={activeModule==="income"?"is-active":""} onClick={()=>{setActiveModule("income");setLedgerView("income");setLedgerCategory("all")}}>Income</button>
+          <button className={activeModule==="expense"?"is-active":""} onClick={()=>{setActiveModule("expense");setLedgerView("expense");setLedgerCategory("all")}}>Expenses</button>
+          <button className={activeModule==="sattapur"?"is-active":""} onClick={()=>setActiveModule("sattapur")}>Sattapur Bricks</button>
+          <button onClick={()=>setPartiesOpen(true)}>Suppliers</button>
+          <button onClick={()=>window.location.assign("/projectmanagement/report?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}>Monthly Report</button>
+          <button onClick={()=>window.location.assign("/projectmanagement/contractors?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}>Billing & Bills</button>
+        </nav>
+
         <section className="pm-project-card">
           <div className="pm-project-select">
             <span className="pm-label">SELECT PROJECT</span>
@@ -472,7 +485,7 @@ export default function ProjectManagementPage(){
           </div>
         </section>
 
-        <section className="pm-finance-summary">
+        {activeModule==="overview"&&<>        <section className="pm-finance-summary">
           <div className="pm-finance-summary-head">
             <div>
               <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
@@ -514,7 +527,10 @@ export default function ProjectManagementPage(){
           </div>
         </section>
 
-        <section className="pm-sattapur-card">
+</>
+          <section className="pm-overview-history"><div className="pm-overview-history-head"><div><span className="pm-label">RECENT ACTIVITY</span><strong>Latest project transactions</strong><small>Recent activity only; use Ledger, Income or Expenses for the full records.</small></div><button onClick={()=>{setActiveModule("ledger");setLedgerView("all");setLedgerCategory("all")}}>View Full Ledger →</button></div><div className="pm-table-wrap"><table className="pm-table pm-overview-table"><thead><tr><th>Date</th><th>Type</th><th>Party</th><th className="wide-col">Details</th><th>Category</th><th className="num-col">Amount</th></tr></thead><tbody>{entries.slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))||String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,8).map((r:any)=>{const debit=num(r.debit)>0;return <tr key={r.id}><td><span className="pm-date">{dateText(r.entry_date)}</span></td><td><span className={"pm-overview-type "+(debit?"income":"expense")}>{debit?"Income":"Expense"}</span></td><td><span className="pm-supplier">{r.received_from||r.paid_to||r.supplier||"—"}</span></td><td className="wide-col"><div className="pm-detail">{r.details}</div></td><td><span className="pm-category-tag">{r.category||"Other Expenses"}</span></td><td className={"num-col "+(debit?"pm-money-debit":"pm-money-credit")}>{money(debit?r.debit:r.credit)}</td></tr>})}{!entries.length&&<tr><td colSpan={6} className="pm-empty">No project transactions recorded yet.</td></tr>}</tbody></table></div></section>}
+
+        {activeModule==="sattapur"&&<><section className="pm-sattapur-card">
           <div className="pm-sattapur-head"><div><span className="pm-label">SATTAPUR BRICKS</span><strong>Deposit & Delivery Dashboard</strong><small>Quick summary and recent history. Detailed deliveries and the Sattapur ledger are available separately.</small></div><div className="pm-sattapur-head-actions"><div className="pm-sattapur-hold"><span>AMOUNT STILL ON HOLD</span><strong>{money(sattapurBricks.holdAmount)}</strong></div>{admin&&<button className="pm-btn pm-btn-primary pm-sattapur-add" onClick={()=>setSattapurDeliveryOpen(true)}><span>＋</span> Add Delivery</button>}</div></div>
           <div className="pm-sattapur-stats"><div><span>Deposit Paid</span><strong>{money(sattapurBricks.depositAmount)}</strong><small>{sattapurBricks.depositCount} payment records</small></div><div><span>Delivered Quantity</span><strong>{num(sattapurBricks.deliveredQuantity).toLocaleString("en-BD")} SFT</strong><small>{sattapurBricks.deliveryCount} delivery records</small></div><div><span>Delivered Value</span><strong>{money(sattapurBricks.deliveredValue)}</strong><small>Recorded delivery value</small></div><div><span>Remaining Hold</span><strong>{money(sattapurBricks.holdAmount)}</strong><small>Deposit less delivered value</small></div></div>
           <div className="pm-sattapur-dashboard-actions"><button onClick={()=>setSattapurDeliveriesOpen(true)}>View Deliveries <span>→</span></button><button onClick={()=>setSattapurLedgerOpen(true)}>View Sattapur Ledger <span>→</span></button></div>
@@ -524,9 +540,9 @@ export default function ProjectManagementPage(){
               {!(sattapurBricks.deposits||[]).length&&!(sattapurBricks.deliveries||[]).length&&<tr><td colSpan={5} className="pm-sattapur-empty">No Sattapur activity recorded yet.</td></tr>}
             </tbody></table></div>
           </div>
-        </section>
+        </section></>}
 
-        <section className="pm-workspace">
+        {(activeModule==="ledger"||activeModule==="income"||activeModule==="expense")&&<>\n<section className="pm-workspace">
           <div className="pm-category-bar">
             <div className="pm-category-title">
               <span className="pm-label">LEDGER VIEW</span>
@@ -724,6 +740,8 @@ export default function ProjectManagementPage(){
 
         {sattapurDeliveriesOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurDeliveriesOpen(false)}}><div className="pm-modal pm-sattapur-detail-modal"><div className="pm-modal-head"><div><h2>Sattapur Deliveries</h2><p>Complete delivery history and quantities recorded for Sattapur Bricks.</p></div><button className="pm-close" onClick={()=>setSattapurDeliveriesOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-sattapur-table"><thead><tr><th>Date</th><th>Details</th><th className="num-col">Quantity (SFT)</th><th className="num-col">Rate</th><th className="num-col">Value</th></tr></thead><tbody>{(sattapurBricks.deliveries||[]).map((r:any)=><tr key={r.id}><td>{dateText(r.date)}</td><td>{r.details}</td><td className="num-col">{num(r.quantity).toLocaleString("en-BD")}</td><td className="num-col">{money(r.rate)}</td><td className="num-col pm-money-credit">{money(r.value)}</td></tr>)}{!(sattapurBricks.deliveries||[]).length&&<tr><td colSpan={5} className="pm-sattapur-empty">No deliveries recorded yet.</td></tr>}</tbody></table></div></div></div>)}
         {sattapurLedgerOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurLedgerOpen(false)}}><div className="pm-modal pm-sattapur-ledger-modal"><div className="pm-modal-head"><div><h2>Sattapur Ledger</h2><p>Financial entries connected to Sattapur Bricks.</p></div><button className="pm-close" onClick={()=>setSattapurLedgerOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-table pm-sattapur-ledger-table"><thead><tr><th>Date</th><th>Details</th><th>Category</th><th>Paid To / Supplier</th><th className="num-col">Debit</th><th className="num-col">Credit</th></tr></thead><tbody>{entries.filter((r:any)=>/sattapur/i.test([r.details,r.supplier,r.paid_to,r.received_from,r.memo,r.category].join(" "))).slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))).map((r:any)=><tr key={r.id}><td>{dateText(r.entry_date)}</td><td className="wide-col">{r.details}</td><td>{r.category||"—"}</td><td>{r.paid_to||r.supplier||r.received_from||"—"}</td><td className="num-col pm-money-debit">{num(r.debit)?money(r.debit):"—"}</td><td className="num-col pm-money-credit">{num(r.credit)?money(r.credit):"—"}</td></tr>)}{!entries.some((r:any)=>/sattapur/i.test([r.details,r.supplier,r.paid_to,r.received_from,r.memo,r.category].join(" ")))&&<tr><td colSpan={6} className="pm-empty">No Sattapur ledger entries found.</td></tr>}</tbody></table></div></div></div>)}
+}
+
       {sattapurDeliveryOpen&&admin&&
         <div className="pm-modal-backdrop">
           <section className="pm-modal pm-entry-modal">
@@ -923,6 +941,8 @@ export default function ProjectManagementPage(){
         .pm-alert-error>span{background:#f7d6d1}
         .pm-alert-success{background:#edf8f2;color:#206449;border:1px solid #d3ebdc}
         .pm-alert-success>span{background:#d5ecde}
+        .pm-module-nav{display:flex;gap:7px;align-items:center;flex-wrap:wrap;padding:10px;background:#fff;border:1px solid #e1e7e9;border-radius:14px;box-shadow:0 10px 28px rgba(20,38,29,.035);margin-bottom:16px;position:sticky;top:10px;z-index:20}.pm-module-nav button{border:1px solid transparent;background:transparent;color:#65747b;border-radius:9px;padding:9px 13px;font:inherit;font-size:11px;font-weight:800;cursor:pointer}.pm-module-nav button:hover{background:#f3f7f5;color:#2d5e4d}.pm-module-nav button.is-active{background:#1d6b52;color:#fff;box-shadow:0 7px 16px rgba(29,107,82,.16)}
+        .pm-overview-history{background:#fff;border:1px solid #e1e7e9;border-radius:18px;overflow:hidden;box-shadow:0 12px 34px rgba(20,38,29,.04);margin-bottom:16px}.pm-overview-history-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;padding:17px 19px;border-bottom:1px solid #edf0f2}.pm-overview-history-head strong{display:block;font-size:18px;color:#17242b}.pm-overview-history-head small{display:block;margin-top:5px;color:#8a969c;font-size:10px}.pm-overview-history-head button{border:1px solid #d5e3dd;background:#f5faf8;color:#28644f;border-radius:9px;padding:9px 12px;font:inherit;font-size:10px;font-weight:800;cursor:pointer}.pm-overview-type{display:inline-flex;padding:4px 7px;border-radius:7px;font-size:9px;font-weight:850}.pm-overview-type.income{background:#edf4fb;color:#456d91}.pm-overview-type.expense{background:#edf8f2;color:#2c7057}
         .pm-project-card{background:#fff;border:1px solid #e4e9ec;border-radius:18px;padding:18px 20px;display:grid;grid-template-columns:minmax(300px,1.2fr) 1.7fr .8fr;gap:22px;align-items:center;box-shadow:0 12px 34px rgba(20,38,29,.045);margin-bottom:16px}
         .pm-label{display:block;font-size:10px;letter-spacing:.12em;font-weight:850;color:#8a969c;margin-bottom:8px}
         .pm-project-select select,.pm-form-grid input,.pm-form-grid select,.pm-master-toolbar select{width:100%;border:1px solid #dfe6e9;background:#fbfcfc;color:#1e2b31;border-radius:10px;min-height:42px;padding:0 12px;outline:none;font:inherit;font-size:13px}
