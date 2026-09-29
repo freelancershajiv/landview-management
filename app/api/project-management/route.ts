@@ -344,7 +344,9 @@ async function workspace(user: Row, requested?: string) {
       received_from: clean(row.received_from,160),
     };
   });
-  const debit = entries.reduce((s,r) => s + num(r.debit), 0);
+  // Total Deposit is the project's original funding/deposit figure and must
+  // remain unchanged when Sattapur deposits are reclassified as expenses.
+  const debit = rows.reduce((s,r) => s + num(r.debit), 0);
   const credit = entries.reduce((s,r) => s + num(r.credit), 0);
   const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Other Expenses", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
   const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
