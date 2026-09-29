@@ -82,9 +82,64 @@ async function projectFor(user: Row, value: unknown) {
   if (!rows.length) throw new Error("Project not found.");
   return rows[0];
 }
+function isSattapur(row: Row) {
+  const party = clean(row.paid_to || row.supplier || "", 160).toLowerCase();
+  const text = clean(row.details || "", 500).toLowerCase();
+  return party.includes("sattapur") || text.includes("sattapur brick");
+}
+function isSattapurDelivery(row: Row) {
+  return isSattapur(row) && num(row.credit) > 0 && clean(row.category, 120).toLowerCase() === "bricks";
+}
+function isSattapurDeposit(row: Row) {
+  return isSattapur(row) && num(row.debit) > 0;
+}
+function sattapurSnapshot(rows: Row[]) {
+  const deposits = rows.filter(isSattapurDeposit);
+  const deliveries = rows.filter(isSattapurDelivery);
+  const depositAmount = deposits.reduce((s:number,r:any) => s + num(r.debit), 0);
+  const deliveredQuantity = deliveries.reduce((s:number,r:any) => s + num(r.sft), 0);
+  const deliveredValue = deliveries.reduce((s:number,r:any) => s + num(r.credit), 0);
+  const holdAmount = Math.max(0, depositAmount - deliveredValue);
+  const overDeliveredValue = Math.max(0, deliveredValue - depositAmount);
+  return {
+    depositAmount,
+    depositCount: deposits.length,
+    deliveredQuantity,
+    deliveredValue,
+    deliveryCount: deliveries.length,
+    holdAmount,
+    overDeliveredValue,
+    deposits: deposits.map((r:any) => ({
+      id:r.id,date:r.entry_date,details:r.details,amount:num(r.debit),category:r.category,memo:r.memo || ""
+    })),
+    deliveries: deliveries
+      .slice()
+      .sort((a:any,b:any) => String(b.entry_date||"").localeCompare(String(a.entry_date||"")))
+      .map((r:any) => ({
+        id:r.id,date:r.entry_date,details:r.details,quantity:num(r.sft),rate:num(r.rate),
+        value:num(r.credit),memo:r.memo || ""
+      }))
+  };
+}
+function accountingRows(rows: Row[]) {
+  // Sattapur delivery rows are material-delivery records, not new cash expenses.
+  // Sattapur deposits are cash expenses even when the historical row was entered as Debit.
+  return rows.filter((row:any) => !isSattapurDelivery(row)).map((row:any) => {
+    if (isSattapurDeposit(row)) {
+      return {
+        ...row,
+        debit:0,
+        credit:num(row.debit),
+        category:"Sattapur Bricks Deposit",
+        memo:[row.memo,"SATTPUR_BRICKS_DEPOSIT"].filter(Boolean).join("\n")
+      };
+    }
+    return row;
+  });
+}
 function calculate(rows: Row[]) {
   let balance = 0;
-  return rows.slice().sort((a,b) => {
+  return accountingRows(rows).slice().sort((a,b) => {
     const d = String(a.entry_date || "").localeCompare(String(b.entry_date || ""));
     if (d) return d;
     const c = String(a.created_at || "").localeCompare(String(b.created_at || ""));
@@ -275,6 +330,7 @@ async function workspace(user: Row, requested?: string) {
   }
 
   const rows = await selectRows("project_management_ledger", { filters: { project_id: selected.id }, order: "entry_date:asc", limit: 10000 });
+  const sattapurBricks = sattapurSnapshot(rows);
   let incomeBalance = 0;
   let expenseBalance = 0;
   const entries = calculate(rows).map((row:any) => {
@@ -295,20 +351,15 @@ async function workspace(user: Row, requested?: string) {
   const masterLedger = await masterLedgerFor(user, selected);
   const summary = await projectSummaryFor(selected);
   const contractorBills = await contractorWorkspaceFor(selected, entries);
-  const linkedSupplierAdvance = contractorBills.contracts
-    .filter((c:any) =>
-      String(c.party_type || "").trim().toLowerCase() === "supplier" &&
-      contractorCategoryKey(c.category) === "bricks" &&
-      contractorPaymentNameKey(c.contractor_name) === "sattapur"
-    )
-    .reduce((sum:number,c:any) => sum + num(c.balancePayable), 0);
+  const linkedSupplierAdvance = sattapurBricks.holdAmount;
   const engShajivBalance = debit - credit - linkedSupplierAdvance - summary.chequeOnHold;
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
     totals: { debit, credit, balance: debit - credit },
-    summary: { ...summary, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_balance_payable", engShajivBalance },
+    summary: { ...summary, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance },
+    sattapurBricks,
     categories,
     masterLedger,
     contractorBills,
