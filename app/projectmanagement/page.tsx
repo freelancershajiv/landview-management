@@ -542,7 +542,8 @@ export default function ProjectManagementPage(){
           </div>
         </section></>}
 
-        {(activeModule==="ledger"||activeModule==="income"||activeModule==="expense")&&<>\n<section className="pm-workspace">
+        {(activeModule==="ledger"||activeModule==="income"||activeModule==="expense")&&<>
+        <section className="pm-workspace">
           <div className="pm-category-bar">
             <div className="pm-category-title">
               <span className="pm-label">LEDGER VIEW</span>
@@ -740,7 +741,6 @@ export default function ProjectManagementPage(){
 
         {sattapurDeliveriesOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurDeliveriesOpen(false)}}><div className="pm-modal pm-sattapur-detail-modal"><div className="pm-modal-head"><div><h2>Sattapur Deliveries</h2><p>Complete delivery history and quantities recorded for Sattapur Bricks.</p></div><button className="pm-close" onClick={()=>setSattapurDeliveriesOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-sattapur-table"><thead><tr><th>Date</th><th>Details</th><th className="num-col">Quantity (SFT)</th><th className="num-col">Rate</th><th className="num-col">Value</th></tr></thead><tbody>{(sattapurBricks.deliveries||[]).map((r:any)=><tr key={r.id}><td>{dateText(r.date)}</td><td>{r.details}</td><td className="num-col">{num(r.quantity).toLocaleString("en-BD")}</td><td className="num-col">{money(r.rate)}</td><td className="num-col pm-money-credit">{money(r.value)}</td></tr>)}{!(sattapurBricks.deliveries||[]).length&&<tr><td colSpan={5} className="pm-sattapur-empty">No deliveries recorded yet.</td></tr>}</tbody></table></div></div></div>)}
         {sattapurLedgerOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurLedgerOpen(false)}}><div className="pm-modal pm-sattapur-ledger-modal"><div className="pm-modal-head"><div><h2>Sattapur Ledger</h2><p>Financial entries connected to Sattapur Bricks.</p></div><button className="pm-close" onClick={()=>setSattapurLedgerOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-table pm-sattapur-ledger-table"><thead><tr><th>Date</th><th>Details</th><th>Category</th><th>Paid To / Supplier</th><th className="num-col">Debit</th><th className="num-col">Credit</th></tr></thead><tbody>{entries.filter((r:any)=>/sattapur/i.test([r.details,r.supplier,r.paid_to,r.received_from,r.memo,r.category].join(" "))).slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))).map((r:any)=><tr key={r.id}><td>{dateText(r.entry_date)}</td><td className="wide-col">{r.details}</td><td>{r.category||"—"}</td><td>{r.paid_to||r.supplier||r.received_from||"—"}</td><td className="num-col pm-money-debit">{num(r.debit)?money(r.debit):"—"}</td><td className="num-col pm-money-credit">{num(r.credit)?money(r.credit):"—"}</td></tr>)}{!entries.some((r:any)=>/sattapur/i.test([r.details,r.supplier,r.paid_to,r.received_from,r.memo,r.category].join(" ")))&&<tr><td colSpan={6} className="pm-empty">No Sattapur ledger entries found.</td></tr>}</tbody></table></div></div></div>)}
-}
 
       {sattapurDeliveryOpen&&admin&&
         <div className="pm-modal-backdrop">
