@@ -46,7 +46,7 @@ export default function ProjectManagementPage(){
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
 
   const [partiesOpen,setPartiesOpen]=useState(false),[partySaving,setPartySaving]=useState(false),[partyForm,setPartyForm]=useState({name:"",partyType:"Supplier",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
-  const [sattapurDeliveryOpen,setSattapurDeliveryOpen]=useState(false),[sattapurDeliverySaving,setSattapurDeliverySaving]=useState(false),[sattapurDeliveryForm,setSattapurDeliveryForm]=useState({deliveryDate:new Date().toISOString().slice(0,10),details:"",quantity:"",rate:"14.50",memo:""});
+  const [sattapurDeliveryOpen,setSattapurDeliveryOpen]=useState(false),[sattapurDeliverySaving,setSattapurDeliverySaving]=useState(false),[sattapurDeliveryForm,setSattapurDeliveryForm]=useState({deliveryDate:new Date().toISOString().slice(0,10),details:"",quantity:"",rate:"14.50",memo:""}),[sattapurDeliveriesOpen,setSattapurDeliveriesOpen]=useState(false),[sattapurLedgerOpen,setSattapurLedgerOpen]=useState(false);
 
   async function load(code=project){
     setLoading(true);setError("");
@@ -515,43 +515,14 @@ export default function ProjectManagementPage(){
         </section>
 
         <section className="pm-sattapur-card">
-          <div className="pm-sattapur-head">
-            <div>
-              <span className="pm-label">SATTAPUR BRICKS</span>
-              <strong>Deposit & Delivery Position</strong>
-              <small>Deposits reduce cash immediately. Deliveries are recorded here as quantities and value, without reducing cash a second time.</small>
-            </div>
-            <div className="pm-sattapur-head-actions">
-              <div className="pm-sattapur-hold">
-                <span>AMOUNT STILL ON HOLD</span>
-                <strong>{money(sattapurBricks.holdAmount)}</strong>
-              </div>
-              {admin&&<button className="pm-btn pm-btn-primary pm-sattapur-add" onClick={()=>setSattapurDeliveryOpen(true)}><span>＋</span> Add Delivery</button>}
-            </div>
-          </div>
-          <div className="pm-sattapur-stats">
-            <div><span>Deposit Paid</span><strong>{money(sattapurBricks.depositAmount)}</strong><small>{sattapurBricks.depositCount} payment records</small></div>
-            <div><span>Delivered Quantity</span><strong>{num(sattapurBricks.deliveredQuantity).toLocaleString("en-BD")} SFT</strong><small>{sattapurBricks.deliveryCount} delivery records</small></div>
-            <div><span>Delivered Value</span><strong>{money(sattapurBricks.deliveredValue)}</strong><small>Based on delivery ledger values</small></div>
-            <div><span>Remaining Hold</span><strong>{money(sattapurBricks.holdAmount)}</strong><small>Deposit less delivered value</small></div>
-          </div>
-          <div className="pm-sattapur-table-wrap">
-            <table className="pm-sattapur-table">
-              <thead><tr><th>Date</th><th>Delivery Details</th><th className="num-col">Quantity (SFT)</th><th className="num-col">Rate</th><th className="num-col">Delivered Value</th></tr></thead>
-              <tbody>
-                {sattapurBricks.deliveries.map((r:any)=>(
-                  <tr key={r.id}>
-                    <td>{dateText(r.date)}</td>
-                    <td>{r.details}</td>
-                    <td className="num-col">{num(r.quantity).toLocaleString("en-BD")}</td>
-                    <td className="num-col">{money(r.rate)}</td>
-                    <td className="num-col pm-money-credit">{money(r.value)}</td>
-                  </tr>
-                ))}
-                {!sattapurBricks.deliveries.length&&<tr><td colSpan={5} className="pm-sattapur-empty">No Sattapur Bricks delivery quantities recorded yet.</td></tr>}
-              </tbody>
-              {!!sattapurBricks.deliveries.length&&<tfoot><tr><td colSpan={2}>Total Delivered</td><td className="num-col">{num(sattapurBricks.deliveredQuantity).toLocaleString("en-BD")} SFT</td><td></td><td className="num-col">{money(sattapurBricks.deliveredValue)}</td></tr></tfoot>}
-            </table>
+          <div className="pm-sattapur-head"><div><span className="pm-label">SATTAPUR BRICKS</span><strong>Deposit & Delivery Dashboard</strong><small>Quick summary and recent history. Detailed deliveries and the Sattapur ledger are available separately.</small></div><div className="pm-sattapur-head-actions"><div className="pm-sattapur-hold"><span>AMOUNT STILL ON HOLD</span><strong>{money(sattapurBricks.holdAmount)}</strong></div>{admin&&<button className="pm-btn pm-btn-primary pm-sattapur-add" onClick={()=>setSattapurDeliveryOpen(true)}><span>＋</span> Add Delivery</button>}</div></div>
+          <div className="pm-sattapur-stats"><div><span>Deposit Paid</span><strong>{money(sattapurBricks.depositAmount)}</strong><small>{sattapurBricks.depositCount} payment records</small></div><div><span>Delivered Quantity</span><strong>{num(sattapurBricks.deliveredQuantity).toLocaleString("en-BD")} SFT</strong><small>{sattapurBricks.deliveryCount} delivery records</small></div><div><span>Delivered Value</span><strong>{money(sattapurBricks.deliveredValue)}</strong><small>Recorded delivery value</small></div><div><span>Remaining Hold</span><strong>{money(sattapurBricks.holdAmount)}</strong><small>Deposit less delivered value</small></div></div>
+          <div className="pm-sattapur-dashboard-actions"><button onClick={()=>setSattapurDeliveriesOpen(true)}>View Deliveries <span>→</span></button><button onClick={()=>setSattapurLedgerOpen(true)}>View Sattapur Ledger <span>→</span></button></div>
+          <div className="pm-sattapur-history"><div className="pm-sattapur-history-head"><div><span className="pm-label">RECENT HISTORY</span><strong>Latest Sattapur activity</strong></div><span>Showing the latest 6 records</span></div>
+            <div className="pm-sattapur-table-wrap"><table className="pm-sattapur-table"><thead><tr><th>Date</th><th>Type</th><th>Details</th><th className="num-col">Quantity</th><th className="num-col">Amount</th></tr></thead><tbody>
+              {[...(sattapurBricks.deposits||[]).map((r:any)=>({id:"d-"+r.id,date:r.date||r.entry_date,type:"Deposit",details:r.details||"Sattapur Bricks deposit",quantity:null,amount:num(r.amount||r.value||r.debit)})),...(sattapurBricks.deliveries||[]).map((r:any)=>({id:"v-"+r.id,date:r.date,type:"Delivery",details:r.details,quantity:num(r.quantity),amount:num(r.value)}))].sort((a:any,b:any)=>String(b.date||"").localeCompare(String(a.date||""))).slice(0,6).map((r:any)=><tr key={r.id}><td>{dateText(r.date)}</td><td><span className={"pm-sattapur-type "+(r.type==="Delivery"?"delivery":"deposit")}>{r.type}</span></td><td>{r.details}</td><td className="num-col">{r.quantity==null?"—":num(r.quantity).toLocaleString("en-BD")+" SFT"}</td><td className={"num-col "+(r.type==="Delivery"?"pm-money-credit":"pm-money-debit")}>{money(r.amount)}</td></tr>)}
+              {!(sattapurBricks.deposits||[]).length&&!(sattapurBricks.deliveries||[]).length&&<tr><td colSpan={5} className="pm-sattapur-empty">No Sattapur activity recorded yet.</td></tr>}
+            </tbody></table></div>
           </div>
         </section>
 
@@ -751,6 +722,8 @@ export default function ProjectManagementPage(){
         </div>
       }
 
+        {sattapurDeliveriesOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurDeliveriesOpen(false)}}><div className="pm-modal pm-sattapur-detail-modal"><div className="pm-modal-head"><div><h2>Sattapur Deliveries</h2><p>Complete delivery history and quantities recorded for Sattapur Bricks.</p></div><button className="pm-close" onClick={()=>setSattapurDeliveriesOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-sattapur-table"><thead><tr><th>Date</th><th>Details</th><th className="num-col">Quantity (SFT)</th><th className="num-col">Rate</th><th className="num-col">Value</th></tr></thead><tbody>{(sattapurBricks.deliveries||[]).map((r:any)=><tr key={r.id}><td>{dateText(r.date)}</td><td>{r.details}</td><td className="num-col">{num(r.quantity).toLocaleString("en-BD")}</td><td className="num-col">{money(r.rate)}</td><td className="num-col pm-money-credit">{money(r.value)}</td></tr>)}{!(sattapurBricks.deliveries||[]).length&&<tr><td colSpan={5} className="pm-sattapur-empty">No deliveries recorded yet.</td></tr>}</tbody></table></div></div></div>)}
+        {sattapurLedgerOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurLedgerOpen(false)}}><div className="pm-modal pm-sattapur-ledger-modal"><div className="pm-modal-head"><div><h2>Sattapur Ledger</h2><p>Financial entries connected to Sattapur Bricks.</p></div><button className="pm-close" onClick={()=>setSattapurLedgerOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-table pm-sattapur-ledger-table"><thead><tr><th>Date</th><th>Details</th><th>Category</th><th>Paid To / Supplier</th><th className="num-col">Debit</th><th className="num-col">Credit</th></tr></thead><tbody>{entries.filter((r:any)=>/sattapur/i.test([r.details,r.supplier,r.paid_to,r.received_from,r.memo,r.category].join(" "))).slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))).map((r:any)=><tr key={r.id}><td>{dateText(r.entry_date)}</td><td className="wide-col">{r.details}</td><td>{r.category||"—"}</td><td>{r.paid_to||r.supplier||r.received_from||"—"}</td><td className="num-col pm-money-debit">{num(r.debit)?money(r.debit):"—"}</td><td className="num-col pm-money-credit">{num(r.credit)?money(r.credit):"—"}</td></tr>)}{!entries.some((r:any)=>/sattapur/i.test([r.details,r.supplier,r.paid_to,r.received_from,r.memo,r.category].join(" ")))&&<tr><td colSpan={6} className="pm-empty">No Sattapur ledger entries found.</td></tr>}</tbody></table></div></div></div>)}
       {sattapurDeliveryOpen&&admin&&
         <div className="pm-modal-backdrop">
           <section className="pm-modal pm-entry-modal">
@@ -998,6 +971,7 @@ export default function ProjectManagementPage(){
         .pm-sattapur-stats span{display:block;color:#7b888e;font-size:10px;font-weight:800}
         .pm-sattapur-stats strong{display:block;margin-top:6px;color:#26353c;font-size:19px;letter-spacing:-.02em}
         .pm-sattapur-stats small{display:block;margin-top:4px;color:#9aa4a8;font-size:9px}
+        .pm-sattapur-dashboard-actions{display:flex;gap:10px;padding:13px 17px;border-bottom:1px solid #edf0f2;background:#fbfdfc}.pm-sattapur-dashboard-actions button{flex:1;border:1px solid #dce6e2;background:#fff;color:#315c4d;border-radius:10px;padding:11px 13px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;text-align:left}.pm-sattapur-dashboard-actions button:hover{background:#f1f8f4;border-color:#bcd5ca}.pm-sattapur-dashboard-actions button span{float:right;font-size:15px}.pm-sattapur-history-head{display:flex;justify-content:space-between;align-items:flex-end;padding:14px 17px 9px}.pm-sattapur-history-head .pm-label{margin-bottom:4px}.pm-sattapur-history-head strong{display:block;font-size:14px;color:#29383f}.pm-sattapur-history-head>span{color:#98a2a7;font-size:10px}.pm-sattapur-type{display:inline-flex;padding:4px 7px;border-radius:7px;font-size:9px;font-weight:850}.pm-sattapur-type.deposit{background:#edf4fb;color:#456d91}.pm-sattapur-type.delivery{background:#edf8f2;color:#2c7057}.pm-sattapur-detail-modal{width:min(1050px,100%)}.pm-sattapur-ledger-modal{width:min(1200px,100%)}.pm-sattapur-detail-scroll{max-height:70vh;overflow:auto}
         .pm-sattapur-table-wrap{max-height:330px;overflow:auto}
         .pm-sattapur-table{width:100%;border-collapse:separate;border-spacing:0;min-width:760px;font-size:12px}
         .pm-sattapur-table th{position:sticky;top:0;z-index:2;background:#f7faf9;color:#7e8d94;border-bottom:1px solid #e5ebed;padding:10px 13px;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.08em}
