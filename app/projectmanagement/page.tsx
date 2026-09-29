@@ -457,22 +457,6 @@ export default function ProjectManagementPage(){
           <button onClick={()=>window.location.assign("/projectmanagement/contractors?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}>Billing & Bills</button>
         </nav>
 
-        <section className="pm-overview-history" style={{display:activeModule==="overview"?"block":"none"}}>
-          <div className="pm-overview-history-head">
-            <div><span className="pm-label">RECENT ACTIVITY</span><strong>Latest project transactions</strong><small>Recent activity only. Use Ledger, Income or Expenses for complete records.</small></div>
-            <button onClick={()=>{setActiveModule("ledger");setLedgerView("all");setLedgerCategory("all")}}>View Full Ledger →</button>
-          </div>
-          <div className="pm-table-wrap">
-            <table className="pm-table pm-overview-table">
-              <thead><tr><th>Date</th><th>Type</th><th>Party</th><th className="wide-col">Details</th><th>Category</th><th className="num-col">Amount</th></tr></thead>
-              <tbody>
-                {entries.slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))||String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,8).map((r:any)=>{const debit=num(r.debit)>0;return <tr key={r.id}><td><span className="pm-date">{dateText(r.entry_date)}</span></td><td><span className={"pm-overview-type "+(debit?"income":"expense")}>{debit?"Income":"Expense"}</span></td><td><span className="pm-supplier">{r.received_from||r.paid_to||r.supplier||"—"}</span></td><td className="wide-col"><div className="pm-detail">{r.details}</div></td><td><span className="pm-category-tag">{r.category||"Other Expenses"}</span></td><td className={"num-col "+(debit?"pm-money-debit":"pm-money-credit")}>{money(debit?r.debit:r.credit)}</td></tr>})}
-                {!entries.length&&<tr><td colSpan={6} className="pm-empty">No project transactions recorded yet.</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
         <section className="pm-project-card">
           <div className="pm-project-select">
             <span className="pm-label">SELECT PROJECT</span>
@@ -498,6 +482,22 @@ export default function ProjectManagementPage(){
             <span>LEDGER STATUS</span>
             <strong>{entries.length.toLocaleString("en-BD")} entries</strong>
             <small>Chronological order enabled</small>
+          </div>
+        </section>
+
+        <section className="pm-overview-history" style={{display:activeModule==="overview"?"block":"none"}}>
+          <div className="pm-overview-history-head">
+            <div><span className="pm-label">RECENT ACTIVITY</span><strong>Latest project transactions</strong><small>Recent activity only. Use Ledger, Income or Expenses for complete records.</small></div>
+            <button onClick={()=>{setActiveModule("ledger");setLedgerView("all");setLedgerCategory("all")}}>View Full Ledger →</button>
+          </div>
+          <div className="pm-table-wrap">
+            <table className="pm-table pm-overview-table">
+              <thead><tr><th>Date</th><th>Type</th><th>Party</th><th className="wide-col">Details</th><th>Category</th><th className="num-col">Amount</th></tr></thead>
+              <tbody>
+                {entries.slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))||String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,8).map((r:any)=>{const debit=num(r.debit)>0;return <tr key={r.id}><td><span className="pm-date">{dateText(r.entry_date)}</span></td><td><span className={"pm-overview-type "+(debit?"income":"expense")}>{debit?"Income":"Expense"}</span></td><td><span className="pm-supplier">{r.received_from||r.paid_to||r.supplier||"—"}</span></td><td className="wide-col"><div className="pm-detail">{r.details}</div></td><td><span className="pm-category-tag">{r.category||"Other Expenses"}</span></td><td className={"num-col "+(debit?"pm-money-debit":"pm-money-credit")}>{money(debit?r.debit:r.credit)}</td></tr>})}
+                {!entries.length&&<tr><td colSpan={6} className="pm-empty">No project transactions recorded yet.</td></tr>}
+              </tbody>
+            </table>
           </div>
         </section>
 
