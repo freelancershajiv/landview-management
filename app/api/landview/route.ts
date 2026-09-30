@@ -228,6 +228,57 @@ async function proposalAction(user: Row, input: Row) {
         updated_at: now,
       });
     }
+
+    // Carry the accepted proposal's service lines into the project's canonical billing records.
+    // This makes a proposal-to-project conversion immediately visible in Admin → Billing → Invoice.
+    const existingBills = await selectRows("bills", { filters: { project_id: existingProjects.length ? existingProjects[0].id : undefined }, limit: 1 });
+    const createdProject = existingProjects[0] || (await selectRows("projects", { filters: { project_code: projectId }, limit: 1 }))[0];
+    if (createdProject?.id) {
+      const proposalItems = await selectRows("proposal_items", { filters: { proposal_code: id }, order: "sort_order:asc", limit: 1000 });
+      const existingConvertedBills = await selectRows("bills", { filters: { project_id: createdProject.id, created_via: "Proposal Conversion" }, limit: 1000 });
+      const existingKeys = new Set(existingConvertedBills.map((b) => text(b.legacy_source_id || b.idempotency_key)));
+      const billRows = proposalItems
+        .filter((item) => text(item.status).toLowerCase() !== "cancelled")
+        .filter((item) => !existingKeys.has(text(item.item_code)))
+        .map((item) => {
+          const service = text(item.service) || text(item.description) || "Service";
+          const sourceCategory = text(item.category).toLowerCase();
+          const category = /design\\s*books?/.test(service) || /design\\s*books?/.test(text(item.description))
+            ? "Engineering Bill"
+            : sourceCategory === "engineering" || sourceCategory === "engineering bill"
+              ? "Engineering Bill"
+              : sourceCategory === "supervision" || sourceCategory === "supervision bill"
+                ? "Supervision Bill"
+                : "Other Services Bill";
+          const amount = num(item.amount) || num(item.quantity) * num(item.rate);
+          return {
+            bill_code: randomCode("BILL"),
+            project_id: createdProject.id,
+            bill_date: now.slice(0, 10),
+            billing_category: category,
+            category,
+            description: `[${category}] ${service}${text(item.description) && text(item.description).toLowerCase() !== service.toLowerCase() ? ` — ${text(item.description)}` : ""}`,
+            amount,
+            discount: 0,
+            net_amount: amount,
+            status: "Open",
+            notes: `Converted from proposal ${id}`,
+            created_via: "Proposal Conversion",
+            source_created_by: text(item.created_by) || userIdOf(user),
+            source_created_at: text(item.created_at) || now,
+            source_updated_at: now,
+            legacy_source_id: text(item.item_code) || null,
+            idempotency_key: text(item.item_code) || randomCode("PBI"),
+            unit_price: num(item.rate),
+            quantity: num(item.quantity) || 1,
+            created_at: now,
+            updated_at: now,
+          };
+        })
+        .filter((row) => row.amount > 0);
+      if (billRows.length) await insertRows("bills", billRows);
+    }
+
     await updateRows("proposals", { proposal_code: id }, { status: "Converted", converted_project_code: projectId, updated_at: now });
     const prior = await selectRows("proposal_activity", { filters: { proposal_code: id, action: "Converted to Project", reference: projectId }, limit: 1 });
     if (!prior.length) {
