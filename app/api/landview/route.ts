@@ -231,7 +231,6 @@ async function proposalAction(user: Row, input: Row) {
 
     // Carry the accepted proposal's service lines into the project's canonical billing records.
     // This makes a proposal-to-project conversion immediately visible in Admin → Billing → Invoice.
-    const existingBills = await selectRows("bills", { filters: { project_id: existingProjects.length ? existingProjects[0].id : undefined }, limit: 1 });
     const createdProject = existingProjects[0] || (await selectRows("projects", { filters: { project_code: projectId }, limit: 1 }))[0];
     if (createdProject?.id) {
       const proposalItems = await selectRows("proposal_items", { filters: { proposal_code: id }, order: "sort_order:asc", limit: 1000 });
