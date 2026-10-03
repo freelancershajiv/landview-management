@@ -425,7 +425,7 @@ export async function POST(request: NextRequest) {
       const quantity = Math.max(0, num(body.quantity ?? body.sft ?? body.SFT));
       const rate = Math.max(0, num(body.rate ?? body.Rate));
       const memo = clean(body.memo ?? body.Memo, 1000) || null;
-      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(deliveryDate)) return fail("Enter a valid delivery date.",400);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(deliveryDate)) return fail("Enter a valid delivery date.",400);
       if (!details) return fail("Delivery details are required.",400);
       if (!(quantity > 0)) return fail("Delivery quantity must be greater than zero.",400);
       if (!(rate > 0)) return fail("Delivery rate must be greater than zero.",400);
