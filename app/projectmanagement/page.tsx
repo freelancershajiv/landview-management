@@ -42,7 +42,7 @@ function userMemo(r:any){return String(r&&r.memo||"").replace(/^CHEQUE_STATUS:(?
 
 export default function ProjectManagementPage(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
-  const [activeModule,setActiveModule]=useState<"overview"|"ledger"|"income"|"expense"|"sattapur">("overview");
+  const [activeModule,setActiveModule]=useState<"overview"|"ledger"|"income"|"expense"|"sattapur"|"suppliers">("overview");
   const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
 
@@ -66,7 +66,7 @@ export default function ProjectManagementPage(){
       ? new URLSearchParams(window.location.search).get("projectId") || ""
       : "";
     if(queryProject)setProject(queryProject);
-    if(typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("section")==="suppliers")setPartiesOpen(true);
+    if(typeof window!=="undefined"&&new URLSearchParams(window.location.search).get("section")==="suppliers")setActiveModule("suppliers");
     void load(queryProject);
   },[]);
 
@@ -435,7 +435,7 @@ export default function ProjectManagementPage(){
           </div>
           <div className="pm-actions">
             <button className="pm-btn pm-btn-secondary" onClick={()=>window.location.assign("/projectmanagement/report?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}><span>▤</span> Monthly Report</button>
-            {admin&&<button className="pm-btn pm-btn-dark" onClick={()=>{setPartiesOpen(true);window.history.replaceState(null,"","/projectmanagement?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||"")+"&section=suppliers")}}><span>♙</span> Suppliers / Contractors</button>}
+            {admin&&<button className="pm-btn pm-btn-dark" onClick={()=>{setActiveModule("suppliers");window.history.replaceState(null,"","/projectmanagement?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||"")+"&section=suppliers")}}><span>♙</span> Suppliers / Contractors</button>}
             {admin&&<button className="pm-btn pm-btn-secondary" onClick={()=>window.location.assign("/projectmanagement/contractors?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}><span>▥</span> Billing & Bills</button>}
             <button className="pm-btn pm-btn-secondary" onClick={()=>void load(project)}><span>↻</span> Refresh</button>
             {admin&&<button className="pm-btn pm-btn-income" onClick={()=>openNew("income")}><span>＋</span> Add Income</button>}
@@ -453,7 +453,7 @@ export default function ProjectManagementPage(){
           <button className={activeModule==="income"?"is-active":""} onClick={()=>{setActiveModule("income");setLedgerView("income");setLedgerCategory("all")}}>Income</button>
           <button className={activeModule==="expense"?"is-active":""} onClick={()=>{setActiveModule("expense");setLedgerView("expense");setLedgerCategory("all")}}>Expenses</button>
           <button className={activeModule==="sattapur"?"is-active":""} onClick={()=>setActiveModule("sattapur")}>Sattapur Bricks</button>
-          <button onClick={()=>{setPartiesOpen(true);window.history.replaceState(null,"","/projectmanagement?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||"")+"&section=suppliers")}}>Suppliers</button>
+          <button className={activeModule==="suppliers"?"is-active":""} onClick={()=>{setActiveModule("suppliers");window.history.replaceState(null,"","/projectmanagement?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||"")+"&section=suppliers")}}>Suppliers</button>
           <button onClick={()=>window.location.assign("/projectmanagement/report?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}>Monthly Report</button>
           <button onClick={()=>window.location.assign("/projectmanagement/contractors?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}>Billing & Bills</button>
         </nav>
@@ -786,7 +786,7 @@ export default function ProjectManagementPage(){
         </div>
       }
 
-      {partiesOpen&&admin&&
+      {activeModule==="suppliers"&&admin&&
         <section className="pm-party-page">
             <div className="pm-modal-head">
               <div>
@@ -794,7 +794,7 @@ export default function ProjectManagementPage(){
                 <h2>Suppliers / Contractors</h2>
                 <p>Add parties and directly edit their type. The list is intentionally larger so the full party information is easy to read.</p>
               </div>
-              <button className="pm-btn pm-btn-secondary" onClick={()=>setPartiesOpen(false)}>← Back to Overview</button>
+              <button className="pm-btn pm-btn-secondary" onClick={()=>{setActiveModule("overview");window.history.replaceState(null,"","/projectmanagement?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}}>← Back to Overview</button>
             </div>
 
             <div className="pm-party-add">
