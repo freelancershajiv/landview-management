@@ -1070,7 +1070,8 @@ export default function ProjectManagementPage(){
         .pm-table-footer strong{color:#5b676d}
         .pm-modal-backdrop{position:fixed;inset:0;background:rgba(12,25,21,.52);backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;z-index:100}
         .pm-modal{background:#fff;border:1px solid #dfe6e7;border-radius:20px;box-shadow:0 28px 80px rgba(13,28,23,.22);max-height:92vh;overflow:hidden}
-        .pm-party-modal{width:min(1180px,100%);max-height:94vh}
+                .pm-party-page{background:#fff;border:1px solid #e1e7e9;border-radius:18px;overflow:hidden;box-shadow:0 14px 38px rgba(20,38,29,.045);margin-bottom:16px}.pm-party-page .pm-modal-head{background:#fff}.pm-party-page .pm-party-table-scroll{max-height:none}.pm-party-page .pm-party-list-wrap{max-height:none}
+.pm-party-modal{width:min(1180px,100%);max-height:94vh}
         .pm-party-add{border-bottom:1px solid #edf0f2;background:#fbfcfc}
         .pm-party-add-head{padding:16px 21px 4px}
         .pm-party-add-head strong{display:block;font-size:15px;color:#24333b}
