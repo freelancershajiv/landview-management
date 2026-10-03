@@ -786,15 +786,14 @@ export default function ProjectManagementPage(){
       }
 
       {partiesOpen&&admin&&
-        <div className="pm-modal-backdrop">
-          <section className="pm-modal pm-party-modal">
+        <section className="pm-party-page">
             <div className="pm-modal-head">
               <div>
                 <span className="pm-label">PROJECT PARTIES</span>
                 <h2>Suppliers / Contractors</h2>
                 <p>Add parties and directly edit their type. The list is intentionally larger so the full party information is easy to read.</p>
               </div>
-              <button className="pm-close" onClick={()=>setPartiesOpen(false)}>×</button>
+              <button className="pm-btn pm-btn-secondary" onClick={()=>setPartiesOpen(false)}>← Back to Overview</button>
             </div>
 
             <div className="pm-party-add">
@@ -874,11 +873,7 @@ export default function ProjectManagementPage(){
               </div>
             </div>
 
-            <div className="pm-modal-foot">
-              <button className="pm-btn pm-btn-secondary" onClick={()=>setPartiesOpen(false)}>Close</button>
-            </div>
-          </section>
-        </div>
+                    </section>
       }
 
       {masterOpen&&admin&&
