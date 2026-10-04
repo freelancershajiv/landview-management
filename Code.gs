@@ -4519,8 +4519,9 @@ function uploadSiteVisitMediaCore_(params) {
   if (!["image/jpeg","image/png","image/webp"].includes(mimeType)) throw new Error("Only JPG, PNG and WebP photos are allowed.");
 
   const root = getSiteVisitMediaRootFolder_();
-  const project = getProjectRecordById(projectId);
-  const projectFolder = getOrCreateNamedFolder_(root, buildProjectFolderName(project));
+  const projectName = String(params.projectName || params.Project_Name || "").trim();
+  const projectFolderName = sanitizeFileName(projectId + (projectName && normalize(projectName) !== normalize(projectId) ? " - " + projectName : ""));
+  const projectFolder = getOrCreateNamedFolder_(root, projectFolderName || projectId);
   const visitFolder = getOrCreateNamedFolder_(projectFolder, visitCode);
 
   const bytes = decodeSiteVisitBase64_(params.base64 || params.fileBase64);
