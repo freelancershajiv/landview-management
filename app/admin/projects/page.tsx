@@ -41,9 +41,9 @@ function normalizeProjectId(value: unknown) {
   const raw = String(value || "").trim().toUpperCase();
   if (!raw) return "";
   const match = raw.match(/LV[\s_-]*0*(\d+)/i);
-  if (match?.[1]) return `LV-${Number(match[1])}`;
+  if (match?.[1]) return `LV-${String(Number(match[1])).padStart(3, "0")}`;
   const digits = raw.replace(/\D/g, "");
-  return digits ? `LV-${Number(digits)}` : raw;
+  return digits ? `LV-${String(Number(digits)).padStart(3, "0")}` : raw;
 }
 function truthy(value: unknown) {
   return value === true || ["true", "yes", "1", "on"].includes(String(value || "").trim().toLowerCase());
