@@ -11,7 +11,7 @@ type Row = {
   phone: string;
   projectType: string;
   location: string;
-  status: string;
+  currentStage: string;
   recordType: string;
   proposalId: string;
   billCount: number;
@@ -106,7 +106,7 @@ export default function ReclassifyProjectsPage() {
       </div>
       <section className="panel">
         <div className="panel-head"><strong>{view === "Candidates" ? "Projects with imported billing" : "Already moved to Proposals"}</strong><small>{view === "Candidates" ? "A project with real received payments is protected and cannot be moved until those payments are resolved." : "These source project rows are retained only as audit links to the proposal they created."}</small></div>
-        <div className="table-wrap"><table className="table"><thead><tr><th>Project</th><th>Client / Type</th><th>Billing</th><th>Payments</th><th>Due</th><th>Invoices</th><th>Status</th><th></th></tr></thead><tbody>
+        <div className="table-wrap"><table className="table"><thead><tr><th>Project</th><th>Client / Type</th><th>Billing</th><th>Payments</th><th>Due</th><th>Invoices</th><th>Reclassification</th><th></th></tr></thead><tbody>
           {shown.map(row => <tr key={row.projectId}>
             <td><span className="id">{row.projectId}</span><strong className="muted" style={{color:"#dfe5e9"}}>{row.projectName || row.clientName || "—"}</strong><span className="muted">{row.location || "—"}</span></td>
             <td>{row.clientName || "—"}<span className="muted">{row.projectType || "—"}</span></td>
@@ -114,7 +114,7 @@ export default function ReclassifyProjectsPage() {
             <td><strong>{money(row.paid)}</strong>{row.blocked && <span className="muted" style={{color:"#ffaaa6"}}>Real payment detected</span>}</td>
             <td><strong>{money(row.due)}</strong></td>
             <td>{row.invoiceCount}</td>
-            <td>{row.recordType === "proposal" ? <><span className="status moved">Moved</span><span className="muted">{row.proposalId}</span></> : row.blocked ? <span className="status blocked">Payment protected</span> : <span className="status">Ready</span>}</td>
+            <td>{row.recordType === "proposal" ? <><span className="status moved">Moved</span><span className="muted">{row.proposalId}</span></> : row.blocked ? <span className="status blocked">Payment protected</span> : <><span className="status">{row.currentStage}</span><span className="muted">Ready to move</span></>}</td>
             <td>{row.recordType === "proposal" && row.proposalId ? <Link className="reclass-btn" href={`/admin/proposals/${encodeURIComponent(row.proposalId)}`}>Open Proposal</Link> : <button className="reclass-btn primary" type="button" disabled={row.blocked || Boolean(moving)} onClick={()=>void move(row)}>{moving===row.projectId?"Moving…":"Move to Proposal"}</button>}</td>
           </tr>)}
           {!shown.length && <tr><td colSpan={8}><div className="empty">No projects match this view.</div></td></tr>}
