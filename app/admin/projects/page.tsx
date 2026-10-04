@@ -301,7 +301,7 @@ export default function ProjectsPage() {
         [field]: value,
       } : row));
     } catch (e: any) {
-      setError(e?.message || ("Could not update " + field.replace(/_Status$/, "").replaceAll("_", " ") + " for " + id + "."));
+      setError(e?.message || ("Could not update " + field.replace(/_Status$/, "").replace(/_/g, " ") + " for " + id + "."));
     } finally {
       setSavingStage("");
     }
