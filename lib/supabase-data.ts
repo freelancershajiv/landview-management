@@ -80,7 +80,7 @@ function projectLegacy(row: Row, billed?: number) {
     Project_ID: row.project_code, Project_Name: row.project_name || "", Client_Name: row.client_name_snapshot || "", Phone_Number: row.phone_number_snapshot || "",
     Referred_By: row.referred_by || "", Ref_Contact: row.ref_contact || "",
     Project_Type: row.project_type || "", Location: row.location || "", Location_Tag: row.location_tag || "", Plot_Area: row.plot_area ?? "", Floors: row.floors ?? "",
-    Start_Date: row.start_date || "", Design_Bill: billed ?? num(row.design_bill), Status: row.status || "", Notes: row.notes || "",
+    Start_Date: row.start_date || "", Design_Bill: billed ?? num(row.design_bill), Notes: row.notes || "",
     Drive_Folder_ID: row.drive_folder_id || "", Drive_Folder_URL: row.drive_folder_url || "", Documents_Folder_ID: row.documents_folder_id || "", Documents_Folder_URL: row.documents_folder_url || "",
     Invoices_Folder_ID: row.invoices_folder_id || "", Invoices_Folder_URL: row.invoices_folder_url || "", Client_User_ID: row.client_user_id || "", Client_Username: row.client_username || "",
     Public_Display: Boolean(row.public_display), Public_Project_Title: row.public_project_title || "", Public_Description: row.public_description || "", Project_Category: row.project_category || "",
