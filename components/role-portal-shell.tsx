@@ -16,13 +16,14 @@ function routeForRole(role: string) {
 }
 
 const employeeNav = [
-  { href: "/employee#dashboard", label: "Dashboard" },
-  { href: "/employee#projects", label: "Projects" },
-  { href: "/employee#workflow", label: "Workflow" },
-  { href: "/employee#visits", label: "Site Visits" },
-  { href: "/employee#documents", label: "Documents" },
-  { href: "/employee#attendance", label: "Attendance" },
-  { href: "/employee#certificates", label: "Certificates" },
+  { href: "/employee#dashboard", label: "Dashboard", icon: "⌂" },
+  { href: "/employee#projects", label: "My Projects", icon: "▣" },
+  { href: "/employee#workflow", label: "Workflow", icon: "↗" },
+  { href: "/employee#visits", label: "Site Visits", icon: "⌖" },
+  { href: "/employee#documents", label: "Documents", icon: "□" },
+  { href: "/employee#attendance", label: "Attendance", icon: "◷" },
+  { href: "/employee#expenses", label: "Expenses", icon: "৳" },
+  { href: "/employee#certificates", label: "Certificates", icon: "◫" },
 ];
 
 const clientNav = [
@@ -34,6 +35,12 @@ const clientNav = [
   { href: "/client#workflow", label: "Project Updates", icon: "↗" },
   { href: "/client#documents", label: "Documents", icon: "□" },
 ];
+
+function isChairmanEmployee(u: any) {
+  const id = String(u?.employeeId || u?.Employee_ID || u?.userId || u?.User_ID || "").trim().toUpperCase();
+  const n = String(u?.name || u?.Name || u?.username || u?.Username || "").trim().toLowerCase();
+  return id === "EMP-0001" || n.includes("jamal rony") || n.includes("jamal ahmed bhuiyan");
+}
 
 export default function RolePortalShell({ portal, children }: { portal: PortalType; children: ReactNode }) {
   const router = useRouter();
@@ -142,16 +149,99 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
     </div>
   );
 
-  return <div className="admin-shell tmg-shell portal-employee">
+  const employeeApprovals = isChairmanEmployee(user);
+
+  return <div className="admin-shell tmg-shell portal-employee employee-reference-shell">
+    <style>{\`
+      .portal-employee{--lv-sidebar-width:238px;--lv-topbar-height:74px;min-height:100vh;background:#090b0e;color:#f5f7fa}
+      .portal-employee *{box-sizing:border-box}
+      .portal-employee .portal-skip{position:absolute;left:-9999px}
+      .portal-employee .employee-topbar{position:fixed;z-index:100;top:0;left:var(--lv-sidebar-width);right:0;height:var(--lv-topbar-height);display:flex;align-items:center;border-bottom:1px solid #272e36;background:rgba(9,11,14,.95);backdrop-filter:blur(16px)}
+      .portal-employee .employee-topbar-inner{width:100%;height:100%;padding:0 28px;display:flex;align-items:center;gap:18px}
+      .portal-employee .employee-menu{width:38px;height:38px;display:grid;place-items:center;flex:0 0 38px;border:0;background:transparent;color:#dce1e5;font-size:22px;cursor:pointer}
+      .portal-employee .employee-menu:hover{color:#ff6369}
+      .portal-employee .employee-search{width:min(430px,38vw);height:40px;display:flex;align-items:center;gap:9px;padding:0 12px;border:1px solid #2f3943;border-radius:7px;background:#0d1217}
+      .portal-employee .employee-search span{color:#88939d;font-size:18px}
+      .portal-employee .employee-search input{width:100%;height:100%;border:0;outline:0;background:transparent;color:#eef2f5;font-size:11px}
+      .portal-employee .employee-tools{margin-left:auto;display:flex;align-items:center;gap:10px}
+      .portal-employee .employee-user{display:flex;align-items:center;gap:10px;padding-right:5px}
+      .portal-employee .employee-avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#151a20;border:1px solid rgba(214,31,38,.48);color:#ff777b;font-weight:900}
+      .portal-employee .employee-user-copy{display:grid;min-width:0}
+      .portal-employee .employee-user-copy strong{font-size:11px;color:#eef2f5;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px}
+      .portal-employee .employee-user-copy small{margin-top:3px;color:#777f89;font-size:8px;text-transform:uppercase;letter-spacing:.08em}
+      .portal-employee .employee-action{height:34px;padding:0 11px;border:1px solid #353b44;border-radius:7px;background:#14181e;color:#f3f5f7;font-size:9px;font-weight:900;cursor:pointer}
+      .portal-employee .employee-action:hover{border-color:#d61f26;background:rgba(214,31,38,.10)}
+      .portal-employee .employee-sidebar{position:fixed;z-index:110;top:0;left:0;bottom:0;width:var(--lv-sidebar-width);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid #272e36;background:radial-gradient(circle at 30% 0%,rgba(214,31,38,.12),transparent 30%),linear-gradient(180deg,#0c0f13,#090b0e 72%);box-shadow:12px 0 35px rgba(0,0,0,.22)}
+      .portal-employee .employee-brand{height:78px;flex:0 0 auto;padding:16px 19px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #252c34;color:#fff;text-decoration:none}
+      .portal-employee .employee-brand img{width:43px;height:43px;object-fit:contain;flex:0 0 43px}
+      .portal-employee .employee-brand strong{display:block;font-size:17px;line-height:1;font-weight:900;letter-spacing:.025em}
+      .portal-employee .employee-brand small{display:block;margin-top:6px;color:#8d98a3;font-size:6.5px;letter-spacing:.18em;font-weight:800}
+      .portal-employee .employee-nav{flex:1;overflow-y:auto;padding:17px 12px 10px;display:flex;flex-direction:column;gap:4px}
+      .portal-employee .employee-nav-label{padding:0 12px 10px;color:#59636e;font-size:8px;font-weight:900;letter-spacing:.2em}
+      .portal-employee .employee-nav a{min-height:42px;display:flex;align-items:center;gap:11px;padding:0 13px;border:1px solid transparent;border-radius:9px;color:#8f99a3;text-decoration:none;font-size:10.5px;font-weight:800;letter-spacing:.025em}
+      .portal-employee .employee-nav a:hover{color:#fff;border-color:#2b343d;background:rgba(255,255,255,.035)}
+      .portal-employee .employee-nav a[aria-current="location"]{color:#fff;border-color:rgba(214,31,38,.34);background:linear-gradient(90deg,rgba(214,31,38,.20),rgba(214,31,38,.06));box-shadow:inset 3px 0 #d61f26}
+      .portal-employee .employee-nav .nav-icon{width:20px;height:20px;display:inline-grid;place-items:center;flex:0 0 20px;color:#7f8994;font-size:15px}
+      .portal-employee .employee-nav a[aria-current="location"] .nav-icon,.portal-employee .employee-nav a:hover .nav-icon{color:#ff666c}
+      .portal-employee .employee-sidebar-footer{flex:0 0 auto;padding:13px 12px 15px;border-top:1px solid #252c34}
+      .portal-employee .employee-profile{min-width:0;padding:10px 9px;display:flex;align-items:center;gap:10px;border-radius:10px;background:rgba(255,255,255,.025)}
+      .portal-employee .employee-profile .employee-avatar{width:34px;height:34px;flex:0 0 34px}
+      .portal-employee .employee-profile-copy{min-width:0}
+      .portal-employee .employee-profile-copy strong,.portal-employee .employee-profile-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .portal-employee .employee-profile-copy strong{font-size:10px;color:#eef2f5}
+      .portal-employee .employee-profile-copy small{margin-top:4px;font-size:8px;color:#77818b}
+      .portal-employee .employee-main{width:100%;min-height:calc(100vh - var(--lv-topbar-height));margin:var(--lv-topbar-height) 0 0;padding-left:var(--lv-sidebar-width)}
+      .portal-employee .employee-content{width:min(1500px,calc(100% - 56px));max-width:1500px;margin:0 28px;padding:28px 0 48px}
+      .portal-employee .employee-workspace-root{width:100%;min-height:auto;padding:0;background:transparent}
+      .portal-employee .employee-workspace-nav-wrap{display:none}
+      .portal-employee .employee-workspace-body{padding:0}
+      .portal-employee .portal-header,.portal-employee .portal-navigation{display:none!important}
+      @media(max-width:900px){
+        .portal-employee{--lv-topbar-height:64px}
+        .portal-employee .employee-sidebar{display:none}
+        .portal-employee .employee-sidebar.open{display:flex;position:fixed;top:64px;left:0;right:auto;bottom:0;width:280px;box-shadow:25px 0 55px rgba(0,0,0,.45)}
+        .portal-employee .employee-topbar{left:0;height:64px}
+        .portal-employee .employee-topbar-inner{padding:0 14px;gap:8px}
+        .portal-employee .employee-search{flex:1;width:auto;max-width:none}
+        .portal-employee .employee-tools{gap:4px}
+        .portal-employee .employee-user-copy{display:none}
+        .portal-employee .employee-content{width:calc(100% - 28px);margin:0 14px;padding:20px 0 34px}
+        .portal-employee .employee-action.password-action{display:none}
+      }
+      @media(max-width:520px){.portal-employee .employee-action.signout-action{display:none}}
+    \`}</style>
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
-    <header className="portal-header">
-      <Link href="/employee" className="portal-brand"><img src="/land-view-logo.svg" alt=""/><span><strong>LAND VIEW</strong><small>TEAM WORKSPACE</small></span></Link>
-      <div className="portal-identity"><strong>{String(name)}</strong><small>{String(employeeId)}</small></div>
-      <div className="portal-account"><button onClick={() => {setPasswordOpen(true); setPasswordMessage("");}}>Password</button><button onClick={logout}>Sign out</button></div>
-      <button className="portal-menu" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} aria-controls="portal-navigation" onClick={() => setMobileOpen(v=>!v)}>{mobileOpen ? "Close" : "Menu"}</button>
+    <aside className={mobileOpen ? "employee-sidebar open" : "employee-sidebar"}>
+      <Link href="/employee#dashboard" className="employee-brand" onClick={()=>setMobileOpen(false)}>
+        <img src="/land-view-logo.svg" alt="LAND VIEW"/>
+        <span><strong>LAND VIEW</strong><small>EMPLOYEE WORKSPACE</small></span>
+      </Link>
+      <nav className="employee-nav" aria-label="Employee workspace">
+        <div className="employee-nav-label">WORKSPACE</div>
+        {employeeNav.map(item=><Link key={item.href} href={item.href} aria-current={item.href.endsWith(activeHash)?"location":undefined} onClick={()=>{setActiveHash(item.href.slice(item.href.indexOf("#")));setMobileOpen(false);}}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>)}
+        {employeeApprovals&&<Link href="/employee#approvals" aria-current={activeHash==="#approvals"?"location":undefined} onClick={()=>{setActiveHash("#approvals");setMobileOpen(false)}}><span className="nav-icon" aria-hidden="true">✓</span><span>Approvals</span></Link>}
+      </nav>
+      <div className="employee-sidebar-footer">
+        <div className="employee-profile">
+          <div className="employee-avatar">{initials}</div>
+          <div className="employee-profile-copy"><strong>{String(name)}</strong><small>{String(employeeId)}</small></div>
+        </div>
+      </div>
+    </aside>
+    <header className="employee-topbar">
+      <div className="employee-topbar-inner">
+        <button className="employee-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-expanded={mobileOpen} onClick={()=>setMobileOpen(v=>!v)}>☰</button>
+        <div className="employee-search" role="search"><span aria-hidden="true">⌕</span><input aria-label="Search employee workspace" placeholder="Search..." /></div>
+        <div className="employee-tools">
+          <div className="employee-user"><div className="employee-avatar">{initials}</div><div className="employee-user-copy"><strong>{String(name)}</strong><small>Employee · {String(employeeId)}</small></div></div>
+          <button className="employee-action password-action" onClick={()=>{setPasswordOpen(true);setPasswordMessage("")}}>Password</button>
+          <button className="employee-action signout-action" onClick={logout}>Sign out</button>
+        </div>
+      </div>
     </header>
-    <nav id="portal-navigation" aria-label="employee workspace" className={`portal-navigation ${mobileOpen ? "open" : ""}`}>{employeeNav.map(item=><Link key={item.href} href={item.href} aria-current={item.href.endsWith(activeHash)?"location":undefined} onClick={()=>{setActiveHash(item.href.slice(item.href.indexOf("#")));setMobileOpen(false);}}>{item.label}</Link>)}</nav>
-    <div className="admin-main tmg-admin-main"><main id="workspace-content" className="content-wrap tmg-content-wrap">{children}</main></div>
+    <div className="employee-main">
+      <main id="workspace-content" className="employee-content">{children}</main>
+    </div>
     {passwordModal}
   </div>;
 }
