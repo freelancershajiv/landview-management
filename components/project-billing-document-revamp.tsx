@@ -357,9 +357,9 @@ export default function ProjectBillingDocumentRevamp({
           .lvInvoiceTable th:last-child,.lvInvoiceTable td:last-child{text-align:right!important;white-space:nowrap!important}
           .lvEmptyRow{text-align:center!important;color:#666!important;padding:3mm!important}
 
-          .lvBillTable col:nth-child(1){width:8%!important}.lvBillTable col:nth-child(2){width:44%!important}.lvBillTable col:nth-child(3){width:18%!important}.lvBillTable col:nth-child(4){width:10%!important}.lvBillTable col:nth-child(5){width:20%!important}
+          .lvBillTable col:nth-child(1){width:7%!important}.lvBillTable col:nth-child(2){width:34%!important}.lvBillTable col:nth-child(3){width:12%!important}.lvBillTable col:nth-child(4){width:8%!important}.lvBillTable col:nth-child(5){width:13%!important}.lvBillTable col:nth-child(6){width:13%!important}.lvBillTable col:nth-child(7){width:13%!important}
           .lvBillTable th:nth-child(3),.lvBillTable td:nth-child(3),.lvBillTable th:nth-child(4),.lvBillTable td:nth-child(4){text-align:center!important}
-          .lvBillTable td:nth-child(5){text-align:right!important}
+          .lvBillTable th:nth-child(5),.lvBillTable td:nth-child(5),.lvBillTable th:nth-child(6),.lvBillTable td:nth-child(6),.lvBillTable th:nth-child(7),.lvBillTable td:nth-child(7){text-align:right!important;white-space:nowrap!important}
 
           .lvTotalsBlock{width:100%!important;margin-top:0!important;border:1px solid #cbd1d6!important;border-top:0!important;box-sizing:border-box!important}
           .lvTotalsBlock>div{display:grid!important;grid-template-columns:minmax(0,1fr) 42mm!important;align-items:center!important;min-height:6.6mm!important;border-top:1px solid #d6dbe0!important}
