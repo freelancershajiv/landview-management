@@ -57,6 +57,12 @@ export async function updateRows(table: string, filters: Row, changes: Row) {
 export async function deleteRows(table: string, filters: Row) {
   return (await supabaseGateway("deleteRows", { table, filters })) as Row[];
 }
+export async function uploadSiteVisitMedia(input: { path: string; contentType: string; base64: string }) {
+  return (await supabaseGateway("uploadSiteVisitMedia", input, 30_000)) as { path: string };
+}
+export async function getSiteVisitMediaUrl(path: string, expiresIn = 900) {
+  return (await supabaseGateway("getSiteVisitMediaUrl", { path, expiresIn })) as { path: string; url: string };
+}
 
 function projectLegacy(row: Row, billed?: number) {
   return {
