@@ -92,6 +92,15 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
     return () => { cancelled = true; };
   }, [portal, router]);
 
+  function goEmployeeSection(hash: string) {
+    if (portal !== "employee") return;
+    setMobileOpen(false);
+    const next = hash.startsWith("#") ? hash : `#${hash}`;
+    window.history.replaceState(null, "", `/employee${next}`);
+    setActiveHash(next);
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  }
+
   async function logout() {
     try { await landViewApi.logout(); } catch {}
     clearStoredSession();
@@ -172,17 +181,17 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
       .portal-employee .employee-action{height:34px;padding:0 11px;border:1px solid #353b44;border-radius:7px;background:#14181e;color:#f3f5f7;font-size:9px;font-weight:900;cursor:pointer}
       .portal-employee .employee-action:hover{border-color:#d61f26;background:rgba(214,31,38,.10)}
       .portal-employee .employee-sidebar{position:fixed;z-index:110;top:0;left:0;bottom:0;width:var(--lv-sidebar-width);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid #272e36;background:radial-gradient(circle at 30% 0%,rgba(214,31,38,.12),transparent 30%),linear-gradient(180deg,#0c0f13,#090b0e 72%);box-shadow:12px 0 35px rgba(0,0,0,.22)}
-      .portal-employee .employee-brand{height:78px;flex:0 0 auto;padding:16px 19px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #252c34;color:#fff;text-decoration:none}
+      .portal-employee .employee-brand{height:78px;width:100%;border:0;cursor:pointer;text-align:left;flex:0 0 auto;padding:16px 19px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #252c34;color:#fff;text-decoration:none}
       .portal-employee .employee-brand img{width:43px;height:43px;object-fit:contain;flex:0 0 43px}
       .portal-employee .employee-brand strong{display:block;font-size:17px;line-height:1;font-weight:900;letter-spacing:.025em}
       .portal-employee .employee-brand small{display:block;margin-top:6px;color:#8d98a3;font-size:6.5px;letter-spacing:.18em;font-weight:800}
       .portal-employee .employee-nav{flex:1;overflow-y:auto;padding:17px 12px 10px;display:flex;flex-direction:column;gap:4px}
       .portal-employee .employee-nav-label{padding:0 12px 10px;color:#59636e;font-size:8px;font-weight:900;letter-spacing:.2em}
-      .portal-employee .employee-nav a{min-height:42px;display:flex;align-items:center;gap:11px;padding:0 13px;border:1px solid transparent;border-radius:9px;color:#8f99a3;text-decoration:none;font-size:10.5px;font-weight:800;letter-spacing:.025em}
-      .portal-employee .employee-nav a:hover{color:#fff;border-color:#2b343d;background:rgba(255,255,255,.035)}
-      .portal-employee .employee-nav a[aria-current="location"]{color:#fff;border-color:rgba(214,31,38,.34);background:linear-gradient(90deg,rgba(214,31,38,.20),rgba(214,31,38,.06));box-shadow:inset 3px 0 #d61f26}
+      .portal-employee .employee-nav a,.portal-employee .employee-nav-button{min-height:42px;display:flex;align-items:center;gap:11px;padding:0 13px;border:1px solid transparent;border-radius:9px;color:#8f99a3;text-decoration:none;font-size:10.5px;font-weight:800;letter-spacing:.025em;background:transparent;font-family:inherit;cursor:pointer;text-align:left;width:100%}
+      .portal-employee .employee-nav a:hover,.portal-employee .employee-nav-button:hover{color:#fff;border-color:#2b343d;background:rgba(255,255,255,.035)}
+      .portal-employee .employee-nav a[aria-current="location"],.portal-employee .employee-nav-button[aria-current="location"]{color:#fff;border-color:rgba(214,31,38,.34);background:linear-gradient(90deg,rgba(214,31,38,.20),rgba(214,31,38,.06));box-shadow:inset 3px 0 #d61f26}
       .portal-employee .employee-nav .nav-icon{width:20px;height:20px;display:inline-grid;place-items:center;flex:0 0 20px;color:#7f8994;font-size:15px}
-      .portal-employee .employee-nav a[aria-current="location"] .nav-icon,.portal-employee .employee-nav a:hover .nav-icon{color:#ff666c}
+      .portal-employee .employee-nav a[aria-current="location"] .nav-icon,.portal-employee .employee-nav-button[aria-current="location"] .nav-icon,.portal-employee .employee-nav a:hover .nav-icon,.portal-employee .employee-nav-button:hover .nav-icon{color:#ff666c}
       .portal-employee .employee-sidebar-footer{flex:0 0 auto;padding:13px 12px 15px;border-top:1px solid #252c34}
       .portal-employee .employee-profile{min-width:0;padding:10px 9px;display:flex;align-items:center;gap:10px;border-radius:10px;background:rgba(255,255,255,.025)}
       .portal-employee .employee-profile .employee-avatar{width:34px;height:34px;flex:0 0 34px}
@@ -212,14 +221,14 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
     `}</style>
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
     <aside className={mobileOpen ? "employee-sidebar open" : "employee-sidebar"}>
-      <Link href="/employee#dashboard" className="employee-brand" onClick={()=>setMobileOpen(false)}>
+      <button type="button" className="employee-brand" onClick={()=>goEmployeeSection("#dashboard")} aria-label="Open Employee Dashboard">
         <img src="/land-view-logo.svg" alt="LAND VIEW"/>
         <span><strong>LAND VIEW</strong><small>EMPLOYEE WORKSPACE</small></span>
-      </Link>
+      </button>
       <nav className="employee-nav" aria-label="Employee workspace">
         <div className="employee-nav-label">WORKSPACE</div>
-        {employeeNav.map(item=><Link key={item.href} href={item.href} aria-current={item.href.endsWith(activeHash)?"location":undefined} onClick={()=>{setActiveHash(item.href.slice(item.href.indexOf("#")));setMobileOpen(false);}}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>)}
-        {employeeApprovals&&<Link href="/employee#approvals" aria-current={activeHash==="#approvals"?"location":undefined} onClick={()=>{setActiveHash("#approvals");setMobileOpen(false)}}><span className="nav-icon" aria-hidden="true">✓</span><span>Approvals</span></Link>}
+        {employeeNav.map(item=>{const hash=item.href.slice(item.href.indexOf("#"));return <button key={item.href} type="button" className="employee-nav-button" aria-current={hash===activeHash?"location":undefined} onClick={()=>goEmployeeSection(hash)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></button>;})}
+        {employeeApprovals&&<button type="button" className="employee-nav-button" aria-current={activeHash==="#approvals"?"location":undefined} onClick={()=>goEmployeeSection("#approvals")}><span className="nav-icon" aria-hidden="true">✓</span><span>Approvals</span></button>}
       </nav>
       <div className="employee-sidebar-footer">
         <div className="employee-profile">
