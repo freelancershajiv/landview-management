@@ -48,7 +48,7 @@ function roleOf(user?: SessionUser | null) {
   return String(user?.role || user?.Role || "").trim().toLowerCase();
 }
 function isWorkspaceRole(role: string) {
-  return ["admin", "manager", "accounts", "employee"].includes(role);
+  return ["admin", "manager", "employee"].includes(role);
 }
 function currentMatches(pathname: string, href: string) {
   if (href === "/admin") return pathname === "/admin";
