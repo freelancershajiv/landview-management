@@ -97,7 +97,7 @@ export default function ProjectsPage() {
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [role, setRole] = useState("");
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<"All" | ProjectCategory>("All");
+  const [category, setCategory] = useState<"All" | ProjectCategory>("Running");
   const [expanded, setExpanded] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
