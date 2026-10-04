@@ -122,7 +122,9 @@ export default function ProjectBillingDocumentRevamp({
       .filter((category) => Number(category.due || 0) > 0.009)
       .map((category) => ({
         ...category,
-        items: [{ service: `Outstanding ${category.name} balance`, price: "", quantity: "", amount: Math.max(0, Number(category.due || 0)) }],
+        items: category.items.length
+          ? category.items.map((item) => ({ ...item, amount: item.amount }))
+          : [{ service: `Outstanding ${category.name} balance`, price: "", quantity: "", amount: Math.max(0, Number(category.due || 0)) }],
         gross: Math.max(0, Number(category.due || 0)),
         discount: 0,
         paid: 0,
