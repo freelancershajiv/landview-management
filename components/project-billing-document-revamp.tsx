@@ -121,13 +121,13 @@ export default function ProjectBillingDocumentRevamp({
     const dueInvoices = result.invoices
       .filter((category) => Number(category.due || 0) > 0.009)
       .map((category) => {
-        const sourceItems = category.items as Array<typeof category.items[number] & { billStatus?: string }>;
+        const sourceItems = category.items as Array<typeof category.items[number] & { billStatus?: string; billNetAmount?: number }>;
         const statusTrackedItems = sourceItems.filter((item) => item.billStatus);
         const outstandingItems = statusTrackedItems.length
           ? statusTrackedItems.filter((item) => !["paid", "fully paid", "full paid", "cancelled", "canceled", "void", "voided"].includes(String(item.billStatus || "").trim().toLowerCase()))
           : [];
         const dueItems = outstandingItems.length
-          ? outstandingItems.map((item) => ({ ...item, amount: item.amount }))
+          ? outstandingItems.map((item) => ({ ...item, amount: Number.isFinite(item.billNetAmount) ? Math.max(0, Number(item.billNetAmount)) : item.amount }))
           : [{ service: `Outstanding ${category.name} balance`, price: "", quantity: "", amount: Math.max(0, Number(category.due || 0)) }];
         return {
         ...category,
