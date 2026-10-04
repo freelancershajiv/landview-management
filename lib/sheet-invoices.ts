@@ -190,15 +190,18 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     );
     if (alreadyIncluded) continue;
 
-    category.items.push({
+    const netAmountValue = Number(recordValue(record, ["Net_Amount", "Net Amount"]));
+    const discountValue = Number(recordValue(record, ["Discount", "Bill_Discount", "Bill Discount"]));
+    const nextItem = {
       service,
       price: "",
       quantity: "",
       amount: billAmount,
-      ...(status ? { billStatus: status } : {}),
-      ...(Number.isFinite(Number(recordValue(record, ["Net_Amount", "Net Amount"]))) ? { billNetAmount: Number(recordValue(record, ["Net_Amount", "Net Amount"])) } : {}),
-      ...(Number.isFinite(Number(recordValue(record, ["Discount", "Bill_Discount", "Bill Discount"]))) ? { billDiscount: Number(recordValue(record, ["Discount", "Bill_Discount", "Bill Discount"])) } : {},
-    } as typeof category.items[number]);
+      billStatus: status || undefined,
+      billNetAmount: Number.isFinite(netAmountValue) ? netAmountValue : undefined,
+      billDiscount: Number.isFinite(discountValue) ? discountValue : undefined,
+    };
+    category.items.push(nextItem as typeof category.items[number]);
   }
   return recalculateBilling(billing);
 }
