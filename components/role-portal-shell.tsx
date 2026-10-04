@@ -212,6 +212,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
         .portal-employee .employee-sidebar.open{display:flex;position:fixed;top:64px;left:0;right:auto;bottom:0;width:280px;box-shadow:25px 0 55px rgba(0,0,0,.45)}
         .portal-employee .employee-topbar{left:0;height:64px}
         .portal-employee .employee-topbar-inner{padding:0 10px;gap:7px;min-width:0}
+        .portal-employee .employee-main{padding-left:0}
         .portal-employee .employee-search{flex:1 1 auto;width:auto;max-width:none;min-width:0}
         .portal-employee .employee-tools{gap:4px;min-width:38px}
         .portal-employee .employee-user-copy{display:none}
