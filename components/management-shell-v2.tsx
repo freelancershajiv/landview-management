@@ -24,6 +24,7 @@ const nav: NavItem[] = [
   { href: "/projectmanagement", label: "Project Management", icon: "◈", permission: "projects.view" },
   { href: "/admin/estimate", label: "Estimates", icon: "▤", permission: "projects.view" },
   { href: "/admin/workflow", label: "Workflow", icon: "↗", permission: "workflow.view" },
+  { href: "/admin/site-visits", label: "Site Visits", icon: "⌖", permission: "site.view" },
   { href: "/admin/registers", label: "Document Registry", icon: "▧", permission: "documents.view" },
   { href: "/admin/employees", label: "Employees", icon: "♙", permission: "employees.view" },
   { href: "/admin/certificates", label: "Certificates", icon: "⌑", permission: "certificates.view" },
@@ -36,7 +37,7 @@ const nav: NavItem[] = [
 ];
 
 const navOrder = [
-  "/admin/projects", "/projectmanagement", "/admin/estimate", "/admin/workflow", "/admin/proposals",
+  "/admin/projects", "/projectmanagement", "/admin/estimate", "/admin/workflow", "/admin/site-visits", "/admin/proposals",
   "/admin/registers", "/admin/certificates",
   "/admin/finance", "/admin/accounts/entry", "/admin/accounts",
   "/admin/employees", "/admin/access", "/admin/website-analytics",
