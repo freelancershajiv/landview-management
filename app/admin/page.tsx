@@ -1,6 +1,6 @@
 import Link from "next/link";
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
-import ManagementDashboardV2 from "@/components/management-dashboard-v2";
+import AdminCommandCenter from "@/components/admin-command-center";
 import { requirePortalSession } from "@/lib/server-auth";
 
 function isEmp0001(user: Record<string, unknown>) {
@@ -27,6 +27,6 @@ export default async function DashboardPage(){
       <div><small style={{display:"block",color:"#f08078",fontWeight:900,letterSpacing:".12em",marginBottom:3}}>WEBSITE INTELLIGENCE</small><strong>Visitor analytics is available in the admin workspace.</strong></div>
       <Link href="/admin/website-analytics" style={{whiteSpace:"nowrap",padding:"10px 14px",borderRadius:9,background:"#ff8179",color:"#17110f",fontWeight:900,textDecoration:"none"}}>Open Website Analytics →</Link>
     </div>}
-    <ManagementDashboardV2/>
+    <AdminCommandCenter/>
   </>;
 }
