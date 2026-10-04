@@ -13,7 +13,7 @@ const portals = [
 
 function normalizeRole(value: unknown){ return String(value || "").trim().toLowerCase(); }
 function portalForRole(role:string):PortalType|null{
-  if(["admin","manager","accounts"].includes(role)) return "admin";
+  if(["admin","manager"].includes(role)) return "admin";
   if(role === "employee") return "employee";
   if(role === "client") return "client";
   return null;
