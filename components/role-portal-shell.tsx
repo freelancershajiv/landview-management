@@ -9,7 +9,7 @@ type PortalType = "employee" | "client";
 
 function normalizeRole(value: unknown) { return String(value || "").trim().toLowerCase(); }
 function routeForRole(role: string) {
-  if (role === "admin" || role === "manager" || role === "accounts") return "/admin";
+  if (role === "admin" || role === "manager") return "/admin";
   if (role === "employee") return "/employee";
   if (role === "client") return "/client";
   return "/login";
