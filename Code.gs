@@ -35,6 +35,9 @@ const CONFIG = {
   // Every project folder is created/reused inside this folder.
   ROOT_FOLDER_ID: "",
 
+  // Dedicated Google Drive root for Site Visit photos.
+  SITE_VISIT_MEDIA_ROOT_FOLDER_ID: "1A5tlZ9a0cretQzJ1I3OiVDi1ACKUfh2G",
+
   // Security: short absolute lifetime plus idle timeout.
   SESSION_HOURS: 8,
   SESSION_IDLE_MINUTES: 45,
@@ -326,6 +329,12 @@ function handleAction(
     case "createSiteVisit":
       return createSiteVisit(params);
 
+    case "uploadSiteVisitMedia":
+      return uploadSiteVisitMediaCore_(params);
+
+    case "getSiteVisitMedia":
+      return getSiteVisitMediaCore_(params);
+
     case "getBillingDashboard":
       return getBillingDashboard(params);
 
@@ -505,7 +514,9 @@ function authorizeActionRequest(action, params) {
   "getPublicTeam",
   "getPublicProjects",
   "getPublicBillingVerification",
-  "trackVisitorEvent"
+  "trackVisitorEvent",
+  "uploadSiteVisitMedia",
+  "getSiteVisitMedia"
 ];
   if (publicActions.includes(action)) return null;
 
@@ -4458,6 +4469,120 @@ function getSiteVisits(params) {
   return { success: true, data: data };
 }
 
+
+function getSiteVisitMediaRootFolder_() {
+  const configured = String(
+    PropertiesService.getScriptProperties().getProperty("SITE_VISIT_MEDIA_ROOT_FOLDER_ID") ||
+    CONFIG.SITE_VISIT_MEDIA_ROOT_FOLDER_ID ||
+    ""
+  ).trim();
+  if (!configured) throw new Error("Site Visit media Drive folder is not configured.");
+  try {
+    return DriveApp.getFolderById(configured);
+  } catch (error) {
+    throw new Error("Site Visit media Drive folder could not be opened. Check the folder ID and Apps Script Drive permissions.");
+  }
+}
+
+function getOrCreateNamedFolder_(parent, name) {
+  const cleanName = sanitizeFileName(String(name || "").trim()) || "LAND VIEW";
+  const found = parent.getFoldersByName(cleanName);
+  return found.hasNext() ? found.next() : parent.createFolder(cleanName);
+}
+
+function decodeSiteVisitBase64_(value) {
+  const raw = String(value || "").trim();
+  if (!raw) throw new Error("Site Visit photo data is required.");
+  let bytes;
+  try {
+    bytes = Utilities.base64Decode(raw);
+  } catch (error) {
+    throw new Error("Invalid Site Visit photo data.");
+  }
+  if (!bytes || !bytes.length) throw new Error("Site Visit photo data is empty.");
+  if (bytes.length > 4 * 1024 * 1024) throw new Error("Processed Site Visit photo exceeds the 4 MB Drive upload limit.");
+  return bytes;
+}
+
+function uploadSiteVisitMediaCore_(params) {
+  const projectId = String(params.projectId || params.Project_ID || "").trim();
+  const visitCode = String(params.visitId || params.Visit_ID || "").trim();
+  const kind = String(params.kind || "").trim().toLowerCase();
+  const fileName = sanitizeFileName(String(params.fileName || params.File_Name || "").trim()) || "site-visit.jpg";
+  const mimeType = String(params.mimeType || params.Mime_Type || "image/jpeg").trim().toLowerCase();
+  const locationLat = String(params.locationLatitude ?? "").trim();
+  const locationLon = String(params.locationLongitude ?? "").trim();
+  const locationAccuracy = String(params.locationAccuracyM ?? "").trim();
+
+  if (!projectId || !visitCode) throw new Error("Project ID and Site Visit ID are required.");
+  if (!["visit","problem"].includes(kind)) throw new Error("Invalid Site Visit photo type.");
+  if (!["image/jpeg","image/png","image/webp"].includes(mimeType)) throw new Error("Only JPG, PNG and WebP photos are allowed.");
+
+  const root = getSiteVisitMediaRootFolder_();
+  const project = getProjectRecordById(projectId);
+  const projectFolder = getOrCreateNamedFolder_(root, buildProjectFolderName(project));
+  const visitFolder = getOrCreateNamedFolder_(projectFolder, visitCode);
+
+  const bytes = decodeSiteVisitBase64_(params.base64 || params.fileBase64);
+  const blob = Utilities.newBlob(bytes, mimeType, fileName);
+  const file = visitFolder.createFile(blob);
+
+  const metadata = {
+    projectId: projectId,
+    visitId: visitCode,
+    type: kind,
+    uploadedAt: new Date().toISOString(),
+    locationLatitude: locationLat,
+    locationLongitude: locationLon,
+    locationAccuracyM: locationAccuracy
+  };
+  try {
+    file.setDescription(JSON.stringify(metadata));
+  } catch (error) {}
+
+  return {
+    success: true,
+    data: {
+      projectId: projectId,
+      visitId: visitCode,
+      kind: kind,
+      rootFolderId: root.getId(),
+      projectFolderId: projectFolder.getId(),
+      visitFolderId: visitFolder.getId(),
+      fileId: file.getId(),
+      fileName: file.getName(),
+      fileUrl: file.getUrl(),
+      mimeType: file.getMimeType(),
+      size: bytes.length
+    }
+  };
+}
+
+function getSiteVisitMediaCore_(params) {
+  const fileId = String(params.fileId || params.File_ID || "").trim();
+  if (!fileId) throw new Error("Site Visit Drive file ID is required.");
+
+  let file;
+  try {
+    file = DriveApp.getFileById(fileId);
+  } catch (error) {
+    throw new Error("Site Visit Drive file could not be opened.");
+  }
+
+  const blob = file.getBlob();
+  const bytes = blob.getBytes();
+  if (bytes.length > 6 * 1024 * 1024) throw new Error("Site Visit photo is too large to stream.");
+  return {
+    success: true,
+    data: {
+      fileId: file.getId(),
+      fileName: file.getName(),
+      mimeType: file.getMimeType() || "application/octet-stream",
+      size: bytes.length,
+      base64: Utilities.base64Encode(bytes)
+    }
+  };
+}
 
 function createSiteVisit(params) {
   const session = requireSession(params);
