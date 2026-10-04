@@ -108,6 +108,9 @@ export default function ProjectDetailPage(){
           <Field label="PROJECT TYPE"><input value={String(draft?.Project_Type ?? "")} onChange={e=>setDraft((v:any)=>({...v,Project_Type:e.target.value}))}/></Field>
           <Field label="LOCATION"><input value={String(draft?.Location ?? "")} onChange={e=>setDraft((v:any)=>({...v,Location:e.target.value}))}/></Field>
           <Field label="LOCATION TAG"><input value={String(draft?.Location_Tag ?? "")} onChange={e=>setDraft((v:any)=>({...v,Location_Tag:e.target.value}))}/></Field>
+          <Field label="SITE LATITUDE"><input type="number" step="any" value={String(draft?.Site_Latitude ?? "")} onChange={e=>setDraft((v:any)=>({...v,Site_Latitude:e.target.value}))} placeholder="Google Maps latitude" /></Field>
+          <Field label="SITE LONGITUDE"><input type="number" step="any" value={String(draft?.Site_Longitude ?? "")} onChange={e=>setDraft((v:any)=>({...v,Site_Longitude:e.target.value}))} placeholder="Google Maps longitude" /></Field>
+          <Field label="SITE GEOFENCE RADIUS (M)"><input type="number" min="25" max="1000" value={String(draft?.Site_Geofence_Radius_M ?? 150)} onChange={e=>setDraft((v:any)=>({...v,Site_Geofence_Radius_M:e.target.value}))}/></Field>
           <Field label="PROJECT AREA"><input value={String(draft?.Project_Area ?? "")} onChange={e=>setDraft((v:any)=>({...v,Project_Area:e.target.value}))}/></Field>
           <Field label="PLOT AREA"><input type="number" value={String(draft?.Plot_Area ?? "")} onChange={e=>setDraft((v:any)=>({...v,Plot_Area:e.target.value}))}/></Field>
           <Field label="FLOORS / STORIES"><input value={String(draft?.Number_of_Stories ?? draft?.Floors ?? "")} onChange={e=>setDraft((v:any)=>({...v,Number_of_Stories:e.target.value,Floors:e.target.value}))}/></Field>
@@ -150,6 +153,7 @@ export default function ProjectDetailPage(){
         <div className="form-grid">
           <Field label="DESIGN BILL / PROJECT BILL"><input type="number" value={String(draft?.Design_Bill ?? "")} onChange={e=>setDraft((v:any)=>({...v,Design_Bill:e.target.value}))}/></Field>
           <Field label="PROJECT ID"><input value={projectId} disabled title="Project ID is protected"/></Field>
+          <div className="pc-note" style={{gridColumn:"1 / -1"}}>Site Visit photos require GPS verification inside this registered geofence. Enter the project's latitude/longitude from the correct Google Maps site pin.</div>
         </div>
       </div>
 
