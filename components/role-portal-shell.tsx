@@ -163,7 +163,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
 
   return <div className="admin-shell tmg-shell portal-employee employee-reference-shell">
     <style>{`
-      .portal-employee{--lv-sidebar-width:238px;--lv-topbar-height:74px;min-height:100vh;background:#090b0e;color:#f5f7fa}
+      .portal-employee{--lv-sidebar-width:238px;--lv-topbar-height:74px;min-height:100vh;background:#090b0e;color:#f5f7fa;overflow-x:hidden}
       .portal-employee *{box-sizing:border-box}
       .portal-employee .portal-skip{position:absolute;left:-9999px}
       .portal-employee .employee-topbar{position:fixed;z-index:100;top:0;left:var(--lv-sidebar-width);right:0;height:var(--lv-topbar-height);display:flex;align-items:center;border-bottom:1px solid #272e36;background:rgba(9,11,14,.95);backdrop-filter:blur(16px)}
@@ -181,7 +181,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
       .portal-employee .employee-user-copy small{margin-top:3px;color:#777f89;font-size:8px;text-transform:uppercase;letter-spacing:.08em}
       .portal-employee .employee-action{height:34px;padding:0 11px;border:1px solid #353b44;border-radius:7px;background:#14181e;color:#f3f5f7;font-size:9px;font-weight:900;cursor:pointer}
       .portal-employee .employee-action:hover{border-color:#d61f26;background:rgba(214,31,38,.10)}
-      .portal-employee .employee-sidebar{position:fixed;z-index:110;top:0;left:0;bottom:0;width:var(--lv-sidebar-width);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid #272e36;background:radial-gradient(circle at 30% 0%,rgba(214,31,38,.12),transparent 30%),linear-gradient(180deg,#0c0f13,#090b0e 72%);box-shadow:12px 0 35px rgba(0,0,0,.22)}
+      .portal-employee .employee-nav-overlay{display:none}.portal-employee .employee-sidebar{position:fixed;z-index:110;top:0;left:0;bottom:0;width:var(--lv-sidebar-width);display:flex;flex-direction:column;overflow:hidden;border-right:1px solid #272e36;background:radial-gradient(circle at 30% 0%,rgba(214,31,38,.12),transparent 30%),linear-gradient(180deg,#0c0f13,#090b0e 72%);box-shadow:12px 0 35px rgba(0,0,0,.22)}
       .portal-employee .employee-brand{height:78px;width:100%;border:0;cursor:pointer;text-align:left;flex:0 0 auto;padding:16px 19px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #252c34;color:#fff;text-decoration:none}
       .portal-employee .employee-brand img{width:43px;height:43px;object-fit:contain;flex:0 0 43px}
       .portal-employee .employee-brand strong{display:block;font-size:17px;line-height:1;font-weight:900;letter-spacing:.025em}
@@ -200,8 +200,8 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
       .portal-employee .employee-profile-copy strong,.portal-employee .employee-profile-copy small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
       .portal-employee .employee-profile-copy strong{font-size:10px;color:#eef2f5}
       .portal-employee .employee-profile-copy small{margin-top:4px;font-size:8px;color:#77818b}
-      .portal-employee .employee-main{width:100%;min-height:calc(100vh - var(--lv-topbar-height));margin:var(--lv-topbar-height) 0 0;padding-left:var(--lv-sidebar-width)}
-      .portal-employee .employee-content{width:min(1500px,calc(100% - 56px));max-width:1500px;margin:0 28px;padding:28px 0 48px}
+      .portal-employee .employee-main{width:100%;min-height:calc(100vh - var(--lv-topbar-height));margin:var(--lv-topbar-height) 0 0;padding-left:var(--lv-sidebar-width);min-width:0;overflow-x:hidden}
+      .portal-employee .employee-content{width:min(1500px,calc(100% - 56px));max-width:1500px;margin:0 28px;padding:28px 0 48px;min-width:0}
       .portal-employee .employee-workspace-root{width:100%;min-height:auto;padding:0;background:transparent}
       .portal-employee .employee-workspace-nav-wrap{display:none}
       .portal-employee .employee-workspace-body{padding:0}
@@ -211,16 +211,20 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
         .portal-employee .employee-sidebar{display:none}
         .portal-employee .employee-sidebar.open{display:flex;position:fixed;top:64px;left:0;right:auto;bottom:0;width:280px;box-shadow:25px 0 55px rgba(0,0,0,.45)}
         .portal-employee .employee-topbar{left:0;height:64px}
-        .portal-employee .employee-topbar-inner{padding:0 14px;gap:8px}
-        .portal-employee .employee-search{flex:1;width:auto;max-width:none}
-        .portal-employee .employee-tools{gap:4px}
+        .portal-employee .employee-topbar-inner{padding:0 10px;gap:7px;min-width:0}
+        .portal-employee .employee-search{flex:1 1 auto;width:auto;max-width:none;min-width:0}
+        .portal-employee .employee-tools{gap:4px;min-width:38px}
         .portal-employee .employee-user-copy{display:none}
         .portal-employee .employee-content{width:calc(100% - 28px);margin:0 14px;padding:20px 0 34px}
         .portal-employee .employee-action.password-action{display:none}
+        .portal-employee .employee-nav-overlay{display:block;position:fixed;z-index:105;inset:64px 0 0;border:0;background:rgba(0,0,0,.5);backdrop-filter:blur(2px)}
       }
       @media(max-width:520px){.portal-employee .employee-action.signout-action{display:none}}
+      @media(max-width:430px){.portal-employee .employee-search input{font-size:10px}.portal-employee .employee-search{padding:0 9px}.portal-employee .employee-menu{width:34px;flex-basis:34px}.portal-employee .employee-avatar{width:34px;height:34px}}
+      @media(max-width:360px){.portal-employee .employee-search{display:none}.portal-employee .employee-tools{margin-left:auto}}
     `}</style>
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
+    {mobileOpen && <button type="button" className="employee-nav-overlay" aria-label="Close navigation" onClick={()=>setMobileOpen(false)} />}
     <aside className={mobileOpen ? "employee-sidebar open" : "employee-sidebar"}>
       <button type="button" className="employee-brand" onClick={()=>goEmployeeSection("#dashboard")} aria-label="Open Employee Dashboard">
         <img src="/land-view-logo.svg" alt="LAND VIEW"/>
