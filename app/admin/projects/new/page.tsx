@@ -22,6 +22,9 @@ type FormState = {
   Design_Stage_Status: string;
   Approval_Stage_Status: string;
   Supervision_Stage_Status: string;
+  Site_Latitude: string;
+  Site_Longitude: string;
+  Site_Geofence_Radius_M: string;
   Notes: string;
 };
 
@@ -40,6 +43,9 @@ const emptyForm: FormState = {
   Design_Stage_Status: "In Progress",
   Approval_Stage_Status: "Pending",
   Supervision_Stage_Status: "Completed",
+  Site_Latitude: "",
+  Site_Longitude: "",
+  Site_Geofence_Radius_M: "150",
   Notes: "",
 };
 
@@ -108,7 +114,7 @@ export default function NewProjectPage() {
     if (!canManage || saving) return;
     setMessage(null);
     if (mode === "manual" && !normalizedManual) {
-      setMessage({ kind: "err", text: "Enter a valid manual ID, for example LV-72." });
+      setMessage({ kind: "err", text: "Enter a valid manual ID, for example LV-072." });
       return;
     }
     if (mode === "manual" && manualExists) {
@@ -158,7 +164,7 @@ export default function NewProjectPage() {
         </div>
 
         <form className="form-grid" onSubmit={submit}>
-          {mode === "manual" && <label>Manual Project ID<input value={form.Project_ID} onChange={(e)=>setForm({...form,Project_ID:e.target.value})} placeholder="LV-72" required /><span style={{fontSize:10,color:manualExists?"#ff8f88":"#6f7d88"}}>{manualExists ? "This ID already exists." : "You may type 72, LV72 or LV-072; it will be stored as LV-72."}</span></label>}
+          {mode === "manual" && <label>Manual Project ID<input value={form.Project_ID} onChange={(e)=>setForm({...form,Project_ID:e.target.value})} placeholder="LV-072" required /><span style={{fontSize:10,color:manualExists?"#ff8f88":"#6f7d88"}}>{manualExists ? "This ID already exists." : "You may type 72, LV72 or LV-072; it will be stored as LV-072."}</span></label>}
           <label className={mode === "automatic" ? "full" : ""}>Project Name<input value={form.Project_Name} onChange={(e)=>setForm({...form,Project_Name:e.target.value,Client_Name:form.Client_Name || e.target.value})} required /></label>
           <label>Client Name<input value={form.Client_Name} onChange={(e)=>setForm({...form,Client_Name:e.target.value})} /></label>
           <label>Phone Number<input value={form.Phone_Number} onChange={(e)=>setForm({...form,Phone_Number:e.target.value})} /></label>
@@ -172,6 +178,9 @@ export default function NewProjectPage() {
           <label>Design Stage<select value={form.Design_Stage_Status} onChange={(e)=>setForm({...form,Design_Stage_Status:e.target.value})}><option>Pending</option><option>In Progress</option><option>Completed</option></select></label>
           <label>Approval Stage<select value={form.Approval_Stage_Status} onChange={(e)=>setForm({...form,Approval_Stage_Status:e.target.value})}><option>Pending</option><option>In Progress</option><option>Completed</option></select></label>
           <label>Supervision / Construction Stage<select value={form.Supervision_Stage_Status} onChange={(e)=>setForm({...form,Supervision_Stage_Status:e.target.value})}><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed / Not Required</option></select></label>
+          <label>Site Latitude<input value={form.Site_Latitude} onChange={(e)=>setForm({...form,Site_Latitude:e.target.value})} placeholder="e.g. 22.94xxxx" /></label>
+          <label>Site Longitude<input value={form.Site_Longitude} onChange={(e)=>setForm({...form,Site_Longitude:e.target.value})} placeholder="e.g. 91.39xxxx" /></label>
+          <label>Site Geofence Radius (m)<input type="number" min="25" max="1000" value={form.Site_Geofence_Radius_M} onChange={(e)=>setForm({...form,Site_Geofence_Radius_M:e.target.value})} /></label>
           <label className="full">Notes<textarea value={form.Notes} onChange={(e)=>setForm({...form,Notes:e.target.value})} placeholder="Optional project notes" /></label>
           <button className="new-project-btn primary submit" type="submit" disabled={!canManage || saving || (mode === "manual" && manualExists)}>{saving ? "Creating project…" : mode === "automatic" ? "Create Project with Automatic ID" : `Create Project as ${normalizedManual || "Manual ID"}`}</button>
         </form>
