@@ -41,7 +41,8 @@ export default function EmployeeSiteVisitCenter(){
   const [visitPhoto,setVisitPhoto]=useState<File|null>(null);
   const [problemPhoto,setProblemPhoto]=useState<File|null>(null);
   const [location,setLocation]=useState<{latitude:number;longitude:number;accuracyM:number;capturedAt:string}|null>(null);
-  const [locationChecking,setLocationChecking]=useState(false);\n  const [locationPermission,setLocationPermission]=useState<"unknown"|"prompt"|"granted"|"denied">("unknown");
+  const [locationChecking,setLocationChecking]=useState(false);
+  const [locationPermission,setLocationPermission]=useState<"unknown"|"prompt"|"granted"|"denied">("unknown");
 
   async function load(){
     setLoading(true);setError("");
@@ -57,7 +58,15 @@ export default function EmployeeSiteVisitCenter(){
     }catch(e:any){setError(e?.message||"Could not load Site Visits.");}
     finally{setLoading(false);}
   }
-  useEffect(()=>{\n    void load();\n    if(typeof navigator !== "undefined" && navigator.permissions?.query){\n      navigator.permissions.query({name:"geolocation"} as PermissionDescriptor).then((permission)=>{\n        setLocationPermission(permission.state as "prompt"|"granted"|"denied");\n        permission.onchange=()=>setLocationPermission(permission.state as "prompt"|"granted"|"denied");\n      }).catch(()=>{});\n    }\n  },[]);
+  useEffect(()=>{
+    void load();
+    if(typeof navigator !== "undefined" && navigator.permissions?.query){
+      navigator.permissions.query({name:"geolocation"} as PermissionDescriptor).then((permission)=>{
+        setLocationPermission(permission.state as "prompt"|"granted"|"denied");
+        permission.onchange=()=>setLocationPermission(permission.state as "prompt"|"granted"|"denied");
+      }).catch(()=>{});
+    }
+  },[]);
 
   const selectedProject=useMemo(()=>projects.find(p=>String(p.Project_ID)===String(form.projectId)),[projects,form.projectId]);
 
@@ -128,7 +137,8 @@ export default function EmployeeSiteVisitCenter(){
     `}</style>
 
     <div className="sv-hero"><small>SITE SUPERVISION</small><h2>Site Visits</h2><p>Record what happened on site, attach evidence, and keep the project team and client informed.</p></div>
-    {error&&<div className="sv-msg err">{error}</div>}{notice&&<div className="sv-msg ok">{notice}</div>}\n    {locationPermission==="denied"&&<div className="sv-location-permission"><strong>LOCATION ACCESS REQUIRED</strong><span>LAND VIEW cannot verify the project without your location. Open the browser site settings, set Location to <b>Allow</b>, then come back and press the button below.</span><button type="button" onClick={()=>void verifyLocation()} disabled={locationChecking||!form.projectId}>{locationChecking?"CHECKING…":"TRY LOCATION AGAIN"}</button></div>}
+    {error&&<div className="sv-msg err">{error}</div>}{notice&&<div className="sv-msg ok">{notice}</div>}
+    {locationPermission==="denied"&&<div className="sv-location-permission"><strong>LOCATION ACCESS REQUIRED</strong><span>LAND VIEW cannot verify the project without your location. Open the browser site settings, set Location to <b>Allow</b>, then come back and press the button below.</span><button type="button" onClick={()=>void verifyLocation()} disabled={locationChecking||!form.projectId}>{locationChecking?"CHECKING…":"TRY LOCATION AGAIN"}</button></div>}
 
     <div className="sv-grid">
       <section className="sv-card">
