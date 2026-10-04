@@ -35,7 +35,7 @@ async function fileToBase64(file: File) {
 }
 async function accessibleProjects(user: Row) {
   const role = roleOf(user);
-  if (role === "admin" || role === "manager") return { all: true, ids: [] as string[], rows: [] as Row[] };
+  if (role === "admin" || role === "manager") return { all: true, anyProject: true, employee: null as Row | null, ids: [] as string[], rows: [] as Row[] };
 
   if (role === "employee") {
     const employees = await selectRows("employees", { filters: { employee_code: employeeCodeOf(user) }, limit: 1 });
@@ -48,7 +48,7 @@ async function accessibleProjects(user: Row) {
   if (role === "client") {
     const codes = clientProjectCodesOf(user);
     const rows = codes.length ? await selectRows("projects", { inFilters: { project_code: codes }, limit: 5000 }) : [];
-    return { all: false, anyProject: false, ids: rows.map(row => String(row.id)), rows };
+    return { all: false, anyProject: false, employee: null as Row | null, ids: rows.map(row => String(row.id)), rows };
   }
 
   throw new Error("This account role cannot access Site Visits.");
@@ -139,7 +139,7 @@ export async function GET(request: NextRequest) {
     return ok(visits);
   } catch (error: any) {
     const message = error?.message || "Could not load site visits.";
-    const status = /session expired/i.test(message) ? 401 : /access denied|cannot access/i.test(message) ? 403 : 500;
+    const status = /session expired/i.test(message) ? 401 : /access denied|cannot access|Employee record not found/i.test(message) ? 403 : 500;
     return deny(message, status);
   }
 }
