@@ -120,17 +120,25 @@ export default function ProjectBillingDocumentRevamp({
     if (!dueOnly) return result;
     const dueInvoices = result.invoices
       .filter((category) => Number(category.due || 0) > 0.009)
-      .map((category) => ({
+      .map((category) => {
+        const sourceItems = category.items as Array<typeof category.items[number] & { billStatus?: string }>;
+        const statusTrackedItems = sourceItems.filter((item) => item.billStatus);
+        const outstandingItems = statusTrackedItems.length
+          ? statusTrackedItems.filter((item) => !["paid", "fully paid", "full paid", "cancelled", "canceled", "void", "voided"].includes(String(item.billStatus || "").trim().toLowerCase()))
+          : [];
+        const dueItems = outstandingItems.length
+          ? outstandingItems.map((item) => ({ ...item, amount: item.amount }))
+          : [{ service: `Outstanding ${category.name} balance`, price: "", quantity: "", amount: Math.max(0, Number(category.due || 0)) }];
+        return {
         ...category,
-        items: category.items.length
-          ? category.items.map((item) => ({ ...item, amount: item.amount }))
-          : [{ service: `Outstanding ${category.name} balance`, price: "", quantity: "", amount: Math.max(0, Number(category.due || 0)) }],
+        items: dueItems,
         gross: Math.max(0, Number(category.due || 0)),
         discount: 0,
         paid: 0,
         due: Math.max(0, Number(category.due || 0)),
         payments: [],
-      }));
+        };
+      });
     return {
       ...result,
       invoices: dueInvoices,
