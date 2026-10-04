@@ -55,6 +55,8 @@ async function accessibleProjects(user: Row) {
 }
 async function loadVisits(user: Row, projectCode?: string) {
   const access = await accessibleProjects(user);
+  const employeeId = roleOf(user) === "employee" ? access.employee?.id : null;
+  if (roleOf(user) === "employee" && !employeeId) throw new Error("Employee record not found.");
   let rows: Row[] = [];
   let projects: Row[] = access.rows;
 
@@ -75,12 +77,12 @@ async function loadVisits(user: Row, projectCode?: string) {
       if (!project) throw new Error("Access denied for this project.");
       projects = [project];
       if (roleOf(user) === "employee") {
-        rows = await selectRows("site_visits", { filters: { project_id: project.id, employee_id: access.employee.id }, order: "visit_date:desc", limit: 5000 });
+        rows = await selectRows("site_visits", { filters: { project_id: project.id, employee_id: employeeId }, order: "visit_date:desc", limit: 5000 });
       } else {
         rows = await selectRows("site_visits", { filters: { project_id: project.id }, order: "visit_date:desc", limit: 5000 });
       }
     } else if (roleOf(user) === "employee") {
-      rows = await selectRows("site_visits", { filters: { employee_id: access.employee.id }, order: "visit_date:desc", limit: 5000 });
+      rows = await selectRows("site_visits", { filters: { employee_id: employeeId }, order: "visit_date:desc", limit: 5000 });
     } else if (access.ids.length) {
       rows = await selectRows("site_visits", { inFilters: { project_id: access.ids }, order: "visit_date:desc", limit: 5000 });
     }
