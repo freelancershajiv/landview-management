@@ -441,7 +441,6 @@
     --lv-sidebar-width: 238px;
     --lv-topbar-height: 74px;
     --lv-content-max: 1500px;
-    padding-left: var(--lv-sidebar-width) !important;
   }
 
   .portal-admin .masthead {
@@ -606,9 +605,9 @@
 
   .portal-admin .admin-main,
   .portal-admin .tmg-admin-main {
-    width: 100% !important;
+    width: calc(100% - var(--lv-sidebar-width)) !important;
     min-height: calc(100vh - var(--lv-topbar-height)) !important;
-    margin: var(--lv-topbar-height) 0 0 !important;
+    margin: var(--lv-topbar-height) 0 0 var(--lv-sidebar-width) !important;
   }
 
   .portal-admin .content-wrap,
@@ -1064,5 +1063,27 @@
   .portal-admin .tmg-content-wrap {
     width: calc(100% - 18px) !important;
     padding-top: 14px !important;
+  }
+}
+
+
+/* Final shell geometry correction: content must never sit beneath the fixed sidebar. */
+@media screen and (min-width: 901px) {
+  .portal-admin {
+    overflow-x: hidden !important;
+  }
+
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main {
+    box-sizing: border-box !important;
+    margin-left: var(--lv-sidebar-width) !important;
+    width: calc(100% - var(--lv-sidebar-width)) !important;
+  }
+
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    box-sizing: border-box !important;
+    width: min(var(--lv-content-max), calc(100% - 56px)) !important;
+    max-width: var(--lv-content-max) !important;
   }
 }
