@@ -78,6 +78,7 @@ export default function ProjectBillingPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [verificationUrl, setVerificationUrl] = useState("");
   const [verificationError, setVerificationError] = useState("");
+  const [dueOnly, setDueOnly] = useState(false);
   const [fileListProjects, setFileListProjects] = useState<FileListProject[]>([]);
   const [fileListLoading, setFileListLoading] = useState(true);
   const [fileListError, setFileListError] = useState("");
@@ -163,6 +164,19 @@ export default function ProjectBillingPage() {
     await refreshBilling(id, version, false);
   }
 
+  useEffect(() => {
+    if (!dueOnly || !result) return;
+    const restore = () => setDueOnly(false);
+    window.addEventListener("afterprint", restore, { once: true });
+    const timer = window.setTimeout(() => { void printBillingPdf(result); }, 120);
+    return () => { window.clearTimeout(timer); window.removeEventListener("afterprint", restore); };
+  }, [dueOnly, result]);
+
+  function generateDueBill() {
+    if (!result || Number(result.totals.due || 0) <= 0.009) return;
+    setDueOnly(true);
+  }
+
   async function load(event: FormEvent) {
     event.preventDefault();
     await openBilling(fileId);
@@ -187,6 +201,11 @@ export default function ProjectBillingPage() {
         {result && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
             <EmailInvoiceButton result={result} verificationUrl={verificationUrl} className={styles.printButton} />
+            {Number(result.totals.due || 0) > 0.009 && (
+              <button className={styles.printButton} type="button" onClick={generateDueBill} disabled={dueOnly}>
+                {dueOnly ? "Generating Due Bill…" : "Generate Due Bill"}
+              </button>
+            )}
             <button className={styles.printButton} type="button" onClick={() => printBillingPdf(result)}>Print / Save PDF</button>
           </div>
         )}
@@ -217,7 +236,7 @@ export default function ProjectBillingPage() {
       {error && <div className={styles.error} role="alert">{error}</div>}
       {busy && <div className={styles.loading} role="status">Loading this project’s billing data…</div>}
       {refreshing && result && <div className={styles.loading} role="status">Bill opened from recent snapshot · checking latest billing and payment data in background…</div>}
-      {result && <ProjectBillingDocument result={result} verificationUrl={verificationUrl} verificationError={verificationError} />}
+      {result && <ProjectBillingDocument result={result} verificationUrl={verificationUrl} verificationError={verificationError} dueOnly={dueOnly} />}
     </div>
   );
 }
