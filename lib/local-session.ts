@@ -42,7 +42,7 @@ export function readSignedWorkspaceUser(value: string | undefined): WorkspaceUse
   try {
     const user = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as WorkspaceUser;
     const role = roleOf(user);
-    return ["admin", "manager", "accounts", "employee", "client"].includes(role) ? user : null;
+    return ["admin", "manager", "employee", "client"].includes(role) ? user : null;
   } catch {
     return null;
   }
