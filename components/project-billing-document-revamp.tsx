@@ -233,7 +233,7 @@ export default function ProjectBillingDocumentRevamp({
                             <td>{amountText(item.amount)}</td>
                           </tr>
                         );
-                      }) : <tr><td colSpan={5} className="lvEmptyRow">No bill records.</td></tr>}
+                      }) : <tr><td colSpan={6} className="lvEmptyRow">No bill records.</td></tr>}
                     </tbody>
                   </table>
                 </div>
