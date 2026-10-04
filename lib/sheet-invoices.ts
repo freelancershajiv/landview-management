@@ -90,9 +90,13 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
     const payments = rawPayments.filter((payment) => {
       const dateKey = verificationDateKey(payment.date);
       const detailsKey = String(payment.details ?? "").trim().toLowerCase().replace(/\\s+/g, " ");
+      // The paid-billing source can contain the same payment twice with
+      // slightly different descriptive text. When there is no explicit
+      // payment/income ID, date + amount is the stable duplicate signature
+      // within a billing category.
       const identityKey = payment.incomeId
-        ? `id:${payment.incomeId}`
-        : `fallback:${dateKey}|${payment.amount.toFixed(2)}|${detailsKey}`;
+        ? "id:" + payment.incomeId
+        : "fallback:" + dateKey + "|" + payment.amount.toFixed(2);
       if (seenPaymentKeys.has(identityKey)) return false;
       seenPaymentKeys.add(identityKey);
       return true;
