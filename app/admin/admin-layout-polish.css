@@ -1,32 +1,47 @@
 /* Final LAND VIEW admin alignment overrides. Loaded after admin-brand-theme.css. */
-@media screen {
+@media screen and (min-width: 901px) {
   .portal-admin .admin-main,
   .portal-admin .tmg-admin-main {
     width: 100% !important;
-    margin: 0 !important;
+    margin: var(--lv-topbar-height) 0 0 !important;
+    padding-left: var(--lv-sidebar-width) !important;
+    box-sizing: border-box !important;
+    min-height: calc(100vh - var(--lv-topbar-height)) !important;
   }
 
   .portal-admin .content-wrap,
   .portal-admin .tmg-content-wrap {
-    width: min(1500px, calc(100% - 56px)) !important;
+    width: calc(100% - 56px) !important;
     max-width: 1500px !important;
-    margin-left: auto !important;
-    margin-right: auto !important;
+    margin: 0 28px !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
+    box-sizing: border-box !important;
+  }
+}
+
+@media screen and (max-width: 900px) {
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main {
+    width: 100% !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+    box-sizing: border-box !important;
   }
 
-  @media (max-width: 900px) {
-    .portal-admin .content-wrap,
-    .portal-admin .tmg-content-wrap {
-      width: calc(100% - 28px) !important;
-    }
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    width: calc(100% - 28px) !important;
+    max-width: none !important;
+    margin: 0 14px !important;
+    box-sizing: border-box !important;
   }
+}
 
-  @media (max-width: 560px) {
-    .portal-admin .content-wrap,
-    .portal-admin .tmg-content-wrap {
-      width: calc(100% - 20px) !important;
-    }
+@media screen and (max-width: 560px) {
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    width: calc(100% - 20px) !important;
+    margin: 0 10px !important;
   }
 }
