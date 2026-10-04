@@ -20,6 +20,9 @@ type FormState = {
   Number_of_Stories: string;
   Start_Date: string;
   Status: string;
+  Design_Stage_Status: string;
+  Approval_Stage_Status: string;
+  Supervision_Stage_Status: string;
   Notes: string;
 };
 
@@ -36,6 +39,9 @@ const emptyForm: FormState = {
   Number_of_Stories: "",
   Start_Date: new Date().toISOString().slice(0, 10),
   Status: "Running",
+  Design_Stage_Status: "In Progress",
+  Approval_Stage_Status: "Pending",
+  Supervision_Stage_Status: "Completed",
   Notes: "",
 };
 
@@ -166,6 +172,9 @@ export default function NewProjectPage() {
           <label>Stories / Floors<input value={form.Number_of_Stories} onChange={(e)=>setForm({...form,Number_of_Stories:e.target.value})} /></label>
           <label>Start Date<input type="date" value={form.Start_Date} onChange={(e)=>setForm({...form,Start_Date:e.target.value})} /></label>
           <label>Status<select value={form.Status} onChange={(e)=>setForm({...form,Status:e.target.value})}><option value="Running">Ongoing</option><option value="Paused">On Hold</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select></label>
+          <label>Design Stage<select value={form.Design_Stage_Status} onChange={(e)=>setForm({...form,Design_Stage_Status:e.target.value})}><option>Pending</option><option>In Progress</option><option>Completed</option></select></label>
+          <label>Approval Stage<select value={form.Approval_Stage_Status} onChange={(e)=>setForm({...form,Approval_Stage_Status:e.target.value})}><option>Pending</option><option>In Progress</option><option>Completed</option></select></label>
+          <label>Supervision / Construction Stage<select value={form.Supervision_Stage_Status} onChange={(e)=>setForm({...form,Supervision_Stage_Status:e.target.value})}><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed / Not Required</option></select></label>
           <label className="full">Notes<textarea value={form.Notes} onChange={(e)=>setForm({...form,Notes:e.target.value})} placeholder="Optional project notes" /></label>
           <button className="new-project-btn primary submit" type="submit" disabled={!canManage || saving || (mode === "manual" && manualExists)}>{saving ? "Creating project…" : mode === "automatic" ? "Create Project with Automatic ID" : `Create Project as ${normalizedManual || "Manual ID"}`}</button>
         </form>
