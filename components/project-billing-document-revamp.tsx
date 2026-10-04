@@ -234,25 +234,26 @@ export default function ProjectBillingDocumentRevamp({
                   <div className="lvGrandTotal"><span>Grand Total (BDT)</span><strong>{amountText(grandTotal)}</strong></div>
                 </div>
 
-                {!dueOnly && <h2 className="lvSectionTitle lvDepositTitle"><span>{category.name.toUpperCase()}</span> <b>DEPOSIT / PAYMENTS</b></h2>}
-
-                <div className="lvTableWrap">
-                  <table className="lvInvoiceTable lvDepositTable">
-                    <colgroup><col /><col /><col /><col /><col /></colgroup>
-                    <thead><tr><th>SL.</th><th>DATE</th><th>PAYMENT DETAILS</th><th>VERIFICATION</th><th>AMOUNT (BDT)</th></tr></thead>
-                    <tbody>
-                      {!dueOnly && category.payments.length ? category.payments.map((payment, paymentIndex) => (
-                        <tr key={paymentIndex}>
-                          <td>{paymentIndex + 1}</td>
-                          <td>{parseDate(payment.date)}</td>
-                          <td>{payment.details || "—"}</td>
-                          <td className={payment.verification === "Verified" ? "lvVerified" : "lvUnverified"}>{payment.verification || "Unverified"}</td>
-                          <td>BDT {amountText(payment.amount)}</td>
-                        </tr>
-                      )) : <tr><td colSpan={5} className="lvEmptyRow">No deposit records.</td></tr>}
-                    </tbody>
-                  </table>
-                </div>
+                {!dueOnly && <>
+                  <h2 className="lvSectionTitle lvDepositTitle"><span>{category.name.toUpperCase()}</span> <b>DEPOSIT / PAYMENTS</b></h2>
+                  <div className="lvTableWrap">
+                    <table className="lvInvoiceTable lvDepositTable">
+                      <colgroup><col /><col /><col /><col /><col /></colgroup>
+                      <thead><tr><th>SL.</th><th>DATE</th><th>PAYMENT DETAILS</th><th>VERIFICATION</th><th>AMOUNT (BDT)</th></tr></thead>
+                      <tbody>
+                        {category.payments.length ? category.payments.map((payment, paymentIndex) => (
+                          <tr key={paymentIndex}>
+                            <td>{paymentIndex + 1}</td>
+                            <td>{parseDate(payment.date)}</td>
+                            <td>{payment.details || "—"}</td>
+                            <td className={payment.verification === "Verified" ? "lvVerified" : "lvUnverified"}>{payment.verification || "Unverified"}</td>
+                            <td>BDT {amountText(payment.amount)}</td>
+                          </tr>
+                        )) : <tr><td colSpan={5} className="lvEmptyRow">No deposit records.</td></tr>}
+                      </tbody>
+                    </table>
+                  </div>
+                </>}
 
                 {fullyPaid ? (
                   <div className="lvPaidBlock">
