@@ -22,7 +22,7 @@ function code(prefix: string) { return `${prefix}-${crypto.randomUUID().replace(
 export function normalizeProjectCode(value: unknown) {
   const raw = text(value).toUpperCase();
   const digits = raw.replace(/\D/g, "");
-  return digits ? `LV-${Number(digits)}` : raw;
+  return digits ? `LV-${String(Number(digits)).padStart(3, "0")}` : raw;
 }
 export function roleOf(user: WorkspaceUser) { return text((user as Row)?.role || (user as Row)?.Role).toLowerCase(); }
 export function employeeCodeOf(user: WorkspaceUser) { return text((user as Row)?.employeeId || (user as Row)?.Employee_ID || (user as Row)?.userId || (user as Row)?.User_ID); }
