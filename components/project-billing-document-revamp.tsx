@@ -15,6 +15,7 @@ type Props = {
   result: SheetInvoices;
   verificationUrl?: string;
   verificationError?: string;
+  dueOnly?: boolean;
 };
 
 const amountText = (value: unknown) => {
@@ -100,6 +101,7 @@ export default function ProjectBillingDocumentRevamp({
   result,
   verificationUrl = "",
   verificationError = "",
+  dueOnly = false,
 }: Props) {
   const issueDate = billingIssueDate(result);
   const qrUrl = useMemo(() => {
@@ -111,18 +113,44 @@ export default function ProjectBillingDocumentRevamp({
     }
   }, [verificationUrl]);
 
-  const statementRef = `INV-${result.id.replace(/^LV-/, "")}-01`;
+  const statementRef = dueOnly
+    ? `DUE-${result.id.replace(/^LV-/, "")}-${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date()).replace(/-/g, "")}`
+    : `INV-${result.id.replace(/^LV-/, "")}-01`;
+  const displayBilling = useMemo(() => {
+    if (!dueOnly) return result;
+    const dueInvoices = result.invoices
+      .filter((category) => Number(category.due || 0) > 0.009)
+      .map((category) => ({
+        ...category,
+        items: [{ service: `Outstanding ${category.name} balance`, price: "", quantity: "", amount: Math.max(0, Number(category.due || 0)) }],
+        gross: Math.max(0, Number(category.due || 0)),
+        discount: 0,
+        paid: 0,
+        due: Math.max(0, Number(category.due || 0)),
+        payments: [],
+      }));
+    return {
+      ...result,
+      invoices: dueInvoices,
+      totals: {
+        gross: dueInvoices.reduce((sum, category) => sum + category.gross, 0),
+        discount: 0,
+        paid: 0,
+        due: dueInvoices.reduce((sum, category) => sum + category.due, 0),
+      },
+    };
+  }, [dueOnly, result]);
   const projectStatus = result.client.status || (Number(result.totals.due || 0) > 0.009 ? "Partial / Due" : "Full Paid");
 
-  const activeCategories = result.invoices.filter(hasBillingData);
-  const printCategories = activeCategories.length ? activeCategories : result.invoices.slice(0, 1);
+  const activeCategories = displayBilling.invoices.filter(hasBillingData);
+  const printCategories = activeCategories.length ? activeCategories : displayBilling.invoices.slice(0, 1);
   const totalPages = printCategories.length;
 
   return (
     <div className="lvInvoiceRevampRoot" data-billing-id={result.id}>
       <div className="lvInvoiceOriginal">
         <OriginalProjectBillingDocument
-          result={result}
+          result={displayBilling}
           verificationUrl={verificationUrl}
           verificationError={verificationError}
         />
@@ -153,8 +181,8 @@ export default function ProjectBillingDocumentRevamp({
 
                 <div className="lvTitleBlock">
                   <small>Page {index + 1} of {totalPages}</small>
-                  <b>Project Billing Statement</b>
-                  <strong>{category.name} Bill</strong>
+                  <b>{dueOnly ? "DUE BILL" : "Project Billing Statement"}</b>
+                  <strong>{dueOnly ? "Outstanding Due" : `${category.name} Bill`}</strong>
                 </div>
 
                 <div className="lvQrBlock">
@@ -177,7 +205,7 @@ export default function ProjectBillingDocumentRevamp({
               </section>
 
               <section className="lvInvoiceBody">
-                <h2 className="lvSectionTitle"><span>{category.name.toUpperCase()}</span> <b>BILL</b></h2>
+                <h2 className="lvSectionTitle"><span>{dueOnly ? "OUTSTANDING" : category.name.toUpperCase()}</span> <b>{dueOnly ? "DUE BILL" : "BILL"}</b></h2>
 
                 <div className="lvTableWrap">
                   <table className="lvInvoiceTable lvBillTable">
@@ -206,14 +234,14 @@ export default function ProjectBillingDocumentRevamp({
                   <div className="lvGrandTotal"><span>Grand Total (BDT)</span><strong>{amountText(grandTotal)}</strong></div>
                 </div>
 
-                <h2 className="lvSectionTitle lvDepositTitle"><span>{category.name.toUpperCase()}</span> <b>DEPOSIT / PAYMENTS</b></h2>
+                {!dueOnly && <h2 className="lvSectionTitle lvDepositTitle"><span>{category.name.toUpperCase()}</span> <b>DEPOSIT / PAYMENTS</b></h2>}
 
                 <div className="lvTableWrap">
                   <table className="lvInvoiceTable lvDepositTable">
                     <colgroup><col /><col /><col /><col /><col /></colgroup>
                     <thead><tr><th>SL.</th><th>DATE</th><th>PAYMENT DETAILS</th><th>VERIFICATION</th><th>AMOUNT (BDT)</th></tr></thead>
                     <tbody>
-                      {category.payments.length ? category.payments.map((payment, paymentIndex) => (
+                      {!dueOnly && category.payments.length ? category.payments.map((payment, paymentIndex) => (
                         <tr key={paymentIndex}>
                           <td>{paymentIndex + 1}</td>
                           <td>{parseDate(payment.date)}</td>
@@ -234,7 +262,7 @@ export default function ProjectBillingDocumentRevamp({
                 ) : (
                   <div className="lvDueBlock">
                     <div className="lvDueRow"><strong>Due Amount (BDT)</strong><b>{amountText(due)}</b></div>
-                    <div className="lvWordsRow"><strong>In Words:</strong><span>{amountInWords(due)}</span></div>
+                    <div className="lvWordsRow"><strong>{dueOnly ? "Due Bill Amount in Words:" : "In Words:"}</strong><span>{amountInWords(due)}</span></div>
                   </div>
                 )}
               </section>
