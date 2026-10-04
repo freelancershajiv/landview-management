@@ -26,6 +26,10 @@ export function normalizeProjectCode(value: unknown) {
 }
 export function roleOf(user: WorkspaceUser) { return text((user as Row)?.role || (user as Row)?.Role).toLowerCase(); }
 export function employeeCodeOf(user: WorkspaceUser) { return text((user as Row)?.employeeId || (user as Row)?.Employee_ID || (user as Row)?.userId || (user as Row)?.User_ID); }
+function sessionProjectCodesOf(user: WorkspaceUser) {
+  const raw = text((user as Row)?.projectIds || (user as Row)?.Project_IDs || (user as Row)?.project_ids);
+  return Array.from(new Set(raw.split(/[;,\\s]+/).map(normalizeProjectCode).filter(Boolean)));
+}
 
 export async function supabaseGateway(action: string, input: Row = {}, timeoutMs = 15000) {
   const oidc = await getVercelOidcToken({ audience: AUDIENCE });
@@ -249,7 +253,33 @@ export async function handleLandviewDataAction(action: string, input: Row, user:
     const [{projects}, {map}] = await Promise.all([projectMaps(), billTotals()]);
     if (role === "employee") {
       const emp = await employeeRow(employeeCodeOf(user));
-      const assignments = await selectRows("project_employees", { filters: { employee_id: emp.id, active: true }, limit: 5000 });
+      let assignments = await selectRows("project_employees", { filters: { employee_id: emp.id, active: true }, limit: 5000 });
+
+      // Keep the Projects list and every employee-facing project selector in sync.
+      // The employee workspace already seeds project_employees from the authenticated
+      // user's Project_IDs when explicit assignment rows do not exist. Do the same
+      // here so Site Visits, Projects, Documents and other employee tools see the
+      // exact same assigned project list.
+      if (!assignments.length) {
+        const sessionCodes = sessionProjectCodesOf(user);
+        const seededProjects = projects.filter(p => sessionCodes.includes(normalizeProjectCode(p.project_code)));
+        if (seededProjects.length) {
+          const now = new Date().toISOString();
+          await upsertRows(
+            "project_employees",
+            seededProjects.map(project => ({
+              project_id: project.id,
+              employee_id: emp.id,
+              assignment_role: "Employee Workspace",
+              active: true,
+              assigned_at: now,
+            })),
+            "project_id,employee_id",
+          );
+          assignments = await selectRows("project_employees", { filters: { employee_id: emp.id, active: true }, limit: 5000 });
+        }
+      }
+
       const allowed = new Set(assignments.map(a=>a.project_id));
       return projects.filter(p=>allowed.has(p.id)).map(p=>projectLegacy(p,map.get(p.id)||0));
     }
