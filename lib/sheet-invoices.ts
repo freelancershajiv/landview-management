@@ -89,14 +89,13 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
     const seenPaymentKeys = new Set<string>();
     const payments = rawPayments.filter((payment) => {
       const dateKey = verificationDateKey(payment.date);
-      const detailsKey = String(payment.details ?? "").trim().toLowerCase().replace(/\\s+/g, " ");
-      // The paid-billing source can contain the same payment twice with
-      // slightly different descriptive text. When there is no explicit
-      // payment/income ID, date + amount is the stable duplicate signature
-      // within a billing category.
+      const detailsKey = String(payment.details ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+      // Without an explicit payment ID, include the payment details in the
+      // fallback identity. Two legitimate payments can have the same date
+      // and amount (for example, two separate BDT 5,000 receipts on one day).
       const identityKey = payment.incomeId
         ? "id:" + payment.incomeId
-        : "fallback:" + dateKey + "|" + payment.amount.toFixed(2);
+        : "fallback:" + dateKey + "|" + payment.amount.toFixed(2) + "|" + detailsKey;
       if (seenPaymentKeys.has(identityKey)) return false;
       seenPaymentKeys.add(identityKey);
       return true;
@@ -287,6 +286,11 @@ export function verifySheetInvoicesWithPayments(billing: SheetInvoices, database
   });
   const used = new Set<number>();
 
+  // Historical ledger mirrors are verification/accounting records, not new
+  // client receipts. They must never be appended to paid billing.
+  const isHistoricalLedgerPayment = (id: string) =>
+    /^(TXN-HIST-|TXN-LEDGER-)/i.test(id);
+
   for (const category of billing.invoices) {
     for (const payment of category.payments) {
       // Canonical compatibility rows carry the Payment_ID directly. Mark that
@@ -320,26 +324,14 @@ export function verifySheetInvoicesWithPayments(billing: SheetInvoices, database
   }
 
   for (const candidate of candidates) {
-    if (used.has(candidate.index) || !candidate.id || !candidate.category || !Number.isFinite(candidate.amount) || candidate.amount <= 0) continue;
+    if (used.has(candidate.index) || !candidate.id || isHistoricalLedgerPayment(candidate.id) || !candidate.category || !Number.isFinite(candidate.amount) || candidate.amount <= 0) continue;
     if (!workspacePaymentIsEffective(candidate.record)) continue;
     const category = billing.invoices.find((item) => item.name === candidate.category);
     if (!category) continue;
 
-    // Do not append a canonical payment when the billing sheet already
-    // contains the same received amount on the same date. The canonical
-    // record is a verification source, not a second payment. This prevents
-    // the paid-billing total from becoming inflated (for example, LV-096
-    // was showing BDT 65,000 when the actual received total is BDT 60,000).
-    const alreadyDisplayed = category.payments.some((payment) =>
-      verificationDateKey(payment.date) === candidate.date &&
-      Number.isFinite(payment.amount) &&
-      Math.abs(payment.amount - candidate.amount) < 0.01,
-    );
-    if (alreadyDisplayed) {
-      used.add(candidate.index);
-      continue;
-    }
-
+    // If a canonical record has the same explicit payment ID as a billing
+    // row, it was consumed above. Do not use date + amount alone here:
+    // multiple legitimate receipts can share both values.
     const method = String(recordValue(candidate.record, ["Payment_Method", "Payment Method", "Method"])).trim();
     const reference = String(recordValue(candidate.record, ["Reference_No", "Reference No", "Reference"])).trim();
     category.payments.push({
