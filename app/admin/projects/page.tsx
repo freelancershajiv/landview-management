@@ -297,7 +297,7 @@ export default function ProjectsPage() {
       const updated = await landViewApi.updateProject(id, { [field]: value });
       setProjects((rows) => rows.map((row) => normalizeProjectId(row.Project_ID) === id ? {
         ...row,
-        ...updated,
+        ...(updated as Record<string, unknown>),
         [field]: value,
       } : row));
     } catch (e: any) {
