@@ -118,16 +118,6 @@ export default function ProjectDetailPage(){
       </div>
 
       <div className="pc-edit-section">
-        <div className="pc-edit-section-head"><strong>Project lifecycle stages</strong><small>Site Visits are available only while Supervision / Construction is not completed.</small></div>
-        <div className="form-grid">
-          <Field label="DESIGN STAGE"><select value={String(draft?.Design_Stage_Status ?? "Pending")} onChange={e=>setDraft((v:any)=>({...v,Design_Stage_Status:e.target.value}))}><option>Pending</option><option>In Progress</option><option>Completed</option></select></Field>
-          <Field label="APPROVAL STAGE"><select value={String(draft?.Approval_Stage_Status ?? "Pending")} onChange={e=>setDraft((v:any)=>({...v,Approval_Stage_Status:e.target.value}))}><option>Pending</option><option>In Progress</option><option>Completed</option></select></Field>
-          <Field label="SUPERVISION / CONSTRUCTION STAGE"><select value={String(draft?.Supervision_Stage_Status ?? "Completed")} onChange={e=>setDraft((v:any)=>({...v,Supervision_Stage_Status:e.target.value}))}><option>Pending</option><option>In Progress</option><option>Completed</option></select></Field>
-        </div>
-        <div className="pc-stage-note">Set Supervision / Construction to <strong>Completed</strong> when LAND VIEW does not provide supervision. Completed projects are automatically removed from the Employee Site Visits list.</div>
-      </div>
-
-      <div className="pc-edit-section">
         <div className="pc-edit-section-head"><strong>Google Drive & system links</strong><small>Update the stored folder references used by the project workspace.</small></div>
         <div className="form-grid">
           <Field label="DRIVE FOLDER ID"><input value={String(draft?.Drive_Folder_ID ?? "")} onChange={e=>setDraft((v:any)=>({...v,Drive_Folder_ID:e.target.value}))}/></Field>
