@@ -44,9 +44,38 @@ export async function GET(request: NextRequest) {
     const visit = rows[0];
     if (!await canViewVisit(user, visit)) return deny("Access denied for this Site Visit.", 403);
 
+    const driveFileId = kind === "visit" ? clean(visit.visit_photo_drive_file_id, 500) : clean(visit.problem_photo_drive_file_id, 500);
+    if (driveFileId) {
+      const url = String(process.env.LAND_VIEW_API_URL || "").trim();
+      const secret = String(process.env.LAND_VIEW_PROXY_SECRET || "").trim();
+      if (!url || !secret) return deny("Google Drive backend is not configured.", 500);
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ action: "getSiteVisitMedia", proxySecret: secret, fileId: driveFileId }),
+        signal: AbortSignal.timeout(30_000),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success || !json?.data?.base64) return deny(String(json?.error || "Could not load Site Visit photo."), 502);
+
+      const data = json.data;
+      const bytes = Buffer.from(String(data.base64), "base64");
+      return new NextResponse(bytes, {
+        status: 200,
+        headers: {
+          "Content-Type": String(data.mimeType || "image/jpeg"),
+          "Content-Length": String(bytes.length),
+          "Cache-Control": "private, max-age=300",
+          "Content-Disposition": `inline; filename="${String(data.fileName || "site-visit.jpg").replace(/"/g, "")}"`,
+        },
+      });
+    }
+
+    // Backward compatibility for legacy Supabase Storage photos.
     const path = kind === "visit" ? clean(visit.visit_photo_path, 500) : clean(visit.problem_photo_path, 500);
     if (!path) return deny("No photo is attached to this Site Visit.", 404);
-
     const signed = await getSiteVisitMediaUrl(path, 900);
     return NextResponse.redirect(signed.url, 302);
   } catch (error: any) {
