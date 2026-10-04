@@ -2,7 +2,7 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
-import { ErrorState, LoadingState, PageHeader, StatusBadge, pick } from "@/components/lv-ui";
+import { ErrorState, LoadingState, PageHeader, pick } from "@/components/lv-ui";
 
 type ProjectCategory = "Running" | "Paused" | "Completed" | "Cancelled";
 type StageFilter = "Ongoing" | "Design Stage" | "Approval Stage" | "Supervision / Construction" | "Completed";
