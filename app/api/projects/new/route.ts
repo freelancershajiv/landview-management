@@ -87,7 +87,6 @@ export async function POST(request: NextRequest) {
       project_area_text: text(body.Project_Area || body.projectArea, 120) || null,
       number_of_stories_text: text(body.Number_of_Stories || body.numberOfStories, 80) || null,
       start_date: cleanDate(body.Start_Date || body.startDate),
-      status: text(body.Status || body.status, 80) || "Running",
       design_stage_status: text(body.Design_Stage_Status || body.designStageStatus, 40) || "In Progress",
       approval_stage_status: text(body.Approval_Stage_Status || body.approvalStageStatus, 40) || "Pending",
       supervision_stage_status: text(body.Supervision_Stage_Status || body.supervisionStageStatus, 40) || "Completed",

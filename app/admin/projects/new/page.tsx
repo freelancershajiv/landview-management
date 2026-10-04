@@ -19,7 +19,6 @@ type FormState = {
   Project_Area: string;
   Number_of_Stories: string;
   Start_Date: string;
-  Status: string;
   Design_Stage_Status: string;
   Approval_Stage_Status: string;
   Supervision_Stage_Status: string;
@@ -38,7 +37,6 @@ const emptyForm: FormState = {
   Project_Area: "",
   Number_of_Stories: "",
   Start_Date: new Date().toISOString().slice(0, 10),
-  Status: "Running",
   Design_Stage_Status: "In Progress",
   Approval_Stage_Status: "Pending",
   Supervision_Stage_Status: "Completed",

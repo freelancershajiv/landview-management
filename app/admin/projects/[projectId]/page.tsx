@@ -40,7 +40,7 @@ function projectFromFileList(rows:string[][],projectId:string){
   const target=normalizeFinanceId(projectId);
   const row=rows.find(r=>normalizeFinanceId(r[0])===target && String(r[1]||"").trim());
   if(!row)return null;
-  return {Project_ID:target,Project_Name:String(row[1]||"").trim(),Client_Name:String(row[1]||"").trim(),Phone_Number:String(row[3]||"").trim(),Location:String(row[2]||"").trim(),Floors:String(row[4]||"").trim(),Project_Type:String(row[5]||"").trim(),Plot_Area:String(row[6]||"").trim(),Status:"Running",__source:"File List"};
+  return {Project_ID:target,Project_Name:String(row[1]||"").trim(),Client_Name:String(row[1]||"").trim(),Phone_Number:String(row[3]||"").trim(),Location:String(row[2]||"").trim(),Floors:String(row[4]||"").trim(),Project_Type:String(row[5]||"").trim(),Plot_Area:String(row[6]||"").trim(),__source:"File List"};
 }
 function financeFromSummary(rows:string[][],projectId:string,updatedAt?:string):LiveFinance|null{
   const target=normalizeFinanceId(projectId); const row=rows.find(r=>normalizeFinanceId(r[0])===target); if(!row)return null;
@@ -63,7 +63,7 @@ export default function ProjectDetailPage(){
       const [fileList,legacyProject,allEmp,assignedEmp,bill,folder,services,sv,docs,allTasks,summary]=await Promise.all([
         landViewApi.getFinanceSheet("File List"), landViewApi.getProject(projectId).catch(()=>null), landViewApi.getEmployees().catch(()=>[]), landViewApi.getProjectEmployees(projectId).catch(()=>[]), landViewApi.getProjectBilling(projectId).catch(()=>null), landViewApi.getProjectDriveFolder(projectId).catch(()=>null), landViewApi.getProjectServiceFolders(projectId).catch(()=>null), landViewApi.getSiteVisits(projectId).catch(()=>[]), landViewApi.getDocuments(projectId).catch(()=>[]), landViewApi.getErpRecords("tasks"), landViewApi.getFinanceSheet("Summary").catch(()=>null),
       ]);
-      const fileListProject=projectFromFileList(fileList.rows,projectId); const p=legacyProject||fileListProject; if(!p)throw new Error("Project not found in LV Auto Invoice File List."); if(services?.category&&!String(p.Status||"").trim())p.Status=services.category;
+      const fileListProject=projectFromFileList(fileList.rows,projectId); const p=legacyProject||fileListProject; if(!p)throw new Error("Project not found in LV Auto Invoice File List.");
       setProject(p); setDraft(p); setEmployees(allEmp); setAssigned(assignedEmp.map((e:any)=>idOf(e,["Employee_ID","Employee ID","EmployeeId"])).filter(Boolean)); setBilling(bill); setLiveFinance(summary?financeFromSummary(summary.rows,projectId,summary.updatedAt):null); setDrive(folder||services||null); setServiceFolders(services?.folders||[]); setVisits(sv); setDocuments(docs);
       setTasks((allTasks||[]).filter((t:any)=>normalizeFinanceId(idOf(t,["Project_ID","Project ID","ProjectId"]))===normalizeFinanceId(projectId)));
     }catch(e:any){ setError(e?.message||"Could not load project."); } finally{ setLoading(false); }
@@ -112,8 +112,7 @@ export default function ProjectDetailPage(){
           <Field label="PLOT AREA"><input type="number" value={String(draft?.Plot_Area ?? "")} onChange={e=>setDraft((v:any)=>({...v,Plot_Area:e.target.value}))}/></Field>
           <Field label="FLOORS / STORIES"><input value={String(draft?.Number_of_Stories ?? draft?.Floors ?? "")} onChange={e=>setDraft((v:any)=>({...v,Number_of_Stories:e.target.value,Floors:e.target.value}))}/></Field>
           <Field label="START DATE"><input type="date" value={String(draft?.Start_Date ?? "")} onChange={e=>setDraft((v:any)=>({...v,Start_Date:e.target.value}))}/></Field>
-          <Field label="STATUS"><select value={String(draft?.Status ?? "Running")} onChange={e=>setDraft((v:any)=>({...v,Status:e.target.value}))}><option value="Running">Ongoing</option><option value="Paused">On Hold</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select></Field>
-          <Field label="COMPLETION YEAR"><input value={String(draft?.Completion_Year ?? "")} onChange={e=>setDraft((v:any)=>({...v,Completion_Year:e.target.value}))}/></Field>
+             <Field label="COMPLETION YEAR"><input value={String(draft?.Completion_Year ?? "")} onChange={e=>setDraft((v:any)=>({...v,Completion_Year:e.target.value}))}/></Field>
           <Field label="NOTES"><textarea rows={3} value={String(draft?.Notes ?? "")} onChange={e=>setDraft((v:any)=>({...v,Notes:e.target.value}))}/></Field>
         </div>
       </div>
@@ -168,7 +167,7 @@ export default function ProjectDetailPage(){
     </form>}
 
     {tab==="overview"&&<><section className="pc-grid">
-      <div className="pc-stat"><span>Project status</span><strong>{idOf(project,["Status","status"])||"Active"}</strong><small>{formatDate(project.Start_Date||project["Start Date"])}</small></div>
+      <div className="pc-stat"><span>Current stage</span><strong>{idOf(project,["Current_Stage","Current Stage"])||"Design Stage"}</strong><small>{formatDate(project.Start_Date||project["Start Date"])}</small></div>
       <div className="pc-stat"><span>Workflow progress</span><strong>{progress}%</strong><small>{completed} of {orderedTasks.length} required services completed</small></div>
       <div className="pc-stat"><span>Outstanding</span><strong><Money value={due}/></strong><small><Money value={paid}/> received · live finance</small></div>
       <div className="pc-stat"><span>Assigned team</span><strong>{assignedPeople.length}</strong><small>{documents.length} documents · {visits.length} visits</small></div>

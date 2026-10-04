@@ -2,9 +2,10 @@
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
-import { ErrorState, LoadingState, PageHeader, StatusBadge, pick } from "@/components/lv-ui";
+import { ErrorState, LoadingState, PageHeader, pick } from "@/components/lv-ui";
 
 type ProjectCategory = "Running" | "Paused" | "Completed" | "Cancelled";
+type StageFilter = "Ongoing" | "Design Stage" | "Approval Stage" | "Supervision / Construction" | "Completed";
 type ProjectRow = Record<string, unknown> & {
   Project_ID?: string;
   Project_Name?: string;
@@ -12,7 +13,10 @@ type ProjectRow = Record<string, unknown> & {
   Phone_Number?: string;
   Project_Type?: string;
   Location?: string;
-  Status?: string;
+  Design_Stage_Status?: string;
+  Approval_Stage_Status?: string;
+  Supervision_Stage_Status?: string;
+  Current_Stage?: string;
   Project_Area?: string;
   Number_of_Stories?: string;
   Legacy_File_ID?: string;
@@ -44,19 +48,16 @@ function normalizeProjectId(value: unknown) {
 function truthy(value: unknown) {
   return value === true || ["true", "yes", "1", "on"].includes(String(value || "").trim().toLowerCase());
 }
-function normalizeCategory(value: unknown): ProjectCategory {
-  const text = String(value || "").trim().toLowerCase();
-  if (/cancel|cancelled|canceled|abandon/.test(text)) return "Cancelled";
-  if (/complete|completed|done|closed|finish/.test(text)) return "Completed";
-  if (/pause|paused|hold|inactive/.test(text)) return "Paused";
-  return "Running";
+function currentStageForProject(project: ProjectRow) {
+  const design = String(project.Design_Stage_Status || "Pending");
+  const approval = String(project.Approval_Stage_Status || "Pending");
+  const supervision = String(project.Supervision_Stage_Status || "Completed");
+  if (design !== "Completed") return "Design Stage";
+  if (approval !== "Completed") return "Approval Stage";
+  if (supervision !== "Completed") return "Supervision / Construction";
+  return "Completed";
 }
-function projectStatusLabel(value: unknown) {
-  const status = normalizeCategory(value);
-  if (status === "Running") return "Ongoing";
-  if (status === "Paused") return "On Hold";
-  return status;
-}
+function stageLabel(stage: StageFilter) { return stage === "Ongoing" ? "Ongoing" : stage; }
 function financeRows(data: FinanceSheetData) {
   return (data.rows || []).map((row) => {
     const record: Record<string, unknown> = {};
@@ -97,12 +98,11 @@ export default function ProjectsPage() {
   const [tasks, setTasks] = useState<TaskRow[]>([]);
   const [role, setRole] = useState("");
   const [query, setQuery] = useState("");
-  const [category, setCategory] = useState<"All" | ProjectCategory>("Running");
+  const [stageFilter, setStageFilter] = useState<StageFilter>("Ongoing");
   const [expanded, setExpanded] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [savingPublic, setSavingPublic] = useState("");
-  const [savingStatus, setSavingStatus] = useState("");
   const [savingTask, setSavingTask] = useState("");
   const canManage = role === "admin" || role === "manager";
 
@@ -144,9 +144,12 @@ export default function ProjectsPage() {
           Location: String(value(source, ["Address", "Location"]) || ""),
           Project_Area: String(value(source, ["Area", "Project Area"]) || ""),
           Number_of_Stories: String(value(source, ["Floor", "Floors", "Story"]) || ""),
-          Status: String(pick(existing, ["Status", "status"], "")),
           Public_Display: existing.Public_Display ?? existing["Public Display"] ?? false,
           Drive_Folder_URL: String(pick(existing, ["Drive_Folder_URL", "Drive Folder URL"], "")),
+          Design_Stage_Status: String(pick(existing, ["Design_Stage_Status", "Design Stage Status"], "")),
+          Approval_Stage_Status: String(pick(existing, ["Approval_Stage_Status", "Approval Stage Status"], "")),
+          Supervision_Stage_Status: String(pick(existing, ["Supervision_Stage_Status", "Supervision Stage Status"], "")),
+          Current_Stage: String(pick(existing, ["Current_Stage", "Current Stage"], "")),
         });
       });
 
@@ -159,7 +162,6 @@ export default function ProjectsPage() {
           if (current) {
             map.set(id, {
               ...current,
-              Status: String(current.Status || pick(existingDb, ["Status", "status"], driveCategory) || driveCategory),
               Drive_Folder_Name: String(item?.projectFolderName || current.Drive_Folder_Name || ""),
               Drive_Folder_URL: String(item?.projectFolderUrl || current.Drive_Folder_URL || ""),
             });
@@ -181,8 +183,11 @@ export default function ProjectsPage() {
             Location: String(pick(existingDb, ["Location", "Project_Location", "Project Location"], "")),
             Project_Area: String(pick(existingDb, ["Project_Area", "Project Area", "Land_Area", "Land Area"], "")),
             Number_of_Stories: String(pick(existingDb, ["Number_of_Stories", "Number of Stories", "Floors"], "")),
-            Status: String(pick(existingDb, ["Status", "status"], driveCategory) || driveCategory),
             Public_Display: existingDb.Public_Display ?? existingDb["Public Display"] ?? false,
+            Design_Stage_Status: String(pick(existingDb, ["Design_Stage_Status", "Design Stage Status"], "")),
+            Approval_Stage_Status: String(pick(existingDb, ["Approval_Stage_Status", "Approval Stage Status"], "")),
+            Supervision_Stage_Status: String(pick(existingDb, ["Supervision_Stage_Status", "Supervision Stage Status"], "")),
+            Current_Stage: String(pick(existingDb, ["Current_Stage", "Current Stage"], "")),
             Drive_Folder_Name: folderName,
             Drive_Folder_URL: String(item?.projectFolderUrl || pick(existingDb, ["Drive_Folder_URL", "Drive Folder URL"], "")),
           });
@@ -211,22 +216,23 @@ export default function ProjectsPage() {
   useEffect(() => { void load(); }, []);
 
   const counts = useMemo(() => ({
-    All: projects.length,
-    Running: projects.filter((p) => normalizeCategory(p.Status) === "Running").length,
-    Paused: projects.filter((p) => normalizeCategory(p.Status) === "Paused").length,
-    Completed: projects.filter((p) => normalizeCategory(p.Status) === "Completed").length,
-    Cancelled: projects.filter((p) => normalizeCategory(p.Status) === "Cancelled").length,
+    Ongoing: projects.filter((p) => currentStageForProject(p) !== "Completed").length,
+    "Design Stage": projects.filter((p) => currentStageForProject(p) === "Design Stage").length,
+    "Approval Stage": projects.filter((p) => currentStageForProject(p) === "Approval Stage").length,
+    "Supervision / Construction": projects.filter((p) => currentStageForProject(p) === "Supervision / Construction").length,
+    Completed: projects.filter((p) => currentStageForProject(p) === "Completed").length,
   }), [projects]);
 
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
     return projects.filter((project) => {
-      const status = normalizeCategory(project.Status);
-      if (category !== "All" && status !== category) return false;
+      const currentStage = currentStageForProject(project);
+      if (stageFilter === "Ongoing" && currentStage === "Completed") return false;
+      if (stageFilter !== "Ongoing" && currentStage !== stageFilter) return false;
       if (!term) return true;
-      return [project.Project_ID, project.Project_Name, project.Client_Name, project.Project_Type, project.Location, project.Project_Area, project.Number_of_Stories, project.Drive_Folder_Name, status].join(" ").toLowerCase().includes(term);
+      return [project.Project_ID, project.Project_Name, project.Client_Name, project.Project_Type, project.Location, project.Project_Area, project.Number_of_Stories, project.Drive_Folder_Name, currentStage].join(" ").toLowerCase().includes(term);
     });
-  }, [projects, category, query]);
+  }, [projects, stageFilter, query]);
 
   const tasksByProject = useMemo(() => {
     const map = new Map<string, TaskRow[]>();
@@ -279,49 +285,6 @@ export default function ProjectsPage() {
     }
   }
 
-  async function setProjectStatus(project: ProjectRow, next: ProjectCategory) {
-    const id = normalizeProjectId(project.Project_ID);
-    if (!canManage || !id || savingStatus) return;
-    setSavingStatus(id);
-    setError("");
-    try {
-      try {
-        await landViewApi.updateProject(id, { Status: next });
-      } catch (initialError: any) {
-        if (!/project not found/i.test(String(initialError?.message || initialError))) throw initialError;
-        const seedResponse = await fetch("/api/project-public-visibility", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "same-origin",
-          cache: "no-store",
-          body: JSON.stringify({
-            projectId: id,
-            publicDisplay: truthy(project.Public_Display),
-            project: {
-              Legacy_File_ID: project.Legacy_File_ID || id.replace("LV-", ""),
-              Project_Name: project.Project_Name || "",
-              Client_Name: project.Client_Name || project.Project_Name || "",
-              Phone_Number: project.Phone_Number || "",
-              Project_Type: project.Project_Type || "",
-              Location: project.Location || "",
-              Project_Area: project.Project_Area || "",
-              Number_of_Stories: project.Number_of_Stories || "",
-              Drive_Folder_URL: project.Drive_Folder_URL || "",
-            },
-          }),
-        });
-        const seedJson = await seedResponse.json().catch(() => null);
-        if (!seedResponse.ok || !seedJson?.success) throw new Error(String(seedJson?.error || `Could not register ${id} for status control.`));
-        await landViewApi.updateProject(id, { Status: next });
-      }
-      setProjects((rows) => rows.map((row) => normalizeProjectId(row.Project_ID) === id ? { ...row, Status: next } : row));
-    } catch (e: any) {
-      setError(e?.message || `Could not update ${id} status.`);
-    } finally {
-      setSavingStatus("");
-    }
-  }
-
   async function assignService(task: TaskRow, employeeId: string) {
     if (!canManage) return;
     const taskId = String(pick(task, ["Task_ID", "Task ID", "TaskId"], "")).trim();
@@ -348,14 +311,14 @@ export default function ProjectsPage() {
       {error && <div className="error-inline">{error}</div>}
       <div className="projects-toolbar">
         <div className="projects-toolbar-left">
-          {(["All","Running","Paused","Completed","Cancelled"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${category===item?"active":""}`} onClick={() => setCategory(item)}>{item === "All" ? "All" : projectStatusLabel(item)} · {counts[item]}</button>)}
+          {(["Ongoing","Design Stage","Approval Stage","Supervision / Construction","Completed"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${stageFilter===item?"active":""}`} onClick={() => setStageFilter(item)}>{stageLabel(item)} · {counts[item]}</button>)}
         </div>
         <input className="projects-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search ID, client, folder, type, location, area or floor" />
       </div>
       <section className="register-shell">
         <div className="register-scroll">
           <table className="project-table">
-            <thead><tr><th>Project</th><th>Type</th><th>Location / Area</th><th>Status</th><th>Current stage</th><th>Service team</th><th>Drive</th><th className="public-cell">Public website</th></tr></thead>
+            <thead><tr><th>Project</th><th>Type</th><th>Location / Area</th><th>Current stage</th><th>Service team</th><th>Drive</th><th className="public-cell">Public website</th></tr></thead>
             <tbody>
               {filtered.map((project) => {
                 const id = normalizeProjectId(project.Project_ID);
@@ -373,13 +336,12 @@ export default function ProjectsPage() {
                     <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{clientName}</strong>{secondaryProjectName && <small>{secondaryProjectName}</small>}{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}</div></div></td>
                     <td>{String(project.Project_Type || "—")}</td>
                     <td><div>{String(project.Location || "—")}</div>{details && <div className="muted" style={{marginTop:4}}>{details}</div>}</td>
-                    <td>{canManage ? <select aria-label={`Status for ${id}`} value={normalizeCategory(project.Status)} disabled={savingStatus===id} onChange={(e)=>void setProjectStatus(project,e.target.value as ProjectCategory)} style={{height:34,minWidth:112,border:"1px solid rgba(255,255,255,.14)",borderRadius:7,background:"#111b24",color:"#eef2f5",padding:"0 9px",fontSize:11,fontWeight:800}}><option value="Running">Ongoing</option><option value="Paused">On Hold</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select> : <StatusBadge value={projectStatusLabel(project.Status)} />}</td>
-                    <td><div style={{display:"grid",gap:3}}><b style={{fontSize:11,color:"#eef2f5"}}>{String((project as any).Current_Stage || "—")}</b><span className="muted">{String((project as any).Supervision_Stage_Status || "—")} supervision</span></div></td>
+                    <td><div style={{display:"grid",gap:3}}><b style={{fontSize:11,color:"#eef2f5"}}>{currentStageForProject(project)}</b><span className="muted">{String(project.Supervision_Stage_Status || "—")} supervision</span></div></td>
                     <td><div className="service-summary"><span><b>{assignedCount}</b>/{projectTasks.length || 0} assigned</span><button className="team-button" type="button" onClick={() => setExpanded(isExpanded?"":id)}>{isExpanded?"Close":"Assign team"}</button></div></td>
                     <td>{driveUrl ? <a className="drive-link" href={driveUrl} target="_blank" rel="noreferrer">Open Drive ↗</a> : <span className="muted">—</span>}</td>
                     <td className="public-cell"><div className="public-wrap"><span>{publicOn?"Shown":"Hidden"}</span><button type="button" className={`toggle ${publicOn?"on":""}`} role="switch" aria-checked={publicOn} aria-label={`${publicOn?"Hide":"Show"} ${id} on the public website`} disabled={!canManage || savingPublic===id} onClick={() => void togglePublic(project)} /></div></td>
                   </tr>
-                  {isExpanded && <tr className="team-row"><td colSpan={8}><div className="team-panel">
+                  {isExpanded && <tr className="team-row"><td colSpan={7}><div className="team-panel">
                     <div className="team-panel-head"><div><strong>Service responsibility · {id}</strong><small>Services are generated from billing records in LV - Auto Invoice. Assign the responsible team member here.</small></div>{!canManage && <small>Accounts access is view-only for assignments.</small>}</div>
                     {projectTasks.length ? <div className="service-assignments">{projectTasks.map((task) => {
                       const taskId = String(pick(task,["Task_ID","Task ID","TaskId"],""));
@@ -399,7 +361,7 @@ export default function ProjectsPage() {
           </table>
         </div>
         {!filtered.length && <div className="team-empty" style={{margin:16}}>No projects match this view.</div>}
-        <div className="register-note">Project status is controlled here: Ongoing projects are eligible for new bills, while Completed, On Hold and Cancelled projects are hidden from Add Bill. Projects with money due remain eligible for payment regardless of operational status. Drive folders continue to supply project files and details.</div>
+        <div className="register-note">Projects are organized by lifecycle stage. The current stage is calculated from Design, Approval and Supervision / Construction. Employee Site Visits are available only while Supervision / Construction is not completed. Drive folders continue to supply project files and details.</div>
       </section>
     </div>
   </>;

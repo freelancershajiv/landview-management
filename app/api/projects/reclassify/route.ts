@@ -34,6 +34,15 @@ function effectivePayment(row: Row) {
   const status = text(row.approval_status || row.status).toLowerCase().replace(/[_-]+/g, " ");
   return !status || ["approved","received","paid","verified","complete","completed","full paid","fully paid","posted"].includes(status);
 }
+function projectStage(project: Row) {
+  const design = String(project.design_stage_status || "Pending");
+  const approval = String(project.approval_stage_status || "Pending");
+  const supervision = String(project.supervision_stage_status || "Completed");
+  if (design !== "Completed") return "Design Stage";
+  if (approval !== "Completed") return "Approval Stage";
+  if (supervision !== "Completed") return "Supervision / Construction";
+  return "Completed";
+}
 function actor(user: Row) {
   return employeeCodeOf(user) || text(user.username || user.Username, 120) || "LAND VIEW";
 }
@@ -45,7 +54,7 @@ export async function GET(request: NextRequest) {
     if (!MANAGE_ROLES.has(roleOf(user))) return NextResponse.json({ success: false, error: "Admin or manager access is required." }, { status: 403 });
 
     const [projects, bills, payments, invoices] = await Promise.all([
-      selectRows("projects", { select: "id,project_code,project_name,client_name_snapshot,phone_number_snapshot,project_type,location,status,record_type,reclassified_proposal_code", order: "updated_at:desc", limit: 5000 }),
+      selectRows("projects", { select: "id,project_code,project_name,client_name_snapshot,phone_number_snapshot,project_type,location,design_stage_status,approval_stage_status,supervision_stage_status,record_type,reclassified_proposal_code", order: "updated_at:desc", limit: 5000 }),
       selectRows("bills", { select: "id,project_id,amount,discount,net_amount,status", limit: 5000 }),
       selectRows("payments", { select: "id,project_id,amount,transaction_type,affects_business_balance,approval_status,status", limit: 5000 }),
       selectRows("invoices", { select: "id,project_id,status", limit: 5000 }),
@@ -83,7 +92,7 @@ export async function GET(request: NextRequest) {
         phone: String(project.phone_number_snapshot || ""),
         projectType: String(project.project_type || ""),
         location: String(project.location || ""),
-        status: String(project.status || ""),
+        currentStage: projectStage(project),
         recordType: String(project.record_type || "project"),
         proposalId: String(project.reclassified_proposal_code || ""),
         billCount: projectBills.length,

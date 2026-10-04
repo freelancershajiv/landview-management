@@ -6,7 +6,7 @@ export type PublicProjectSeo = {
   title?: string;
   category?: string;
   location?: string;
-  status?: string;
+  currentStage?: string;
   area?: string;
   stories?: string;
   completionYear?: string;
@@ -47,7 +47,7 @@ export const getPublicProjectsForSeo = cache(async function getPublicProjectsFor
       title: String(row.public_project_title || row.project_name || row.project_code || ""),
       category: String(row.project_category || row.project_type || ""),
       location: String(row.location || ""),
-      status: String(row.status || ""),
+      currentStage: (() => { const design=String(row.design_stage_status||"Pending"); const approval=String(row.approval_stage_status||"Pending"); const supervision=String(row.supervision_stage_status||"Completed"); if(design!=="Completed") return "Design Stage"; if(approval!=="Completed") return "Approval Stage"; if(supervision!=="Completed") return "Supervision / Construction"; return "Completed"; })(),
       area: String(row.project_area_text || row.plot_area || ""),
       stories: String(row.number_of_stories_text || row.floors || ""),
       completionYear: String(row.completion_year || ""),

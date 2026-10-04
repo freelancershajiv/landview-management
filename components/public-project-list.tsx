@@ -9,7 +9,7 @@ type PublicProject = {
   title?: string;
   category?: string;
   location?: string;
-  status?: string;
+  currentStage?: string;
   area?: string;
   stories?: string;
   completionYear?: string;
@@ -40,7 +40,7 @@ function projectText(project: PublicProject) {
     project.title,
     project.category,
     project.location,
-    project.status,
+    project.currentStage,
     project.area,
     project.stories,
     project.completionYear,
@@ -152,7 +152,7 @@ export default function PublicProjectsPage({ initialProjects }: { initialProject
                 return <Link className="portfolio-card" href={`/projects/${encodeURIComponent(id)}`} key={id || `${project.title}-${index}`} aria-label={`View ${project.title || id || "project"}`}>
                   <div className="portfolio-media">
                     {cover ? <img src={cover} alt={`${project.title || id || "LAND VIEW project"} preview`} loading={index < 2 ? "eager" : "lazy"} /> : <div className="portfolio-placeholder"/>}
-                    <div className="portfolio-badges"><span className="portfolio-badge">{project.category || "LAND VIEW"}</span>{project.status && <span className="portfolio-badge">{project.status}</span>}</div>
+                    <div className="portfolio-badges"><span className="portfolio-badge">{project.category || "LAND VIEW"}</span>{project.currentStage && <span className="portfolio-badge">{project.currentStage}</span>}</div>
                   </div>
                   <div className="portfolio-copy">
                     <span className="portfolio-id">{id || "LAND VIEW PROJECT"}</span>

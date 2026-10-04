@@ -189,7 +189,7 @@ function projectFromInput(input: Row, existing: Row = {}) {
     ["project_name",["Project_Name","projectName","project_name"]],["client_name_snapshot",["Client_Name","clientName","client_name_snapshot"]],["phone_number_snapshot",["Phone_Number","phoneNumber","phone_number_snapshot"]],
     ["referred_by",["Referred_By","Referred By","referredBy","referred_by"]],["ref_contact",["Ref_Contact","Ref. Contact","Ref Contact","refContact","ref_contact"]],
     ["project_type",["Project_Type","projectType","project_type"]],["location",["Location","location"]],["location_tag",["Location_Tag","LocationTag","location_tag"]],["start_date",["Start_Date","startDate","start_date"]],
-    ["status",["Status","status"]],["notes",["Notes","notes"]],["drive_folder_id",["Drive_Folder_ID","driveFolderId","drive_folder_id"]],["drive_folder_url",["Drive_Folder_URL","driveFolderUrl","drive_folder_url"]],
+    ["notes",["Notes","notes"]],["drive_folder_id",["Drive_Folder_ID","driveFolderId","drive_folder_id"]],["drive_folder_url",["Drive_Folder_URL","driveFolderUrl","drive_folder_url"]],
     ["documents_folder_id",["Documents_Folder_ID","documents_folder_id"]],["documents_folder_url",["Documents_Folder_URL","documents_folder_url"]],["invoices_folder_id",["Invoices_Folder_ID","invoices_folder_id"]],["invoices_folder_url",["Invoices_Folder_URL","invoices_folder_url"]],
     ["client_user_id",["Client_User_ID","client_user_id"]],["client_username",["Client_Username","client_username"]],["public_project_title",["Public_Project_Title","public_project_title"]],["public_description",["Public_Description","public_description"]],
     ["project_category",["Project_Category","project_category"]],["project_area_text",["Project_Area","project_area_text"]],["number_of_stories_text",["Number_of_Stories","number_of_stories_text"]],["cover_image_url",["Cover_Image_URL","cover_image_url"]],
@@ -202,7 +202,6 @@ function projectFromInput(input: Row, existing: Row = {}) {
   const design = pick(input,"Design_Bill","designBill","design_bill"); if (text(design)) result.design_bill = num(design);
   const display = pick(input,"Public_Display","public_display"); if (text(display) || typeof display === "boolean") result.public_display = bool(display);
   const order = pick(input,"Public_Display_Order","public_display_order"); if (text(order)) result.public_display_order = Math.trunc(num(order));
-  if (!result.status) result.status = "Active";
   return result;
 }
 function employeeFromInput(input: Row, existing: Row = {}) {
@@ -259,7 +258,7 @@ export async function handleLandviewDataAction(action: string, input: Row, user:
     const [{projects}, employees, documents, {bills,map}, payments] = await Promise.all([projectMaps(), selectRows("employees",{limit:1000}), selectRows("documents",{limit:5000}), billTotals(), selectRows("payments",{limit:5000})]);
     const validPayments = payments.filter(effectivePayment);
     const totalBill = bills.reduce((s,b)=>s+num(b.net_amount ?? (num(b.amount)-num(b.discount))),0), totalPaid = validPayments.reduce((s,p)=>s+num(p.amount),0);
-    const active = projects.filter(p=>!["completed","closed","cancelled","canceled"].includes(text(p.status).toLowerCase()));
+    const active = projects.filter(p=>currentProjectStage(p)!=="Completed");
     return { user, stats: { projectCount: projects.length, activeProjectCount: active.length, employeeCount: employees.length, documentCount: documents.length, totalBill, totalPaid, pendingPayments: Math.max(0,totalBill-totalPaid) }, recentProjects: projects.sort((a,b)=>text(b.updated_at).localeCompare(text(a.updated_at))).slice(0,8).map(p=>projectLegacy(p,map.get(p.id)||0)) };
   }
   if (action === "getProjects") {
