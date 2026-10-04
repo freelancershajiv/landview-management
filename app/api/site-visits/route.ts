@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
-import { getSiteVisitMediaUrl, insertRows, normalizeProjectCode, selectRows, uploadSiteVisitMedia } from "@/lib/supabase-data";
+import { getSiteVisitMediaUrl, insertRows, normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +33,36 @@ async function fileToBase64(file: File) {
   if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) throw new Error("Only JPG, PNG and WebP site visit photos are allowed.");
   return { mime, base64: Buffer.from(await file.arrayBuffer()).toString("base64") };
 }
+
+async function callDriveBackend(action: "uploadSiteVisitMedia" | "getSiteVisitMedia", payload: Record<string, unknown>) {
+  const url = String(process.env.LAND_VIEW_API_URL || "").trim();
+  const secret = String(process.env.LAND_VIEW_PROXY_SECRET || "").trim();
+  if (!url || !secret) throw new Error("Google Drive backend is not configured.");
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({ action, proxySecret: secret, ...payload }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || !json?.success) throw new Error(String(json?.error || "Google Drive backend request failed."));
+  return json.data || {};
+}
+
+function numberValue(value: unknown) {
+  const n = Number(String(value ?? "").trim());
+  return Number.isFinite(n) ? n : null;
+}
+function distanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const toRad = (n: number) => n * Math.PI / 180;
+  const R = 6371000;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
 function supervisionActive(project: Row) {
   return String(project?.supervision_stage_status || "Completed").trim() !== "Completed";
 }
@@ -137,6 +167,9 @@ export async function GET(request: NextRequest) {
         Client_Name: project.client_name_snapshot || "",
         Location: project.location || "",
         Status: project.status || "",
+        Site_Latitude: project.site_latitude ?? "",
+        Site_Longitude: project.site_longitude ?? "",
+        Site_Geofence_Radius_M: project.site_geofence_radius_m ?? 150,
       })));
     }
 
@@ -178,19 +211,74 @@ export async function POST(request: NextRequest) {
     const visitFile = validImage(form.get("visitPhoto")) ? form.get("visitPhoto") as File : null;
     const problemFile = validImage(form.get("problemPhoto")) ? form.get("problemPhoto") as File : null;
 
+    const locationLatitude = numberValue(form.get("locationLatitude"));
+    const locationLongitude = numberValue(form.get("locationLongitude"));
+    const locationAccuracyM = numberValue(form.get("locationAccuracyM"));
+    const locationCapturedAt = clean(form.get("locationCapturedAt"), 60);
+
+    if (locationLatitude === null || locationLongitude === null || locationAccuracyM === null) {
+      return deny("Device location is required for every Site Visit.", 400);
+    }
+    if (Math.abs(locationLatitude) > 90 || Math.abs(locationLongitude) > 180) {
+      return deny("The captured device location is invalid.", 400);
+    }
+    if (locationAccuracyM > 100) {
+      return deny("GPS accuracy is too low. Please move to an open area and verify your location again.", 400);
+    }
+
+    const projectLatitude = numberValue(project.site_latitude);
+    const projectLongitude = numberValue(project.site_longitude);
+    const geofenceRadiusM = Math.max(25, Math.min(1000, Number(project.site_geofence_radius_m || 150)));
+    const hasProjectCoordinates = projectLatitude !== null && projectLongitude !== null;
+    const locationDistanceM = hasProjectCoordinates
+      ? distanceMeters(locationLatitude, locationLongitude, projectLatitude!, projectLongitude!)
+      : null;
+    const locationVerificationStatus = hasProjectCoordinates
+      ? (locationDistanceM! <= geofenceRadiusM ? "VERIFIED" : "REJECTED")
+      : "NO_PROJECT_COORDINATES";
+
+    if (hasProjectCoordinates && locationVerificationStatus === "REJECTED") {
+      return deny(`You are approximately ${Math.round(locationDistanceM!)} m from the registered project site. Site Visit submission is allowed only within ${Math.round(geofenceRadiusM)} m.`, 409);
+    }
+    if (hasProjectCoordinates === false && (visitFile || problemFile)) {
+      return deny("This project does not have a verified site location yet. An Admin or Manager must set the project's Site Latitude and Longitude before photos can be uploaded.", 409);
+    }
+
     const visitCode = `SV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
     let visitPhotoPath = "";
     let problemPhotoPath = "";
+    let visitPhotoDrive: any = null;
+    let problemPhotoDrive: any = null;
 
     if (visitFile) {
       const file = await fileToBase64(visitFile);
-      visitPhotoPath = `site-visits/${projectCode}/${visitCode}/visit-photo${file.mime === "image/png" ? ".png" : file.mime === "image/webp" ? ".webp" : ".jpg"}`;
-      await uploadSiteVisitMedia({ path: visitPhotoPath, contentType: file.mime, base64: file.base64 });
+      visitPhotoDrive = await callDriveBackend("uploadSiteVisitMedia", {
+        projectId: projectCode,
+        projectName: String(project.project_name || project.client_name_snapshot || projectCode),
+        visitId: visitCode,
+        kind: "visit",
+        fileName: file.mime === "image/png" ? "visit-photo.png" : file.mime === "image/webp" ? "visit-photo.webp" : "visit-photo.jpg",
+        mimeType: file.mime,
+        base64: file.base64,
+        locationLatitude,
+        locationLongitude,
+        locationAccuracyM,
+      });
     }
     if (problemFile) {
       const file = await fileToBase64(problemFile);
-      problemPhotoPath = `site-visits/${projectCode}/${visitCode}/problem-photo${file.mime === "image/png" ? ".png" : file.mime === "image/webp" ? ".webp" : ".jpg"}`;
-      await uploadSiteVisitMedia({ path: problemPhotoPath, contentType: file.mime, base64: file.base64 });
+      problemPhotoDrive = await callDriveBackend("uploadSiteVisitMedia", {
+        projectId: projectCode,
+        projectName: String(project.project_name || project.client_name_snapshot || projectCode),
+        visitId: visitCode,
+        kind: "problem",
+        fileName: file.mime === "image/png" ? "problem-photo.png" : file.mime === "image/webp" ? "problem-photo.webp" : "problem-photo.jpg",
+        mimeType: file.mime,
+        base64: file.base64,
+        locationLatitude,
+        locationLongitude,
+        locationAccuracyM,
+      });
     }
 
     const createdBy = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(user?.id || "")) ? String(user.id) : null;
@@ -208,6 +296,17 @@ export async function POST(request: NextRequest) {
       notes: notes || null,
       visit_photo_path: visitPhotoPath || null,
       problem_photo_path: problemPhotoPath || null,
+      location_latitude: locationLatitude,
+      location_longitude: locationLongitude,
+      location_accuracy_m: locationAccuracyM,
+      location_captured_at: locationCapturedAt ? new Date(locationCapturedAt).toISOString() : new Date().toISOString(),
+      location_verification_status: locationVerificationStatus,
+      location_distance_m: locationDistanceM,
+      location_source: "device_gps",
+      visit_photo_drive_file_id: String(visitPhotoDrive?.fileId || "") || null,
+      visit_photo_drive_url: String(visitPhotoDrive?.fileUrl || "") || null,
+      problem_photo_drive_file_id: String(problemPhotoDrive?.fileId || "") || null,
+      problem_photo_drive_url: String(problemPhotoDrive?.fileUrl || "") || null,
       created_by: createdBy,
       source_created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -224,8 +323,11 @@ export async function POST(request: NextRequest) {
       Problem_Details: problemDetails,
       Action_Required: actionRequired,
       Status: "Completed",
-      Visit_Photo_Available: Boolean(visitPhotoPath),
-      Problem_Photo_Available: Boolean(problemPhotoPath),
+      Visit_Photo_Available: Boolean(visitPhotoDrive?.fileId),
+      Problem_Photo_Available: Boolean(problemPhotoDrive?.fileId),
+      Location_Verification_Status: locationVerificationStatus,
+      Location_Distance_M: locationDistanceM,
+      Location_Accuracy_M: locationAccuracyM,
     });
   } catch (error: any) {
     const message = error?.message || "Could not create site visit.";
