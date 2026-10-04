@@ -199,16 +199,35 @@ function employeeFromInput(input: Row, existing: Row = {}) {
   return result;
 }
 
+const HISTORICAL_LEDGER_PAYMENT_PREFIXES = ["TXN-HIST-", "TXN-LEDGER-"];
+
+function isHistoricalLedgerPayment(row: Row) {
+  const code = text(row.payment_code || row.Payment_ID || row.transaction_code || row.Transaction_ID).toUpperCase();
+  return HISTORICAL_LEDGER_PAYMENT_PREFIXES.some(prefix => code.startsWith(prefix));
+}
+
 async function getProjectBilling(projectId: unknown) {
   const p = await projectRow(projectId);
   const [bills, payments] = await Promise.all([
     selectRows("bills", { filters: { project_id: p.id }, order: "bill_date:asc", limit: 5000 }),
     selectRows("payments", { filters: { project_id: p.id }, order: "payment_date:asc", limit: 5000 })
   ]);
-  const validBills = bills.filter(effectiveBill), validPayments = payments.filter(effectivePayment);
+  const validBills = bills.filter(effectiveBill);
+  // Historical Accounts Ledger rows such as TXN-HIST-2026-R0596 are ledger
+  // records, not client payment receipts. They remain visible in the Accounts
+  // Ledger but must never be counted as project-billing payments.
+  const validPayments = payments.filter(pay => effectivePayment(pay) && !isHistoricalLedgerPayment(pay));
   const totalBill = validBills.reduce((s,b)=>s+num(b.net_amount ?? (num(b.amount)-num(b.discount))),0);
   const totalPaid = validPayments.reduce((s,pay)=>s+num(pay.amount),0);
-  return { project: p, projectId: p.project_code, bills: bills.map(b=>billLegacy(b,p.project_code)), payments: payments.map(pay=>paymentLegacy(pay,p.project_code)), totalBill, totalPaid, due: Math.max(0,totalBill-totalPaid) };
+  return {
+    project: p,
+    projectId: p.project_code,
+    bills: bills.map(b=>billLegacy(b,p.project_code)),
+    payments: validPayments.map(pay=>paymentLegacy(pay,p.project_code)),
+    totalBill,
+    totalPaid,
+    due: Math.max(0,totalBill-totalPaid)
+  };
 }
 
 export async function handleLandviewDataAction(action: string, input: Row, user: WorkspaceUser) {
