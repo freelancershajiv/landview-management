@@ -70,6 +70,7 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
       amount: sheetAmount(row[4]),
       ...(String(row[6] || "").trim() ? { billStatus: String(row[6]).trim().toLowerCase() } : {}),
       ...(String(row[7] || "").trim() ? { billNetAmount: sheetAmount(row[7]) } : {}),
+      ...(String(row[8] || "").trim() ? { billDiscount: sheetAmount(row[8]) } : {}),
     })));
 
     const payments = matching(category.deposit).map((row) => ({
@@ -195,6 +196,8 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
       quantity: "",
       amount: billAmount,
       ...(status ? { billStatus: status } : {}),
+      ...(Number.isFinite(Number(recordValue(record, ["Net_Amount", "Net Amount"]))) ? { billNetAmount: Number(recordValue(record, ["Net_Amount", "Net Amount"])) } : {}),
+      ...(Number.isFinite(Number(recordValue(record, ["Discount", "Bill_Discount", "Bill Discount"]))) ? { billDiscount: Number(recordValue(record, ["Discount", "Bill_Discount", "Bill Discount"])) } : {},
     } as typeof category.items[number]);
   }
   return recalculateBilling(billing);
