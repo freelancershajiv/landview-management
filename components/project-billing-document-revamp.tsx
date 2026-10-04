@@ -133,7 +133,7 @@ export default function ProjectBillingDocumentRevamp({
           ? statusTrackedItems.filter((item) => !["paid", "fully paid", "full paid", "cancelled", "canceled", "void", "voided"].includes(String(item.billStatus || "").trim().toLowerCase()))
           : [];
         const dueItems = outstandingItems.length
-          ? outstandingItems.map((item) => ({ ...item, amount: Number.isFinite(item.billNetAmount) ? Math.max(0, Number(item.billNetAmount)) : item.amount }))
+          ? outstandingItems.map((item) => ({ ...item, amount: Number.isFinite(item.amount) ? Math.max(0, Number(item.amount)) : 0 }))
           : [{ service: `Outstanding ${category.name} balance`, price: "", quantity: "", amount: Math.max(0, Number(category.due || 0)) }];
         const dueGross = outstandingItems.length
           ? outstandingItems.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? Math.max(0, Number(item.amount)) : 0), 0)
@@ -157,7 +157,7 @@ export default function ProjectBillingDocumentRevamp({
       invoices: dueInvoices,
       totals: {
         gross: dueInvoices.reduce((sum, category) => sum + category.gross, 0),
-        discount: 0,
+        discount: dueInvoices.reduce((sum, category) => sum + category.discount, 0),
         paid: 0,
         due: dueInvoices.reduce((sum, category) => sum + category.due, 0),
       },
@@ -245,7 +245,7 @@ export default function ProjectBillingDocumentRevamp({
                             <td>{soilTest && item.quantity ? item.quantity : ""}</td>
                             <td>{amountText(Number.isFinite(item.amount) ? item.amount : 0)}</td>
                             <td>{Number.isFinite(item.billDiscount) ? amountText(item.billDiscount) : "—"}</td>
-                            <td>{amountText(Number.isFinite(item.billNetAmount) ? item.billNetAmount : item.amount)}</td>
+                            <td>{amountText(Number.isFinite(item.billNetAmount) ? item.billNetAmount : (Number.isFinite(item.amount) ? item.amount : 0))}</td>
                           </tr>
                         );
                       }) : <tr><td colSpan={6} className="lvEmptyRow">No bill records.</td></tr>}
