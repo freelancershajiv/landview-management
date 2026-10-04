@@ -145,8 +145,11 @@ async function loadVisits(user: Row, projectCode?: string) {
       Action_Required: row.action_required || "",
       Status: row.status || "",
       Notes: row.notes || "",
-      Visit_Photo_Available: Boolean(row.visit_photo_path),
-      Problem_Photo_Available: Boolean(row.problem_photo_path),
+      Visit_Photo_Available: Boolean(row.visit_photo_drive_file_id || row.visit_photo_path),
+      Problem_Photo_Available: Boolean(row.problem_photo_drive_file_id || row.problem_photo_path),
+      Location_Verification_Status: row.location_verification_status || "",
+      Location_Accuracy_M: row.location_accuracy_m ?? "",
+      Location_Distance_M: row.location_distance_m ?? "",
       Created_At: row.created_at || "",
       Updated_At: row.updated_at || "",
     };
