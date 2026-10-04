@@ -324,6 +324,22 @@ export function verifySheetInvoicesWithPayments(billing: SheetInvoices, database
     if (!workspacePaymentIsEffective(candidate.record)) continue;
     const category = billing.invoices.find((item) => item.name === candidate.category);
     if (!category) continue;
+
+    // Do not append a canonical payment when the billing sheet already
+    // contains the same received amount on the same date. The canonical
+    // record is a verification source, not a second payment. This prevents
+    // the paid-billing total from becoming inflated (for example, LV-096
+    // was showing BDT 65,000 when the actual received total is BDT 60,000).
+    const alreadyDisplayed = category.payments.some((payment) =>
+      verificationDateKey(payment.date) === candidate.date &&
+      Number.isFinite(payment.amount) &&
+      Math.abs(payment.amount - candidate.amount) < 0.01,
+    );
+    if (alreadyDisplayed) {
+      used.add(candidate.index);
+      continue;
+    }
+
     const method = String(recordValue(candidate.record, ["Payment_Method", "Payment Method", "Method"])).trim();
     const reference = String(recordValue(candidate.record, ["Reference_No", "Reference No", "Reference"])).trim();
     category.payments.push({
