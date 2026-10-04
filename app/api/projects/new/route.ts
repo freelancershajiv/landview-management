@@ -17,9 +17,9 @@ function normalizeProjectCode(value: unknown) {
   const raw = text(value, 60).toUpperCase();
   if (!raw) return "";
   const match = raw.match(/LV[\s_-]*0*(\d+)/i);
-  if (match?.[1]) return `LV-${Number(match[1])}`;
+  if (match?.[1]) return `LV-${String(Number(match[1])).padStart(3, "0")}`;
   const digits = raw.replace(/\D/g, "");
-  return digits ? `LV-${Number(digits)}` : "";
+  return digits ? `LV-${String(Number(digits)).padStart(3, "0")}` : "";
 }
 function numericId(code: unknown) {
   const match = text(code, 60).toUpperCase().match(/^LV-(\d+)$/);
@@ -48,7 +48,7 @@ async function existingProjectCodes() {
 async function nextAutomaticCode() {
   const codes = await existingProjectCodes();
   const max = codes.reduce((current, code) => Math.max(current, numericId(code)), 0);
-  return `LV-${max + 1}`;
+  return `LV-${String(max + 1).padStart(3, "0")}`;
 }
 
 export async function GET(request: NextRequest) {
@@ -99,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     if (mode === "manual") {
       const code = normalizeProjectCode(body.Project_ID || body.projectId || body.manualId);
-      if (!code) return NextResponse.json({ success: false, error: "Enter a valid manual project ID, for example LV-72." }, { status: 400 });
+      if (!code) return NextResponse.json({ success: false, error: "Enter a valid manual project ID, for example LV-072." }, { status: 400 });
       const exists = await selectRows("projects", { filters: { project_code: code }, select: "id,project_code", limit: 1 });
       if (exists.length) return NextResponse.json({ success: false, error: `${code} already exists. Choose a genuinely unused project ID.` }, { status: 409 });
       try {
