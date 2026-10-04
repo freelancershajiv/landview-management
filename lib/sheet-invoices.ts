@@ -166,10 +166,17 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     const prefix = description.match(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i);
     const notes = String(recordValue(record, ["Notes", "Created_Via", "Created Via"]));
     const explicitCategory = recordValue(record, ["Billing_Category", "Billing Category", "Category"]);
-    const workspaceEntry = Boolean(prefix) || /billing workspace/i.test(notes) || /billing workspace/i.test(String(recordValue(record, ["Created_Via", "Created Via"])));
-    if (!workspaceEntry) continue;
-
+    const createdVia = String(recordValue(record, ["Created_Via", "Created Via"])).trim();
     const categoryName = categoryFromWorkspaceValue(explicitCategory || prefix?.[1] || "");
+    // Billing records created directly in Supabase are canonical too. Older
+    // records may have the workspace prefix/metadata, but newly added bills
+    // can legitimately have Created_Via=Supabase and no Notes.
+    const workspaceEntry =
+      Boolean(prefix) ||
+      /billing workspace/i.test(notes) ||
+      /billing workspace/i.test(createdVia) ||
+      Boolean(categoryName);
+    if (!workspaceEntry || !categoryName) continue;
     const category = billing.invoices.find((item) => item.name === categoryName);
     const billAmount = Number(String(recordValue(record, ["Amount", "Bill_Amount", "Bill Amount"]) || 0).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
     if (!category || !Number.isFinite(billAmount) || billAmount <= 0) continue;
