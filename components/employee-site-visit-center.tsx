@@ -102,7 +102,16 @@ export default function EmployeeSiteVisitCenter(){
     }catch(e:any){
       setLocation(null);
       const code=e?.code;
-      setError(code===1?"Location permission was denied. Enable GPS permission for LAND VIEW and try again.":code===2?"The device could not determine your location. Move to an open area and retry.":code===3?"Location request timed out. Please retry.":e?.message||"Could not verify site location.");
+      if(code===1){
+        setLocationPermission("denied");
+        setError("Location access is blocked for LAND VIEW. Allow Location for this website in your browser/site settings, then press TRY LOCATION AGAIN.");
+      }else if(code===2){
+        setError("The device could not determine your location. Turn on device Location/GPS, move to an open area, and retry.");
+      }else if(code===3){
+        setError("Location request timed out. Please retry.");
+      }else{
+        setError(e?.message||"Could not verify site location.");
+      }
     }finally{setLocationChecking(false);}
   }
 
