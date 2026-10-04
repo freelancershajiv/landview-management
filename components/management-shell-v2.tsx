@@ -21,6 +21,7 @@ type NavItem = { href: string; label: string; icon: string; permission?: string;
 const nav: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: "⌂", permission: "dashboard.view" },
   { href: "/admin/projects", label: "Projects", icon: "▣", permission: "projects.view" },
+  { href: "/projectmanagement", label: "Project Management", icon: "◈", permission: "projects.view" },
   { href: "/admin/estimate", label: "Estimates", icon: "▤", permission: "projects.view" },
   { href: "/admin/workflow", label: "Workflow", icon: "↗", permission: "workflow.view" },
   { href: "/admin/registers", label: "Document Registry", icon: "▧", permission: "documents.view" },
@@ -31,13 +32,14 @@ const nav: NavItem[] = [
   { href: "/admin/accounts/entry", label: "Accounts", icon: "▥", permission: "accounts.view" },
   { href: "/admin/accounts", label: "Ledger", icon: "≡", permission: "ledger.view" },
   { href: "/admin/proposals", label: "Proposals", icon: "✎", permission: "proposals.view" },
+  { href: "/admin/website-analytics", label: "Website Analytics", icon: "⌁", adminOnly: true },
 ];
 
 const navOrder = [
-  "/admin/projects", "/admin/estimate", "/admin/workflow", "/admin/proposals",
+  "/admin/projects", "/projectmanagement", "/admin/estimate", "/admin/workflow", "/admin/proposals",
   "/admin/registers", "/admin/certificates",
   "/admin/finance", "/admin/accounts/entry", "/admin/accounts",
-  "/admin/employees", "/admin/access",
+  "/admin/employees", "/admin/access", "/admin/website-analytics",
 ];
 const SESSION_WATCHDOG_MS = 8000;
 
