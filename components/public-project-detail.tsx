@@ -11,7 +11,7 @@ type PublicProject = {
   title?: string;
   category?: string;
   location?: string;
-  status?: string;
+  currentStage?: string;
   area?: string;
   stories?: string;
   completionYear?: string;
@@ -139,7 +139,7 @@ export default function PublicProjectDetailPage({ initialProject }: { initialPro
           <div className="public-project-grid" style={{ marginBottom: 40 }}>
             <article className="public-project-card"><div className="public-project-copy"><small>PROJECT ID</small><h3>{project.projectId}</h3><p>{project.location || "Location not published"}</p></div></article>
             <article className="public-project-card"><div className="public-project-copy"><small>BUILDING</small><h3>{project.stories ? `${project.stories} Stories` : project.category || "Project"}</h3><p>{project.area || "Project area not published"}</p></div></article>
-            <article className="public-project-card"><div className="public-project-copy"><small>STATUS / YEAR</small><h3>{project.status || "—"}</h3><p>{project.completionYear || "Year not published"}</p></div></article>
+            <article className="public-project-card"><div className="public-project-copy"><small>CURRENT STAGE / YEAR</small><h3>{project.currentStage || "—"}</h3><p>{project.completionYear || "Year not published"}</p></div></article>
           </div>
 
           {project.services?.length ? <section style={{ marginBottom: 48 }}>
