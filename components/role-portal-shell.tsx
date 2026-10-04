@@ -33,6 +33,7 @@ const clientNav = [
   { href: "/client#finance", label: "Invoices & Payments", icon: "▣" },
   { href: "/client#certificates", label: "Certificates", icon: "◫" },
   { href: "/client#workflow", label: "Project Updates", icon: "↗" },
+  { href: "/client#site-visits", label: "Site Visits", icon: "⌖" },
   { href: "/client#documents", label: "Documents", icon: "□" },
 ];
 
