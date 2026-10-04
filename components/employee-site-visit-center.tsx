@@ -91,7 +91,7 @@ export default function EmployeeSiteVisitCenter(){
       <section className="sv-card">
         <div className="sv-card-head"><div><strong>Add Site Visit</strong><small>All LAND VIEW projects are available for site visits.</small></div><span>EMPLOYEE</span></div>
         <form className="sv-form" onSubmit={submit}>
-          <label className="sv-field"><span>PROJECT</span><select value={form.projectId} onChange={e=>setForm(v=>({...v,projectId:e.target.value}))}><option value="">Select project</option>{projects.map(p=><option key={p.Project_ID} value={p.Project_ID}>{p.Project_ID} · {p.Project_Name||p.Client_Name||"Project"}</option>)}</select></label>
+          <label className="sv-field"><span>PROJECT</span><select value={form.projectId} onChange={e=>setForm(v=>({...v,projectId:e.target.value}))}><option value="">Select active supervision project</option>{projects.map(p=><option key={p.Project_ID} value={p.Project_ID}>{p.Project_ID} · {p.Project_Name||p.Client_Name||"Project"}{p.Status ? " · "+p.Status : ""}</option>)}</select></label>
           <label className="sv-field"><span>VISIT DATE</span><input type="date" value={form.visitDate} onChange={e=>setForm(v=>({...v,visitDate:e.target.value}))}/></label>
           <label className="sv-field wide"><span>VISIT PURPOSE</span><input value={form.purpose} onChange={e=>setForm(v=>({...v,purpose:e.target.value}))} placeholder="e.g. Foundation inspection / site measurement"/></label>
           <label className="sv-field wide"><span>PROBLEM / OBSERVATION DETAILS</span><textarea value={form.problemDetails} onChange={e=>setForm(v=>({...v,problemDetails:e.target.value}))} placeholder="Describe what you observed at site."/></label>

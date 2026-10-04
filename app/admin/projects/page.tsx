@@ -355,7 +355,7 @@ export default function ProjectsPage() {
       <section className="register-shell">
         <div className="register-scroll">
           <table className="project-table">
-            <thead><tr><th>Project</th><th>Type</th><th>Location / Area</th><th>Status</th><th>Service team</th><th>Drive</th><th className="public-cell">Public website</th></tr></thead>
+            <thead><tr><th>Project</th><th>Type</th><th>Location / Area</th><th>Status</th><th>Current stage</th><th>Service team</th><th>Drive</th><th className="public-cell">Public website</th></tr></thead>
             <tbody>
               {filtered.map((project) => {
                 const id = normalizeProjectId(project.Project_ID);
@@ -374,11 +374,12 @@ export default function ProjectsPage() {
                     <td>{String(project.Project_Type || "—")}</td>
                     <td><div>{String(project.Location || "—")}</div>{details && <div className="muted" style={{marginTop:4}}>{details}</div>}</td>
                     <td>{canManage ? <select aria-label={`Status for ${id}`} value={normalizeCategory(project.Status)} disabled={savingStatus===id} onChange={(e)=>void setProjectStatus(project,e.target.value as ProjectCategory)} style={{height:34,minWidth:112,border:"1px solid rgba(255,255,255,.14)",borderRadius:7,background:"#111b24",color:"#eef2f5",padding:"0 9px",fontSize:11,fontWeight:800}}><option value="Running">Ongoing</option><option value="Paused">On Hold</option><option value="Completed">Completed</option><option value="Cancelled">Cancelled</option></select> : <StatusBadge value={projectStatusLabel(project.Status)} />}</td>
+                    <td><div style={{display:"grid",gap:3}}><b style={{fontSize:11,color:"#eef2f5"}}>{String((project as any).Current_Stage || "—")}</b><span className="muted">{String((project as any).Supervision_Stage_Status || "—")} supervision</span></div></td>
                     <td><div className="service-summary"><span><b>{assignedCount}</b>/{projectTasks.length || 0} assigned</span><button className="team-button" type="button" onClick={() => setExpanded(isExpanded?"":id)}>{isExpanded?"Close":"Assign team"}</button></div></td>
                     <td>{driveUrl ? <a className="drive-link" href={driveUrl} target="_blank" rel="noreferrer">Open Drive ↗</a> : <span className="muted">—</span>}</td>
                     <td className="public-cell"><div className="public-wrap"><span>{publicOn?"Shown":"Hidden"}</span><button type="button" className={`toggle ${publicOn?"on":""}`} role="switch" aria-checked={publicOn} aria-label={`${publicOn?"Hide":"Show"} ${id} on the public website`} disabled={!canManage || savingPublic===id} onClick={() => void togglePublic(project)} /></div></td>
                   </tr>
-                  {isExpanded && <tr className="team-row"><td colSpan={7}><div className="team-panel">
+                  {isExpanded && <tr className="team-row"><td colSpan={8}><div className="team-panel">
                     <div className="team-panel-head"><div><strong>Service responsibility · {id}</strong><small>Services are generated from billing records in LV - Auto Invoice. Assign the responsible team member here.</small></div>{!canManage && <small>Accounts access is view-only for assignments.</small>}</div>
                     {projectTasks.length ? <div className="service-assignments">{projectTasks.map((task) => {
                       const taskId = String(pick(task,["Task_ID","Task ID","TaskId"],""));

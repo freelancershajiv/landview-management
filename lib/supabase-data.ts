@@ -26,6 +26,17 @@ export function normalizeProjectCode(value: unknown) {
 }
 export function roleOf(user: WorkspaceUser) { return text((user as Row)?.role || (user as Row)?.Role).toLowerCase(); }
 export function employeeCodeOf(user: WorkspaceUser) { return text((user as Row)?.employeeId || (user as Row)?.Employee_ID || (user as Row)?.userId || (user as Row)?.User_ID); }
+const STAGE_STATUSES = new Set(["Pending", "In Progress", "Completed"]);
+function stageStatus(value: unknown, fallback = "Pending") {
+  const raw = text(value);
+  return STAGE_STATUSES.has(raw) ? raw : fallback;
+}
+function currentProjectStage(row: Row) {
+  if (stageStatus(row.design_stage_status) !== "Completed") return "Design Stage";
+  if (stageStatus(row.approval_stage_status) !== "Completed") return "Approval Stage";
+  if (stageStatus(row.supervision_stage_status, "Completed") !== "Completed") return "Supervision / Construction";
+  return "Completed";
+}
 
 export async function supabaseGateway(action: string, input: Row = {}, timeoutMs = 15000) {
   const oidc = await getVercelOidcToken({ audience: AUDIENCE });
@@ -75,6 +86,11 @@ function projectLegacy(row: Row, billed?: number) {
     Public_Display: Boolean(row.public_display), Public_Project_Title: row.public_project_title || "", Public_Description: row.public_description || "", Project_Category: row.project_category || "",
     Project_Area: row.project_area_text || "", Number_of_Stories: row.number_of_stories_text || "", Cover_Image_URL: row.cover_image_url || "", Gallery_Images: row.gallery_images || "",
     Public_Services: row.public_services || "", Completion_Year: row.completion_year || "", Public_Display_Order: row.public_display_order ?? 0,
+    Design_Stage_Status: stageStatus(row.design_stage_status),
+    Approval_Stage_Status: stageStatus(row.approval_stage_status),
+    Supervision_Stage_Status: stageStatus(row.supervision_stage_status, "Completed"),
+    Current_Stage: currentProjectStage(row),
+    Site_Visit_Eligible: stageStatus(row.supervision_stage_status, "Completed") !== "Completed",
     Created_Date: row.created_at || "", Updated_At: row.updated_at || ""
   };
 }
@@ -177,7 +193,8 @@ function projectFromInput(input: Row, existing: Row = {}) {
     ["documents_folder_id",["Documents_Folder_ID","documents_folder_id"]],["documents_folder_url",["Documents_Folder_URL","documents_folder_url"]],["invoices_folder_id",["Invoices_Folder_ID","invoices_folder_id"]],["invoices_folder_url",["Invoices_Folder_URL","invoices_folder_url"]],
     ["client_user_id",["Client_User_ID","client_user_id"]],["client_username",["Client_Username","client_username"]],["public_project_title",["Public_Project_Title","public_project_title"]],["public_description",["Public_Description","public_description"]],
     ["project_category",["Project_Category","project_category"]],["project_area_text",["Project_Area","project_area_text"]],["number_of_stories_text",["Number_of_Stories","number_of_stories_text"]],["cover_image_url",["Cover_Image_URL","cover_image_url"]],
-    ["gallery_images",["Gallery_Images","gallery_images"]],["public_services",["Public_Services","public_services"]],["completion_year",["Completion_Year","completion_year"]]
+    ["gallery_images",["Gallery_Images","gallery_images"]],["public_services",["Public_Services","public_services"]],["completion_year",["Completion_Year","completion_year"]],
+    ["design_stage_status",["Design_Stage_Status","design_stage_status"]],["approval_stage_status",["Approval_Stage_Status","approval_stage_status"]],["supervision_stage_status",["Supervision_Stage_Status","supervision_stage_status"]]
   ];
   for (const [dest, keys] of mappings) { const value = pick(input,...keys); if (text(value)) result[dest] = value; }
   const plot = pick(input,"Plot_Area","plotArea","plot_area"); if (text(plot)) result.plot_area = num(plot);

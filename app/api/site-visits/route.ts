@@ -33,6 +33,9 @@ async function fileToBase64(file: File) {
   if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) throw new Error("Only JPG, PNG and WebP site visit photos are allowed.");
   return { mime, base64: Buffer.from(await file.arrayBuffer()).toString("base64") };
 }
+function supervisionActive(project: Row) {
+  return String(project?.supervision_stage_status || "Completed").trim() !== "Completed";
+}
 async function accessibleProjects(user: Row) {
   const role = roleOf(user);
   if (role === "admin" || role === "manager") return { all: true, anyProject: true, employee: null as Row | null, ids: [] as string[], rows: [] as Row[] };
@@ -127,7 +130,7 @@ export async function GET(request: NextRequest) {
 
     if (clean(request.nextUrl.searchParams.get("mode"), 40).toLowerCase() === "projects") {
       if (roleOf(user) !== "employee") return deny("Employee access is required.", 403);
-      const projects = await selectRows("projects", { order: "project_code:asc", limit: 5000 });
+      const projects = (await selectRows("projects", { order: "project_code:asc", limit: 5000 })).filter(supervisionActive);
       return ok(projects.map(project => ({
         Project_ID: project.project_code || "",
         Project_Name: project.project_name || "",
@@ -141,7 +144,7 @@ export async function GET(request: NextRequest) {
     return ok(visits);
   } catch (error: any) {
     const message = error?.message || "Could not load site visits.";
-    const status = /session expired/i.test(message) ? 401 : /access denied|cannot access|Employee record not found/i.test(message) ? 403 : 500;
+    const status = /session expired/i.test(message) ? 401 : /access denied|cannot access|Employee record not found/i.test(message) ? 403 : /only available while the project/i.test(message) ? 409 : 500;
     return deny(message, status);
   }
 }
@@ -160,6 +163,9 @@ export async function POST(request: NextRequest) {
     const access = await accessibleProjects(user);
     const project = access.rows.find(row => String(row.project_code || "").toUpperCase() === projectCode);
     if (!project) return deny("Project not found.", 404);
+    if (!supervisionActive(project)) {
+      return deny("Site Visits are only available while the project is in the Supervision / Construction stage.", 409);
+    }
 
     const employees = await selectRows("employees", { filters: { employee_code: employeeCodeOf(user) }, limit: 1 });
     if (!employees.length) return deny("Employee record not found.", 400);
