@@ -70,9 +70,7 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
       amount: sheetAmount(row[4]),
       ...(String(row[6] || "").trim() ? { billStatus: String(row[6]).trim().toLowerCase() } : {}),
       ...(String(row[7] || "").trim() ? { billNetAmount: sheetAmount(row[7]) } : {}),
-    })) as Array<{
-      service: string; price: string; quantity: string; amount: number; billStatus?: string; billNetAmount?: number;
-    }>) );
+    }));
 
     const payments = matching(category.deposit).map((row) => ({
       date: row[1],
