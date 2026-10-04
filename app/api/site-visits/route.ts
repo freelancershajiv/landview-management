@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
-import { getSiteVisitMediaUrl, insertRows, normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
+import { getSiteVisitMediaUrl, insertRows, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,7 +28,7 @@ function validImage(file: FormDataEntryValue | null): file is File {
   return !!file && typeof file === "object" && typeof (file as File).arrayBuffer === "function";
 }
 async function fileToBase64(file: File) {
-  if (file.size > 8 * 1024 * 1024) throw new Error("Each site visit photo must be 8 MB or smaller.");
+  if (file.size > 4 * 1024 * 1024) throw new Error("Each processed Site Visit photo must be 4 MB or smaller.");
   const mime = String(file.type || "").toLowerCase();
   if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) throw new Error("Only JPG, PNG and WebP site visit photos are allowed.");
   return { mime, base64: Buffer.from(await file.arrayBuffer()).toString("base64") };
@@ -180,7 +180,7 @@ export async function GET(request: NextRequest) {
     return ok(visits);
   } catch (error: any) {
     const message = error?.message || "Could not load site visits.";
-    const status = /session expired/i.test(message) ? 401 : /access denied|cannot access|Employee record not found/i.test(message) ? 403 : /only available while the project/i.test(message) ? 409 : 500;
+    const status = /session expired/i.test(message) ? 401 : /access denied|cannot access|Employee record not found/i.test(message) ? 403 : /only available while the project|GPS accuracy|project does not have a verified site location|registered project site/i.test(message) ? 409 : /Device location|required for every Site Visit|invalid/i.test(message) ? 400 : 500;
     return deny(message, status);
   }
 }
