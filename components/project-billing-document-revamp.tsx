@@ -11,6 +11,12 @@ import OriginalProjectBillingDocument, {
 
 export * from "./project-billing-document";
 
+type BillingItem = SheetInvoices["invoices"][number]["items"][number] & {
+  billStatus?: string;
+  billNetAmount?: number;
+  billDiscount?: number;
+};
+
 type Props = {
   result: SheetInvoices;
   verificationUrl?: string;
@@ -121,7 +127,7 @@ export default function ProjectBillingDocumentRevamp({
     const dueInvoices = result.invoices
       .filter((category) => Number(category.due || 0) > 0.009)
       .map((category) => {
-        const sourceItems = category.items as Array<typeof category.items[number] & { billStatus?: string; billNetAmount?: number }>;
+        const sourceItems = category.items as BillingItem[];
         const statusTrackedItems = sourceItems.filter((item) => item.billStatus);
         const outstandingItems = statusTrackedItems.length
           ? statusTrackedItems.filter((item) => !["paid", "fully paid", "full paid", "cancelled", "canceled", "void", "voided"].includes(String(item.billStatus || "").trim().toLowerCase()))
@@ -219,8 +225,8 @@ export default function ProjectBillingDocumentRevamp({
 
                 <div className="lvTableWrap">
                   <table className="lvInvoiceTable lvBillTable">
-                    <colgroup><col /><col /><col /><col /><col /></colgroup>
-                    <thead><tr><th>SL.</th><th>DESCRIPTION</th><th>RATE (BDT)</th><th>QTY</th><th>AMOUNT (BDT)</th></tr></thead>
+                    <colgroup><col /><col /><col /><col /><col /><col /><col /></colgroup>
+                    <thead><tr><th>SL.</th><th>DESCRIPTION</th><th>RATE (BDT)</th><th>QTY</th><th>BILL AMOUNT (BDT)</th><th>DISCOUNT (BDT)</th><th>BILLED AMOUNT (BDT)</th></tr></thead>
                     <tbody>
                       {category.items.length ? category.items.map((item, itemIndex) => {
                         const soilTest = isSoilTestService(item.service);
@@ -230,7 +236,9 @@ export default function ProjectBillingDocumentRevamp({
                             <td>{item.service || "—"}</td>
                             <td>{soilTest && item.price ? amountText(item.price) : ""}</td>
                             <td>{soilTest && item.quantity ? item.quantity : ""}</td>
-                            <td>{amountText(item.amount)}</td>
+                            <td>{amountText(Number.isFinite(item.amount) ? item.amount : 0)}</td>
+                            <td>{Number.isFinite(item.billDiscount) ? amountText(item.billDiscount) : "—"}</td>
+                            <td>{amountText(Number.isFinite(item.billNetAmount) ? item.billNetAmount : item.amount)}</td>
                           </tr>
                         );
                       }) : <tr><td colSpan={6} className="lvEmptyRow">No bill records.</td></tr>}
@@ -342,9 +350,10 @@ export default function ProjectBillingDocumentRevamp({
           .lvInvoiceTable th:last-child,.lvInvoiceTable td:last-child{text-align:right!important;white-space:nowrap!important}
           .lvEmptyRow{text-align:center!important;color:#666!important;padding:3mm!important}
 
-          .lvBillTable col:nth-child(1){width:8%!important}.lvBillTable col:nth-child(2){width:44%!important}.lvBillTable col:nth-child(3){width:18%!important}.lvBillTable col:nth-child(4){width:10%!important}.lvBillTable col:nth-child(5){width:20%!important}
+          .lvBillTable col:nth-child(1){width:7%!important}.lvBillTable col:nth-child(2){width:34%!important}.lvBillTable col:nth-child(3){width:12%!important}.lvBillTable col:nth-child(4){width:8%!important}.lvBillTable col:nth-child(5){width:13%!important}.lvBillTable col:nth-child(6){width:13%!important}.lvBillTable col:nth-child(7){width:13%!important}
           .lvBillTable th:nth-child(3),.lvBillTable td:nth-child(3),.lvBillTable th:nth-child(4),.lvBillTable td:nth-child(4){text-align:center!important}
-          .lvBillTable td:nth-child(5){text-align:right!important}
+          .lvBillTable th:nth-child(5),.lvBillTable td:nth-child(5),.lvBillTable th:nth-child(6),.lvBillTable td:nth-child(6),.lvBillTable th:nth-child(7),.lvBillTable td:nth-child(7){text-align:right!important}
+          .lvBillTable th:nth-child(5),.lvBillTable th:nth-child(6),.lvBillTable th:nth-child(7){white-space:normal!important;line-height:1.05!important}
 
           .lvTotalsBlock{width:100%!important;margin-top:0!important;border:1px solid #cbd1d6!important;border-top:0!important;box-sizing:border-box!important}
           .lvTotalsBlock>div{display:grid!important;grid-template-columns:minmax(0,1fr) 42mm!important;align-items:center!important;min-height:6.6mm!important;border-top:1px solid #d6dbe0!important}
