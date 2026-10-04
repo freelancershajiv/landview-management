@@ -152,7 +152,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
   const employeeApprovals = isChairmanEmployee(user);
 
   return <div className="admin-shell tmg-shell portal-employee employee-reference-shell">
-    <style>{\`
+    <style>{`
       .portal-employee{--lv-sidebar-width:238px;--lv-topbar-height:74px;min-height:100vh;background:#090b0e;color:#f5f7fa}
       .portal-employee *{box-sizing:border-box}
       .portal-employee .portal-skip{position:absolute;left:-9999px}
@@ -209,7 +209,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
         .portal-employee .employee-action.password-action{display:none}
       }
       @media(max-width:520px){.portal-employee .employee-action.signout-action{display:none}}
-    \`}</style>
+    `}</style>
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
     <aside className={mobileOpen ? "employee-sidebar open" : "employee-sidebar"}>
       <Link href="/employee#dashboard" className="employee-brand" onClick={()=>setMobileOpen(false)}>
