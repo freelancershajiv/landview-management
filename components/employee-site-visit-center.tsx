@@ -45,11 +45,12 @@ export default function EmployeeSiteVisitCenter(){
     setLoading(true);setError("");
     try{
       const [p,v]=await Promise.all([
-        landViewApi.getProjects(),
+        fetch("/api/site-visits?mode=projects",{cache:"no-store",credentials:"same-origin"}).then(r=>r.json()),
         fetch("/api/site-visits",{cache:"no-store",credentials:"same-origin"}).then(r=>r.json())
       ]);
+      if(!p?.success)throw new Error(p?.error||"Could not load Projects for Site Visits.");
       if(!v?.success)throw new Error(v?.error||"Could not load Site Visits.");
-      setProjects(p||[]);setVisits(v.data||[]);
+      setProjects(p.data||[]);setVisits(v.data||[]);
       if(!form.projectId && p?.[0]?.Project_ID)setForm(x=>({...x,projectId:String(p[0].Project_ID)}));
     }catch(e:any){setError(e?.message||"Could not load Site Visits.");}
     finally{setLoading(false);}
@@ -88,7 +89,7 @@ export default function EmployeeSiteVisitCenter(){
 
     <div className="sv-grid">
       <section className="sv-card">
-        <div className="sv-card-head"><div><strong>Add Site Visit</strong><small>Only projects assigned to you are selectable.</small></div><span>EMPLOYEE</span></div>
+        <div className="sv-card-head"><div><strong>Add Site Visit</strong><small>All LAND VIEW projects are available for site visits.</small></div><span>EMPLOYEE</span></div>
         <form className="sv-form" onSubmit={submit}>
           <label className="sv-field"><span>PROJECT</span><select value={form.projectId} onChange={e=>setForm(v=>({...v,projectId:e.target.value}))}><option value="">Select project</option>{projects.map(p=><option key={p.Project_ID} value={p.Project_ID}>{p.Project_ID} · {p.Project_Name||p.Client_Name||"Project"}</option>)}</select></label>
           <label className="sv-field"><span>VISIT DATE</span><input type="date" value={form.visitDate} onChange={e=>setForm(v=>({...v,visitDate:e.target.value}))}/></label>
@@ -113,7 +114,7 @@ export default function EmployeeSiteVisitCenter(){
               {(visit.Visit_Photo_Available||visit.Problem_Photo_Available)&&<div className="sv-photo-row">{visit.Visit_Photo_Available&&<a href={"/api/site-visits/media?visitId="+encodeURIComponent(visit.Visit_ID)+"&kind=visit"} target="_blank" rel="noreferrer"><img src={"/api/site-visits/media?visitId="+encodeURIComponent(visit.Visit_ID)+"&kind=visit"} alt="Site visit"/></a>}{visit.Problem_Photo_Available&&<a href={"/api/site-visits/media?visitId="+encodeURIComponent(visit.Visit_ID)+"&kind=problem"} target="_blank" rel="noreferrer"><img src={"/api/site-visits/media?visitId="+encodeURIComponent(visit.Visit_ID)+"&kind=problem"} alt="Problem"/></a>}</div>}
             </div><span className="sv-status">{visit.Status||"Completed"}</span>
           </article>)}
-          {!visits.length&&<div className="sv-empty">No Site Visits have been recorded for your assigned projects yet.</div>}
+          {!visits.length&&<div className="sv-empty">No Site Visits have been recorded by you yet.</div>}
         </div>
       </section>
     </div>

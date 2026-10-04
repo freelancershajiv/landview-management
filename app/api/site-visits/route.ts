@@ -35,21 +35,20 @@ async function fileToBase64(file: File) {
 }
 async function accessibleProjects(user: Row) {
   const role = roleOf(user);
-  if (role === "admin" || role === "manager") return { all: true, ids: [] as string[], rows: [] as Row[] };
+  if (role === "admin" || role === "manager") return { all: true, anyProject: true, employee: null as Row | null, ids: [] as string[], rows: [] as Row[] };
 
   if (role === "employee") {
     const employees = await selectRows("employees", { filters: { employee_code: employeeCodeOf(user) }, limit: 1 });
     if (!employees.length) throw new Error("Employee record not found.");
-    const links = await selectRows("project_employees", { filters: { employee_id: employees[0].id, active: true }, limit: 5000 });
-    const ids = Array.from(new Set(links.map(row => String(row.project_id))));
-    const rows = ids.length ? await selectRows("projects", { inFilters: { id: ids }, limit: 5000 }) : [];
-    return { all: false, ids, rows };
+    // Site visits are field operations: an employee may visit any LAND VIEW project.
+    const rows = await selectRows("projects", { order: "project_code:asc", limit: 5000 });
+    return { all: false, anyProject: true, employee: employees[0], ids: rows.map(row => String(row.id)), rows };
   }
 
   if (role === "client") {
     const codes = clientProjectCodesOf(user);
     const rows = codes.length ? await selectRows("projects", { inFilters: { project_code: codes }, limit: 5000 }) : [];
-    return { all: false, ids: rows.map(row => String(row.id)), rows };
+    return { all: false, anyProject: false, employee: null as Row | null, ids: rows.map(row => String(row.id)), rows };
   }
 
   throw new Error("This account role cannot access Site Visits.");
@@ -75,7 +74,13 @@ async function loadVisits(user: Row, projectCode?: string) {
       const project = projects.find(row => String(row.project_code || "").toUpperCase() === wanted);
       if (!project) throw new Error("Access denied for this project.");
       projects = [project];
-      rows = await selectRows("site_visits", { filters: { project_id: project.id }, order: "visit_date:desc", limit: 5000 });
+      if (roleOf(user) === "employee") {
+        rows = await selectRows("site_visits", { filters: { project_id: project.id, employee_id: access.employee.id }, order: "visit_date:desc", limit: 5000 });
+      } else {
+        rows = await selectRows("site_visits", { filters: { project_id: project.id }, order: "visit_date:desc", limit: 5000 });
+      }
+    } else if (roleOf(user) === "employee") {
+      rows = await selectRows("site_visits", { filters: { employee_id: access.employee.id }, order: "visit_date:desc", limit: 5000 });
     } else if (access.ids.length) {
       rows = await selectRows("site_visits", { inFilters: { project_id: access.ids }, order: "visit_date:desc", limit: 5000 });
     }
@@ -117,11 +122,24 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireLocalSession(request) as Row | null;
     if (!user) return deny("Session expired.", 401);
+
+    if (clean(request.nextUrl.searchParams.get("mode"), 40).toLowerCase() === "projects") {
+      if (roleOf(user) !== "employee") return deny("Employee access is required.", 403);
+      const projects = await selectRows("projects", { order: "project_code:asc", limit: 5000 });
+      return ok(projects.map(project => ({
+        Project_ID: project.project_code || "",
+        Project_Name: project.project_name || "",
+        Client_Name: project.client_name_snapshot || "",
+        Location: project.location || "",
+        Status: project.status || "",
+      })));
+    }
+
     const visits = await loadVisits(user, clean(request.nextUrl.searchParams.get("projectId"), 80) || undefined);
     return ok(visits);
   } catch (error: any) {
     const message = error?.message || "Could not load site visits.";
-    const status = /session expired/i.test(message) ? 401 : /access denied|cannot access/i.test(message) ? 403 : 500;
+    const status = /session expired/i.test(message) ? 401 : /access denied|cannot access|Employee record not found/i.test(message) ? 403 : 500;
     return deny(message, status);
   }
 }
@@ -139,7 +157,7 @@ export async function POST(request: NextRequest) {
 
     const access = await accessibleProjects(user);
     const project = access.rows.find(row => String(row.project_code || "").toUpperCase() === projectCode);
-    if (!project) return deny("You can only create a Site Visit for a project assigned to you.", 403);
+    if (!project) return deny("Project not found.", 404);
 
     const employees = await selectRows("employees", { filters: { employee_code: employeeCodeOf(user) }, limit: 1 });
     if (!employees.length) return deny("Employee record not found.", 400);

@@ -21,8 +21,7 @@ async function canViewVisit(user: Row, visit: Row) {
     const code = clean(user?.employeeId || user?.Employee_ID || user?.userId || user?.User_ID, 120);
     const employee = await selectRows("employees", { filters: { employee_code: code }, limit: 1 });
     if (!employee.length) return false;
-    const links = await selectRows("project_employees", { filters: { employee_id: employee[0].id, active: true, project_id: visit.project_id }, limit: 1 });
-    return links.length > 0;
+    return String(employee[0].id) === String(visit.employee_id);
   }
   if (role === "client") {
     const projects = await selectRows("projects", { inFilters: { project_code: clientProjectCodesOf(user) }, limit: 5000 });
