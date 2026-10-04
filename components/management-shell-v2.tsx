@@ -286,6 +286,34 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
       .portal-admin .utility-bar:after{left:110px;width:310px}
       .portal-admin .masthead-brand img{width:164px}
     }
+    /* Final shell overrides: admin-brand-theme.css intentionally uses !important for the legacy horizontal shell. */
+    .portal-admin .utility-bar{position:fixed!important;left:252px!important;right:0!important;top:0!important;height:72px!important;z-index:120!important}
+    .portal-admin .utility-inner{height:72px!important;width:auto!important;max-width:none!important;margin:0!important;padding:0 24px!important}
+    .portal-admin .masthead{position:static!important;width:100%!important;height:auto!important;background:transparent!important;border:0!important;box-shadow:none!important;overflow:visible!important}
+    .portal-admin .masthead-brand{position:fixed!important;left:0!important;top:0!important;width:252px!important;height:72px!important;padding:14px 25px!important;background:#0a0f14!important;border-right:1px solid #27323a!important;z-index:130!important;box-sizing:border-box!important}
+    .portal-admin .masthead-brand img{background:transparent!important;border:0!important;border-radius:0!important;padding:0!important;box-shadow:none!important}
+    .portal-admin .primary-nav{position:fixed!important;left:0!important;top:72px!important;bottom:0!important;width:252px!important;height:auto!important;display:block!important;min-height:0!important;padding:18px 11px 14px!important;margin:0!important;background:linear-gradient(180deg,#0a0f14,#0d141a)!important;border:0!important;border-right:1px solid #27323a!important;box-shadow:none!important;z-index:110!important;overflow:auto!important}
+    .portal-admin .primary-nav-inner{width:100%!important;max-width:none!important;margin:0!important;padding:0!important;display:flex!important;flex-direction:column!important;align-items:stretch!important;gap:2px!important;overflow:visible!important}
+    .portal-admin .primary-nav-inner>a,.portal-admin .estimate-nav-trigger{position:relative!important;flex:0 0 auto!important;width:100%!important;min-height:44px!important;display:flex!important;align-items:center!important;justify-content:flex-start!important;padding:0 12px!important;border:1px solid transparent!important;border-radius:8px!important;background:transparent!important;color:#dce4e9!important;box-shadow:none!important;font-size:11px!important;line-height:1!important;transform:none!important}
+    .portal-admin .primary-nav-inner>a::before,.portal-admin .estimate-nav-trigger::before{content:initial!important;position:static!important;width:28px!important;height:28px!important;margin:0 8px 0 0!important;display:grid!important;place-items:center!important;border-radius:7px!important;background:transparent!important;box-shadow:none!important;transform:none!important;opacity:1!important}
+    .portal-admin .primary-nav-inner>a[href="/admin"]::before{content:"⌂"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/projects"]::before{content:"▣"!important}
+    .portal-admin .primary-nav-inner>a[href*="/admin/estimate"]::before{content:"▤"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/workflow"]::before{content:"↗"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/registers"]::before{content:"▱"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/employees"]::before{content:"♙"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/certificates"]::before{content:"▧"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/finance"]::before{content:"৳"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/access"]::before{content:"⚙"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/accounts/entry"]::before{content:"＋"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/accounts"]::before{content:"≡"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/proposals"]::before{content:"◇"!important}
+    .portal-admin .primary-nav-inner>a[href="/admin/website-analytics"]::before{content:"◫"!important}
+    .portal-admin .primary-nav-inner>a:hover,.portal-admin .estimate-nav-trigger:hover{background:#151c22!important;border-color:#202b33!important;color:#fff!important}
+    .portal-admin .primary-nav-inner>a.active,.portal-admin .estimate-nav-trigger.active{background:linear-gradient(135deg,#e31f26,#b70f14)!important;border-color:#ef3a40!important;color:#fff!important;box-shadow:0 8px 20px rgba(214,31,38,.18)!important}
+    .portal-admin .primary-nav-inner>a.active::after,.portal-admin .estimate-nav-trigger.active::after{content:""!important;position:absolute!important;left:0!important;top:7px!important;bottom:7px!important;width:3px!important;border-radius:3px!important;background:#fff!important;display:block!important}
+    .portal-admin .admin-main,.portal-admin .tmg-admin-main{margin-left:252px!important;margin-top:72px!important;width:calc(100% - 252px)!important;min-height:calc(100vh - 72px)!important}
+    .portal-admin .content-wrap,.portal-admin .tmg-content-wrap{width:100%!important;max-width:none!important;margin:0!important;padding:28px 30px 40px!important}
     @media(max-width:820px){
       .portal-admin .utility-bar{left:0;height:66px}
       .portal-admin .utility-inner{height:66px;padding:0 14px 0 56px}
