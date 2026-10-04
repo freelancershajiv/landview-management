@@ -15,9 +15,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <style>{`
       a[href="/admin/projects/new"],a[href="/admin/public-projects"]{display:none!important}
       .primary-nav a[href="/admin/accounts/entry"]{display:none!important}
-      .primary-nav a[href="/admin/finance"],.primary-nav a[href="/admin/accounts"]{font-size:0}
-      .primary-nav a[href="/admin/finance"]::after{content:"Billing";font-size:12px}
-      .primary-nav a[href="/admin/accounts"]::after{content:"Accounts";font-size:12px}
     `}</style>
     <ManagementShellV2 initialUser={session.user}>{children}</ManagementShellV2>
   </>;
