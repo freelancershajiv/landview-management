@@ -6,7 +6,7 @@ import { landViewApi } from "@/lib/api";
 type Row = Record<string, any>;
 
 function dateText(v:any){const d=new Date(String(v||""));return Number.isNaN(d.getTime())?"—":d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});}
-function compressImage(file:File,maxDimension=1600,quality=.82):Promise<File>{
+function compressImage(file:File,maxDimension=1400,quality=.78):Promise<File>{
   return new Promise((resolve,reject)=>{
     if(!file.type.startsWith("image/")) return reject(new Error("Please select an image file."));
     const img=new Image();
@@ -40,6 +40,8 @@ export default function EmployeeSiteVisitCenter(){
   const [form,setForm]=useState({projectId:"",visitDate:new Date().toISOString().slice(0,10),purpose:"",problemDetails:"",actionRequired:"",notes:""});
   const [visitPhoto,setVisitPhoto]=useState<File|null>(null);
   const [problemPhoto,setProblemPhoto]=useState<File|null>(null);
+  const [location,setLocation]=useState<{latitude:number;longitude:number;accuracyM:number;capturedAt:string}|null>(null);
+  const [locationChecking,setLocationChecking]=useState(false);
 
   async function load(){
     setLoading(true);setError("");
@@ -57,22 +59,63 @@ export default function EmployeeSiteVisitCenter(){
   }
   useEffect(()=>{void load();},[]);
 
-  useMemo(()=>projects.find(p=>String(p.Project_ID)===String(form.projectId)),[projects,form.projectId]);
+  const selectedProject=useMemo(()=>projects.find(p=>String(p.Project_ID)===String(form.projectId)),[projects,form.projectId]);
+
+  function distanceMeters(lat1:number,lon1:number,lat2:number,lon2:number){
+    const toRad=(n:number)=>n*Math.PI/180;
+    const R=6371000;
+    const dLat=toRad(lat2-lat1),dLon=toRad(lon2-lon1);
+    const a=Math.sin(dLat/2)**2+Math.cos(toRad(lat1))*Math.cos(toRad(lat2))*Math.sin(dLon/2)**2;
+    return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+  }
+
+  async function verifyLocation(){
+    setError("");setNotice("");setLocationChecking(true);
+    try{
+      if(!form.projectId)throw new Error("Select a project before verifying the site location.");
+      if(!navigator.geolocation)throw new Error("This device/browser does not support GPS location.");
+      if(selectedProject?.Site_Latitude===""||selectedProject?.Site_Latitude===null||selectedProject?.Site_Latitude===undefined||selectedProject?.Site_Longitude===""||selectedProject?.Site_Longitude===null||selectedProject?.Site_Longitude===undefined){
+        throw new Error("This project has no registered Site Latitude/Longitude. Ask an Admin or Manager to set the project site location first.");
+      }
+      const position=await new Promise<GeolocationPosition>((resolve,reject)=>{
+        navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:true,maximumAge:0,timeout:15000});
+      });
+      const accuracy=Number(position.coords.accuracy||0);
+      if(!Number.isFinite(accuracy)||accuracy>100)throw new Error("GPS accuracy is "+Math.round(accuracy)+" m. Move to an open area and try again until accuracy is 100 m or better.");
+      const latitude=Number(position.coords.latitude),longitude=Number(position.coords.longitude);
+      const siteLat=Number(selectedProject.Site_Latitude),siteLon=Number(selectedProject.Site_Longitude);
+      const radius=Math.max(25,Math.min(1000,Number(selectedProject.Site_Geofence_Radius_M||150)));
+      const distance=distanceMeters(latitude,longitude,siteLat,siteLon);
+      if(distance>radius)throw new Error("You are about "+Math.round(distance)+" m from the registered project site. The allowed radius is "+Math.round(radius)+" m.");
+      const capturedAt=new Date().toISOString();
+      setLocation({latitude,longitude,accuracyM:accuracy,capturedAt});
+      setNotice("Location verified · "+Math.round(distance)+" m from site · GPS accuracy "+Math.round(accuracy)+" m.");
+    }catch(e:any){
+      setLocation(null);
+      const code=e?.code;
+      setError(code===1?"Location permission was denied. Enable GPS permission for LAND VIEW and try again.":code===2?"The device could not determine your location. Move to an open area and retry.":code===3?"Location request timed out. Please retry.":e?.message||"Could not verify site location.");
+    }finally{setLocationChecking(false);}
+  }
 
   async function submit(e:React.FormEvent){
     e.preventDefault();setSaving(true);setError("");setNotice("");
     try{
       if(!form.projectId)throw new Error("Select a project.");
       if(!form.purpose.trim())throw new Error("Enter the visit purpose.");
+      if(!location)throw new Error("Verify the project location before submitting this Site Visit.");
       const body=new FormData();
       Object.entries(form).forEach(([k,v])=>body.append(k,v));
+      body.append("locationLatitude",String(location.latitude));
+      body.append("locationLongitude",String(location.longitude));
+      body.append("locationAccuracyM",String(location.accuracyM));
+      body.append("locationCapturedAt",location.capturedAt);
       if(visitPhoto)body.append("visitPhoto",await compressImage(visitPhoto));
       if(problemPhoto)body.append("problemPhoto",await compressImage(problemPhoto));
       const response=await fetch("/api/site-visits",{method:"POST",body,credentials:"same-origin"});
       const json=await response.json().catch(()=>null);
       if(!response.ok||!json?.success)throw new Error(String(json?.error||"Could not submit Site Visit."));
       setNotice("Site Visit "+(json.data?.Visit_ID||"")+" submitted successfully.");
-      setVisitPhoto(null);setProblemPhoto(null);
+      setVisitPhoto(null);setProblemPhoto(null);setLocation(null);
       setForm(v=>({...v,purpose:"",problemDetails:"",actionRequired:"",notes:""}));
       await load();
     }catch(e:any){setError(e?.message||"Could not submit Site Visit.");}
@@ -91,8 +134,9 @@ export default function EmployeeSiteVisitCenter(){
       <section className="sv-card">
         <div className="sv-card-head"><div><strong>Add Site Visit</strong><small>All LAND VIEW projects are available for site visits.</small></div><span>EMPLOYEE</span></div>
         <form className="sv-form" onSubmit={submit}>
-          <label className="sv-field"><span>PROJECT</span><select value={form.projectId} onChange={e=>setForm(v=>({...v,projectId:e.target.value}))}><option value="">Select active supervision project</option>{projects.map(p=><option key={p.Project_ID} value={p.Project_ID}>{p.Project_ID} · {p.Project_Name||p.Client_Name||"Project"}{p.Status ? " · "+p.Status : ""}</option>)}</select></label>
+          <label className="sv-field"><span>PROJECT</span><select value={form.projectId} onChange={e=>{setForm(v=>({...v,projectId:e.target.value}));setLocation(null);setNotice("");}}><option value="">Select active supervision project</option>{projects.map(p=><option key={p.Project_ID} value={p.Project_ID}>{p.Project_ID} · {p.Project_Name||p.Client_Name||"Project"}{p.Status ? " · "+p.Status : ""}</option>)}</select></label>
           <label className="sv-field"><span>VISIT DATE</span><input type="date" value={form.visitDate} onChange={e=>setForm(v=>({...v,visitDate:e.target.value}))}/></label>
+          <div className="sv-field"><span>SITE LOCATION VERIFICATION</span><button type="button" className="sv-location-btn" onClick={()=>void verifyLocation()} disabled={locationChecking||!form.projectId}>{locationChecking?"VERIFYING GPS…":location?"LOCATION VERIFIED":"VERIFY MY LOCATION"}</button><small className={location?"sv-location-ok":"sv-location-note"}>{location?"GPS "+location.latitude.toFixed(6)+", "+location.longitude.toFixed(6)+" · accuracy "+Math.round(location.accuracyM)+" m":"GPS verification is mandatory. The device must be within the registered project geofence."}</small></div>
           <label className="sv-field wide"><span>VISIT PURPOSE</span><input value={form.purpose} onChange={e=>setForm(v=>({...v,purpose:e.target.value}))} placeholder="e.g. Foundation inspection / site measurement"/></label>
           <label className="sv-field wide"><span>PROBLEM / OBSERVATION DETAILS</span><textarea value={form.problemDetails} onChange={e=>setForm(v=>({...v,problemDetails:e.target.value}))} placeholder="Describe what you observed at site."/></label>
           <label className="sv-field wide"><span>ACTION REQUIRED</span><textarea value={form.actionRequired} onChange={e=>setForm(v=>({...v,actionRequired:e.target.value}))} placeholder="What needs to be corrected, approved or followed up?"/></label>
@@ -103,7 +147,7 @@ export default function EmployeeSiteVisitCenter(){
           <label className="sv-field wide"><span>NOTES</span><textarea value={form.notes} onChange={e=>setForm(v=>({...v,notes:e.target.value}))} placeholder="Additional site notes (optional)."/></label>
           <button className="sv-submit" disabled={saving}>{saving?"SUBMITTING SITE VISIT…":"SUBMIT SITE VISIT"}</button>
         </form>
-        <div className="sv-help">Photos are stored securely. Admin, Manager and the client linked to the project can view this Site Visit.</div>
+        <div className="sv-help">Photos are resized/compressed automatically before upload. Site Visit photos are stored in the dedicated Google Drive Site Visit folder. GPS verification is mandatory and the server re-checks the distance against the registered project site.</div>
       </section>
 
       <section className="sv-card">
