@@ -65,7 +65,7 @@ export default function AdminCommandCenter() {
 
   const billed = n(stats.totalBill);
   const paid = n(stats.totalPaid);
-  const due = n(stats.pendingPayments);
+  const billingGap = billed - paid;
   const collectionRate = billed > 0 ? Math.round((paid / billed) * 100) : 0;
 
   if (loading && !data) return <div className="lv-command-loading">Loading LAND VIEW Command Center…</div>;
@@ -103,8 +103,8 @@ export default function AdminCommandCenter() {
       <section className="lv-kpis" aria-label="Business overview">
         <div className="lv-kpi"><small>Total Projects</small><strong>{n(stats.projectCount)}</strong><span>All accessible projects</span></div>
         <div className="lv-kpi"><small>Ongoing</small><strong>{n(stats.activeProjectCount)}</strong><span>Active assignments</span></div>
-        {can("finance.view") && <div className="lv-kpi"><small>Receivables</small><strong>{money(Math.abs(due))}</strong><span>Current billing balance</span></div>}
-        {can("finance.view") && <div className="lv-kpi"><small>Collected</small><strong>{money(paid)}</strong><span>{collectionRate}% of recorded billing</span></div>}
+        {can("finance.view") && <div className="lv-kpi"><small>Billing Total</small><strong>{money(billed)}</strong><span>Effective recorded bills</span></div>}
+        {can("finance.view") && <div className="lv-kpi"><small>Collected</small><strong>{money(paid)}</strong><span>{collectionRate}% of effective payments</span></div>}
         {can("employees.view") && <div className="lv-kpi"><small>People</small><strong>{n(stats.employeeCount)}</strong><span>Employees in workspace</span></div>}
         <div className="lv-kpi"><small>Project Files</small><strong>{n(stats.documentCount)}</strong><span>Accessible records</span></div>
       </section>
@@ -127,9 +127,9 @@ export default function AdminCommandCenter() {
           <section className="lv-panel">
             <div className="lv-panel-head"><h2>Action Center</h2><span style={{fontSize:10,color:"#7f8b96"}}>Next improvements</span></div>
             <div className="lv-attention">
-              {can("finance.view") && due > 0 && <Link href="/admin/finance" className="lv-alert"><b>RECEIVABLE</b><span>{money(due)} currently outstanding in billing. Review client dues.</span></Link>}
+              {can("finance.view") && Math.abs(billingGap) > 0.01 && <Link href="/admin/finance" className="lv-alert"><b>RECONCILE</b><span>{money(Math.abs(billingGap))} gap exists between effective bills and effective payments. Review billing reconciliation before treating it as client due.</span></Link>}
               {can("projects.view") && n(stats.activeProjectCount) > 0 && <Link href="/admin/projects" className="lv-alert"><b>DELIVERY</b><span>{n(stats.activeProjectCount)} active project assignments are currently in the workspace.</span></Link>}
-              {!due && !stats.activeProjectCount && <div className="lv-empty">No immediate dashboard-level actions detected.</div>}
+              {Math.abs(billingGap) <= 0.01 && !stats.activeProjectCount && <div className="lv-empty">No immediate dashboard-level actions detected.</div>}
             </div>
           </section>
 
