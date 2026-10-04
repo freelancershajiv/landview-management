@@ -1087,3 +1087,40 @@
     max-width: var(--lv-content-max) !important;
   }
 }
+
+
+/* Final workspace alignment: reserve the sidebar inside a full-width main canvas. */
+@media screen and (min-width: 901px) {
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main {
+    width: 100% !important;
+    margin: var(--lv-topbar-height) 0 0 !important;
+    padding-left: var(--lv-sidebar-width) !important;
+    box-sizing: border-box !important;
+    min-height: calc(100vh - var(--lv-topbar-height)) !important;
+  }
+
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    width: calc(100% - 56px) !important;
+    max-width: var(--lv-content-max) !important;
+    margin: 0 28px !important;
+    padding: 28px 0 48px !important;
+    box-sizing: border-box !important;
+  }
+}
+
+@media screen and (max-width: 900px) {
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main {
+    width: 100% !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    width: calc(100% - 28px) !important;
+    margin: 0 14px !important;
+  }
+}
