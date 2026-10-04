@@ -187,7 +187,13 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     );
     if (alreadyIncluded) continue;
 
-    category.items.push({ service, price: "", quantity: "", amount: billAmount });
+    category.items.push({
+      service,
+      price: "",
+      quantity: "",
+      amount: billAmount,
+      ...(status ? { billStatus: status } : {}),
+    } as typeof category.items[number]);
   }
   return recalculateBilling(billing);
 }
