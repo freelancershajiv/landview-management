@@ -27,6 +27,7 @@ export default function ClientPortalPage(){
   const [certificateSummary,setCertificateSummary]=useState<CertificateSummary|null>(null);
   const [updated,setUpdated]=useState<Date|null>(null);
   const [projectFinance,setProjectFinance]=useState<any>(null);
+  const [siteVisits,setSiteVisits]=useState<Row[]>([]);
 
   async function load(silent=false){
     if(silent)setRefreshing(true); else setLoading(true);
@@ -36,6 +37,11 @@ export default function ClientPortalPage(){
       const json=await response.json();
       if(!response.ok||!json?.success) throw new Error(json?.error||"Unable to load your client workspace.");
       setWorkspace(json.data as Workspace);
+      try{
+        const visitResponse=await fetch("/api/site-visits",{cache:"no-store",credentials:"same-origin"});
+        const visitJson=await visitResponse.json().catch(()=>null);
+        if(visitResponse.ok&&visitJson?.success)setSiteVisits(Array.isArray(visitJson.data)?visitJson.data:[]);
+      }catch{}
       const firstProject=(json.data as Workspace)?.projects?.[0];
       if(firstProject?.projectId){
         try{
@@ -164,6 +170,8 @@ export default function ClientPortalPage(){
     <section id="documents" className={`${styles.projects} cp-section`}><div className={styles.projectHeader}><div><small className={styles.panelKicker}>PROJECT FILES</small><h2>Documents</h2></div></div><div className={styles.empty}><h3>Project documents</h3><p>Approved drawings, files and project records will appear here when they are made available to the client portal.</p></div></section>
 
     <section id="workflow-detail" className={`${styles.projects} cp-section`}><div className={styles.projectHeader}><div><small className={styles.panelKicker}>PROJECT DELIVERY</small><h2>Workflow <span style={{color:"#91a0aa"}}>({workflow.length})</span></h2></div></div><div className={styles.tableWrap}><table><thead><tr><th>#</th><th>Service</th><th>Status</th><th>Progress</th><th>Due date</th></tr></thead><tbody>{workflow.map((task,index)=>{const s=text(pick(task,["Status"]))||"Pending";const taskProgress=s.toLowerCase()==="completed"?100:Number(pick(task,["Progress"])||0);return <tr key={text(pick(task,["Task_ID"]))||index}><td><strong>{String(index+1).padStart(2,"0")}</strong></td><td><span className={styles.projectName}>{pick(task,["Task_Title","Title"])||"Project service"}</span><small>{pick(task,["Description"])||"LAND VIEW service workflow"}</small></td><td><span className={`${styles.status} ${statusClass(s)}`}>{s}</span></td><td><strong>{taskProgress}%</strong></td><td>{dateText(pick(task,["Due_Date","Due Date"]))}</td></tr>})}</tbody></table>{!workflow.length&&<div className={styles.empty}><h3>No workflow services yet</h3><p>Workflow will appear when billed project services are available.</p></div>}</div></section>
+
+    <section id="site-visits" className={\`\${styles.projects} cp-section\`}><div className={styles.projectHeader}><div><small className={styles.panelKicker}>SITE SUPERVISION</small><h2>Site Visits <span style={{color:"#91a0aa"}}>({siteVisits.length})</span></h2></div><span style={{color:"#8e9aa4",fontSize:10}}>Read-only project updates</span></div><div className={styles.tableWrap}><table><thead><tr><th>Date</th><th>Visit</th><th>Employee</th><th>Problem / Observation</th><th>Photos</th></tr></thead><tbody>{siteVisits.slice(0,30).map((visit:any,index:number)=>{const vurl="/api/site-visits/media?visitId="+encodeURIComponent(visit.Visit_ID)+"&kind=visit";const purl="/api/site-visits/media?visitId="+encodeURIComponent(visit.Visit_ID)+"&kind=problem";return <tr key={visit.Visit_ID||index}><td>{dateText(visit.Visit_Date)}</td><td><span className={styles.projectName}>{visit.Project_ID} · {visit.Purpose||"Site Visit"}</span><small>{visit.Location||visit.Project_Name||""}</small></td><td>{visit.Employee_Name||visit.Employee_ID||"Employee"}</td><td>{visit.Problem_Details||visit.Action_Required||"No problem recorded."}</td><td>{(visit.Visit_Photo_Available||visit.Problem_Photo_Available)?<div style={{display:"flex",gap:6}}>{visit.Visit_Photo_Available&&<a href={vurl} target="_blank" rel="noreferrer" style={{color:"#ff5960",fontSize:9}}>Visit photo</a>}{visit.Problem_Photo_Available&&<a href={purl} target="_blank" rel="noreferrer" style={{color:"#ff5960",fontSize:9}}>Problem photo</a>}</div>:"—"}</td></tr>})}</tbody></table>{!siteVisits.length&&<div className={styles.empty}><h3>No Site Visits yet</h3><p>Site reports submitted by the LAND VIEW team will appear here.</p></div>}</div></section>
 
     <ClientCertificateCenter projects={projects} refreshKey={updated?.getTime() ?? 0} onSummary={setCertificateSummary} />
   </div>;

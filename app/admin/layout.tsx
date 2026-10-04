@@ -8,7 +8,7 @@ import "./finance/invoices/invoice-revamp-print-fix.css";
 import "./finance/invoices/invoice-column-alignment-fix.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
-  const session = await requirePortalSession(["admin", "manager", "accounts"]);
+  const session = await requirePortalSession(["admin", "manager"]);
   return <>
     <PortalPreloader portal="admin"/>
     <ProjectManagementEnhancements />

@@ -6,8 +6,9 @@ import EmployeeCommandCenter, { type EmployeeCommandView } from "@/components/em
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
 import EmployeeExpenseCenter from "@/components/employee-expense-center";
 import EmployeeCertificateCenter from "@/components/employee-certificate-center";
+import EmployeeSiteVisitCenter from "@/components/employee-site-visit-center";
 
-type TabId = "dashboard" | "projects" | "workflow" | "records" | "expenses" | "approvals" | "certificates";
+type TabId = "dashboard" | "projects" | "workflow" | "visits" | "records" | "expenses" | "approvals" | "certificates";
 type Tab = { id: TabId; label: string };
 
 const BASE_TABS: Tab[] = [
@@ -24,7 +25,8 @@ function tabFromHash(hash: string): TabId {
   const value = String(hash || "").replace(/^#/, "").toLowerCase();
   if (value === "projects") return "projects";
   if (value === "workflow") return "workflow";
-  if (["records", "visits", "documents", "attendance"].includes(value)) return "records";
+  if (value === "visits") return "visits";
+  if (["records", "documents", "attendance"].includes(value)) return "records";
   if (value === "expenses") return "expenses";
   if (value === "approvals") return "approvals";
   if (value === "certificates") return "certificates";
@@ -100,6 +102,7 @@ export default function EmployeePortalShell() {
 
     <div className="employee-workspace-body">
       {commandView && <EmployeeCommandCenter view={commandView} />}
+      {active === "visits" && <EmployeeSiteVisitCenter />}
       {active === "expenses" && <EmployeeExpenseCenter />}
       {active === "approvals" && isChairman && <ChairmanExpenseApproval />}
       {active === "certificates" && <EmployeeCertificateCenter />}

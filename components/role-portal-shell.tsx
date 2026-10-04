@@ -9,7 +9,7 @@ type PortalType = "employee" | "client";
 
 function normalizeRole(value: unknown) { return String(value || "").trim().toLowerCase(); }
 function routeForRole(role: string) {
-  if (role === "admin" || role === "manager" || role === "accounts") return "/admin";
+  if (role === "admin" || role === "manager") return "/admin";
   if (role === "employee") return "/employee";
   if (role === "client") return "/client";
   return "/login";
@@ -33,6 +33,7 @@ const clientNav = [
   { href: "/client#finance", label: "Invoices & Payments", icon: "▣" },
   { href: "/client#certificates", label: "Certificates", icon: "◫" },
   { href: "/client#workflow", label: "Project Updates", icon: "↗" },
+  { href: "/client#site-visits", label: "Site Visits", icon: "⌖" },
   { href: "/client#documents", label: "Documents", icon: "□" },
 ];
 
