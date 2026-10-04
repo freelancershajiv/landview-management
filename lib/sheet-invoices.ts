@@ -73,13 +73,30 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
       ...(String(row[8] || "").trim() ? { billDiscount: sheetAmount(row[8]) } : {}),
     })));
 
-    const payments = matching(category.deposit).map((row) => ({
+    const rawPayments = matching(category.deposit).map((row) => ({
       date: row[1],
       details: row[2],
       amount: sheetAmount(row[3]),
       verification: row[4] === "Verified" ? "Verified" : "Unverified",
       incomeId: String(row[5] || "").trim(),
     }));
+
+    // A payment can arrive from both the legacy billing sheet and the
+    // canonical payment table. The verification step reconciles those two
+    // sources, but duplicate rows inside the sheet itself would otherwise be
+    // displayed and counted twice. Only collapse rows when they have the same
+    // explicit payment ID, or the same date + amount + details with no ID.
+    const seenPaymentKeys = new Set<string>();
+    const payments = rawPayments.filter((payment) => {
+      const dateKey = verificationDateKey(payment.date);
+      const detailsKey = String(payment.details ?? "").trim().toLowerCase().replace(/\\s+/g, " ");
+      const identityKey = payment.incomeId
+        ? `id:${payment.incomeId}`
+        : `fallback:${dateKey}|${payment.amount.toFixed(2)}|${detailsKey}`;
+      if (seenPaymentKeys.has(identityKey)) return false;
+      seenPaymentKeys.add(identityKey);
+      return true;
+    });
 
     const gross = items.reduce((total, row) => total + row.amount, 0);
     const paid = payments.reduce((total, row) => total + row.amount, 0);
