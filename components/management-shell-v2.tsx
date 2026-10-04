@@ -16,21 +16,21 @@ type WorkspaceAccess = {
   permissions?: PermissionMap;
 };
 
-type NavItem = { href: string; label: string; permission?: string; adminOnly?: boolean };
+type NavItem = { href: string; label: string; icon: string; permission?: string; adminOnly?: boolean };
 
 const nav: NavItem[] = [
-  { href: "/admin", label: "Dashboard", permission: "dashboard.view" },
-  { href: "/admin/projects", label: "Projects", permission: "projects.view" },
-  { href: "/admin/estimate", label: "Estimates", permission: "projects.view" },
-  { href: "/admin/workflow", label: "Workflow", permission: "workflow.view" },
-  { href: "/admin/registers", label: "Document Registry", permission: "documents.view" },
-  { href: "/admin/employees", label: "Employees", permission: "employees.view" },
-  { href: "/admin/certificates", label: "Certificates", permission: "certificates.view" },
-  { href: "/admin/finance", label: "Billing", permission: "finance.view" },
-  { href: "/admin/access", label: "Access Control", adminOnly: true },
-  { href: "/admin/accounts/entry", label: "Accounts", permission: "accounts.view" },
-  { href: "/admin/accounts", label: "Ledger", permission: "ledger.view" },
-  { href: "/admin/proposals", label: "Proposals", permission: "proposals.view" },
+  { href: "/admin", label: "Dashboard", icon: "⌂", permission: "dashboard.view" },
+  { href: "/admin/projects", label: "Projects", icon: "▣", permission: "projects.view" },
+  { href: "/admin/estimate", label: "Estimates", icon: "▤", permission: "projects.view" },
+  { href: "/admin/workflow", label: "Workflow", icon: "↗", permission: "workflow.view" },
+  { href: "/admin/registers", label: "Document Registry", icon: "▧", permission: "documents.view" },
+  { href: "/admin/employees", label: "Employees", icon: "♙", permission: "employees.view" },
+  { href: "/admin/certificates", label: "Certificates", icon: "⌑", permission: "certificates.view" },
+  { href: "/admin/finance", label: "Billing", icon: "৳", permission: "finance.view" },
+  { href: "/admin/access", label: "Access Control", icon: "⚿", adminOnly: true },
+  { href: "/admin/accounts/entry", label: "Accounts", icon: "▥", permission: "accounts.view" },
+  { href: "/admin/accounts", label: "Ledger", icon: "≡", permission: "ledger.view" },
+  { href: "/admin/proposals", label: "Proposals", icon: "✎", permission: "proposals.view" },
 ];
 
 const navOrder = [
@@ -252,34 +252,46 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
     <header className="masthead">
       <div className="utility-bar"><div className="utility-inner">
-        <Link href="/admin" className="masthead-brand"><img src="/land-view-logo.svg" alt="LAND VIEW logo"/><div><strong>LAND VIEW</strong><span>ENGINEERS &amp; ARCHITECTS</span></div></Link>
+        <button className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-expanded={mobileOpen} onClick={() => setMobileOpen((v)=>!v)}>☰</button>
+        <div className="global-search" role="search">
+          <span aria-hidden="true">⌕</span>
+          <input aria-label="Search LAND VIEW" placeholder="Search..." />
+        </div>
         <div className="utility-items">
-          <div className="utility-item"><b>●</b><span><small>SYSTEM STATUS</small>Online</span></div>
-          <div className="utility-item"><b>◆</b><span><small>WORKSPACE</small>Management System</span></div>
+          <button type="button" className="notification-button" aria-label="Notifications">
+            <span aria-hidden="true">♧</span><b>3</b>
+          </button>
           <div className="utility-item user-utility"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><span><small>{role || "User"}</small>{name}</span></div>
           {(isAdmin || isManager) && quickConfigured && <button className="utility-logout" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `TRUSTED ${daysLeft}D` : "TRUST DEVICE"}</button>}
           {(isAdmin || isManager) && <button className="utility-logout" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN LOCK" : "SET PIN"}</button>}
           <button className="utility-logout" onClick={logout}>Sign out</button>
         </div>
-        <button className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-expanded={mobileOpen} onClick={() => setMobileOpen((v)=>!v)}>☰</button>
       </div></div>
-      <nav aria-label="Management" className={`primary-nav ${mobileOpen?"open":""}`}><div className="primary-nav-inner">
-        <Link href="/admin" aria-current={pathname === "/admin" ? "page" : undefined} className={pathname === "/admin" ? "active dashboard-nav" : "dashboard-nav"} onClick={()=>setMobileOpen(false)}>Dashboard</Link>
-        {orderedVisibleNav.map((item) => {
-          const active = currentMatches(pathname, item.href);
-          if(item.href !== "/admin/estimate") return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}>{item.label}</Link>;
-          return <div key={item.href} className={`estimate-nav-wrap ${active ? "active-wrap" : ""}`}>
-            <button type="button" className={`estimate-nav-trigger ${active ? "active" : ""}`} aria-haspopup="menu" aria-expanded={estimateOpen} onClick={()=>setEstimateOpen(v=>!v)}>Estimates <span aria-hidden="true">▾</span></button>
-            {estimateOpen && <div className="estimate-nav-menu" role="menu">
-              <Link href="/admin/estimate?view=pile" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Pile Estimate</Link>
-              <Link href="/admin/estimate?view=summary" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Summary Estimate</Link>
-              <Link href="/admin/estimate?view=detailed" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Detailed Estimate</Link>
-            </div>}
-          </div>;
-        })}
-      </div></nav>
+      <nav aria-label="Management" className={`primary-nav ${mobileOpen?"open":""}`}>
+        <Link href="/admin" className="sidebar-brand" onClick={()=>setMobileOpen(false)}>
+          <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
+          <span><strong>LAND VIEW</strong><small>MANAGEMENT SYSTEM</small></span>
+        </Link>
+        <div className="primary-nav-inner">
+          <Link href="/admin" aria-current={pathname === "/admin" ? "page" : undefined} className={pathname === "/admin" ? "active dashboard-nav" : "dashboard-nav"} onClick={()=>setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">⌂</span><span>Dashboard</span></Link>
+          {orderedVisibleNav.map((item) => {
+            const active = currentMatches(pathname, item.href);
+            if(item.href !== "/admin/estimate") return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
+            return <div key={item.href} className={`estimate-nav-wrap ${active ? "active-wrap" : ""}`}>
+              <button type="button" className={`estimate-nav-trigger ${active ? "active" : ""}`} aria-haspopup="menu" aria-expanded={estimateOpen} onClick={()=>setEstimateOpen(v=>!v)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>Estimates</span><span aria-hidden="true">▾</span></button>
+              {estimateOpen && <div className="estimate-nav-menu" role="menu">
+                <Link href="/admin/estimate?view=pile" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Pile Estimate</Link>
+                <Link href="/admin/estimate?view=summary" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Summary Estimate</Link>
+                <Link href="/admin/estimate?view=detailed" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Detailed Estimate</Link>
+              </div>}
+            </div>;
+          })}
+        </div>
+        <div className="sidebar-footer">
+          <div className="sidebar-user"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><div><strong>{name}</strong><small>{role || "User"}</small></div></div>
+        </div>
+      </nav>
     </header>
-
     <div className="admin-main tmg-admin-main"><main id="workspace-content" className="content-wrap tmg-content-wrap">
       {!routeAllowed ? <section style={{maxWidth:760,margin:"36px auto",padding:28,border:"1px solid #3b454e",borderRadius:14,background:"#101820",color:"#eef2f5"}}><small style={{color:"#ef6c66",fontWeight:900}}>ACCESS CONTROL</small><h1 style={{margin:"8px 0 10px"}}>This function is not enabled for your account.</h1><p style={{color:"#93a0aa",lineHeight:1.6}}>Ask the Main Admin to enable this tab from Permission. Your other assigned LAND VIEW functions remain available.</p><Link href="/admin" style={{color:"#ff8179",fontWeight:800}}>Return to Dashboard →</Link></section> : children}
     </main></div>
