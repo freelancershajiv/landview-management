@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { clearStoredSession, landViewApi, readSessionCache, saveSessionCache, type SessionUser } from "@/lib/api";
 
 type PermissionMap = Record<string, boolean>;
@@ -82,6 +82,8 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const navigationRef = useRef<HTMLElement>(null);
   const [quickConfigured, setQuickConfigured] = useState(false);
   const [trustedDevice, setTrustedDevice] = useState(false);
   const [trustedUntil, setTrustedUntil] = useState<number | null>(null);
@@ -93,7 +95,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     const cached = readSessionCache();
     const cachedRole = roleOf(cached?.user);
     const hasCache = Boolean(cached?.authenticated && cached?.user && isWorkspaceRole(cachedRole));
-    const effectiveUser = hasCache ? cached!.user : initialUser;
+    const effectiveUser = initialUser || (hasCache ? cached!.user : null);
     const effectiveRole = roleOf(effectiveUser);
 
     // The server layout has already authenticated this request. Use that identity
@@ -185,9 +187,37 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   }, [pathname]);
 
   useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 901px)");
+    const closeOnDesktop = () => {
+      if (desktop.matches) setMobileOpen(false);
+    };
+    desktop.addEventListener("change", closeOnDesktop);
+    return () => desktop.removeEventListener("change", closeOnDesktop);
+  }, []);
+
+  useEffect(() => {
     if (!mobileOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileOpen(false);
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+        menuButtonRef.current?.focus();
+      }
+      if (event.key === "Tab") {
+        const links = Array.from(navigationRef.current?.querySelectorAll<HTMLElement>("a[href], button:not(:disabled)") || [])
+          .filter((element) => element.getClientRects().length > 0);
+        const first = menuButtonRef.current;
+        const firstLink = links[0];
+        const last = links.at(-1);
+        if (!event.shiftKey && document.activeElement === first && firstLink) {
+          event.preventDefault(); firstLink.focus();
+        } else if (event.shiftKey && document.activeElement === firstLink && first) {
+          event.preventDefault(); first.focus();
+        } else if (event.shiftKey && document.activeElement === first && last) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && document.activeElement === last && first) {
+          event.preventDefault(); first.focus();
+        }
+      }
     };
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -255,10 +285,23 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const daysLeft = trustedUntil ? Math.max(1, Math.ceil((trustedUntil - Date.now()) / 86400000)) : 0;
 
   const navStyles = `
+    .admin-mobile-account{display:none}
+    @media screen and (min-width:901px){
+      .portal-admin .primary-nav{visibility:visible!important;pointer-events:auto!important}
+      .portal-admin .mobile-nav-overlay{display:none!important}
+    }
     @media screen and (max-width:900px){
+      .portal-admin .masthead{position:sticky!important;top:0!important;z-index:300!important}
+      .portal-admin .utility-bar{position:relative!important;z-index:220!important;min-height:64px!important;height:64px!important}
+      .portal-admin .utility-inner{min-height:64px!important;height:64px!important}
+      .portal-admin .primary-nav:not(.open){display:none!important}
+      .portal-admin .primary-nav.open{overscroll-behavior:contain}
+      .portal-admin .admin-mobile-account{display:grid;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #394650}
+      .portal-admin .admin-mobile-account button{min-height:44px;padding:10px 14px;text-align:left;border:1px solid #394650;border-radius:6px;background:#161a1f;color:#f5f7fa;font-size:14px;cursor:pointer}
+
       .portal-admin .mobile-nav-overlay{position:fixed!important;inset:64px 0 0 0!important;z-index:199!important;border:0!important;padding:0!important;background:rgba(0,0,0,.48)!important;cursor:pointer!important}
       .portal-admin .tmg-mobile-menu{position:relative!important;z-index:220!important;pointer-events:auto!important;touch-action:manipulation!important}
-      .portal-admin .primary-nav.open{display:block!important;position:fixed!important;z-index:210!important;top:64px!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:calc(100dvh - 64px)!important;max-height:calc(100dvh - 64px)!important;overflow-y:auto!important;overflow-x:hidden!important;padding:14px!important;box-sizing:border-box!important;visibility:visible!important;opacity:1!important;transform:none!important}
+      .portal-admin .primary-nav.open{display:block!important;position:fixed!important;z-index:210!important;top:64px!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:calc(100dvh - 64px)!important;max-height:calc(100dvh - 64px)!important;overflow-y:auto!important;overflow-x:hidden!important;padding:14px 14px max(24px,env(safe-area-inset-bottom))!important;box-sizing:border-box!important;visibility:visible!important;opacity:1!important;transform:none!important}
       .portal-admin .primary-nav.open .primary-nav-inner{display:grid!important;grid-template-columns:1fr!important;width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;padding:0!important;margin:0!important;gap:4px!important}
       .portal-admin .primary-nav.open .primary-nav-inner>a,.portal-admin .primary-nav.open .estimate-nav-trigger{display:flex!important;width:100%!important;min-height:44px!important;box-sizing:border-box!important;pointer-events:auto!important;touch-action:manipulation!important}
       .portal-admin .primary-nav.open .estimate-nav-menu{position:static!important;display:block!important}
@@ -280,12 +323,12 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     @media (max-width:800px){.primary-nav-inner{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.primary-nav-inner>a{justify-content:flex-start;width:100%;padding:0 12px}}
   `;
   return <div className="admin-shell tmg-shell portal-admin"><style dangerouslySetInnerHTML={{__html: navStyles }} />
-    {mobileOpen && <button type="button" aria-label="Close navigation overlay" className="mobile-nav-overlay" onClick={() => setMobileOpen(false)} />}
 
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
     <header className="masthead">
+      {mobileOpen && <button type="button" tabIndex={-1} aria-label="Close navigation overlay" className="mobile-nav-overlay" onClick={() => setMobileOpen(false)} />}
       <div className="utility-bar"><div className="utility-inner">
-        <button type="button" className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-expanded={mobileOpen} aria-controls="admin-mobile-navigation" onClick={(event)=>{event.stopPropagation();setMobileOpen((v)=>!v)}}>{mobileOpen ? "×" : "☰"}</button>
+        <button type="button" ref={menuButtonRef} className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-expanded={mobileOpen} aria-controls="admin-mobile-navigation" onClick={(event)=>{event.stopPropagation();setMobileOpen((v)=>!v)}}>{mobileOpen ? "×" : "☰"}</button>
         <div className="global-search" role="search">
           <span aria-hidden="true">⌕</span>
           <input aria-label="Search LAND VIEW" placeholder="Search..." />
@@ -300,7 +343,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
           <button className="utility-logout" onClick={logout}>Sign out</button>
         </div>
       </div></div>
-      <nav id="admin-mobile-navigation" aria-label="Management" className={`primary-nav ${mobileOpen?"open":""}`} aria-hidden={!mobileOpen} style={{ ...(mobileOpen ? { display: "block", position: "fixed", zIndex: 210, top: "64px", right: 0, bottom: 0, left: 0, width: "100%", height: "calc(100dvh - 64px)", overflowY: "auto", visibility: "visible", opacity: 1 } : { display: "none", visibility: "hidden", pointerEvents: "none" }) }}>
+      <nav ref={navigationRef} id="admin-mobile-navigation" aria-label="Management" className={`primary-nav ${mobileOpen?"open":""}`}>
         <Link href="/admin" className="sidebar-brand" onClick={()=>setMobileOpen(false)}>
           <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
           <span><strong>LAND VIEW</strong><small>MANAGEMENT SYSTEM</small></span>
@@ -319,6 +362,12 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
               </div>}
             </div>;
           })}
+        </div>
+        <div className="admin-mobile-account">
+          <strong>{name}</strong>
+          {(isAdmin || isManager) && quickConfigured && <button type="button" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `Trusted device · ${daysLeft} days` : "Trust this device"}</button>}
+          {(isAdmin || isManager) && <button type="button" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN lock" : "Set PIN"}</button>}
+          <button type="button" onClick={logout}>Sign out</button>
         </div>
         <div className="sidebar-footer">
           <div className="sidebar-user"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><div><strong>{name}</strong><small>{role || "User"}</small></div></div>
