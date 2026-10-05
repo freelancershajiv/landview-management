@@ -179,6 +179,25 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     [visibleNav]
   );
 
+  useEffect(() => {
+    setMobileOpen(false);
+    setEstimateOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [mobileOpen]);
+
   const activeItem = useMemo(() => {
     const sorted = [...nav].sort((a, b) => b.href.length - a.href.length);
     return sorted.find((item) => currentMatches(pathname, item.href));
@@ -236,6 +255,12 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const daysLeft = trustedUntil ? Math.max(1, Math.ceil((trustedUntil - Date.now()) / 86400000)) : 0;
 
   const navStyles = `
+    @media screen and (max-width:900px){
+      .portal-admin .mobile-nav-overlay{position:fixed;inset:64px 0 0 0;z-index:140;border:0;padding:0;background:rgba(0,0,0,.48);cursor:pointer}
+      .portal-admin .primary-nav.open{display:block!important;position:fixed!important;z-index:150!important;top:64px!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:auto!important;overflow-y:auto!important;overflow-x:hidden!important;padding:14px!important;box-sizing:border-box!important}
+      .portal-admin .primary-nav.open .primary-nav-inner{display:grid!important;grid-template-columns:1fr!important;width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;padding:0!important;margin:0!important;gap:4px!important}
+      .portal-admin .primary-nav.open .primary-nav-inner>a,.portal-admin .primary-nav.open .estimate-nav-trigger{display:flex!important;width:100%!important;min-height:44px!important;box-sizing:border-box!important}
+    }
     .primary-nav{position:relative;z-index:90;overflow:visible !important}
     .primary-nav-inner{position:relative;z-index:91;display:flex;align-items:center;gap:2px;flex-wrap:wrap;overflow:visible !important;padding:3px 0}
     .primary-nav-inner>a{min-height:40px;padding:0 11px;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:inherit;text-decoration:none;font-size:11px;font-weight:800;letter-spacing:.045em;cursor:pointer;white-space:nowrap}
@@ -252,10 +277,12 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     @media (max-width:800px){.primary-nav-inner{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.primary-nav-inner>a{justify-content:flex-start;width:100%;padding:0 12px}}
   `;
   return <div className="admin-shell tmg-shell portal-admin"><style dangerouslySetInnerHTML={{__html: navStyles }} />
+    {mobileOpen && <button type="button" aria-label="Close navigation overlay" className="mobile-nav-overlay" onClick={() => setMobileOpen(false)} />}
+
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
     <header className="masthead">
       <div className="utility-bar"><div className="utility-inner">
-        <button className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-expanded={mobileOpen} onClick={() => setMobileOpen((v)=>!v)}>☰</button>
+        <button type="button" className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-expanded={mobileOpen} aria-controls="admin-mobile-navigation" onClick={(event)=>{event.stopPropagation();setMobileOpen((v)=>!v)}}>{mobileOpen ? "×" : "☰"}</button>
         <div className="global-search" role="search">
           <span aria-hidden="true">⌕</span>
           <input aria-label="Search LAND VIEW" placeholder="Search..." />
@@ -270,7 +297,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
           <button className="utility-logout" onClick={logout}>Sign out</button>
         </div>
       </div></div>
-      <nav aria-label="Management" className={`primary-nav ${mobileOpen?"open":""}`}>
+      <nav id="admin-mobile-navigation" aria-label="Management" className={`primary-nav ${mobileOpen?"open":""}`} style={mobileOpen ? { display: "block", position: "fixed", zIndex: 150, top: "64px", right: 0, bottom: 0, left: 0, overflowY: "auto" } : undefined}>
         <Link href="/admin" className="sidebar-brand" onClick={()=>setMobileOpen(false)}>
           <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
           <span><strong>LAND VIEW</strong><small>MANAGEMENT SYSTEM</small></span>
