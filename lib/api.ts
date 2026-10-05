@@ -151,6 +151,37 @@ async function post<T>(action: string, body: Record<string, unknown> = {}) {
   return parseResponse<T>(response);
 }
 
+function isGoogleMapsLocation(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return false;
+  try {
+    const host = new URL(raw).hostname.toLowerCase();
+    return host === "maps.app.goo.gl" || host === "goo.gl" || host.endsWith(".goo.gl") || host === "google.com" || host.endsWith(".google.com") || /(^|\.)google\.(?:co\.[a-z]{2}|com\.[a-z]{2}|[a-z]{2})$/i.test(host);
+  } catch {
+    return /(?:google\.[a-z.]+\/maps|maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(raw);
+  }
+}
+
+async function withResolvedProjectLocation(project: Record<string, unknown>) {
+  const location = String(project.Location ?? project.location ?? "").trim();
+  if (!isGoogleMapsLocation(location)) return project;
+  try {
+    const response = await fetchWithTimeout("/api/projects/resolve-location", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ location }),
+    });
+    const data = await parseResponse<{ latitude: number; longitude: number }>(response);
+    if (!Number.isFinite(Number(data.latitude)) || !Number.isFinite(Number(data.longitude))) return project;
+    return { ...project, Site_Latitude: data.latitude, Site_Longitude: data.longitude };
+  } catch {
+    // Keep manual coordinates as a fallback if Google changes a redirect or a
+    // temporary network error prevents automatic conversion.
+    return project;
+  }
+}
+
 export type LoginAccountResult = {
   created?: boolean;
   userId?: string;
@@ -370,7 +401,10 @@ export const landViewApi = {
   getProjects: () => get<Record<string, unknown>[]>("getProjects"),
   getProject: (projectId: string) => get<Record<string, unknown>>("getProject", { projectId }),
   createProject: (project: Record<string, unknown>) => post<ProjectRecord>("createProject", project),
-  updateProject: (projectId: string, project: Record<string, unknown>) => post<unknown>("updateProject", { projectId, ...project }),
+  updateProject: async (projectId: string, project: Record<string, unknown>) => {
+    const resolvedProject = await withResolvedProjectLocation(project);
+    return post<unknown>("updateProject", { projectId, ...resolvedProject });
+  },
   deleteProject: (projectId: string) => post<unknown>("deleteProject", { projectId }),
   getProjectEmployees: (projectId: string) => get<Record<string, unknown>[]>("getProjectEmployees", { projectId }),
   updateProjectEmployees: (projectId: string, employeeIds: string[]) => post<unknown>("updateProjectEmployees", { projectId, employeeIds }),
