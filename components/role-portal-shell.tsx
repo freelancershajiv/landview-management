@@ -55,6 +55,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
   const [newPassword, setNewPassword] = useState("");
   const [passwordMessage, setPasswordMessage] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
 
   useEffect(() => {
     const update = () => setActiveHash(window.location.hash || "#dashboard");
@@ -173,7 +174,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
       .portal-employee .employee-search{width:min(430px,38vw);height:40px;display:flex;align-items:center;gap:9px;padding:0 12px;border:1px solid #2f3943;border-radius:7px;background:#0d1217}
       .portal-employee .employee-search span{color:#88939d;font-size:18px}
       .portal-employee .employee-search input{width:100%;height:100%;border:0;outline:0;background:transparent;color:#eef2f5;font-size:11px}
-      .portal-employee .employee-tools{margin-left:auto;display:flex;align-items:center;gap:10px}
+      .portal-employee .employee-tools{margin-left:auto;display:flex;align-items:center;gap:10px;position:relative}\n      .portal-employee .employee-account{display:none}\n      .portal-employee .employee-account-menu{display:none}
       .portal-employee .employee-user{display:flex;align-items:center;gap:10px;padding-right:5px}
       .portal-employee .employee-avatar{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:#151a20;border:1px solid rgba(214,31,38,.48);color:#ff777b;font-weight:900}
       .portal-employee .employee-user-copy{display:grid;min-width:0}
@@ -217,7 +218,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
         .portal-employee .employee-tools{gap:4px;min-width:38px}
         .portal-employee .employee-user-copy{display:none}
         .portal-employee .employee-content{width:calc(100% - 28px);margin:0 14px;padding:20px 0 34px}
-        .portal-employee .employee-action.password-action{display:none}
+        .portal-employee .employee-action.password-action{display:none}\n        .portal-employee .employee-account{display:grid;place-items:center;width:36px;height:36px;border:1px solid #353b44;border-radius:50%;background:#14181e;color:#fff;font-size:13px;font-weight:900;cursor:pointer}\n        .portal-employee .employee-account-menu{display:block;position:absolute;right:0;top:46px;width:190px;padding:8px;border:1px solid #303a44;border-radius:10px;background:#11171d;box-shadow:0 16px 40px rgba(0,0,0,.45);z-index:150}\n        .portal-employee .employee-account-menu button{width:100%;height:42px;border:0;border-radius:7px;background:transparent;color:#e9edf0;text-align:left;padding:0 12px;font-size:11px;font-weight:800;cursor:pointer}\n        .portal-employee .employee-account-menu button:hover{background:#202831}\n        .portal-employee .employee-account-menu .account-danger{color:#ff777b}
         .portal-employee .employee-nav-overlay{display:block;position:fixed;z-index:105;inset:64px 0 0;border:0;background:rgba(0,0,0,.5);backdrop-filter:blur(2px)}
       }
       @media(max-width:520px){.portal-employee .employee-action.signout-action{display:none}}
@@ -250,7 +251,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
         <div className="employee-tools">
           <div className="employee-user"><div className="employee-avatar">{initials}</div><div className="employee-user-copy"><strong>{String(name)}</strong><small>Employee · {String(employeeId)}</small></div></div>
           <button className="employee-action password-action" onClick={()=>{setPasswordOpen(true);setPasswordMessage("")}}>Password</button>
-          <button className="employee-action signout-action" onClick={logout}>Sign out</button>
+          <button className="employee-action signout-action" onClick={logout}>Sign out</button>\n          <button type="button" className="employee-account" aria-label="Account menu" aria-expanded={accountOpen} onClick={()=>setAccountOpen(v=>!v)}>{initials}</button>\n          {accountOpen && <div className="employee-account-menu">\n            <button type="button" onClick={()=>{setAccountOpen(false);setPasswordOpen(true);setPasswordMessage("")}}>🔒 Change password</button>\n            <button type="button" className="account-danger" onClick={()=>{setAccountOpen(false);void logout()}}>↪ Sign out</button>\n          </div>}
         </div>
       </div>
     </header>
