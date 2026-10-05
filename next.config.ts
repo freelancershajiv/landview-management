@@ -18,7 +18,7 @@ const securityHeaders = [
       "object-src 'none'",
       "frame-ancestors 'none'",
       "form-action 'self'",
-      "img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com https://lh3.googleusercontent.com https://tiles.openfreemap.org https://*.openfreemap.org",
+      "img-src 'self' data: blob: https://drive.google.com https://*.googleusercontent.com https://lh3.googleusercontent.com https://tiles.openfreemap.org https://*.openfreemap.org https://*.tile.openstreetmap.org",
       "font-src 'self' data:",
       "connect-src 'self' https://tiles.openfreemap.org https://*.openfreemap.org",
       "style-src 'self' 'unsafe-inline' https://unpkg.com",
