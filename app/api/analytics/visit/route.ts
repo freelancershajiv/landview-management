@@ -12,11 +12,8 @@ function text(value: unknown, maxLength: number) {
 
 function decodeHeader(value: string | null) {
   if (!value) return "";
-  try {
-    return decodeURIComponent(value).slice(0, 160);
-  } catch {
-    return value.slice(0, 160);
-  }
+  try { return decodeURIComponent(value).slice(0, 160); }
+  catch { return value.slice(0, 160); }
 }
 
 function safePath(value: unknown) {
@@ -35,9 +32,7 @@ function allowedOrigin(request: NextRequest) {
     const originUrl = new URL(origin);
     const requestHost = request.nextUrl.hostname.toLowerCase();
     return originUrl.protocol === request.nextUrl.protocol && originUrl.hostname.toLowerCase() === requestHost;
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 function numberInRange(value: unknown, min: number, max: number) {
@@ -45,17 +40,42 @@ function numberInRange(value: unknown, min: number, max: number) {
   return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : null;
 }
 
-export async function POST(request: NextRequest) {
-  if (!allowedOrigin(request)) {
-    return NextResponse.json({ success: false, error: "Origin not allowed." }, { status: 403 });
+function deviceFromUserAgent(userAgent: string) {
+  if (/bot|crawler|spider|headless/i.test(userAgent)) return "Bot / automated client";
+  if (/iPad/i.test(userAgent)) return "Apple iPad";
+  if (/iPhone/i.test(userAgent)) return "Apple iPhone";
+  if (/CrOS/i.test(userAgent)) return "Chromebook";
+  if (/Android/i.test(userAgent)) {
+    const match = userAgent.match(/Android\s[^;()]+;\s*([^;)]+)/i);
+    let model = String(match?.[1] || "").replace(/\s+Build\/.*/i, "").replace(/;\s*wv$/i, "").trim();
+    if (!model || /^(K|wv|Mobile)$/i.test(model)) return "Android device";
+    if (/^SM-[A-Z0-9-]+$/i.test(model)) model = `Samsung ${model}`;
+    return model.slice(0, 120);
   }
+  if (/Windows NT/i.test(userAgent)) return "Windows PC";
+  if (/Macintosh|Mac OS X/i.test(userAgent)) return "Apple Mac";
+  if (/Linux/i.test(userAgent)) return "Linux computer";
+  return "Unknown device";
+}
+
+function platformFromUserAgent(userAgent: string) {
+  const android = userAgent.match(/Android\s([0-9.]+)/i);
+  if (android?.[1]) return `Android ${android[1]}`;
+  const ios = userAgent.match(/(?:CPU (?:iPhone )?OS|iPhone OS)\s([0-9_]+)/i);
+  if (ios?.[1]) return `iOS ${ios[1].replace(/_/g, ".")}`;
+  if (/Windows NT/i.test(userAgent)) return "Windows";
+  if (/Macintosh|Mac OS X/i.test(userAgent)) return "macOS";
+  if (/CrOS/i.test(userAgent)) return "ChromeOS";
+  if (/Linux/i.test(userAgent)) return "Linux";
+  return "";
+}
+
+export async function POST(request: NextRequest) {
+  if (!allowedOrigin(request)) return NextResponse.json({ success: false, error: "Origin not allowed." }, { status: 403 });
 
   let input: Record<string, unknown>;
-  try {
-    input = (await request.json()) as Record<string, unknown>;
-  } catch {
-    return NextResponse.json({ success: false, error: "Invalid request." }, { status: 400 });
-  }
+  try { input = (await request.json()) as Record<string, unknown>; }
+  catch { return NextResponse.json({ success: false, error: "Invalid request." }, { status: 400 }); }
 
   const eventType = text(input.eventType, 40);
   if (eventType !== "page_view" && eventType !== "precise_location") {
@@ -78,6 +98,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Invalid location coordinates." }, { status: 400 });
   }
 
+  const clientDeviceName = text(input.deviceName, 120);
+  const clientPlatform = text(input.platform, 100);
   const payload = {
     eventType,
     visitorId,
@@ -100,18 +122,19 @@ export async function POST(request: NextRequest) {
     ipTimezone: decodeHeader(request.headers.get("x-vercel-ip-timezone")),
     ipContinent: decodeHeader(request.headers.get("x-vercel-ip-continent")),
     userAgent,
+    deviceName: clientDeviceName || deviceFromUserAgent(userAgent),
+    platform: clientPlatform || platformFromUserAgent(userAgent),
     isBot: /bot|crawler|spider|slurp|bingpreview|facebookexternalhit|whatsapp|telegrambot/i.test(userAgent),
     sourceHost: text(request.nextUrl.hostname, 160),
   };
 
-  let lastError = "Analytics storage failed.";
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
       await supabaseGateway("trackVisitorAnalytics", payload, 15_000);
       return NextResponse.json({ success: true }, { headers: { "Cache-Control": "no-store, max-age=0" } });
     } catch (error) {
-      lastError = error instanceof Error ? error.message : "Analytics backend unavailable.";
-      console.error("Visitor analytics Supabase write failed", { attempt, eventType, error: lastError });
+      const message = error instanceof Error ? error.message : "Analytics backend unavailable.";
+      console.error("Visitor analytics Supabase write failed", { attempt, eventType, error: message });
     }
     if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 300));
   }
