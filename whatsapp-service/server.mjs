@@ -117,6 +117,7 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
     lastError: '',
     reconnectTimer: null,
     connectingPromise: null,
+    openedAt: 0,
   }
 
   function status() {
@@ -185,6 +186,7 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
 
         if (connection === 'open') {
           state.connection = 'open'
+          state.openedAt = Date.now()
           state.qrDataUrl = ''
           state.lastError = ''
           logger.info({ sessionId, user: wa.user?.id }, `${label} connected`)
@@ -336,11 +338,41 @@ function messageType(message) {
   return 'other'
 }
 
-function incomingJid(message) {
-  const direct = String(message?.key?.remoteJid || '')
-  const alt = String(message?.key?.remoteJidAlt || message?.key?.participantAlt || '')
-  if (direct.endsWith('@lid') && alt.endsWith('@s.whatsapp.net')) return alt
-  return direct
+function bareUserJid(value) {
+  return String(value || '').trim().replace(/:\d+@/, '@')
+}
+
+function phoneFromPnJid(value) {
+  const jid = bareUserJid(value)
+  return jid.endsWith('@s.whatsapp.net') ? jid.split('@')[0].replace(/\D/g, '') : ''
+}
+
+async function resolveIncomingAddress(message, sock) {
+  const direct = bareUserJid(message?.key?.remoteJid)
+  const altCandidates = [
+    message?.key?.remoteJidAlt,
+    message?.key?.participantAlt,
+  ].map(bareUserJid).filter(Boolean)
+
+  if (direct.endsWith('@s.whatsapp.net')) {
+    return { jid: direct, phoneNumber: phoneFromPnJid(direct), mapped: true }
+  }
+
+  if (direct.endsWith('@lid')) {
+    const altPn = altCandidates.find((jid) => jid.endsWith('@s.whatsapp.net'))
+    if (altPn) return { jid: direct, phoneNumber: phoneFromPnJid(altPn), mapped: true }
+
+    try {
+      const mappedPn = bareUserJid(await sock?.signalRepository?.lidMapping?.getPNForLID?.(direct))
+      if (mappedPn.endsWith('@s.whatsapp.net')) {
+        return { jid: direct, phoneNumber: phoneFromPnJid(mappedPn), mapped: true }
+      }
+    } catch (error) {
+      logger.warn({ jidType: 'lid', err: String(error?.message || error).slice(0, 300) }, 'Could not resolve inbound WhatsApp LID')
+    }
+  }
+
+  return { jid: direct, phoneNumber: 'unknown', mapped: false }
 }
 
 function projectStatusText(project) {
@@ -404,20 +436,35 @@ async function queueAutoReply(conversationId, message) {
   scheduleClientDrain(50)
 }
 
-async function handleClientInbound(event) {
-  if (event?.type && event.type !== 'notify') return
+async function handleClientInbound(event, sock) {
+  const eventType = String(event?.type || '')
   for (const message of event?.messages || []) {
     if (!message?.key || message.key.fromMe) continue
-    const jid = incomingJid(message)
+
+    const timestampSeconds = Number(message.messageTimestamp || 0)
+    const messageTimeMs = timestampSeconds > 0 ? timestampSeconds * 1000 : 0
+    const freshAppend = eventType === 'append' && messageTimeMs > 0 && messageTimeMs >= Math.max(0, Number(clientSession?.state?.openedAt || 0) - 30000)
+    if (eventType && eventType !== 'notify' && !freshAppend) continue
+
+    const address = await resolveIncomingAddress(message, sock)
+    const jid = address.jid
     if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast' || jid.endsWith('@broadcast')) continue
 
     const body = messageBody(message.message)
     const type = messageType(message.message)
-    const timestampSeconds = Number(message.messageTimestamp || 0)
     const sentAt = timestampSeconds > 0 ? new Date(timestampSeconds * 1000).toISOString() : new Date().toISOString()
+
+    logger.info({
+      eventType: eventType || 'unknown',
+      jidType: jid.endsWith('@lid') ? 'lid' : jid.endsWith('@s.whatsapp.net') ? 'pn' : 'other',
+      phoneMapped: Boolean(address.mapped),
+      messageType: type,
+      messageId: String(message.key.id || '').slice(0, 80),
+    }, 'Client WhatsApp inbound message received')
+
     const inbound = await store('clientInbound', {
       jid,
-      phoneNumber: jid.split('@')[0],
+      phoneNumber: address.phoneNumber,
       messageId: String(message.key.id || ''),
       body,
       messageType: type,
