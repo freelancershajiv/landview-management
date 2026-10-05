@@ -1,0 +1,88 @@
+name: Remove Estimate Navigation Dropdown
+
+on:
+  push:
+    paths:
+      - '.github/workflows/remove-estimate-dropdown.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-navigation:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Make Estimates a direct navigation link
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('components/management-shell-v2.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          text = text.replace('  const [estimateOpen, setEstimateOpen] = useState(false);\n', '')
+          text = text.replace(
+              '  useEffect(() => {\n    setMobileOpen(false);\n    setEstimateOpen(false);\n  }, [pathname]);',
+              '  useEffect(() => {\n    setMobileOpen(false);\n  }, [pathname]);'
+          )
+
+          old_nav = '''          {orderedVisibleNav.map((item) => {
+            const active = currentMatches(pathname, item.href);
+            if(item.href !== "/admin/estimate") return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
+            return <div key={item.href} className={`estimate-nav-wrap ${active ? "active-wrap" : ""}`}>
+              <button type="button" className={`estimate-nav-trigger ${active ? "active" : ""}`} aria-haspopup="menu" aria-expanded={estimateOpen} onClick={()=>setEstimateOpen(v=>!v)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>Estimates</span><span aria-hidden="true">▾</span></button>
+              {estimateOpen && <div className="estimate-nav-menu" role="menu">
+                <Link href="/admin/estimate?view=pile" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Pile Estimate</Link>
+                <Link href="/admin/estimate?view=summary" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Summary Estimate</Link>
+                <Link href="/admin/estimate?view=detailed" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Detailed Estimate</Link>
+              </div>}
+            </div>;
+          })}'''
+          new_nav = '''          {orderedVisibleNav.map((item) => {
+            const active = currentMatches(pathname, item.href);
+            return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
+          })}'''
+
+          if old_nav not in text:
+              raise SystemExit('Expected Estimates dropdown navigation block was not found; refusing an unsafe patch.')
+          text = text.replace(old_nav, new_nav, 1)
+
+          # Remove CSS that existed only for the old Estimates dropdown.
+          text = '\n'.join(
+              line for line in text.split('\n')
+              if 'estimate-nav-wrap' not in line
+              and 'estimate-nav-trigger' not in line
+              and 'estimate-nav-menu' not in line
+          )
+
+          if 'estimateOpen' in text or 'setEstimateOpen' in text:
+              raise SystemExit('Dropdown state still exists after patch.')
+          if 'estimate-nav-' in text:
+              raise SystemExit('Dropdown-only CSS still exists after patch.')
+          if 'href="/admin/estimate"' not in text:
+              raise SystemExit('Direct Estimates route is missing after patch.')
+
+          path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate patch
+        run: |
+          git diff --check
+          grep -q 'href: "/admin/estimate", label: "Estimates"' components/management-shell-v2.tsx
+          ! grep -q 'estimateOpen\|estimate-nav-menu\|estimate-nav-trigger' components/management-shell-v2.tsx
+
+      - name: Commit navigation cleanup
+        run: |
+          if git diff --quiet; then
+            echo 'No changes needed.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add components/management-shell-v2.tsx
+          git commit -m 'fix: make Estimates a direct navigation link'
+          git push
