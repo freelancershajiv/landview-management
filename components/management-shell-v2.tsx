@@ -256,10 +256,13 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
 
   const navStyles = `
     @media screen and (max-width:900px){
-      .portal-admin .mobile-nav-overlay{position:fixed;inset:64px 0 0 0;z-index:140;border:0;padding:0;background:rgba(0,0,0,.48);cursor:pointer}
-      .portal-admin .primary-nav.open{display:block!important;position:fixed!important;z-index:150!important;top:64px!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:auto!important;overflow-y:auto!important;overflow-x:hidden!important;padding:14px!important;box-sizing:border-box!important}
+      .portal-admin .mobile-nav-overlay{position:fixed!important;inset:64px 0 0 0!important;z-index:199!important;border:0!important;padding:0!important;background:rgba(0,0,0,.48)!important;cursor:pointer!important}
+      .portal-admin .tmg-mobile-menu{position:relative!important;z-index:220!important;pointer-events:auto!important;touch-action:manipulation!important}
+      .portal-admin .primary-nav.open{display:block!important;position:fixed!important;z-index:210!important;top:64px!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:calc(100dvh - 64px)!important;max-height:calc(100dvh - 64px)!important;overflow-y:auto!important;overflow-x:hidden!important;padding:14px!important;box-sizing:border-box!important;visibility:visible!important;opacity:1!important;transform:none!important}
       .portal-admin .primary-nav.open .primary-nav-inner{display:grid!important;grid-template-columns:1fr!important;width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;padding:0!important;margin:0!important;gap:4px!important}
-      .portal-admin .primary-nav.open .primary-nav-inner>a,.portal-admin .primary-nav.open .estimate-nav-trigger{display:flex!important;width:100%!important;min-height:44px!important;box-sizing:border-box!important}
+      .portal-admin .primary-nav.open .primary-nav-inner>a,.portal-admin .primary-nav.open .estimate-nav-trigger{display:flex!important;width:100%!important;min-height:44px!important;box-sizing:border-box!important;pointer-events:auto!important;touch-action:manipulation!important}
+      .portal-admin .primary-nav.open .estimate-nav-menu{position:static!important;display:block!important}
+      .portal-admin .primary-nav:not(.open){visibility:hidden!important;pointer-events:none!important}
     }
     .primary-nav{position:relative;z-index:90;overflow:visible !important}
     .primary-nav-inner{position:relative;z-index:91;display:flex;align-items:center;gap:2px;flex-wrap:wrap;overflow:visible !important;padding:3px 0}
@@ -297,7 +300,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
           <button className="utility-logout" onClick={logout}>Sign out</button>
         </div>
       </div></div>
-      <nav id="admin-mobile-navigation" aria-label="Management" className={`primary-nav ${mobileOpen?"open":""}`} style={mobileOpen ? { display: "block", position: "fixed", zIndex: 150, top: "64px", right: 0, bottom: 0, left: 0, overflowY: "auto" } : undefined}>
+      <nav id="admin-mobile-navigation" aria-label="Management" className={`primary-nav ${mobileOpen?"open":""}`} aria-hidden={!mobileOpen} style={{ ...(mobileOpen ? { display: "block", position: "fixed", zIndex: 210, top: "64px", right: 0, bottom: 0, left: 0, width: "100%", height: "calc(100dvh - 64px)", overflowY: "auto", visibility: "visible", opacity: 1 } : { display: "none", visibility: "hidden", pointerEvents: "none" }) }}>
         <Link href="/admin" className="sidebar-brand" onClick={()=>setMobileOpen(false)}>
           <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
           <span><strong>LAND VIEW</strong><small>MANAGEMENT SYSTEM</small></span>
