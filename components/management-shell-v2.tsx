@@ -88,7 +88,6 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const [trustedDevice, setTrustedDevice] = useState(false);
   const [trustedUntil, setTrustedUntil] = useState<number | null>(null);
   const [quickBusy, setQuickBusy] = useState(false);
-  const [estimateOpen, setEstimateOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,7 +182,6 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
 
   useEffect(() => {
     setMobileOpen(false);
-    setEstimateOpen(false);
   }, [pathname]);
 
   useEffect(() => {
@@ -303,8 +301,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
       .portal-admin .tmg-mobile-menu{position:relative!important;z-index:220!important;pointer-events:auto!important;touch-action:manipulation!important}
       .portal-admin .primary-nav.open{display:block!important;position:fixed!important;z-index:210!important;top:64px!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:calc(100dvh - 64px)!important;max-height:calc(100dvh - 64px)!important;overflow-y:auto!important;overflow-x:hidden!important;padding:14px 14px max(24px,env(safe-area-inset-bottom))!important;box-sizing:border-box!important;visibility:visible!important;opacity:1!important;transform:none!important}
       .portal-admin .primary-nav.open .primary-nav-inner{display:grid!important;grid-template-columns:1fr!important;width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;padding:0!important;margin:0!important;gap:4px!important}
-      .portal-admin .primary-nav.open .primary-nav-inner>a,.portal-admin .primary-nav.open .estimate-nav-trigger{display:flex!important;width:100%!important;min-height:44px!important;box-sizing:border-box!important;pointer-events:auto!important;touch-action:manipulation!important}
-      .portal-admin .primary-nav.open .estimate-nav-menu{position:static!important;display:block!important}
+      .portal-admin .primary-nav.open .primary-nav-inner>a{display:flex!important;width:100%!important;min-height:44px!important;box-sizing:border-box!important;pointer-events:auto!important;touch-action:manipulation!important}
       .portal-admin .primary-nav:not(.open){visibility:hidden!important;pointer-events:none!important}
     }
     .primary-nav{position:relative;z-index:90;overflow:visible !important}
@@ -312,13 +309,6 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     .primary-nav-inner>a{min-height:40px;padding:0 11px;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:inherit;text-decoration:none;font-size:11px;font-weight:800;letter-spacing:.045em;cursor:pointer;white-space:nowrap}
     .primary-nav-inner>a:hover{background:var(--theme-bg-rgba_255_129_121__10_, rgba(255,129,121,.10))}
     .primary-nav-inner>a.active{background:var(--theme-bg-rgba_255_129_121__16_, rgba(255,129,121,.16))}
-    .estimate-nav-wrap{position:relative;display:flex;align-items:center}
-    .estimate-nav-trigger{min-height:40px;padding:0 11px;display:flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:6px;background:transparent;color:inherit;font-size:11px;font-weight:800;letter-spacing:.045em;cursor:pointer;white-space:nowrap}
-    .estimate-nav-trigger:hover,.estimate-nav-trigger.active{background:var(--theme-bg-rgba_255_129_121__16_, rgba(255,129,121,.16))}
-    .estimate-nav-menu{position:absolute;top:calc(100% + 4px);left:0;min-width:190px;padding:6px;border:1px solid var(--theme-line-_394650, #394650);border-radius:9px;background:var(--theme-bg-_101820, #101820);box-shadow:0 12px 30px var(--theme-shadow-rgba_0_0_0__35_, rgba(0,0,0,.35));z-index:999}
-    .estimate-nav-menu a{display:block;padding:10px 12px;border-radius:6px;color:var(--theme-ink-_eef2f5, #eef2f5);text-decoration:none;font-size:10px;font-weight:800;white-space:nowrap}
-    .estimate-nav-menu a:hover{background:var(--theme-bg-rgba_255_129_121__12_, rgba(255,129,121,.12));color:var(--theme-ink-_ffaaa5, #ffaaa5)}
-    @media(max-width:800px){.estimate-nav-wrap{width:100%;display:block}.estimate-nav-trigger{width:100%;justify-content:flex-start;padding:0 12px}.estimate-nav-menu{position:static;margin:3px 0 0 8px;width:calc(100% - 8px);box-sizing:border-box}}
     @media (max-width:1100px){.primary-nav-inner>a{padding:0 9px;font-size:10.5px}}
     @media (max-width:800px){.primary-nav-inner{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.primary-nav-inner>a{justify-content:flex-start;width:100%;padding:0 12px}}
   `;
@@ -350,18 +340,10 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
         </Link>
         <div className="primary-nav-inner">
           <Link href="/admin" aria-current={pathname === "/admin" ? "page" : undefined} className={pathname === "/admin" ? "active dashboard-nav" : "dashboard-nav"} onClick={()=>setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">⌂</span><span>Dashboard</span></Link>
-          {orderedVisibleNav.map((item) => {
-            const active = currentMatches(pathname, item.href);
-            if(item.href !== "/admin/estimate") return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
-            return <div key={item.href} className={`estimate-nav-wrap ${active ? "active-wrap" : ""}`}>
-              <button type="button" className={`estimate-nav-trigger ${active ? "active" : ""}`} aria-haspopup="menu" aria-expanded={estimateOpen} onClick={()=>setEstimateOpen(v=>!v)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>Estimates</span><span aria-hidden="true">▾</span></button>
-              {estimateOpen && <div className="estimate-nav-menu" role="menu">
-                <Link href="/admin/estimate?view=pile" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Pile Estimate</Link>
-                <Link href="/admin/estimate?view=summary" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Summary Estimate</Link>
-                <Link href="/admin/estimate?view=detailed" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Detailed Estimate</Link>
-              </div>}
-            </div>;
-          })}
+{orderedVisibleNav.map((item) => {
+  const active = currentMatches(pathname, item.href);
+  return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
+})}
         </div>
         <div className="admin-mobile-account">
           <strong>{name}</strong>
