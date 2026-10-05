@@ -36,7 +36,7 @@ const CONFIG = {
   ROOT_FOLDER_ID: "",
 
   // Dedicated Google Drive root for Site Visit photos.
-  SITE_VISIT_MEDIA_ROOT_FOLDER_ID: "1A5tlZ9a0cretQzJ1I3OiVDi1ACKUfh2G",
+  SITE_VISIT_MEDIA_ROOT_FOLDER_ID: "1zry2Qd8Qr-lo8CnSBqf8cea7scbEjwtu",
 
   // Security: short absolute lifetime plus idle timeout.
   SESSION_HOURS: 8,
@@ -4471,17 +4471,32 @@ function getSiteVisits(params) {
 
 
 function getSiteVisitMediaRootFolder_() {
-  const configured = String(
-    PropertiesService.getScriptProperties().getProperty("SITE_VISIT_MEDIA_ROOT_FOLDER_ID") ||
-    CONFIG.SITE_VISIT_MEDIA_ROOT_FOLDER_ID ||
-    ""
+  const props = PropertiesService.getScriptProperties();
+  const propertyFolderId = String(
+    props.getProperty("SITE_VISIT_MEDIA_ROOT_FOLDER_ID") || ""
   ).trim();
-  if (!configured) throw new Error("Site Visit media Drive folder is not configured.");
-  try {
-    return DriveApp.getFolderById(configured);
-  } catch (error) {
-    throw new Error("Site Visit media Drive folder could not be opened. Check the folder ID and Apps Script Drive permissions.");
+  const fallbackFolderId = String(
+    CONFIG.SITE_VISIT_MEDIA_ROOT_FOLDER_ID || ""
+  ).trim();
+  const candidates = [];
+  [propertyFolderId, fallbackFolderId].forEach(function(folderId) {
+    if (folderId && candidates.indexOf(folderId) === -1) candidates.push(folderId);
+  });
+  if (!candidates.length) throw new Error("Site Visit media Drive folder is not configured.");
+
+  for (let i = 0; i < candidates.length; i++) {
+    try {
+      const folder = DriveApp.getFolderById(candidates[i]);
+      if (propertyFolderId !== candidates[i]) {
+        props.setProperty("SITE_VISIT_MEDIA_ROOT_FOLDER_ID", candidates[i]);
+      }
+      return folder;
+    } catch (error) {
+      // Try the next configured folder. This allows recovery from a stale Script Property.
+    }
   }
+
+  throw new Error("Site Visit media Drive folder could not be opened. Check the folder ID and Apps Script Drive permissions.");
 }
 
 function getOrCreateNamedFolder_(parent, name) {
