@@ -10,6 +10,7 @@ import "./finance/invoices/invoice-column-alignment-fix.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
+  // Navigation is handled by ManagementShellV2; Estimates is intentionally a direct link.
   return <>
     <PortalPreloader portal="admin"/>
     <ProjectManagementEnhancements />
