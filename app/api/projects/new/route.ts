@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { insertRows, roleOf, selectRows } from "@/lib/supabase-data";
+import { looksLikeGoogleMapsLocation, resolveGoogleMapsLocation } from "@/lib/google-maps-location";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +40,11 @@ function integerOrNull(value: unknown) {
   const n = Number(raw);
   return Number.isSafeInteger(n) && n >= 0 ? n : null;
 }
+function coordinateOrNull(value: unknown, min: number, max: number) {
+  if (value === undefined || value === null || text(value, 80) === "") return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n >= min && n <= max ? n : null;
+}
 
 async function existingProjectCodes() {
   const rows = await selectRows("projects", { select: "project_code", limit: 10000 });
@@ -76,6 +82,22 @@ export async function POST(request: NextRequest) {
     const clientName = text(body.Client_Name || body.clientName, 240) || projectName;
     if (!projectName) return NextResponse.json({ success: false, error: "Project name is required." }, { status: 400 });
 
+    const location = text(body.Location || body.location, 1000);
+    let siteLatitude = coordinateOrNull(body.Site_Latitude ?? body.siteLatitude, -90, 90);
+    let siteLongitude = coordinateOrNull(body.Site_Longitude ?? body.siteLongitude, -180, 180);
+    if (location && looksLikeGoogleMapsLocation(location)) {
+      try {
+        const resolved = await resolveGoogleMapsLocation(location);
+        if (resolved) {
+          siteLatitude = resolved.latitude;
+          siteLongitude = resolved.longitude;
+        }
+      } catch {
+        // A temporary Google redirect/network failure must not prevent project creation.
+        // Manual coordinates remain available as the fallback.
+      }
+    }
+
     const baseRow: Record<string, unknown> = {
       project_name: projectName,
       client_name_snapshot: clientName,
@@ -83,15 +105,15 @@ export async function POST(request: NextRequest) {
       referred_by: text(body.Referred_By || body.referredBy, 240) || null,
       ref_contact: text(body.Ref_Contact || body.refContact, 120) || null,
       project_type: text(body.Project_Type || body.projectType, 160) || null,
-      location: text(body.Location || body.location, 300) || null,
+      location: location || null,
       project_area_text: text(body.Project_Area || body.projectArea, 120) || null,
       number_of_stories_text: text(body.Number_of_Stories || body.numberOfStories, 80) || null,
       start_date: cleanDate(body.Start_Date || body.startDate),
       design_stage_status: text(body.Design_Stage_Status || body.designStageStatus, 40) || "In Progress",
       approval_stage_status: text(body.Approval_Stage_Status || body.approvalStageStatus, 40) || "Pending",
       supervision_stage_status: text(body.Supervision_Stage_Status || body.supervisionStageStatus, 40) || "Completed",
-      site_latitude: body.Site_Latitude !== undefined || body.siteLatitude !== undefined ? Number(body.Site_Latitude ?? body.siteLatitude) || null : null,
-      site_longitude: body.Site_Longitude !== undefined || body.siteLongitude !== undefined ? Number(body.Site_Longitude ?? body.siteLongitude) || null : null,
+      site_latitude: siteLatitude,
+      site_longitude: siteLongitude,
       site_geofence_radius_m: body.Site_Geofence_Radius_M !== undefined || body.siteGeofenceRadiusM !== undefined ? Math.max(25, Math.min(1000, Number(body.Site_Geofence_Radius_M ?? body.siteGeofenceRadiusM) || 150)) : 150,
       notes: text(body.Notes || body.notes, 2000) || null,
       public_display: false,
