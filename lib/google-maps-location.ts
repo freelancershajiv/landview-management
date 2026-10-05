@@ -13,7 +13,8 @@ function text(value: unknown, max = 4000) {
 
 function isGoogleHost(hostname: string) {
   const host = hostname.toLowerCase().replace(/\.$/, "");
-  return GOOGLE_HOSTS.has(host) || host === "google.com" || host.endsWith(".google.com") || host.endsWith(".goo.gl");
+  const regionalGoogle = /(^|\.)google\.(?:com|co\.[a-z]{2}|com\.[a-z]{2}|[a-z]{2})$/i.test(host);
+  return GOOGLE_HOSTS.has(host) || host === "google.com" || host.endsWith(".google.com") || host.endsWith(".goo.gl") || regionalGoogle;
 }
 
 function validCoordinate(latitude: number, longitude: number) {
