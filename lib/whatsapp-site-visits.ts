@@ -69,55 +69,112 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
   if (problemPhotoUrl) lines.push(`⚠️ *Problem Photo:* ${problemPhotoUrl}`);
 
   lines.push("_Submitted automatically from the LAND VIEW Employee Portal._");
-
-  // WhatsApp text messages have a finite body size. Keep a safety margin while
-  // preserving the most important visit metadata at the top of the message.
   return lines.join("\n").slice(0, 4000);
 }
 
-export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPayload): Promise<SiteVisitWhatsAppResult> {
-  const accessToken = String(process.env.WHATSAPP_ACCESS_TOKEN || "").trim();
-  const phoneNumberId = String(process.env.WHATSAPP_PHONE_NUMBER_ID || "").trim();
-  const groupId = String(process.env.WHATSAPP_SITE_VISIT_GROUP_ID || "").trim();
-  const graphVersion = String(process.env.WHATSAPP_GRAPH_VERSION || "").trim();
+function inviteCodeFrom(value: string) {
+  const cleaned = value.trim();
+  if (!cleaned) return "";
+  const match = cleaned.match(/chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/i);
+  return text(match?.[1] || cleaned, 160);
+}
 
-  if (!accessToken || !phoneNumberId || !groupId || !graphVersion) {
-    return { status: "skipped", reason: "WhatsApp Groups API is not configured." };
+function extractGroupId(value: any): string {
+  const candidates = [
+    value?.id,
+    value?.group_id,
+    value?.groupId,
+    value?.chat_id,
+    value?.chatId,
+    value?.group?.id,
+    value?.data?.id,
+    value?.data?.group_id,
+    value?.data?.groupId,
+  ];
+  for (const candidate of candidates) {
+    const id = text(candidate, 240);
+    if (id && (id.includes("@g.us") || id.includes("@lid"))) return id;
+  }
+  return "";
+}
+
+async function whapiRequest(path: string, token: string, init?: RequestInit) {
+  const base = String(process.env.WHAPI_API_BASE || "https://gate.whapi.cloud").trim().replace(/\/+$/, "");
+  const response = await fetch(`${base}${path}`, {
+    ...init,
+    headers: {
+      accept: "application/json",
+      Authorization: `Bearer ${token}`,
+      ...(init?.body ? { "Content-Type": "application/json" } : {}),
+      ...(init?.headers || {}),
+    },
+    signal: AbortSignal.timeout(12_000),
+    cache: "no-store",
+  });
+  const json = await response.json().catch(() => null) as any;
+  return { response, json };
+}
+
+async function resolveWhapiGroupId(token: string) {
+  const configuredId = text(process.env.WHATSAPP_SITE_VISIT_GROUP_ID, 240);
+  if (configuredId) return configuredId;
+
+  const inviteCode = inviteCodeFrom(String(process.env.WHATSAPP_SITE_VISIT_GROUP_INVITE_CODE || ""));
+  if (!inviteCode) return "";
+
+  // If the paired WhatsApp account is not yet in the group, accept the supplied
+  // normal WhatsApp invite first. Whapi documents PUT /groups with invite_code.
+  const joined = await whapiRequest("/groups", token, {
+    method: "PUT",
+    body: JSON.stringify({ invite_code: inviteCode }),
+  });
+
+  let groupId = extractGroupId(joined.json);
+  if (joined.response.ok && groupId) return groupId;
+
+  // It may already be a member; resolving the invite still gives us the group ID.
+  const resolved = await whapiRequest(`/groups/link/${encodeURIComponent(inviteCode)}`, token, { method: "GET" });
+  groupId = extractGroupId(resolved.json);
+  if (resolved.response.ok && groupId) return groupId;
+
+  const message = text(
+    joined.json?.message || joined.json?.error || resolved.json?.message || resolved.json?.error || `HTTP ${resolved.response.status}`,
+    500,
+  );
+  throw new Error(message || "Could not resolve the WhatsApp group from its invite link.");
+}
+
+export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPayload): Promise<SiteVisitWhatsAppResult> {
+  const token = String(process.env.WHAPI_TOKEN || "").trim();
+  if (!token) {
+    return { status: "skipped", reason: "Whapi WhatsApp session is not configured." };
   }
 
   try {
-    const response = await fetch(`https://graph.facebook.com/${encodeURIComponent(graphVersion)}/${encodeURIComponent(phoneNumberId)}/messages`, {
+    const groupId = await resolveWhapiGroupId(token);
+    if (!groupId) {
+      return { status: "skipped", reason: "WhatsApp Site Visit group is not configured." };
+    }
+
+    const { response, json } = await whapiRequest("/messages/text", token, {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
       body: JSON.stringify({
-        messaging_product: "whatsapp",
-        recipient_type: "group",
         to: groupId,
-        type: "text",
-        text: {
-          preview_url: true,
-          body: formatSiteVisitWhatsAppMessage(payload),
-        },
+        body: formatSiteVisitWhatsAppMessage(payload),
       }),
-      signal: AbortSignal.timeout(10_000),
-      cache: "no-store",
     });
 
-    const json = await response.json().catch(() => null) as any;
     if (!response.ok) {
-      const apiMessage = text(json?.error?.message || json?.error?.error_user_msg || `HTTP ${response.status}`, 500);
-      console.error("[site-visit-whatsapp] publish failed", { status: response.status, message: apiMessage });
+      const apiMessage = text(json?.message || json?.error || json?.detail || `HTTP ${response.status}`, 500);
+      console.error("[site-visit-whatsapp] Whapi publish failed", { status: response.status, message: apiMessage });
       return { status: "failed", reason: apiMessage || "WhatsApp rejected the message." };
     }
 
-    const messageId = text(json?.messages?.[0]?.id, 240);
+    const messageId = text(json?.id || json?.message_id || json?.messageId || json?.data?.id, 240);
     return { status: "sent", messageId: messageId || undefined };
   } catch (error: any) {
     const reason = text(error?.message || "WhatsApp request failed.", 500);
-    console.error("[site-visit-whatsapp] publish error", { message: reason });
+    console.error("[site-visit-whatsapp] Whapi publish error", { message: reason });
     return { status: "failed", reason };
   }
 }
