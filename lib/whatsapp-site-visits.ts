@@ -75,7 +75,7 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
 function formatClientSiteVisitMessage(payload: SiteVisitWhatsAppPayload) {
   const lines = [
     "🏗️ *LAND VIEW — PROJECT UPDATE*",
-    `A new Site Visit has been recorded for *${text(payload.projectId, 80)}${payload.projectName ? ` — ${text(payload.projectName, 180)}` : ""}*.",
+    `A new Site Visit has been recorded for *${text(payload.projectId, 80)}${payload.projectName ? ` — ${text(payload.projectName, 180)}` : ""}*.`,
   ];
   addLine(lines, "Visit Date", payload.visitDate, 40);
   addLine(lines, "Purpose", payload.purpose, 400);
