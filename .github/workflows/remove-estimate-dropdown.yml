@@ -20,6 +20,7 @@ jobs:
         run: |
           python - <<'PY'
           from pathlib import Path
+          import re
 
           path = Path('components/management-shell-v2.tsx')
           text = path.read_text(encoding='utf-8')
@@ -30,28 +31,24 @@ jobs:
               '  useEffect(() => {\n    setMobileOpen(false);\n  }, [pathname]);'
           )
 
-          old_nav = '''          {orderedVisibleNav.map((item) => {
-            const active = currentMatches(pathname, item.href);
-            if(item.href !== "/admin/estimate") return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
-            return <div key={item.href} className={`estimate-nav-wrap ${active ? "active-wrap" : ""}`}>
-              <button type="button" className={`estimate-nav-trigger ${active ? "active" : ""}`} aria-haspopup="menu" aria-expanded={estimateOpen} onClick={()=>setEstimateOpen(v=>!v)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>Estimates</span><span aria-hidden="true">▾</span></button>
-              {estimateOpen && <div className="estimate-nav-menu" role="menu">
-                <Link href="/admin/estimate?view=pile" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Pile Estimate</Link>
-                <Link href="/admin/estimate?view=summary" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Summary Estimate</Link>
-                <Link href="/admin/estimate?view=detailed" role="menuitem" onClick={()=>{setEstimateOpen(false);setMobileOpen(false)}}>Detailed Estimate</Link>
-              </div>}
-            </div>;
-          })}'''
-          new_nav = '''          {orderedVisibleNav.map((item) => {
+          nav_pattern = re.compile(
+              r'\s*\{orderedVisibleNav\.map\(\(item\) => \{\s*'
+              r'const active = currentMatches\(pathname, item\.href\);\s*'
+              r'if\(item\.href !== "/admin/estimate"\).*?'
+              r'\}\)\}',
+              re.S,
+          )
+          nav_replacement = '''
+          {orderedVisibleNav.map((item) => {
             const active = currentMatches(pathname, item.href);
             return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
           })}'''
+          text, replaced = nav_pattern.subn(nav_replacement, text, count=1)
+          if replaced != 1:
+              raise SystemExit(f'Expected exactly one Estimates dropdown block; found {replaced}.')
 
-          if old_nav not in text:
-              raise SystemExit('Expected Estimates dropdown navigation block was not found; refusing an unsafe patch.')
-          text = text.replace(old_nav, new_nav, 1)
-
-          # Remove CSS that existed only for the old Estimates dropdown.
+          # Preserve the direct-link mobile rule while removing dropdown-only selectors/rules.
+          text = text.replace(',.portal-admin .primary-nav.open .estimate-nav-trigger', '')
           text = '\n'.join(
               line for line in text.split('\n')
               if 'estimate-nav-wrap' not in line
@@ -63,8 +60,10 @@ jobs:
               raise SystemExit('Dropdown state still exists after patch.')
           if 'estimate-nav-' in text:
               raise SystemExit('Dropdown-only CSS still exists after patch.')
-          if 'href="/admin/estimate"' not in text:
-              raise SystemExit('Direct Estimates route is missing after patch.')
+          if 'href: "/admin/estimate", label: "Estimates"' not in text:
+              raise SystemExit('Estimates navigation item is missing after patch.')
+          if 'return <Link key={item.href} href={item.href}' not in text:
+              raise SystemExit('Direct navigation link renderer is missing after patch.')
 
           path.write_text(text, encoding='utf-8')
           PY
@@ -73,7 +72,7 @@ jobs:
         run: |
           git diff --check
           grep -q 'href: "/admin/estimate", label: "Estimates"' components/management-shell-v2.tsx
-          ! grep -q 'estimateOpen\|estimate-nav-menu\|estimate-nav-trigger' components/management-shell-v2.tsx
+          ! grep -q 'estimateOpen\|estimate-nav-menu\|estimate-nav-trigger\|estimate-nav-wrap' components/management-shell-v2.tsx
 
       - name: Commit navigation cleanup
         run: |
