@@ -1,0 +1,94 @@
+name: Fix Site Visit Drive folder
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-site-visit-drive-folder.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch Site Visit Drive folder handling
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("Code.gs")
+          text = path.read_text(encoding="utf-8")
+          old_id = "1A5tlZ9a0cretQzJ1I3OiVDi1ACKUfh2G"
+          new_id = "1zry2Qd8Qr-lo8CnSBqf8cea7scbEjwtu"
+          text = text.replace(
+              f'SITE_VISIT_MEDIA_ROOT_FOLDER_ID: "{old_id}"',
+              f'SITE_VISIT_MEDIA_ROOT_FOLDER_ID: "{new_id}"',
+          )
+
+          old = '''function getSiteVisitMediaRootFolder_() {
+            const configured = String(
+              PropertiesService.getScriptProperties().getProperty("SITE_VISIT_MEDIA_ROOT_FOLDER_ID") ||
+              CONFIG.SITE_VISIT_MEDIA_ROOT_FOLDER_ID ||
+              ""
+            ).trim();
+            if (!configured) throw new Error("Site Visit media Drive folder is not configured.");
+            try {
+              return DriveApp.getFolderById(configured);
+            } catch (error) {
+              throw new Error("Site Visit media Drive folder could not be opened. Check the folder ID and Apps Script Drive permissions.");
+            }
+          }
+          '''
+
+          new = '''function getSiteVisitMediaRootFolder_() {
+            const props = PropertiesService.getScriptProperties();
+            const propertyFolderId = String(
+              props.getProperty("SITE_VISIT_MEDIA_ROOT_FOLDER_ID") || ""
+            ).trim();
+            const fallbackFolderId = String(
+              CONFIG.SITE_VISIT_MEDIA_ROOT_FOLDER_ID || ""
+            ).trim();
+            const candidates = [];
+            [propertyFolderId, fallbackFolderId].forEach(function(folderId) {
+              if (folderId && candidates.indexOf(folderId) === -1) candidates.push(folderId);
+            });
+            if (!candidates.length) throw new Error("Site Visit media Drive folder is not configured.");
+
+            for (let i = 0; i < candidates.length; i++) {
+              try {
+                const folder = DriveApp.getFolderById(candidates[i]);
+                if (propertyFolderId !== candidates[i]) {
+                  props.setProperty("SITE_VISIT_MEDIA_ROOT_FOLDER_ID", candidates[i]);
+                }
+                return folder;
+              } catch (error) {
+                // Try the next configured folder. This allows recovery from a stale Script Property.
+              }
+            }
+
+            throw new Error("Site Visit media Drive folder could not be opened. Check the folder ID and Apps Script Drive permissions.");
+          }
+          '''
+
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif "const propertyFolderId = String(" not in text:
+              raise SystemExit("Could not find getSiteVisitMediaRootFolder_ patch target")
+
+          path.write_text(text, encoding="utf-8")
+
+      - name: Commit fix and remove one-time workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/fix-site-visit-drive-folder.yml
+          git add Code.gs
+          git commit -m "Fix Site Visit Drive media folder"
+          git push
