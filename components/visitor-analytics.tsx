@@ -12,6 +12,48 @@ const LOCATION_PROMPT_COOLDOWN_MS = 30 * 24 * 60 * 60 * 1000;
 const LIVE_LOCATION_MIN_INTERVAL_MS = 15_000;
 const LIVE_LOCATION_MIN_DISTANCE_M = 20;
 
+const publicMobileFixes = `
+  .portfolio-page .portfolio-controls{top:84px!important}
+  @media(max-width:900px){
+    .portfolio-page .portfolio-controls{top:74px!important}
+  }
+  @media(max-width:560px){
+    .public-site{overflow-x:clip!important;overflow-y:visible!important}
+    .public-site .public-nav-inner{min-height:66px!important;width:min(100% - 24px,1240px)!important;gap:10px!important}
+    .public-site .public-brand{gap:8px!important}
+    .public-site .public-brand img{width:44px!important;height:44px!important}
+    .public-site .public-brand-copy strong{font-size:13px!important;letter-spacing:.09em!important}
+    .public-site .public-header-actions{gap:6px!important}
+    .public-site .public-header-login,.public-site .public-menu-button{width:40px!important;height:40px!important;min-height:40px!important}
+    .public-site .public-nav{top:66px!important;max-height:calc(100dvh - 66px)!important;overflow-y:auto!important}
+    .public-site .lv-hero-copy{padding:38px 0 30px!important}
+    .public-site .lv-eyebrow{margin-bottom:16px!important;font-size:10px!important;letter-spacing:.18em!important;line-height:1.5!important}
+    .public-site .lv-hero h1{font-size:clamp(38px,12.5vw,48px)!important;line-height:.96!important;overflow-wrap:anywhere!important}
+    .public-site .lv-hero-copy p{font-size:12px!important;line-height:1.65!important}
+    .public-site .lv-hero-actions{margin-top:22px!important;gap:9px!important}
+    .public-site .lv-hero-visual{min-height:310px!important}
+    .public-site .lv-project-badge{left:14px!important;right:14px!important;bottom:14px!important;width:auto!important;max-width:none!important}
+    .public-site .lv-hero-services article{min-height:82px!important;padding:16px 18px!important}
+    .public-site .lv-section{padding:56px 0!important}
+    .public-site .lv-section-head{gap:12px!important;margin-bottom:28px!important}
+    .public-site .lv-section-head h2{font-size:clamp(30px,10vw,40px)!important;line-height:1.04!important}
+    .public-site .lv-about{padding:56px 0!important}
+    .public-site .lv-about-card{padding:20px!important}
+    .public-site .lv-contact{padding:56px 0!important}
+    .public-site .lv-footer-links{flex-wrap:wrap!important;justify-content:center!important;row-gap:10px!important}
+    .portfolio-page .portfolio-controls{top:66px!important}
+    .portfolio-page .portfolio-hero{padding-top:64px!important}
+    .portfolio-page .portfolio-card{border-radius:12px!important}
+    .portfolio-page .portfolio-copy{padding:18px!important}
+  }
+  @media(max-width:380px){
+    .public-site .public-brand img{width:40px!important;height:40px!important}
+    .public-site .public-brand-copy strong{font-size:12px!important}
+    .public-site .lv-hero h1{font-size:38px!important}
+    .public-site .lv-hero-visual{min-height:280px!important}
+  }
+`;
+
 function makeId(prefix: "vis" | "ses") {
   return `${prefix}_${crypto.randomUUID()}`;
 }
@@ -43,14 +85,9 @@ function getSessionId() {
 function isPublicWebsitePage(pathname: string) {
   const host = window.location.hostname.toLowerCase();
   if (host === "app.landview.com.bd" || host === "localhost" || host === "127.0.0.1") return false;
-
-  return ![
-    "/admin",
-    "/employee",
-    "/client",
-    "/login",
-    "/owner-access",
-  ].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+  return !["/admin", "/employee", "/client", "/login", "/owner-access"].some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
 }
 
 function safePath(pathname: string) {
@@ -70,9 +107,71 @@ function safeReferrer() {
   }
 }
 
-async function sendEvent(payload: Record<string, unknown>) {
-  const body = JSON.stringify(payload);
+function inferDeviceName(userAgent: string) {
+  const ua = String(userAgent || "");
+  if (/bot|crawler|spider|headless/i.test(ua)) return "Bot / automated client";
+  if (/iPad/i.test(ua)) return "Apple iPad";
+  if (/iPhone/i.test(ua)) return "Apple iPhone";
+  if (/CrOS/i.test(ua)) return "Chromebook";
 
+  if (/Android/i.test(ua)) {
+    const match = ua.match(/Android\s[^;()]+;\s*([^;)]+)/i);
+    let model = String(match?.[1] || "").replace(/\s+Build\/.*/i, "").replace(/;\s*wv$/i, "").trim();
+    if (!model || /^(K|wv|Mobile)$/i.test(model)) return "Android device";
+    if (/^SM-[A-Z0-9-]+$/i.test(model)) model = `Samsung ${model}`;
+    return model.slice(0, 120);
+  }
+
+  if (/Windows NT/i.test(ua)) return "Windows PC";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "Apple Mac";
+  if (/Linux/i.test(ua)) return "Linux computer";
+  return "Unknown device";
+}
+
+function inferPlatform(userAgent: string) {
+  const ua = String(userAgent || "");
+  const android = ua.match(/Android\s([0-9.]+)/i);
+  if (android?.[1]) return `Android ${android[1]}`;
+  const ios = ua.match(/(?:CPU (?:iPhone )?OS|iPhone OS)\s([0-9_]+)/i);
+  if (ios?.[1]) return `iOS ${ios[1].replace(/_/g, ".")}`;
+  if (/Windows NT/i.test(ua)) return "Windows";
+  if (/Macintosh|Mac OS X/i.test(ua)) return "macOS";
+  if (/CrOS/i.test(ua)) return "ChromeOS";
+  if (/Linux/i.test(ua)) return "Linux";
+  return "";
+}
+
+type DeviceContext = { deviceName: string; platform: string };
+let deviceContextPromise: Promise<DeviceContext> | null = null;
+
+async function getDeviceContext(): Promise<DeviceContext> {
+  if (deviceContextPromise) return deviceContextPromise;
+  deviceContextPromise = (async () => {
+    const fallback: DeviceContext = {
+      deviceName: inferDeviceName(navigator.userAgent || ""),
+      platform: inferPlatform(navigator.userAgent || ""),
+    };
+    try {
+      const nav = navigator as Navigator & { userAgentData?: { platform?: string; getHighEntropyValues?: (hints: string[]) => Promise<Record<string, unknown>> } };
+      if (!nav.userAgentData?.getHighEntropyValues) return fallback;
+      const hints = await nav.userAgentData.getHighEntropyValues(["model", "platform", "platformVersion"]);
+      const model = String(hints.model || "").trim();
+      const platformName = String(hints.platform || nav.userAgentData.platform || "").trim();
+      const platformVersion = String(hints.platformVersion || "").trim();
+      return {
+        deviceName: model ? (/^SM-/i.test(model) ? `Samsung ${model}` : model).slice(0, 120) : fallback.deviceName,
+        platform: [platformName, platformVersion].filter(Boolean).join(" ").slice(0, 100) || fallback.platform,
+      };
+    } catch {
+      return fallback;
+    }
+  })();
+  return deviceContextPromise;
+}
+
+async function sendEvent(payload: Record<string, unknown>) {
+  const device = await getDeviceContext().catch(() => ({ deviceName: "", platform: "" }));
+  const body = JSON.stringify({ ...payload, ...device });
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
       const response = await fetch("/api/analytics/visit", {
@@ -83,42 +182,23 @@ async function sendEvent(payload: Record<string, unknown>) {
         body,
       });
       if (response.ok) return;
-    } catch {
-      // Retry transient network/storage failures below.
-    }
-
-    if (attempt < 3) {
-      await new Promise((resolve) => setTimeout(resolve, attempt * 700));
-    }
+    } catch {}
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 700));
   }
-
-  // Analytics must never interfere with the visitor experience.
 }
 
-function distanceMetres(
-  latitudeA: number,
-  longitudeA: number,
-  latitudeB: number,
-  longitudeB: number,
-) {
+function distanceMetres(latitudeA: number, longitudeA: number, latitudeB: number, longitudeB: number) {
   const earthRadiusM = 6_371_000;
   const toRadians = (value: number) => (value * Math.PI) / 180;
   const deltaLat = toRadians(latitudeB - latitudeA);
   const deltaLon = toRadians(longitudeB - longitudeA);
   const lat1 = toRadians(latitudeA);
   const lat2 = toRadians(latitudeB);
-  const haversine =
-    Math.sin(deltaLat / 2) ** 2 +
-    Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
+  const haversine = Math.sin(deltaLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(deltaLon / 2) ** 2;
   return 2 * earthRadiusM * Math.asin(Math.sqrt(haversine));
 }
 
-type SentLocation = {
-  latitude: number;
-  longitude: number;
-  accuracy: number;
-  sentAt: number;
-};
+type SentLocation = { latitude: number; longitude: number; accuracy: number; sentAt: number };
 
 export default function VisitorAnalytics() {
   const pathname = usePathname() || "/";
@@ -129,9 +209,7 @@ export default function VisitorAnalytics() {
   const [showLocationPrompt, setShowLocationPrompt] = useState(false);
   const [requestingLocation, setRequestingLocation] = useState(false);
 
-  useEffect(() => {
-    currentPath.current = pathname;
-  }, [pathname]);
+  useEffect(() => { currentPath.current = pathname; }, [pathname]);
 
   const stopLiveLocation = useCallback(() => {
     if (liveWatchId.current !== null && navigator.geolocation) {
@@ -142,34 +220,16 @@ export default function VisitorAnalytics() {
 
   const startLiveLocation = useCallback(() => {
     if (!navigator.geolocation || liveWatchId.current !== null) return;
-
     const visitorId = getVisitorId();
     const sessionId = getSessionId();
-
     liveWatchId.current = navigator.geolocation.watchPosition(
       (position) => {
         const now = Date.now();
-        const next = {
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-          sentAt: now,
-        };
+        const next = { latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy, sentAt: now };
         const previous = lastSentLocation.current;
-
-        const enoughTimePassed =
-          !previous || now - previous.sentAt >= LIVE_LOCATION_MIN_INTERVAL_MS;
-        const movedEnough =
-          !previous ||
-          distanceMetres(
-            previous.latitude,
-            previous.longitude,
-            next.latitude,
-            next.longitude,
-          ) >= LIVE_LOCATION_MIN_DISTANCE_M;
-        const meaningfullyMoreAccurate =
-          !!previous && next.accuracy + 15 < previous.accuracy;
-
+        const enoughTimePassed = !previous || now - previous.sentAt >= LIVE_LOCATION_MIN_INTERVAL_MS;
+        const movedEnough = !previous || distanceMetres(previous.latitude, previous.longitude, next.latitude, next.longitude) >= LIVE_LOCATION_MIN_DISTANCE_M;
+        const meaningfullyMoreAccurate = !!previous && next.accuracy + 15 < previous.accuracy;
         if (!previous || (enoughTimePassed && (movedEnough || meaningfullyMoreAccurate))) {
           lastSentLocation.current = next;
           void sendEvent({
@@ -180,6 +240,9 @@ export default function VisitorAnalytics() {
             latitude: next.latitude,
             longitude: next.longitude,
             accuracy: next.accuracy,
+            language: navigator.language || "",
+            screenWidth: window.screen?.width || 0,
+            screenHeight: window.screen?.height || 0,
           });
         }
       },
@@ -190,24 +253,20 @@ export default function VisitorAnalytics() {
         }
         setRequestingLocation(false);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 15_000,
-        maximumAge: 5_000,
-      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 5_000 },
     );
   }, [stopLiveLocation]);
 
   useEffect(() => {
     if (!isPublicWebsitePage(pathname)) {
       stopLiveLocation();
+      setShowLocationPrompt(false);
       return;
     }
 
     const visitorId = getVisitorId();
     const sessionId = getSessionId();
     const path = safePath(pathname);
-
     if (lastTrackedPath.current !== path) {
       lastTrackedPath.current = path;
       void sendEvent({
@@ -229,16 +288,11 @@ export default function VisitorAnalytics() {
       return;
     }
     if (state === "denied") return;
-
     const lastPrompt = Number(window.localStorage.getItem(LOCATION_PROMPTED_AT_KEY) || 0);
-    if (!lastPrompt || Date.now() - lastPrompt >= LOCATION_PROMPT_COOLDOWN_MS) {
-      setShowLocationPrompt(true);
-    }
+    if (!lastPrompt || Date.now() - lastPrompt >= LOCATION_PROMPT_COOLDOWN_MS) setShowLocationPrompt(true);
   }, [pathname, startLiveLocation, stopLiveLocation]);
 
-  useEffect(() => {
-    return () => stopLiveLocation();
-  }, [stopLiveLocation]);
+  useEffect(() => () => stopLiveLocation(), [stopLiveLocation]);
 
   function dismissLocationPrompt() {
     window.localStorage.setItem(LOCATION_STATE_KEY, "dismissed");
@@ -251,16 +305,13 @@ export default function VisitorAnalytics() {
       dismissLocationPrompt();
       return;
     }
-
     setRequestingLocation(true);
     window.localStorage.setItem(LOCATION_PROMPTED_AT_KEY, String(Date.now()));
-
     navigator.geolocation.getCurrentPosition(
       (position) => {
         window.localStorage.setItem(LOCATION_STATE_KEY, "allowed");
         setShowLocationPrompt(false);
         setRequestingLocation(false);
-
         const visitorId = getVisitorId();
         const sessionId = getSessionId();
         const initialLocation = {
@@ -270,7 +321,6 @@ export default function VisitorAnalytics() {
           sentAt: Date.now(),
         };
         lastSentLocation.current = initialLocation;
-
         void sendEvent({
           eventType: "precise_location",
           visitorId,
@@ -279,46 +329,40 @@ export default function VisitorAnalytics() {
           latitude: initialLocation.latitude,
           longitude: initialLocation.longitude,
           accuracy: initialLocation.accuracy,
+          language: navigator.language || "",
+          screenWidth: window.screen?.width || 0,
+          screenHeight: window.screen?.height || 0,
         });
-
         startLiveLocation();
       },
       (error) => {
-        window.localStorage.setItem(
-          LOCATION_STATE_KEY,
-          error.code === error.PERMISSION_DENIED ? "denied" : "dismissed",
-        );
+        window.localStorage.setItem(LOCATION_STATE_KEY, error.code === error.PERMISSION_DENIED ? "denied" : "dismissed");
         setShowLocationPrompt(false);
         setRequestingLocation(false);
       },
-      {
-        enableHighAccuracy: true,
-        timeout: 15_000,
-        maximumAge: 0,
-      },
+      { enableHighAccuracy: true, timeout: 15_000, maximumAge: 0 },
     );
   }
 
-  if (!showLocationPrompt || !isPublicWebsitePage(pathname)) return null;
-
   return (
-    <aside className={styles.prompt} role="dialog" aria-labelledby="lv-location-title" aria-describedby="lv-location-copy">
-      <p className={styles.eyebrow}>LAND VIEW location</p>
-      <h2 id="lv-location-title" className={styles.title}>Share your live location?</h2>
-      <p id="lv-location-copy" className={styles.copy}>
-        Allow location to help LAND VIEW understand where visitors need architectural and engineering services. If you allow it, your browser may share updated precise coordinates while this website remains open.
-      </p>
-      <div className={styles.actions}>
-        <button className={styles.button} type="button" onClick={requestLocation} disabled={requestingLocation}>
-          {requestingLocation ? "Requesting…" : "Allow live location"}
-        </button>
-        <button className={styles.secondaryButton} type="button" onClick={dismissLocationPrompt} disabled={requestingLocation}>
-          Not now
-        </button>
-      </div>
-      <p className={styles.note}>
-        Precise location requires browser permission. Approximate location may also be derived from the visitor&apos;s IP address.
-      </p>
-    </aside>
+    <>
+      <style>{publicMobileFixes}</style>
+      {showLocationPrompt ? (
+        <aside className={styles.prompt} role="dialog" aria-labelledby="lv-location-title" aria-describedby="lv-location-copy">
+          <p className={styles.eyebrow}>LAND VIEW location</p>
+          <h2 id="lv-location-title" className={styles.title}>Share your live location?</h2>
+          <p id="lv-location-copy" className={styles.copy}>
+            Allow location to help LAND VIEW understand where visitors need architectural and engineering services. If you allow it, your browser may share updated precise coordinates while this website remains open.
+          </p>
+          <div className={styles.actions}>
+            <button className={styles.button} type="button" onClick={requestLocation} disabled={requestingLocation}>
+              {requestingLocation ? "Requesting…" : "Allow live location"}
+            </button>
+            <button className={styles.secondaryButton} type="button" onClick={dismissLocationPrompt} disabled={requestingLocation}>Not now</button>
+          </div>
+          <p className={styles.note}>Precise location requires browser permission. Approximate location may also be derived from the visitor&apos;s IP address.</p>
+        </aside>
+      ) : null}
+    </>
   );
 }
