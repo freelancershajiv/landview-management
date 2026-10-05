@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: landview-whatsapp-bot
+    runtime: node
+    plan: free
+    rootDir: whatsapp-service
+    buildCommand: npm install --omit=dev
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: BOT_API_TOKEN
+        sync: false
+      - key: BOT_STORE_URL
+        value: https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-bot-store
+      - key: WHATSAPP_SESSION_ID
+        value: land-view-site-visits
+      - key: WHATSAPP_GROUP_INVITE_CODE
+        value: IyK3AgVZUwB4g3XJ0qokmT
+      - key: LOG_LEVEL
+        value: info

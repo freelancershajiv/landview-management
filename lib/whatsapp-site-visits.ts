@@ -20,7 +20,7 @@ type SiteVisitWhatsAppPayload = {
 };
 
 export type SiteVisitWhatsAppResult = {
-  status: "sent" | "skipped" | "failed";
+  status: "sent" | "queued" | "skipped" | "failed";
   messageId?: string;
   reason?: string;
 };
@@ -72,109 +72,69 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
   return lines.join("\n").slice(0, 4000);
 }
 
-function inviteCodeFrom(value: string) {
-  const cleaned = value.trim();
-  if (!cleaned) return "";
-  const match = cleaned.match(/chat\.whatsapp\.com\/([A-Za-z0-9_-]+)/i);
-  return text(match?.[1] || cleaned, 160);
-}
-
-function extractGroupId(value: any): string {
-  const candidates = [
-    value?.id,
-    value?.group_id,
-    value?.groupId,
-    value?.chat_id,
-    value?.chatId,
-    value?.group?.id,
-    value?.data?.id,
-    value?.data?.group_id,
-    value?.data?.groupId,
-  ];
-  for (const candidate of candidates) {
-    const id = text(candidate, 240);
-    if (id && (id.includes("@g.us") || id.includes("@lid"))) return id;
-  }
-  return "";
-}
-
-async function whapiRequest(path: string, token: string, init?: RequestInit) {
-  const base = String(process.env.WHAPI_API_BASE || "https://gate.whapi.cloud").trim().replace(/\/+$/, "");
-  const response = await fetch(`${base}${path}`, {
-    ...init,
+async function botStoreRequest(token: string, input: Record<string, unknown>) {
+  const url = String(
+    process.env.WHATSAPP_BOT_STORE_URL ||
+    "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-bot-store",
+  ).trim();
+  const response = await fetch(url, {
+    method: "POST",
     headers: {
-      accept: "application/json",
-      Authorization: `Bearer ${token}`,
-      ...(init?.body ? { "Content-Type": "application/json" } : {}),
-      ...(init?.headers || {}),
+      "Content-Type": "application/json",
+      "x-land-view-bot-token": token,
     },
-    signal: AbortSignal.timeout(12_000),
+    body: JSON.stringify(input),
     cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
   });
   const json = await response.json().catch(() => null) as any;
-  return { response, json };
+  if (!response.ok || !json?.success) {
+    throw new Error(text(json?.error || `WhatsApp queue returned HTTP ${response.status}.`, 500));
+  }
+  return json.data as any;
 }
 
-async function resolveWhapiGroupId(token: string) {
-  const configuredId = text(process.env.WHATSAPP_SITE_VISIT_GROUP_ID, 240);
-  if (configuredId) return configuredId;
-
-  const inviteCode = inviteCodeFrom(String(process.env.WHATSAPP_SITE_VISIT_GROUP_INVITE_CODE || ""));
-  if (!inviteCode) return "";
-
-  // If the paired WhatsApp account is not yet in the group, accept the supplied
-  // normal WhatsApp invite first. Whapi documents PUT /groups with invite_code.
-  const joined = await whapiRequest("/groups", token, {
-    method: "PUT",
-    body: JSON.stringify({ invite_code: inviteCode }),
-  });
-
-  let groupId = extractGroupId(joined.json);
-  if (joined.response.ok && groupId) return groupId;
-
-  // It may already be a member; resolving the invite still gives us the group ID.
-  const resolved = await whapiRequest(`/groups/link/${encodeURIComponent(inviteCode)}`, token, { method: "GET" });
-  groupId = extractGroupId(resolved.json);
-  if (resolved.response.ok && groupId) return groupId;
-
-  const message = text(
-    joined.json?.message || joined.json?.error || resolved.json?.message || resolved.json?.error || `HTTP ${resolved.response.status}`,
-    500,
-  );
-  throw new Error(message || "Could not resolve the WhatsApp group from its invite link.");
+async function wakeBot(token: string) {
+  const base = String(process.env.WHATSAPP_BOT_URL || "").trim().replace(/\/+$/, "");
+  if (!base) return;
+  try {
+    await fetch(`${base}/wake`, {
+      method: "POST",
+      headers: { "x-land-view-bot-token": token },
+      cache: "no-store",
+      signal: AbortSignal.timeout(4_000),
+    });
+  } catch {
+    // Render free instances can need longer than the request timeout to wake up.
+    // The message is already stored durably in Supabase, so a wake timeout is safe.
+  }
 }
 
 export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPayload): Promise<SiteVisitWhatsAppResult> {
-  const token = String(process.env.WHAPI_TOKEN || "").trim();
-  if (!token) {
-    return { status: "skipped", reason: "Whapi WhatsApp session is not configured." };
+  const token = String(process.env.WHATSAPP_BOT_API_TOKEN || "").trim();
+  const groupInviteCode = String(process.env.WHATSAPP_SITE_VISIT_GROUP_INVITE_CODE || "").trim();
+  if (!token || !groupInviteCode) {
+    return { status: "skipped", reason: "LAND VIEW WhatsApp bot queue is not configured." };
   }
 
   try {
-    const groupId = await resolveWhapiGroupId(token);
-    if (!groupId) {
-      return { status: "skipped", reason: "WhatsApp Site Visit group is not configured." };
-    }
-
-    const { response, json } = await whapiRequest("/messages/text", token, {
-      method: "POST",
-      body: JSON.stringify({
-        to: groupId,
-        body: formatSiteVisitWhatsAppMessage(payload),
-      }),
+    const queued = await botStoreRequest(token, {
+      action: "enqueue",
+      dedupeKey: `site-visit:${text(payload.visitId, 120)}`,
+      message: formatSiteVisitWhatsAppMessage(payload),
+      groupInviteCode,
     });
 
-    if (!response.ok) {
-      const apiMessage = text(json?.message || json?.error || json?.detail || `HTTP ${response.status}`, 500);
-      console.error("[site-visit-whatsapp] Whapi publish failed", { status: response.status, message: apiMessage });
-      return { status: "failed", reason: apiMessage || "WhatsApp rejected the message." };
-    }
+    await wakeBot(token);
 
-    const messageId = text(json?.id || json?.message_id || json?.messageId || json?.data?.id, 240);
-    return { status: "sent", messageId: messageId || undefined };
+    const state = text(queued?.status, 40).toLowerCase();
+    if (state === "sent") {
+      return { status: "sent", messageId: text(queued?.provider_message_id, 240) || undefined };
+    }
+    return { status: "queued", messageId: text(queued?.id, 240) || undefined };
   } catch (error: any) {
-    const reason = text(error?.message || "WhatsApp request failed.", 500);
-    console.error("[site-visit-whatsapp] Whapi publish error", { message: reason });
+    const reason = text(error?.message || "WhatsApp queue request failed.", 500);
+    console.error("[site-visit-whatsapp] queue error", { message: reason });
     return { status: "failed", reason };
   }
 }
