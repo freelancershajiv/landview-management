@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
+import { billingQrSvg } from "@/lib/billing-qr";
 import { buildSheetInvoices, normalizeFileId } from "@/lib/sheet-invoices";
 import { listProposals, type ProposalRecord } from "@/lib/proposal-api";
 import styles from "@/app/admin/finance/invoices/invoice.module.css";
@@ -36,9 +37,9 @@ const defaultAllowances: AllowanceRow[] = [
 
 const fieldStyle: React.CSSProperties = {
   width: "100%", boxSizing: "border-box", border: "1px solid var(--theme-line-_394a55,#394a55)", borderRadius: 7,
-  background: "var(--theme-bg-_0a1219,#0a1219)", color: "var(--theme-ink-_fff,#fff)", padding: "10px 11px", fontSize: 11,
+  background: "var(--theme-bg-_0a1219,#0a1219)", color: "var(--theme-ink-_fff,#fff)", padding: "9px 10px", fontSize: 10,
 };
-const labelStyle: React.CSSProperties = { display: "block", marginBottom: 5, fontSize: 9, fontWeight: 900, letterSpacing: ".7px", color: "var(--theme-ink-_94a3ad,#94a3ad)", textTransform: "uppercase" };
+const labelStyle: React.CSSProperties = { display: "block", marginBottom: 4, fontSize: 8, fontWeight: 900, letterSpacing: ".7px", color: "var(--theme-ink-_94a3ad,#94a3ad)", textTransform: "uppercase" };
 
 export default function SummaryEstimateFinanceWorkspace() {
   const [projects, setProjects] = useState<ProjectOption[]>([]);
@@ -68,6 +69,11 @@ export default function SummaryEstimateFinanceWorkspace() {
   const [ratePerSft, setRatePerSft] = useState(0);
   const [allowances, setAllowances] = useState<AllowanceRow[]>(defaultAllowances);
   const [contingencyPct, setContingencyPct] = useState(0);
+
+  const [verificationUrl, setVerificationUrl] = useState("");
+  const [verificationKey, setVerificationKey] = useState("");
+  const [verificationError, setVerificationError] = useState("");
+  const [verificationBusy, setVerificationBusy] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -99,6 +105,42 @@ export default function SummaryEstimateFinanceWorkspace() {
     const contingency = subtotal * Math.max(0, contingencyPct) / 100;
     return { totalArea, baseCost, allowanceTotal, subtotal, contingency, grand: subtotal + contingency };
   }, [floorArea, floors, ratePerSft, allowances, contingencyPct]);
+
+  const verificationSnapshot = useMemo(() => ({
+    estimateId: estimateId || "EST-NEW",
+    issueDate,
+    referenceId,
+    ownerName,
+    contactNo,
+    projectTitle,
+    location,
+    projectType,
+    floorStory: floorStory || `${floors} Floor${floors === 1 ? "" : "s"}`,
+    landArea,
+    status: status || "Draft",
+    totalArea: totals.totalArea,
+    ratePerSft,
+    baseCost: totals.baseCost,
+    allowanceTotal: totals.allowanceTotal,
+    contingency: totals.contingency,
+    grandTotal: totals.grand,
+  }), [estimateId, issueDate, referenceId, ownerName, contactNo, projectTitle, location, projectType, floorStory, floors, landArea, status, totals, ratePerSft]);
+
+  const snapshotKey = useMemo(() => JSON.stringify(verificationSnapshot), [verificationSnapshot]);
+
+  useEffect(() => {
+    if (verificationKey && verificationKey !== snapshotKey) {
+      setVerificationUrl("");
+      setVerificationKey("");
+      setVerificationError("");
+    }
+  }, [snapshotKey, verificationKey]);
+
+  const qrUrl = useMemo(() => {
+    if (!verificationUrl) return "";
+    try { return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(billingQrSvg(verificationUrl))}`; }
+    catch { return ""; }
+  }, [verificationUrl]);
 
   async function chooseProject(value: string) {
     setSelectedProject(value); setSelectedProposal("");
@@ -139,7 +181,47 @@ export default function SummaryEstimateFinanceWorkspace() {
     setRefContact(""); setAddress(""); setReferenceId(""); setProjectTitle(""); setLocation(""); setProjectType(""); setFloorStory(""); setLandArea(""); setStatus("Draft");
   }
 
-  function printEstimate() {
+  async function ensureVerification() {
+    if (verificationUrl && verificationKey === snapshotKey) return verificationUrl;
+    setVerificationBusy(true); setVerificationError("");
+    try {
+      const response = await fetch("/api/estimate-verification", {
+        method: "POST",
+        credentials: "same-origin",
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ snapshot: verificationSnapshot }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success || !json?.url) throw new Error(String(json?.error || "Could not create estimate verification QR."));
+      const url = String(json.url);
+      setVerificationUrl(url);
+      setVerificationKey(snapshotKey);
+      return url;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not create estimate verification QR.";
+      setVerificationError(message);
+      throw new Error(message);
+    } finally { setVerificationBusy(false); }
+  }
+
+  async function printEstimate() {
+    try { await ensureVerification(); }
+    catch (error) {
+      window.alert(error instanceof Error ? error.message : "Verification QR could not be created. The estimate was not printed.");
+      return;
+    }
+
+    await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve())));
+    const qrImage = document.querySelector<HTMLImageElement>("img[data-estimate-qr]");
+    if (qrImage) {
+      try { await qrImage.decode(); }
+      catch {
+        window.alert("The verification QR did not finish loading. Try Print / Save PDF again.");
+        return;
+      }
+    }
+
     const previous = document.title;
     document.title = safeTitle(`${estimateId}-${ownerName || projectTitle || "Project"}-Summary-Estimate`);
     const restore = () => { document.title = previous; window.removeEventListener("afterprint", restore); };
@@ -155,10 +237,47 @@ export default function SummaryEstimateFinanceWorkspace() {
     ...(totals.contingency > 0 || contingencyPct > 0 ? [{ description: `Contingency (${qty(contingencyPct)}%)`, rate: totals.contingency, quantity: 1, unit: "LS", total: totals.contingency }] : []),
   ];
 
-  return <div className={styles.workspace}>
+  return <div className={`${styles.workspace} summary-estimate-workspace`}>
+    <style>{`
+      .summary-estimate-workspace{padding-top:18px!important;max-width:1380px!important}
+      .summary-estimate-workspace .${styles.header}{margin-bottom:16px!important}
+      .summary-estimate-workspace .${styles.header} h1{font-size:32px!important}
+      .summary-estimate-workspace .${styles.lookup}{padding:14px!important;margin-bottom:16px!important}
+      .summary-estimate-workspace .${styles.projectCard}{margin-bottom:16px!important}
+      .summary-estimate-workspace .${styles.projectCard}>div{padding:14px!important}
+      .summary-estimate-workspace .${styles.projectCard} strong{font-size:17px!important}
+      .summary-estimate-workspace .${styles.categoryGrid}{gap:14px!important}
+      .summary-estimate-workspace .${styles.categoryHeader}{padding:15px 18px!important}
+      .summary-estimate-workspace .${styles.categoryHeader} h2{font-size:19px!important}
+      .summary-estimate-workspace .${styles.metrics}>div{padding:12px 18px!important}
+      .summary-estimate-workspace .${styles.split}{padding:16px 18px!important}
+      .summary-estimate-workspace .${styles.grandSummary}{margin-top:16px!important}
+      .summary-estimate-workspace .${styles.grandSummary}>div{padding:15px 17px!important}
+      @media print{
+        .summary-estimate-compact{padding:7mm 9mm 7mm!important}
+        .summary-estimate-compact .${styles.sheetHeader}{gap:3.5mm!important;padding-bottom:2mm!important;margin-bottom:2mm!important}
+        .summary-estimate-compact .${styles.sheetBrandLogo}{width:10mm!important;height:10mm!important;flex:0 0 10mm!important}
+        .summary-estimate-compact .${styles.sheetBrandWords}>strong{font-size:12.5pt!important}
+        .summary-estimate-compact .${styles.sheetBrandWords} small,
+        .summary-estimate-compact .${styles.sheetBrand}>em,
+        .summary-estimate-compact .${styles.sheetTitle} small{font-size:7.5pt!important}
+        .summary-estimate-compact .${styles.sheetTitle} b{font-size:9.5pt!important}
+        .summary-estimate-compact .${styles.sheetTitle} strong,
+        .summary-estimate-compact .${styles.sheetMain} h2{font-size:11pt!important}
+        .summary-estimate-compact .${styles.sheetInfoRow} span,
+        .summary-estimate-compact .${styles.sheetInfoRow} strong{font-size:8pt!important;min-height:6.3mm!important;padding:1mm 1.4mm!important}
+        .summary-estimate-compact .${styles.sheetMain} th,
+        .summary-estimate-compact .${styles.sheetMain} td{font-size:8pt!important;padding:1.4mm 1.5mm!important;line-height:1.08!important}
+        .summary-estimate-compact .${styles.sheetSummary}>div{font-size:8pt!important;padding:1.6mm 2mm!important}
+        .summary-estimate-compact .${styles.sheetSummary} h3{font-size:9pt!important;padding:1.7mm 2mm!important}
+        .summary-estimate-compact .${styles.sheetFooter},
+        .summary-estimate-compact .${styles.sheetFooter} *{font-size:7.5pt!important}
+      }
+    `}</style>
+
     <header className={styles.header}>
-      <div><Link href="/admin/estimate">← Estimate Types</Link><span className={styles.eyebrow}>LAND VIEW / ESTIMATE & COSTING</span><h1>Summary Estimate</h1><p>Finance Billing style estimate workspace and A4 statement.</p></div>
-      <button className={styles.printButton} type="button" onClick={printEstimate}>Print / Save PDF</button>
+      <div><Link href="/admin/estimate">← Estimate Types</Link><span className={styles.eyebrow}>LAND VIEW / ESTIMATE & COSTING</span><h1>Summary Estimate</h1><p>Compact Finance Billing style estimate with permanent signed verification QR.</p></div>
+      <button className={styles.printButton} type="button" onClick={() => void printEstimate()} disabled={verificationBusy}>{verificationBusy ? "Preparing QR…" : "Print / Save PDF"}</button>
     </header>
 
     <section className={styles.lookup}>
@@ -185,7 +304,7 @@ export default function SummaryEstimateFinanceWorkspace() {
     <section className={styles.categoryGrid}>
       <article className={styles.category}>
         <div className={styles.categoryHeader}><div><span>ESTIMATE INFORMATION</span><h2>Project / Client Details</h2></div><div className={styles.paidBadge}>{status || "Draft"}</div></div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12,padding:22}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10,padding:18}}>
           {[
             ["Estimate ID",estimateId,setEstimateId],["Issue Date",issueDate,setIssueDate],["Owner Name",ownerName,setOwnerName],["Contact No",contactNo,setContactNo],
             ["Referred By",referredBy,setReferredBy],["Ref. Contact",refContact,setRefContact],["Address",address,setAddress],["File / Proposal ID",referenceId,setReferenceId],
@@ -200,14 +319,14 @@ export default function SummaryEstimateFinanceWorkspace() {
         <div className={styles.metrics}>
           <div><span>TYPICAL FLOOR AREA</span><strong>{qty(floorArea)} sft</strong></div><div><span>NO. OF FLOORS</span><strong>{floors}</strong></div><div><span>RATE / SFT</span><strong>{money(ratePerSft)}</strong></div><div><span>TOTAL BUILT-UP AREA</span><strong>{qty(totals.totalArea)} sft</strong></div>
         </div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:12,padding:22}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(210px,1fr))",gap:10,padding:"16px 18px"}}>
           <div><label style={labelStyle}>Typical Floor Area (sft)</label><input type="number" min={0} value={floorArea} onChange={(e)=>setFloorArea(Math.max(0,Number(e.target.value)||0))} style={fieldStyle}/></div>
           <div><label style={labelStyle}>No. of Floors</label><input type="number" min={1} value={floors} onChange={(e)=>setFloors(Math.max(1,Math.floor(Number(e.target.value)||1)))} style={fieldStyle}/></div>
           <div><label style={labelStyle}>Construction Rate (BDT / sft)</label><input type="number" min={0} value={ratePerSft} onChange={(e)=>setRatePerSft(Math.max(0,Number(e.target.value)||0))} style={fieldStyle}/></div>
           <div><label style={labelStyle}>Contingency (%)</label><input type="number" min={0} step="0.1" value={contingencyPct} onChange={(e)=>setContingencyPct(Math.max(0,Number(e.target.value)||0))} style={fieldStyle}/></div>
         </div>
         <div className={styles.split} style={{gridTemplateColumns:"1fr"}}>
-          <section><h3>Project Allowances</h3><div className={styles.tableWrap}><table><thead><tr><th>SL.</th><th>Description</th><th>Amount (BDT)</th><th>Action</th></tr></thead><tbody>{allowances.map((row,index)=><tr key={row.id}><td>{index+1}</td><td><input value={row.item} onChange={(e)=>setAllowances((rows)=>rows.map((r)=>r.id===row.id?{...r,item:e.target.value}:r))} style={{...fieldStyle,padding:"7px 8px"}}/></td><td><input type="number" min={0} value={row.amount} onChange={(e)=>setAllowances((rows)=>rows.map((r)=>r.id===row.id?{...r,amount:Math.max(0,Number(e.target.value)||0)}:r))} style={{...fieldStyle,padding:"7px 8px",textAlign:"right"}}/></td><td><button className={styles.printButton} type="button" onClick={()=>setAllowances((rows)=>rows.filter((r)=>r.id!==row.id))} style={{padding:"7px 9px"}}>Remove</button></td></tr>)}</tbody></table></div><button className={styles.printButton} type="button" style={{marginTop:10}} onClick={()=>setAllowances((rows)=>[...rows,{id:uid(),item:"Custom Allowance",amount:0}])}>+ Add Allowance</button></section>
+          <section><h3>Project Allowances</h3><div className={styles.tableWrap}><table><thead><tr><th>SL.</th><th>Description</th><th>Amount (BDT)</th><th>Action</th></tr></thead><tbody>{allowances.map((row,index)=><tr key={row.id}><td>{index+1}</td><td><input value={row.item} onChange={(e)=>setAllowances((rows)=>rows.map((r)=>r.id===row.id?{...r,item:e.target.value}:r))} style={{...fieldStyle,padding:"6px 7px"}}/></td><td><input type="number" min={0} value={row.amount} onChange={(e)=>setAllowances((rows)=>rows.map((r)=>r.id===row.id?{...r,amount:Math.max(0,Number(e.target.value)||0)}:r))} style={{...fieldStyle,padding:"6px 7px",textAlign:"right"}}/></td><td><button className={styles.printButton} type="button" onClick={()=>setAllowances((rows)=>rows.filter((r)=>r.id!==row.id))} style={{padding:"6px 8px"}}>Remove</button></td></tr>)}</tbody></table></div><button className={styles.printButton} type="button" style={{marginTop:9,padding:"8px 11px"}} onClick={()=>setAllowances((rows)=>[...rows,{id:uid(),item:"Custom Allowance",amount:0}])}>+ Add Allowance</button></section>
         </div>
         <div className={styles.formula}><span>{money(totals.baseCost)} + {money(totals.allowanceTotal)} + {money(totals.contingency)}</span><strong>= {money(totals.grand)}</strong></div>
       </article>
@@ -217,12 +336,23 @@ export default function SummaryEstimateFinanceWorkspace() {
       <div><span>Base Construction</span><strong>{money(totals.baseCost)}</strong></div><div><span>Allowances</span><strong>{money(totals.allowanceTotal)}</strong></div><div><span>Contingency</span><strong>{money(totals.contingency)}</strong></div><div className={styles.grandDue}><span>Estimated Project Cost</span><strong>{money(totals.grand)}</strong></div>
     </section>
 
+    <section className={styles.verificationBlock}>
+      <div>
+        <span className={styles.verificationLabel}>ESTIMATE QR</span>
+        <strong>{verificationUrl ? "Issued estimate verification ready" : verificationBusy ? "Creating signed verification…" : "Create a permanent verification QR"}</strong>
+        <p>{verificationError || (verificationUrl ? "This QR verifies the exact estimate values currently issued. Editing the estimate invalidates this preview until a new QR is generated." : "Generate the signed QR before printing so clients and third parties can verify this estimate later.")}</p>
+        {verificationUrl && <a href={verificationUrl} target="_blank" rel="noreferrer">Open estimate verification ↗</a>}
+        {!verificationUrl && <button className={styles.printButton} type="button" onClick={() => void ensureVerification()} disabled={verificationBusy}>{verificationBusy ? "Generating…" : "Generate Verification QR"}</button>}
+      </div>
+      {qrUrl && <img data-estimate-qr="true" className={styles.qrCode} src={qrUrl} loading="eager" alt={`Verification QR for ${estimateId}`} width={132} height={132}/>} 
+    </section>
+
     <section className={styles.printSheets}>
-      <article className={styles.printPage}>
+      <article className={`${styles.printPage} summary-estimate-compact`}>
         <header className={styles.sheetHeader}>
           <div className={styles.sheetBrand}><div className={styles.sheetBrandLockup}><img className={styles.sheetBrandLogo} src="/land-view-logo.svg" alt="LAND VIEW logo"/><div className={styles.sheetBrandWords}><strong>LAND <span>VIEW</span></strong><small>ENGINEERS AND ARCHITECTS</small></div></div><em>Building a safer tomorrow</em></div>
-          <div className={styles.sheetContact}><strong>LAND VIEW Architects & Engineers</strong><span>F. Rahman AC Market (2nd Floor)</span><span>SSK Road, Feni Sadar, Feni</span><span>+88 0140 80 80 400 · +88 01902 500 400</span></div>
           <div className={styles.sheetTitle}><small>Page 1 of 1</small><b>Summary Estimate</b><strong>{estimateId || "EST-NEW"}</strong></div>
+          {qrUrl && <div className={styles.sheetHeaderQr}><img data-estimate-qr="true" className={styles.sheetHeaderQrImage} src={qrUrl} loading="eager" alt={`Verify ${estimateId}`} width={96} height={96}/><small>Scan to verify</small></div>}
         </header>
 
         <section className={styles.sheetInfoBoard}>
