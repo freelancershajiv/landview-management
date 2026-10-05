@@ -8,7 +8,7 @@ const securityHeaders = [
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "Origin-Agent-Cluster", value: "?1" },
-  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(), payment=(), usb=()" },
+  { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=(self), payment=(), usb=()" },
   { key: "Strict-Transport-Security", value: "max-age=31536000; includeSubDomains" },
   {
     key: "Content-Security-Policy",
@@ -22,8 +22,6 @@ const securityHeaders = [
       "font-src 'self' data:",
       "connect-src 'self'",
       "style-src 'self' 'unsafe-inline'",
-      // Next.js currently emits framework/bootstrap inline scripts. Keep this
-      // compatible until the app moves to request-scoped CSP nonces.
       "script-src 'self' 'unsafe-inline'",
       "upgrade-insecure-requests",
     ].join("; "),
