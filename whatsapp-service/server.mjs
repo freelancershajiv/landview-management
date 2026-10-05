@@ -14,6 +14,7 @@ const PORT = Number(process.env.PORT || 10000)
 const SITE_SESSION_ID = String(process.env.WHATSAPP_SESSION_ID || 'land-view-site-visits').trim()
 const CLIENT_SESSION_ID = String(process.env.WHATSAPP_CLIENT_SESSION_ID || 'land-view-client-bot').trim()
 const STORE_URL = String(process.env.BOT_STORE_URL || 'https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-bot-store').trim()
+const CLIENT_FINANCE_URL = String(process.env.BOT_CLIENT_FINANCE_URL || 'https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-client-finance').trim()
 const BOT_TOKEN = String(process.env.BOT_API_TOKEN || '').trim()
 const DEFAULT_INVITE = String(process.env.WHATSAPP_GROUP_INVITE_CODE || 'IyK3AgVZUwB4g3XJ0qokmT').trim()
 const CLIENT_PORTAL_URL = String(process.env.LAND_VIEW_CLIENT_PORTAL_URL || 'https://app.landview.com.bd/client').trim()
@@ -34,6 +35,23 @@ async function store(action, input = {}) {
   const json = await response.json().catch(() => null)
   if (!response.ok || !json?.success) {
     throw new Error(String(json?.error || `Bot store returned HTTP ${response.status}.`))
+  }
+  return json.data
+}
+
+async function financeStore(action, input = {}) {
+  const response = await fetch(CLIENT_FINANCE_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-land-view-bot-token': BOT_TOKEN,
+    },
+    body: JSON.stringify({ action, ...input }),
+    signal: AbortSignal.timeout(30000),
+  })
+  const json = await response.json().catch(() => null)
+  if (!response.ok || !json?.success) {
+    throw new Error(String(json?.error || `Client finance service returned HTTP ${response.status}.`))
   }
   return json.data
 }
@@ -403,6 +421,104 @@ function latestVisitText(project, visit) {
   return lines.join('\n')
 }
 
+// client-finance-menu-v1
+function bdt(value) {
+  const amount = Number(value || 0)
+  const safe = Number.isFinite(amount) ? amount : 0
+  return `BDT ${new Intl.NumberFormat('en-BD', { maximumFractionDigits: 0 }).format(safe)}`
+}
+
+function financeCode(bundle) {
+  return bundle?.project?.projectCode || 'LAND VIEW Project'
+}
+
+async function financeReply(conversationId, formatter) {
+  try {
+    const bundle = await financeStore('billingBundle', { conversationId })
+    return formatter(bundle)
+  } catch (error) {
+    logger.error({ err: String(error?.message || error).slice(0, 500) }, 'Client finance lookup failed')
+    return 'Billing information is temporarily unavailable. Please try again shortly or choose *8* to talk to LAND VIEW.'
+  }
+}
+
+function billingSummaryText(bundle) {
+  const t = bundle?.totals || {}
+  const lines = [
+    `💳 *Billing Summary — ${financeCode(bundle)}*`,
+    `Total Bill: *${bdt(t.billed)}*`,
+    `Paid: *${bdt(t.paid)}*`,
+    `Due: *${bdt(t.due)}*`,
+  ]
+  if (Number(t.discount || 0) > 0) lines.push(`Discount: ${bdt(t.discount)}`)
+  if (Number(t.writtenOff || 0) > 0) lines.push(`Adjusted / Written Off: ${bdt(t.writtenOff)}`)
+  lines.push('', Number(t.due || 0) <= 0.009 ? '✅ No outstanding balance.' : 'Reply *4* for the bill breakdown or *5* for payment history.', '', 'Reply *menu* for all options.')
+  return lines.join('\n')
+}
+
+function billBreakdownText(bundle) {
+  const lines = [`🧾 *Bill Breakdown — ${financeCode(bundle)}*`]
+  const order = ['Engineering Bill', 'Supervision Bill', 'Other Services Bill']
+  for (const category of order) {
+    const row = bundle?.categories?.[category]
+    if (!row || (!Number(row.billed || 0) && !Number(row.paid || 0) && !Number(row.due || 0))) continue
+    lines.push('', `*${category}*`, `Bill: ${bdt(row.billed)} · Paid: ${bdt(row.paid)} · Due: *${bdt(row.due)}*`)
+  }
+  const bills = Array.isArray(bundle?.bills) ? bundle.bills.slice(0, 10) : []
+  if (bills.length) {
+    lines.push('', '*Bill Items*')
+    for (const bill of bills) {
+      const discount = Number(bill.discount || 0) > 0 ? ` (discount ${bdt(bill.discount)})` : ''
+      lines.push(`• ${bill.description || bill.category}: ${bdt(bill.amount)}${discount}`)
+    }
+  } else {
+    lines.push('', 'No bill items have been recorded yet.')
+  }
+  lines.push('', 'Reply *3* for summary · *5* for payments · *menu* for options.')
+  return lines.join('\n').slice(0, 3900)
+}
+
+function paymentHistoryText(bundle) {
+  const payments = Array.isArray(bundle?.payments) ? bundle.payments.slice(0, 10) : []
+  const lines = [`💰 *Payment History — ${financeCode(bundle)}*`]
+  if (!payments.length) {
+    lines.push('', 'No verified client payments have been recorded yet.')
+  } else {
+    lines.push('')
+    for (const p of payments) {
+      const method = p.method ? ` · ${p.method}` : ''
+      const category = p.category ? ` · ${p.category}` : ''
+      lines.push(`• ${p.date || '—'} — *${bdt(p.amount)}*${category}${method}`)
+    }
+    lines.push('', `Total verified paid: *${bdt(bundle?.totals?.paid)}*`)
+  }
+  lines.push('', 'Reply *3* for billing summary · *menu* for options.')
+  return lines.join('\n').slice(0, 3900)
+}
+
+function invoiceReceiptText(bundle) {
+  const invoices = Array.isArray(bundle?.invoices) ? bundle.invoices.slice(0, 5) : []
+  const receiptPayments = (Array.isArray(bundle?.payments) ? bundle.payments : []).filter((p) => p.receiptUrl).slice(0, 3)
+  const lines = [`📄 *Invoice & Receipt — ${financeCode(bundle)}*`]
+  if (!invoices.length) {
+    lines.push('', 'No generated invoice PDF is currently attached to this project.')
+  } else {
+    lines.push('')
+    for (const inv of invoices) {
+      lines.push(`• ${inv.code || 'Invoice'} · ${inv.date || '—'} · ${bdt(inv.amount)}`)
+      if (inv.url) lines.push(inv.url)
+    }
+  }
+  if (receiptPayments.length) {
+    lines.push('', '*Payment Receipts*')
+    for (const p of receiptPayments) {
+      lines.push(`• ${p.date || '—'} · ${bdt(p.amount)}`, p.receiptUrl)
+    }
+  }
+  lines.push('', `For full records, choose *7* to open the Client Portal.`, 'Reply *menu* for options.')
+  return lines.join('\n').slice(0, 3900)
+}
+
 function menuText(context) {
   const name = context?.conversation?.clientName || context?.client?.name || ''
   const code = context?.project?.projectCode || context?.conversation?.projectCode || ''
@@ -413,8 +529,12 @@ function menuText(context) {
     'Reply with a number:',
     '1️⃣ Project Status',
     '2️⃣ Latest Site Visit',
-    '3️⃣ Client Portal',
-    '4️⃣ Talk to LAND VIEW',
+    '3️⃣ Billing Summary / Due',
+    '4️⃣ Bill Breakdown',
+    '5️⃣ Payment History',
+    '6️⃣ Invoice / Receipt',
+    '7️⃣ Client Portal & Documents',
+    '8️⃣ Talk to LAND VIEW',
     '',
     'You can also type *menu* anytime.',
   ].filter(Boolean).join('\n')
@@ -509,12 +629,32 @@ async function handleClientInbound(event, sock) {
       continue
     }
 
-    if (command === '3' || command.includes('portal') || command.includes('document') || command.includes('billing') || command.includes('payment')) {
-      await queueAutoReply(conversationId, `🔐 Open the LAND VIEW Client Portal for billing, payments and project documents:\n${CLIENT_PORTAL_URL}\n\nUse your File ID and registered mobile number to sign in.`)
+    if (command === '3' || command === 'billing' || command === 'bill summary' || command.includes('billing summary') || command.includes('balance') || command.includes('due')) {
+      await queueAutoReply(conversationId, await financeReply(conversationId, billingSummaryText))
       continue
     }
 
-    if (command === '4' || command.includes('human') || command.includes('engineer') || command.includes('manager') || command.includes('talk') || command.includes('call me')) {
+    if (command === '4' || command.includes('bill breakdown') || command.includes('bill details') || command.includes('service bill') || command.includes('charges') || command.includes('fees')) {
+      await queueAutoReply(conversationId, await financeReply(conversationId, billBreakdownText))
+      continue
+    }
+
+    if (command === '5' || command === 'payment' || command === 'payments' || command.includes('payment history') || command.includes('paid history')) {
+      await queueAutoReply(conversationId, await financeReply(conversationId, paymentHistoryText))
+      continue
+    }
+
+    if (command === '6' || command.includes('invoice') || command.includes('receipt')) {
+      await queueAutoReply(conversationId, await financeReply(conversationId, invoiceReceiptText))
+      continue
+    }
+
+    if (command === '7' || command.includes('portal') || command.includes('document')) {
+      await queueAutoReply(conversationId, `🔐 *LAND VIEW Client Portal*\n${CLIENT_PORTAL_URL}\n\nUse your File ID and registered mobile number to view project records and documents.`)
+      continue
+    }
+
+    if (command === '8' || command.includes('human') || command.includes('engineer') || command.includes('manager') || command.includes('talk') || command.includes('call me')) {
       await store('clientHandoff', { conversationId, enabled: true })
       await queueAutoReply(conversationId, '👤 Your message has been handed over to the LAND VIEW team. A team member can reply to you here from the LAND VIEW admin inbox.')
       continue
