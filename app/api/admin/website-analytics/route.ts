@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { requirePortalSession } from "@/lib/server-auth";
-import { selectRows, supabaseGateway } from "@/lib/supabase-data";
+import { selectRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +22,8 @@ function visitorLegacy(row: Row) {
     Timezone: row.timezone || "",
     Continent: row.continent || "",
     User_Agent: row.user_agent || "",
+    Device_Name: row.device_name || "",
+    Platform: row.platform || "",
     Language: row.language || "",
     Screen_Width: row.screen_width ?? 0,
     Screen_Height: row.screen_height ?? 0,
@@ -35,7 +37,7 @@ function visitorLegacy(row: Row) {
   };
 }
 
-function pageViewLegacy(row: Row) {
+function pageViewLegacy(row: Row, visitor?: Row) {
   return {
     Event_ID: row.event_id,
     Visitor_ID: row.visitor_id,
@@ -53,11 +55,17 @@ function pageViewLegacy(row: Row) {
     Timezone: row.timezone || "",
     Continent: row.continent || "",
     User_Agent: row.user_agent || "",
+    Device_Name: row.device_name || visitor?.device_name || "",
+    Platform: row.platform || visitor?.platform || "",
     Language: row.language || "",
     Screen_Width: row.screen_width ?? 0,
     Screen_Height: row.screen_height ?? 0,
     Is_Bot: Boolean(row.is_bot),
     Source_Host: row.source_host || "",
+    Precise_Latitude: visitor?.precise_latitude ?? "",
+    Precise_Longitude: visitor?.precise_longitude ?? "",
+    Precise_Accuracy_M: visitor?.precise_accuracy_m ?? "",
+    Precise_Location_Updated_At: visitor?.precise_location_updated_at || "",
   };
 }
 
@@ -82,9 +90,6 @@ function locationLegacy(row: Row) {
 }
 
 async function count(table: string) {
-  // Analytics tables use domain-specific primary keys (visitor_id/event_id),
-  // while the generic countRows action expects an "id" column. Read the
-  // lightweight analytics rows instead so these tables remain schema-safe.
   const rows = await selectRows(table, { limit: 5000 });
   return rows.length;
 }
@@ -98,10 +103,12 @@ export async function GET() {
       count("website_analytics_sessions"),
       count("website_analytics_page_views"),
       count("website_analytics_location_events"),
-      selectRows("website_analytics_visitors", { order: "last_seen:desc", limit: 50 }),
-      selectRows("website_analytics_page_views", { order: "visited_at:desc", limit: 100 }),
-      selectRows("website_analytics_location_events", { order: "recorded_at:desc", limit: 50 }),
+      selectRows("website_analytics_visitors", { order: "last_seen:desc", limit: 100 }),
+      selectRows("website_analytics_page_views", { order: "visited_at:desc", limit: 150 }),
+      selectRows("website_analytics_location_events", { order: "recorded_at:desc", limit: 60 }),
     ]);
+
+    const visitorById = new Map<string, Row>(visitors.map((row) => [String(row.visitor_id || ""), row]));
 
     return NextResponse.json({
       success: true,
@@ -114,7 +121,7 @@ export async function GET() {
           preciseLocationEvents: locationCount,
         },
         recentVisitors: visitors.map(visitorLegacy),
-        recentPageViews: pageViews.map(pageViewLegacy),
+        recentPageViews: pageViews.map((row) => pageViewLegacy(row, visitorById.get(String(row.visitor_id || "")))),
         recentLocations: locations.map(locationLegacy),
       },
     }, { headers: { "Cache-Control": "no-store, max-age=0", Pragma: "no-cache" } });
