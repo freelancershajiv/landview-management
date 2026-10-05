@@ -207,6 +207,12 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
           state.openedAt = Date.now()
           state.qrDataUrl = ''
           state.lastError = ''
+          try {
+            await saveCreds()
+          } catch (error) {
+            state.lastError = String(error?.message || error)
+            logger.error({ sessionId, err: state.lastError }, `${label} credential save on open failed`)
+          }
           logger.info({ sessionId, user: wa.user?.id }, `${label} connected`)
           await Promise.resolve(onOpen?.(wa)).catch((error) => {
             state.lastError = String(error?.message || error)
