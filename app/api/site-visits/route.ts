@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { getSiteVisitMediaUrl, insertRows, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
+import { publishSiteVisitToWhatsApp } from "@/lib/whatsapp-site-visits";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -315,6 +316,30 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     });
 
+    // WhatsApp publishing happens only after the database insert succeeds. A
+    // WhatsApp/Meta failure is reported in the response but never rolls back or
+    // rejects the employee's Site Visit submission.
+    const whatsAppPublish = await publishSiteVisitToWhatsApp({
+      visitId: visitCode,
+      projectId: projectCode,
+      projectName: String(project.project_name || project.client_name_snapshot || ""),
+      projectLocation: String(project.location || ""),
+      employeeId: employeeCodeOf(user),
+      employeeName: clean(employees[0]?.name || user?.name || user?.Name || employeeCodeOf(user), 200),
+      visitDate,
+      purpose,
+      problemDetails,
+      actionRequired,
+      notes,
+      locationLatitude,
+      locationLongitude,
+      locationAccuracyM,
+      locationDistanceM,
+      locationVerificationStatus,
+      visitPhotoUrl: String(visitPhotoDrive?.fileUrl || ""),
+      problemPhotoUrl: String(problemPhotoDrive?.fileUrl || ""),
+    });
+
     return ok({
       Visit_ID: visitCode,
       Project_ID: projectCode,
@@ -331,6 +356,7 @@ export async function POST(request: NextRequest) {
       Location_Verification_Status: locationVerificationStatus,
       Location_Distance_M: locationDistanceM,
       Location_Accuracy_M: locationAccuracyM,
+      WhatsApp_Publish_Status: whatsAppPublish.status,
     });
   } catch (error: any) {
     const message = error?.message || "Could not create site visit.";
