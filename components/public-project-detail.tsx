@@ -125,15 +125,15 @@ export default function PublicProjectDetailPage({ initialProject }: { initialPro
                 title="Click to view full screen"
                 style={{ width: "100%", height: "auto", maxHeight: 900, objectFit: "contain", objectPosition: "center", borderRadius: 18, display: "block", cursor: "zoom-in" }}
               />
-              <figcaption style={{ color: "#8d99a3", fontSize: 12 }}>{project.title || "LAND VIEW project"}{project.location ? ` · ${project.location}` : ""}</figcaption>
+              <figcaption style={{ color: "var(--theme-ink-_8d99a3, #8d99a3)", fontSize: 12 }}>{project.title || "LAND VIEW project"}{project.location ? ` · ${project.location}` : ""}</figcaption>
             </figure>
           )}
 
-          <section aria-labelledby="project-overview" style={{ marginBottom: 46, padding: "28px", border: "1px solid #2b3843", background: "#101a24", borderRadius: 14 }}>
+          <section aria-labelledby="project-overview" style={{ marginBottom: 46, padding: "28px", border: "1px solid var(--theme-line-_2b3843, #2b3843)", background: "var(--theme-bg-_101a24, #101a24)", borderRadius: 14 }}>
             <span className="public-section-kicker">PROJECT CASE STUDY</span>
             <h2 id="project-overview" style={{ marginTop: 8 }}>Project overview</h2>
-            <p style={{ maxWidth: 900, color: "#b5bec6", lineHeight: 1.8 }}>{overview(project)}</p>
-            {project.description ? <p style={{ maxWidth: 900, color: "#b5bec6", lineHeight: 1.8 }}>{project.description}</p> : null}
+            <p style={{ maxWidth: 900, color: "var(--theme-ink-_b5bec6, #b5bec6)", lineHeight: 1.8 }}>{overview(project)}</p>
+            {project.description ? <p style={{ maxWidth: 900, color: "var(--theme-ink-_b5bec6, #b5bec6)", lineHeight: 1.8 }}>{project.description}</p> : null}
           </section>
 
           <div className="public-project-grid" style={{ marginBottom: 40 }}>
@@ -145,7 +145,7 @@ export default function PublicProjectDetailPage({ initialProject }: { initialPro
           {project.services?.length ? <section style={{ marginBottom: 48 }}>
             <span className="public-section-kicker">LAND VIEW CONSULTANCY SCOPE</span>
             <h2 style={{ marginBottom: 18 }}>Services published for this project</h2>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{project.services.map((service) => <Link key={service} href={serviceHref(service)} style={{ padding: "11px 14px", border: "1px solid rgba(239,74,80,.5)", borderRadius: 8, color: "#fff", background: "#0d1721", fontSize: 13 }}>{service} →</Link>)}</div>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{project.services.map((service) => <Link key={service} href={serviceHref(service)} style={{ padding: "11px 14px", border: "1px solid var(--theme-line-rgba_239_74_80__5_, rgba(239,74,80,.5))", borderRadius: 8, color: "var(--theme-ink-_fff, #fff)", background: "var(--theme-bg-_0d1721, #0d1721)", fontSize: 13 }}>{service} →</Link>)}</div>
           </section> : null}
 
           {gallery.length ? (
@@ -171,10 +171,10 @@ export default function PublicProjectDetailPage({ initialProject }: { initialPro
             </section>
           ) : null}
 
-          <section style={{ marginTop: 54, paddingTop: 30, borderTop: "1px solid #2b3843" }}>
+          <section style={{ marginTop: 54, paddingTop: 30, borderTop: "1px solid var(--theme-line-_2b3843, #2b3843)" }}>
             <span className="public-section-kicker">PLANNING A PROJECT?</span>
             <h2>Discuss architecture and engineering consultancy with LAND VIEW.</h2>
-            <p style={{ maxWidth: 760, color: "#9ba6af", lineHeight: 1.75 }}>Share your project location, building type and required services. LAND VIEW can confirm an appropriate consultancy scope and whether site attendance is practical for the location.</p>
+            <p style={{ maxWidth: 760, color: "var(--theme-ink-_9ba6af, #9ba6af)", lineHeight: 1.75 }}>Share your project location, building type and required services. LAND VIEW can confirm an appropriate consultancy scope and whether site attendance is practical for the location.</p>
             <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}><Link href="/contact" className="public-text-link">Contact LAND VIEW →</Link><Link href="/services" className="public-text-link">Explore services →</Link><Link href="/bn" className="public-text-link">বাংলায় পড়ুন →</Link></div>
           </section>
         </div>
@@ -186,7 +186,7 @@ export default function PublicProjectDetailPage({ initialProject }: { initialPro
           aria-modal="true"
           aria-label="Full screen project image"
           onClick={() => setFullImage(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 99999, background: "rgba(0,0,0,.94)", display: "flex", alignItems: "center", justifyContent: "center", padding: "clamp(12px, 2vw, 28px)", cursor: "zoom-out" }}
+          style={{ position: "fixed", inset: 0, zIndex: 99999, background: "var(--theme-bg-rgba_0_0_0__94_, rgba(0,0,0,.94))", display: "flex", alignItems: "center", justifyContent: "center", padding: "clamp(12px, 2vw, 28px)", cursor: "zoom-out" }}
         >
           <img src={fullImage.src} alt={fullImage.alt} onClick={() => setFullImage(null)} style={{ width: "auto", height: "auto", maxWidth: "100%", maxHeight: "100%", objectFit: "contain", objectPosition: "center", display: "block", cursor: "zoom-out", userSelect: "none" }} />
         </div>

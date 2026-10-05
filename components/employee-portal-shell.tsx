@@ -78,13 +78,13 @@ export default function EmployeePortalShell() {
       .portal-employee>.portal-navigation{display:none!important}
       .portal-employee .tmg-admin-main{width:100%!important;max-width:none!important;margin:0!important}
       .portal-employee .tmg-content-wrap{width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
-      .employee-workspace-root{width:100%;max-width:none;margin:0;padding:0 0 48px;color:#f5f5f5;background:#10151b;min-height:calc(100vh - 82px)}
-      .employee-workspace-nav-wrap{position:sticky;top:0;z-index:25;width:100%;border-bottom:1px solid #2b3540;background:rgba(16,21,27,.97);backdrop-filter:blur(14px);box-shadow:0 8px 22px rgba(0,0,0,.16)}
+      .employee-workspace-root{width:100%;max-width:none;margin:0;padding:0 0 48px;color:var(--theme-ink-_f5f5f5, #f5f5f5);background:var(--theme-bg-_10151b, #10151b);min-height:calc(100vh - 82px)}
+      .employee-workspace-nav-wrap{position:sticky;top:0;z-index:25;width:100%;border-bottom:1px solid var(--theme-line-_2b3540, #2b3540);background:var(--theme-bg-rgba_16_21_27__97_, rgba(16,21,27,.97));backdrop-filter:blur(14px);box-shadow:0 8px 22px var(--theme-shadow-rgba_0_0_0__16_, rgba(0,0,0,.16))}
       .employee-workspace-nav{display:flex;gap:2px;width:100%;padding:0 28px;overflow-x:auto;scrollbar-width:none}
       .employee-workspace-nav::-webkit-scrollbar{display:none}
-      .employee-workspace-tab{position:relative;flex:0 0 auto;border:0;background:transparent;color:#aeb7c1;padding:17px 16px 15px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:.18s ease}
-      .employee-workspace-tab:hover{color:#fff;background:#171f28}
-      .employee-workspace-tab.active{color:#fff}
+      .employee-workspace-tab{position:relative;flex:0 0 auto;border:0;background:transparent;color:var(--theme-ink-_aeb7c1, #aeb7c1);padding:17px 16px 15px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:.18s ease}
+      .employee-workspace-tab:hover{color:var(--theme-ink-_fff, #fff);background:var(--theme-bg-_171f28, #171f28)}
+      .employee-workspace-tab.active{color:var(--theme-ink-_fff, #fff)}
       .employee-workspace-tab.active:after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:#ef493b}
       .employee-workspace-body{width:100%;max-width:none;padding:28px 32px 0}
       .employee-workspace-body>section,.employee-workspace-body>div{width:100%;max-width:none}

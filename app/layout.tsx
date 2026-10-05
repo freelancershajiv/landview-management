@@ -1,3 +1,6 @@
+import ThemeSwitch from "@/components/theme-switch";
+import "./theme-colors.css";
+import "./theme-controls.css";
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -82,8 +85,10 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en-BD">
+    <html lang="en-BD" data-theme="light" suppressHydrationWarning>
+      <head><script dangerouslySetInnerHTML={{ __html: `(function(){try{document.documentElement.dataset.theme=localStorage.getItem("landview-theme")==="dark"?"dark":"light"}catch(e){document.documentElement.dataset.theme="light"}})();` }} /></head>
       <body>
+        <ThemeSwitch />
         <BrandLoader />
         {children}
         <VisitorAnalytics />

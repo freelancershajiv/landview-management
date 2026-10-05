@@ -296,10 +296,10 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
       .portal-admin .utility-inner{min-height:64px!important;height:64px!important}
       .portal-admin .primary-nav:not(.open){display:none!important}
       .portal-admin .primary-nav.open{overscroll-behavior:contain}
-      .portal-admin .admin-mobile-account{display:grid;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid #394650}
-      .portal-admin .admin-mobile-account button{min-height:44px;padding:10px 14px;text-align:left;border:1px solid #394650;border-radius:6px;background:#161a1f;color:#f5f7fa;font-size:14px;cursor:pointer}
+      .portal-admin .admin-mobile-account{display:grid;gap:10px;margin-top:20px;padding-top:16px;border-top:1px solid var(--theme-line-_394650, #394650)}
+      .portal-admin .admin-mobile-account button{min-height:44px;padding:10px 14px;text-align:left;border:1px solid var(--theme-line-_394650, #394650);border-radius:6px;background:var(--theme-bg-_161a1f, #161a1f);color:var(--theme-ink-_f5f7fa, #f5f7fa);font-size:14px;cursor:pointer}
 
-      .portal-admin .mobile-nav-overlay{position:fixed!important;inset:64px 0 0 0!important;z-index:199!important;border:0!important;padding:0!important;background:rgba(0,0,0,.48)!important;cursor:pointer!important}
+      .portal-admin .mobile-nav-overlay{position:fixed!important;inset:64px 0 0 0!important;z-index:199!important;border:0!important;padding:0!important;background:var(--theme-bg-rgba_0_0_0__48_, rgba(0,0,0,.48))!important;cursor:pointer!important}
       .portal-admin .tmg-mobile-menu{position:relative!important;z-index:220!important;pointer-events:auto!important;touch-action:manipulation!important}
       .portal-admin .primary-nav.open{display:block!important;position:fixed!important;z-index:210!important;top:64px!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:calc(100dvh - 64px)!important;max-height:calc(100dvh - 64px)!important;overflow-y:auto!important;overflow-x:hidden!important;padding:14px 14px max(24px,env(safe-area-inset-bottom))!important;box-sizing:border-box!important;visibility:visible!important;opacity:1!important;transform:none!important}
       .portal-admin .primary-nav.open .primary-nav-inner{display:grid!important;grid-template-columns:1fr!important;width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;padding:0!important;margin:0!important;gap:4px!important}
@@ -310,14 +310,14 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     .primary-nav{position:relative;z-index:90;overflow:visible !important}
     .primary-nav-inner{position:relative;z-index:91;display:flex;align-items:center;gap:2px;flex-wrap:wrap;overflow:visible !important;padding:3px 0}
     .primary-nav-inner>a{min-height:40px;padding:0 11px;display:flex;align-items:center;justify-content:center;border:0;border-radius:6px;background:transparent;color:inherit;text-decoration:none;font-size:11px;font-weight:800;letter-spacing:.045em;cursor:pointer;white-space:nowrap}
-    .primary-nav-inner>a:hover{background:rgba(255,129,121,.10)}
-    .primary-nav-inner>a.active{background:rgba(255,129,121,.16)}
+    .primary-nav-inner>a:hover{background:var(--theme-bg-rgba_255_129_121__10_, rgba(255,129,121,.10))}
+    .primary-nav-inner>a.active{background:var(--theme-bg-rgba_255_129_121__16_, rgba(255,129,121,.16))}
     .estimate-nav-wrap{position:relative;display:flex;align-items:center}
     .estimate-nav-trigger{min-height:40px;padding:0 11px;display:flex;align-items:center;justify-content:center;gap:6px;border:0;border-radius:6px;background:transparent;color:inherit;font-size:11px;font-weight:800;letter-spacing:.045em;cursor:pointer;white-space:nowrap}
-    .estimate-nav-trigger:hover,.estimate-nav-trigger.active{background:rgba(255,129,121,.16)}
-    .estimate-nav-menu{position:absolute;top:calc(100% + 4px);left:0;min-width:190px;padding:6px;border:1px solid #394650;border-radius:9px;background:#101820;box-shadow:0 12px 30px rgba(0,0,0,.35);z-index:999}
-    .estimate-nav-menu a{display:block;padding:10px 12px;border-radius:6px;color:#eef2f5;text-decoration:none;font-size:10px;font-weight:800;white-space:nowrap}
-    .estimate-nav-menu a:hover{background:rgba(255,129,121,.12);color:#ffaaa5}
+    .estimate-nav-trigger:hover,.estimate-nav-trigger.active{background:var(--theme-bg-rgba_255_129_121__16_, rgba(255,129,121,.16))}
+    .estimate-nav-menu{position:absolute;top:calc(100% + 4px);left:0;min-width:190px;padding:6px;border:1px solid var(--theme-line-_394650, #394650);border-radius:9px;background:var(--theme-bg-_101820, #101820);box-shadow:0 12px 30px var(--theme-shadow-rgba_0_0_0__35_, rgba(0,0,0,.35));z-index:999}
+    .estimate-nav-menu a{display:block;padding:10px 12px;border-radius:6px;color:var(--theme-ink-_eef2f5, #eef2f5);text-decoration:none;font-size:10px;font-weight:800;white-space:nowrap}
+    .estimate-nav-menu a:hover{background:var(--theme-bg-rgba_255_129_121__12_, rgba(255,129,121,.12));color:var(--theme-ink-_ffaaa5, #ffaaa5)}
     @media(max-width:800px){.estimate-nav-wrap{width:100%;display:block}.estimate-nav-trigger{width:100%;justify-content:flex-start;padding:0 12px}.estimate-nav-menu{position:static;margin:3px 0 0 8px;width:calc(100% - 8px);box-sizing:border-box}}
     @media (max-width:1100px){.primary-nav-inner>a{padding:0 9px;font-size:10.5px}}
     @media (max-width:800px){.primary-nav-inner{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px}.primary-nav-inner>a{justify-content:flex-start;width:100%;padding:0 12px}}
@@ -375,7 +375,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
       </nav>
     </header>
     <div className="admin-main tmg-admin-main"><main id="workspace-content" className="content-wrap tmg-content-wrap">
-      {!routeAllowed ? <section style={{maxWidth:760,margin:"36px auto",padding:28,border:"1px solid #3b454e",borderRadius:14,background:"#101820",color:"#eef2f5"}}><small style={{color:"#ef6c66",fontWeight:900}}>ACCESS CONTROL</small><h1 style={{margin:"8px 0 10px"}}>This function is not enabled for your account.</h1><p style={{color:"#93a0aa",lineHeight:1.6}}>Ask the Main Admin to enable this tab from Permission. Your other assigned LAND VIEW functions remain available.</p><Link href="/admin" style={{color:"#ff8179",fontWeight:800}}>Return to Dashboard →</Link></section> : children}
+      {!routeAllowed ? <section style={{maxWidth:760,margin:"36px auto",padding:28,border:"1px solid var(--theme-line-_3b454e, #3b454e)",borderRadius:14,background:"var(--theme-bg-_101820, #101820)",color:"var(--theme-ink-_eef2f5, #eef2f5)"}}><small style={{color:"#ef6c66",fontWeight:900}}>ACCESS CONTROL</small><h1 style={{margin:"8px 0 10px"}}>This function is not enabled for your account.</h1><p style={{color:"var(--theme-ink-_93a0aa, #93a0aa)",lineHeight:1.6}}>Ask the Main Admin to enable this tab from Permission. Your other assigned LAND VIEW functions remain available.</p><Link href="/admin" style={{color:"var(--theme-ink-_ff8179, #ff8179)",fontWeight:800}}>Return to Dashboard →</Link></section> : children}
     </main></div>
   </div>;
 }
