@@ -1,0 +1,19 @@
+name: Check WhatsApp Service
+
+on:
+  pull_request:
+    paths:
+      - "whatsapp-service/**"
+      - ".github/workflows/check-whatsapp-service.yml"
+  workflow_dispatch:
+
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Check WhatsApp service syntax
+        run: node --check whatsapp-service/server.mjs
