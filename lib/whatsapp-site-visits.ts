@@ -72,6 +72,20 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
   return lines.join("\n").slice(0, 4000);
 }
 
+function formatClientSiteVisitMessage(payload: SiteVisitWhatsAppPayload) {
+  const lines = [
+    "🏗️ *LAND VIEW — PROJECT UPDATE*",
+    `A new Site Visit has been recorded for *${text(payload.projectId, 80)}${payload.projectName ? ` — ${text(payload.projectName, 180)}` : ""}*.",
+  ];
+  addLine(lines, "Visit Date", payload.visitDate, 40);
+  addLine(lines, "Purpose", payload.purpose, 400);
+  addLine(lines, "Observation", payload.problemDetails, 600);
+  addLine(lines, "Action Required", payload.actionRequired, 600);
+  lines.push("", "Reply *2* for the latest Site Visit or *menu* for more options.");
+  lines.push("_LAND VIEW Architects & Engineers_");
+  return lines.join("\n").slice(0, 4000);
+}
+
 async function botStoreRequest(token: string, input: Record<string, unknown>) {
   const url = String(
     process.env.WHATSAPP_BOT_STORE_URL ||
@@ -94,11 +108,11 @@ async function botStoreRequest(token: string, input: Record<string, unknown>) {
   return json.data as any;
 }
 
-async function wakeBot(token: string) {
+async function wakeBot(token: string, path = "/wake") {
   const base = String(process.env.WHATSAPP_BOT_URL || "").trim().replace(/\/+$/, "");
   if (!base) return;
   try {
-    await fetch(`${base}/wake`, {
+    await fetch(`${base}${path}`, {
       method: "POST",
       headers: { "x-land-view-bot-token": token },
       cache: "no-store",
@@ -106,7 +120,25 @@ async function wakeBot(token: string) {
     });
   } catch {
     // Render free instances can need longer than the request timeout to wake up.
-    // The message is already stored durably in Supabase, so a wake timeout is safe.
+    // Messages are already stored durably in Supabase, so a wake timeout is safe.
+  }
+}
+
+async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhatsAppPayload) {
+  try {
+    await botStoreRequest(token, {
+      action: "clientProjectQueue",
+      projectCode: text(payload.projectId, 80),
+      message: formatClientSiteVisitMessage(payload),
+      dedupeKey: `client-site-visit:${text(payload.visitId, 120)}`,
+      source: "site-visit",
+    });
+    await wakeBot(token, "/client/wake");
+  } catch (error: any) {
+    // A missing/invalid client phone must never block the employee's Site Visit.
+    console.warn("[site-visit-client-whatsapp] queue skipped", {
+      message: text(error?.message || "Client WhatsApp update could not be queued.", 500),
+    });
   }
 }
 
@@ -125,7 +157,10 @@ export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPaylo
       groupInviteCode,
     });
 
-    await wakeBot(token);
+    await Promise.all([
+      wakeBot(token),
+      queueClientSiteVisitUpdate(token, payload),
+    ]);
 
     const state = text(queued?.status, 40).toLowerCase();
     if (state === "sent") {
