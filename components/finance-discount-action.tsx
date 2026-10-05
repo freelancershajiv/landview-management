@@ -161,31 +161,31 @@ export default function FinanceDiscountAction() {
       .billing-actions > :nth-child(2){order:3}
       .billing-actions > :nth-child(3){order:4}
       .billing-actions > :nth-child(4){order:5}
-      .billing-actions .finance-discount-trigger{order:2;background:#d99a38!important;border:1px solid #f0b557!important;color:#14100a!important;font-weight:900!important;opacity:1!important;text-shadow:none!important}
-      .billing-actions .finance-discount-trigger:hover{background:#e8aa47!important;border-color:#ffc86f!important;color:#0c0905!important}
-      .billing-actions .billing-btn:not(.finance-discount-trigger){background:#182129!important;border-color:#4c5b66!important;color:#f7fafc!important;text-shadow:none!important}
-      .billing-actions .billing-btn.primary{background:#e6534e!important;border-color:#ff736d!important;color:#fff!important}
-      .billing-actions .billing-btn:hover:not(:disabled):not(.finance-discount-trigger){background:#22303a!important;border-color:#71808b!important;color:#fff!important}
-      .billing-actions .billing-btn.primary:hover:not(:disabled){background:#f05f59!important;border-color:#ff827c!important;color:#fff!important}
-      .billing-actions .billing-btn:disabled{opacity:.68!important;color:#f7fafc!important;filter:none!important}
-      .finance-discount-backdrop{position:fixed;inset:0;z-index:140;background:rgba(0,0,0,.76);display:grid;place-items:center;padding:18px}
-      .finance-discount-modal{width:min(620px,100%);max-height:92vh;overflow:auto;background:#151d24;border:1px solid #46535e;border-radius:12px;padding:20px;color:#f4f7f9;box-shadow:0 28px 90px rgba(0,0,0,.55)}
-      .finance-discount-modal h2{margin:0 0 6px;font-size:22px;color:#fff}
-      .finance-discount-modal>p{margin:0 0 18px;color:#aeb9c1;font-size:12px;line-height:1.5}
+      .billing-actions .finance-discount-trigger{order:2;background:#d99a38!important;border:1px solid var(--theme-line-_f0b557, #f0b557)!important;color:#14100a!important;font-weight:900!important;opacity:1!important;text-shadow:none!important}
+      .billing-actions .finance-discount-trigger:hover{background:#e8aa47!important;border-color:var(--theme-line-_ffc86f, #ffc86f)!important;color:#0c0905!important}
+      .billing-actions .billing-btn:not(.finance-discount-trigger){background:var(--theme-bg-_182129, #182129)!important;border-color:var(--theme-line-_4c5b66, #4c5b66)!important;color:var(--theme-ink-_f7fafc, #f7fafc)!important;text-shadow:none!important}
+      .billing-actions .billing-btn.primary{background:#e6534e!important;border-color:var(--theme-line-_ff736d, #ff736d)!important;color:#fff!important}
+      .billing-actions .billing-btn:hover:not(:disabled):not(.finance-discount-trigger){background:var(--theme-bg-_22303a, #22303a)!important;border-color:var(--theme-line-_71808b, #71808b)!important;color:var(--theme-ink-_fff, #fff)!important}
+      .billing-actions .billing-btn.primary:hover:not(:disabled){background:#f05f59!important;border-color:var(--theme-line-_ff827c, #ff827c)!important;color:#fff!important}
+      .billing-actions .billing-btn:disabled{opacity:.68!important;color:var(--theme-ink-_f7fafc, #f7fafc)!important;filter:none!important}
+      .finance-discount-backdrop{position:fixed;inset:0;z-index:140;background:var(--theme-bg-rgba_0_0_0__76_, rgba(0,0,0,.76));display:grid;place-items:center;padding:18px}
+      .finance-discount-modal{width:min(620px,100%);max-height:92vh;overflow:auto;background:var(--theme-bg-_151d24, #151d24);border:1px solid var(--theme-line-_46535e, #46535e);border-radius:12px;padding:20px;color:var(--theme-ink-_f4f7f9, #f4f7f9);box-shadow:0 28px 90px var(--theme-shadow-rgba_0_0_0__55_, rgba(0,0,0,.55))}
+      .finance-discount-modal h2{margin:0 0 6px;font-size:22px;color:var(--theme-ink-_fff, #fff)}
+      .finance-discount-modal>p{margin:0 0 18px;color:var(--theme-ink-_aeb9c1, #aeb9c1);font-size:12px;line-height:1.5}
       .finance-discount-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
       .finance-discount-field{display:flex;flex-direction:column;gap:6px}
       .finance-discount-field.full{grid-column:1/-1}
-      .finance-discount-field label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#c8d1d8;font-weight:900}
-      .finance-discount-field input,.finance-discount-field select,.finance-discount-field textarea{min-height:44px;border:1px solid #3d4a54;border-radius:8px;background:#0c141a;color:#fff;padding:10px;color-scheme:dark}
+      .finance-discount-field label{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--theme-ink-_c8d1d8, #c8d1d8);font-weight:900}
+      .finance-discount-field input,.finance-discount-field select,.finance-discount-field textarea{min-height:44px;border:1px solid var(--theme-line-_3d4a54, #3d4a54);border-radius:8px;background:var(--theme-bg-_0c141a, #0c141a);color:var(--theme-ink-_fff, #fff);padding:10px;color-scheme:dark}
       .finance-discount-field textarea{min-height:82px;resize:vertical}
-      .finance-discount-balance{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid #5b4726;background:#241d12;border-radius:8px;padding:12px 14px}
-      .finance-discount-balance span{font-size:11px;color:#d9c39c;text-transform:uppercase;font-weight:900}
-      .finance-discount-balance strong{font-size:18px;color:#ffc76a}
-      .finance-discount-error{margin:0 0 14px;border:1px solid #8c433d;background:#35211f;color:#ffd2ce;padding:10px 12px;border-radius:8px;font-size:12px;font-weight:800}
+      .finance-discount-balance{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;border:1px solid var(--theme-line-_5b4726, #5b4726);background:var(--theme-bg-_241d12, #241d12);border-radius:8px;padding:12px 14px}
+      .finance-discount-balance span{font-size:11px;color:var(--theme-ink-_d9c39c, #d9c39c);text-transform:uppercase;font-weight:900}
+      .finance-discount-balance strong{font-size:18px;color:var(--theme-ink-_ffc76a, #ffc76a)}
+      .finance-discount-error{margin:0 0 14px;border:1px solid var(--theme-line-_8c433d, #8c433d);background:var(--theme-bg-_35211f, #35211f);color:var(--theme-ink-_ffd2ce, #ffd2ce);padding:10px 12px;border-radius:8px;font-size:12px;font-weight:800}
       .finance-discount-actions{display:flex;justify-content:flex-end;gap:9px;margin-top:18px}
       .finance-discount-actions button{min-height:42px;border-radius:8px;padding:10px 15px;font-weight:900;cursor:pointer}
-      .finance-discount-cancel{border:1px solid #56636d;background:#1a242c;color:#fff}
-      .finance-discount-save{border:1px solid #ffc46a;background:#d99a38;color:#140f08}
+      .finance-discount-cancel{border:1px solid var(--theme-line-_56636d, #56636d);background:var(--theme-bg-_1a242c, #1a242c);color:var(--theme-ink-_fff, #fff)}
+      .finance-discount-save{border:1px solid var(--theme-line-_ffc46a, #ffc46a);background:#d99a38;color:#140f08}
       .finance-discount-actions button:disabled{opacity:.55;cursor:not-allowed}
       @media(max-width:640px){.finance-discount-grid{grid-template-columns:1fr}.finance-discount-field.full,.finance-discount-balance{grid-column:auto}.finance-discount-actions button{flex:1}.billing-actions .finance-discount-trigger{flex:1 1 calc(50% - 6px)}}
     `}</style>

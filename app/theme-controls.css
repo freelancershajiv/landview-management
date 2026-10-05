@@ -1,0 +1,21 @@
+/* Theme affects screen colors only; invoice and report print rules retain their palette. */
+@media screen {
+  html:not([data-theme="dark"]), html:not([data-theme="dark"]) :is(.portal-admin,.portal-employee,.portal-client) { color-scheme: light !important; }
+  html[data-theme="dark"], html[data-theme="dark"] :is(.portal-admin,.portal-employee,.portal-client) { color-scheme: dark !important; }
+  .lv-theme-switch {
+    position: fixed; right: max(16px, env(safe-area-inset-right)); bottom: max(16px, env(safe-area-inset-bottom));
+    z-index: 500; display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    min-height: 44px; padding: 10px 15px; border: 1px solid #cbd5e1; border-radius: 999px;
+    background: #fff; color: #243247; box-shadow: 0 4px 18px rgba(30,45,65,.12);
+    font: 600 14px/1.3 Arial, sans-serif; cursor: pointer; touch-action: manipulation;
+  }
+  html[data-theme="dark"] .lv-theme-switch { background: #1a2027; color: #f3f4f4; border-color: #49535d; }
+  .lv-theme-switch:hover { border-color: #d61f26; }
+  .lv-theme-switch:focus-visible { outline: 3px solid #d61f26; outline-offset: 3px; }
+  html:not([data-theme="dark"]) img[src="/land-view-logo-full.svg"] { content: url('/land-view-logo-full-white-mode.svg'); }
+  html:not([data-theme="dark"]) .lv-footer-brand { background-image: url('/land-view-logo-full-white-mode.svg') !important; }
+  html:not([data-theme="dark"]) :is(.btn-accent,.btn-primary,.public-btn-accent,.public-employee-link,.login-submit,.public-header-cta,.lv-btn-gold,.cp-primary) { color: #fff !important; }
+  html:not([data-theme="dark"]) body { background-image: none; }
+  html:not([data-theme="dark"]) :is(.portal-admin,.portal-employee,.portal-client) { --portal-accent-text: #ad171d; }
+}
+@media print { .lv-theme-switch { display: none !important; } }

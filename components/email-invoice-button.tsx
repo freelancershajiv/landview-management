@@ -102,7 +102,7 @@ export default function EmailInvoiceButton({ result, verificationUrl, className 
             display: "grid",
             placeItems: "center",
             padding: 18,
-            background: "rgba(3, 10, 16, .72)",
+            background: "var(--theme-bg-rgba_3_10_16__72_, rgba(3, 10, 16, .72))",
             backdropFilter: "blur(4px)",
           }}
         >
@@ -113,19 +113,19 @@ export default function EmailInvoiceButton({ result, verificationUrl, className 
             aria-labelledby="email-invoice-title"
             style={{
               width: "min(480px, 100%)",
-              border: "1px solid rgba(148, 163, 184, .24)",
+              border: "1px solid var(--theme-line-rgba_148_163_184__24_, rgba(148, 163, 184, .24))",
               borderRadius: 16,
-              background: "#11181d",
-              boxShadow: "0 28px 70px rgba(0,0,0,.42)",
+              background: "var(--theme-bg-_11181d, #11181d)",
+              boxShadow: "0 28px 70px var(--theme-shadow-rgba_0_0_0__42_, rgba(0,0,0,.42))",
               padding: 22,
-              color: "#f8fafc",
+              color: "var(--theme-ink-_f8fafc, #f8fafc)",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
               <div>
-                <span style={{ display: "block", fontSize: 10, letterSpacing: "1.2px", color: "#94a3ad", marginBottom: 5 }}>LAND VIEW / BILLING EMAIL</span>
+                <span style={{ display: "block", fontSize: 10, letterSpacing: "1.2px", color: "var(--theme-ink-_94a3ad, #94a3ad)", marginBottom: 5 }}>LAND VIEW / BILLING EMAIL</span>
                 <h2 id="email-invoice-title" style={{ margin: 0, fontSize: 20 }}>Email {result.id} invoice</h2>
-                <p style={{ margin: "7px 0 0", color: "#aeb9c2", fontSize: 13, lineHeight: 1.5 }}>
+                <p style={{ margin: "7px 0 0", color: "var(--theme-ink-_aeb9c2, #aeb9c2)", fontSize: 13, lineHeight: 1.5 }}>
                   Sends the client a branded billing summary with the permanent LAND VIEW verification link.
                 </p>
               </div>
@@ -134,11 +134,11 @@ export default function EmailInvoiceButton({ result, verificationUrl, className 
                 aria-label="Close email dialog"
                 onClick={close}
                 disabled={busy}
-                style={{ border: 0, background: "transparent", color: "#cbd5e1", fontSize: 24, cursor: busy ? "default" : "pointer", lineHeight: 1 }}
+                style={{ border: 0, background: "transparent", color: "var(--theme-ink-_cbd5e1, #cbd5e1)", fontSize: 24, cursor: busy ? "default" : "pointer", lineHeight: 1 }}
               >×</button>
             </div>
 
-            <label htmlFor="invoice-email-recipient" style={{ display: "block", marginTop: 20, marginBottom: 7, fontSize: 12, fontWeight: 700, color: "#d8e0e6" }}>
+            <label htmlFor="invoice-email-recipient" style={{ display: "block", marginTop: 20, marginBottom: 7, fontSize: 12, fontWeight: 700, color: "var(--theme-ink-_d8e0e6, #d8e0e6)" }}>
               Client email address
             </label>
             <input
@@ -160,30 +160,30 @@ export default function EmailInvoiceButton({ result, verificationUrl, className 
               style={{
                 boxSizing: "border-box",
                 width: "100%",
-                border: "1px solid #3b4852",
+                border: "1px solid var(--theme-line-_3b4852, #3b4852)",
                 borderRadius: 9,
-                background: "#0c1216",
-                color: "#f8fafc",
+                background: "var(--theme-bg-_0c1216, #0c1216)",
+                color: "var(--theme-ink-_f8fafc, #f8fafc)",
                 padding: "11px 12px",
                 outline: "none",
                 fontSize: 14,
               }}
             />
 
-            <div style={{ marginTop: 13, borderRadius: 9, background: "#0c1216", border: "1px solid #26323a", padding: "11px 12px", fontSize: 12, color: "#aeb9c2", lineHeight: 1.55 }}>
-              <strong style={{ color: "#e7edf1" }}>{result.client.name || "Client"}</strong><br />
+            <div style={{ marginTop: 13, borderRadius: 9, background: "var(--theme-bg-_0c1216, #0c1216)", border: "1px solid var(--theme-line-_26323a, #26323a)", padding: "11px 12px", fontSize: 12, color: "var(--theme-ink-_aeb9c2, #aeb9c2)", lineHeight: 1.55 }}>
+              <strong style={{ color: "var(--theme-ink-_e7edf1, #e7edf1)" }}>{result.client.name || "Client"}</strong><br />
               Total bill: BDT {new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 }).format(result.totals.gross || 0)} · Due: BDT {new Intl.NumberFormat("en-BD", { maximumFractionDigits: 0 }).format(Math.max(0, result.totals.due || 0))}
             </div>
 
-            {error && <div role="alert" style={{ marginTop: 13, borderRadius: 8, padding: "10px 11px", background: "rgba(190,24,93,.13)", border: "1px solid rgba(251,113,133,.34)", color: "#fecdd3", fontSize: 12, lineHeight: 1.5 }}>{error}</div>}
-            {success && <div role="status" style={{ marginTop: 13, borderRadius: 8, padding: "10px 11px", background: "rgba(5,150,105,.13)", border: "1px solid rgba(52,211,153,.32)", color: "#a7f3d0", fontSize: 12, lineHeight: 1.5 }}>{success}</div>}
+            {error && <div role="alert" style={{ marginTop: 13, borderRadius: 8, padding: "10px 11px", background: "var(--theme-bg-rgba_190_24_93__13_, rgba(190,24,93,.13))", border: "1px solid var(--theme-line-rgba_251_113_133__34_, rgba(251,113,133,.34))", color: "var(--theme-ink-_fecdd3, #fecdd3)", fontSize: 12, lineHeight: 1.5 }}>{error}</div>}
+            {success && <div role="status" style={{ marginTop: 13, borderRadius: 8, padding: "10px 11px", background: "var(--theme-bg-rgba_5_150_105__13_, rgba(5,150,105,.13))", border: "1px solid var(--theme-line-rgba_52_211_153__32_, rgba(52,211,153,.32))", color: "var(--theme-ink-_a7f3d0, #a7f3d0)", fontSize: 12, lineHeight: 1.5 }}>{success}</div>}
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 9, marginTop: 20 }}>
               <button
                 type="button"
                 onClick={close}
                 disabled={busy}
-                style={{ border: "1px solid #3b4852", borderRadius: 8, background: "transparent", color: "#e2e8f0", padding: "9px 13px", cursor: busy ? "default" : "pointer", fontWeight: 700 }}
+                style={{ border: "1px solid var(--theme-line-_3b4852, #3b4852)", borderRadius: 8, background: "transparent", color: "var(--theme-ink-_e2e8f0, #e2e8f0)", padding: "9px 13px", cursor: busy ? "default" : "pointer", fontWeight: 700 }}
               >
                 {success ? "Close" : "Cancel"}
               </button>

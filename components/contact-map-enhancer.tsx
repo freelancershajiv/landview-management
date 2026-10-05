@@ -12,9 +12,9 @@ const css = `
 
   .lv-contact-location-section {
     padding: 72px 0 88px;
-    border-top: 1px solid rgba(215,154,23,.18);
-    background: linear-gradient(125deg,#09131d,#07101a);
-    color: #fff;
+    border-top: 1px solid var(--theme-line-rgba_215_154_23__18_, rgba(215,154,23,.18));
+    background: linear-gradient(125deg,var(--theme-bg-_09131d, #09131d),var(--theme-bg-_07101a, #07101a));
+    color: var(--theme-ink-_fff, #fff);
   }
   .lv-contact-location-shell {
     width: min(100% - 44px, 1320px);
@@ -31,7 +31,7 @@ const css = `
   .lv-contact-location-head span {
     display: block;
     margin-bottom: 10px;
-    color: #efb733;
+    color: var(--theme-ink-_efb733, #efb733);
     font-size: 8px;
     font-weight: 900;
     letter-spacing: .18em;
@@ -44,7 +44,7 @@ const css = `
   .lv-contact-location-head p {
     max-width: 420px;
     margin: 0;
-    color: #95a1ab;
+    color: var(--theme-ink-_95a1ab, #95a1ab);
     font-size: 10px;
     line-height: 1.75;
   }
@@ -56,8 +56,8 @@ const css = `
   }
   .lv-contact-info-card,
   .lv-location-card {
-    border: 1px solid #34414c;
-    background: #0b151e;
+    border: 1px solid var(--theme-line-_34414c, #34414c);
+    background: var(--theme-bg-_0b151e, #0b151e);
   }
   .lv-contact-info-card {
     display: grid;
@@ -66,26 +66,26 @@ const css = `
   .lv-contact-info-item {
     min-height: 116px;
     padding: 22px 24px;
-    border-bottom: 1px solid #2c3944;
+    border-bottom: 1px solid var(--theme-line-_2c3944, #2c3944);
   }
-  .lv-contact-info-item:nth-child(odd) { border-right: 1px solid #2c3944; }
+  .lv-contact-info-item:nth-child(odd) { border-right: 1px solid var(--theme-line-_2c3944, #2c3944); }
   .lv-contact-info-item:nth-last-child(-n+2) { border-bottom: 0; }
   .lv-contact-info-item span {
     display: block;
     margin-bottom: 9px;
-    color: #efb733;
+    color: var(--theme-ink-_efb733, #efb733);
     font-size: 7px;
     font-weight: 900;
     letter-spacing: .12em;
   }
   .lv-contact-info-item strong,
   .lv-contact-info-item a {
-    color: #fff;
+    color: var(--theme-ink-_fff, #fff);
     font-size: 11px;
   }
   .lv-contact-info-item p {
     margin: 7px 0 0;
-    color: #96a2ac;
+    color: var(--theme-ink-_96a2ac, #96a2ac);
     font-size: 9px;
     line-height: 1.6;
   }
@@ -97,8 +97,8 @@ const css = `
     align-items: flex-end;
     overflow: hidden;
     background:
-      radial-gradient(circle at 74% 35%, rgba(215,154,23,.17), transparent 24%),
-      linear-gradient(135deg, rgba(12,27,39,.96), rgba(5,12,19,.98));
+      radial-gradient(circle at 74% 35%, var(--theme-bg-rgba_215_154_23__17_, rgba(215,154,23,.17)), transparent 24%),
+      linear-gradient(135deg, var(--theme-bg-rgba_12_27_39__96_, rgba(12,27,39,.96)), var(--theme-bg-rgba_5_12_19__98_, rgba(5,12,19,.98)));
   }
   .lv-location-card::before {
     content: "";
@@ -106,8 +106,8 @@ const css = `
     inset: 0;
     opacity: .24;
     background-image:
-      linear-gradient(rgba(255,255,255,.055) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(255,255,255,.055) 1px, transparent 1px);
+      linear-gradient(var(--theme-bg-rgba_255_255_255__055_, rgba(255,255,255,.055)) 1px, transparent 1px),
+      linear-gradient(90deg, var(--theme-bg-rgba_255_255_255__055_, rgba(255,255,255,.055)) 1px, transparent 1px);
     background-size: 34px 34px;
   }
   .lv-location-card::after {
@@ -118,9 +118,9 @@ const css = `
     right: 8%;
     top: 50%;
     transform: translateY(-50%);
-    border: 1px solid rgba(239,183,51,.24);
+    border: 1px solid var(--theme-line-rgba_239_183_51__24_, rgba(239,183,51,.24));
     border-radius: 50%;
-    box-shadow: 0 0 0 28px rgba(239,183,51,.035),0 0 0 56px rgba(239,183,51,.02);
+    box-shadow: 0 0 0 28px var(--theme-shadow-rgba_239_183_51__035_, rgba(239,183,51,.035)),0 0 0 56px var(--theme-shadow-rgba_239_183_51__02_, rgba(239,183,51,.02));
   }
   .lv-location-pin {
     position: absolute;
@@ -130,10 +130,10 @@ const css = `
     width: 46px;
     height: 46px;
     transform: translateY(-58%) rotate(45deg);
-    border: 2px solid #efb733;
+    border: 2px solid var(--theme-line-_efb733, #efb733);
     border-radius: 50% 50% 50% 10px;
-    background: #0b151e;
-    box-shadow: 0 14px 30px rgba(0,0,0,.35);
+    background: var(--theme-bg-_0b151e, #0b151e);
+    box-shadow: 0 14px 30px var(--theme-shadow-rgba_0_0_0__35_, rgba(0,0,0,.35));
   }
   .lv-location-pin::after {
     content: "";
@@ -155,19 +155,19 @@ const css = `
   .lv-location-kicker {
     display: block;
     margin-bottom: 10px;
-    color: #efb733;
+    color: var(--theme-ink-_efb733, #efb733);
     font-size: 8px;
     font-weight: 900;
     letter-spacing: .16em;
   }
   .lv-location-copy h3 {
     margin: 0;
-    color: #fff;
+    color: var(--theme-ink-_fff, #fff);
     font: 500 25px/1.15 Georgia,"Times New Roman",serif;
   }
   .lv-location-copy p {
     margin: 10px 0 0;
-    color: #9ba6af;
+    color: var(--theme-ink-_9ba6af, #9ba6af);
     font-size: 10px;
     line-height: 1.7;
   }
@@ -178,7 +178,7 @@ const css = `
     justify-content: center;
     margin-top: 20px;
     padding: 0 16px;
-    border: 1px solid #d79a17;
+    border: 1px solid var(--theme-line-_d79a17, #d79a17);
     border-radius: 5px;
     background: linear-gradient(180deg,#e6aa27,#c98709);
     color: #101820 !important;
@@ -186,7 +186,7 @@ const css = `
     font-weight: 900;
     letter-spacing: .08em;
     text-transform: uppercase;
-    box-shadow: 0 8px 20px rgba(0,0,0,.24);
+    box-shadow: 0 8px 20px var(--theme-shadow-rgba_0_0_0__24_, rgba(0,0,0,.24));
   }
   .lv-location-button:hover { filter: brightness(1.08); transform: translateY(-1px); }
 
@@ -197,7 +197,7 @@ const css = `
   @media(max-width:560px){
     .lv-contact-location-shell{width:min(100% - 28px,1320px)}
     .lv-contact-info-card{grid-template-columns:1fr}
-    .lv-contact-info-item{min-height:auto;border-right:0!important;border-bottom:1px solid #2c3944!important}
+    .lv-contact-info-item{min-height:auto;border-right:0!important;border-bottom:1px solid var(--theme-line-_2c3944, #2c3944)!important}
     .lv-contact-info-item:last-child{border-bottom:0!important}
     .lv-location-card{min-height:300px}
     .lv-location-copy{width:100%;padding:24px}

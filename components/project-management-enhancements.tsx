@@ -37,8 +37,8 @@ export default function ProjectManagementEnhancements() {
     const style = document.createElement("style");
     style.dataset.lvProjectEnhancements = "1";
     style.textContent = `
-      .lv-project-edit-link{height:30px;padding:0 10px;border:1px solid rgba(255,255,255,.14);border-radius:7px;background:#18232d;color:#fff!important;font-size:10px;font-weight:800;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;margin-left:auto;white-space:nowrap}
-      .lv-project-edit-link:hover{border-color:#d61f26;color:#ff8179!important}
+      .lv-project-edit-link{height:30px;padding:0 10px;border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));border-radius:7px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_fff, #fff)!important;font-size:10px;font-weight:800;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;margin-left:auto;white-space:nowrap}
+      .lv-project-edit-link:hover{border-color:var(--theme-line-_d61f26, #d61f26);color:var(--theme-ink-_ff8179, #ff8179)!important}
       @media(max-width:760px){.lv-project-edit-link{margin-left:0}}
     `;
     document.head.appendChild(style);

@@ -1,5 +1,5 @@
 /* LAND VIEW official navy/gold logo integration */
-.public-brand-copy strong em { color: #d7a11b !important; }
+.public-brand-copy strong em { color: var(--theme-ink-_d7a11b, #d7a11b) !important; }
 .public-brand img,
 .masthead-brand img,
 .portal-brand img,

@@ -53,30 +53,30 @@ export default function SecuritySessionsPage(){
   }
 
   return <main style={{padding:"28px 0 48px"}}>
-    <section style={{border:"1px solid #303a43",background:"#101820",borderRadius:14,padding:22,marginBottom:18}}>
+    <section style={{border:"1px solid var(--theme-line-_303a43, #303a43)",background:"var(--theme-bg-_101820, #101820)",borderRadius:14,padding:22,marginBottom:18}}>
       <span style={{fontSize:11,fontWeight:900,letterSpacing:".12em",color:"#ff6963"}}>SECURITY</span>
       <h1 style={{margin:"8px 0 8px",fontSize:30}}>Active Sessions</h1>
-      <p style={{margin:0,color:"#98a4ae",lineHeight:1.6}}>LAND VIEW automatically expires sessions after {policy.idleMinutes||30} minutes of inactivity and after {policy.absoluteHours||8} hours maximum.</p>
-      <button onClick={()=>void load()} disabled={loading} style={{marginTop:16,height:38,padding:"0 14px",borderRadius:7,border:"1px solid #394650",background:"#17232c",color:"#fff",cursor:"pointer"}}>{loading?"Refreshing…":"Refresh sessions"}</button>
+      <p style={{margin:0,color:"var(--theme-ink-_98a4ae, #98a4ae)",lineHeight:1.6}}>LAND VIEW automatically expires sessions after {policy.idleMinutes||30} minutes of inactivity and after {policy.absoluteHours||8} hours maximum.</p>
+      <button onClick={()=>void load()} disabled={loading} style={{marginTop:16,height:38,padding:"0 14px",borderRadius:7,border:"1px solid var(--theme-line-_394650, #394650)",background:"var(--theme-bg-_17232c, #17232c)",color:"var(--theme-ink-_fff, #fff)",cursor:"pointer"}}>{loading?"Refreshing…":"Refresh sessions"}</button>
     </section>
 
-    {error&&<div style={{padding:14,border:"1px solid #74383c",borderRadius:9,background:"#2d1719",color:"#ffaaa5",marginBottom:16}}>{error}</div>}
+    {error&&<div style={{padding:14,border:"1px solid var(--theme-line-_74383c, #74383c)",borderRadius:9,background:"var(--theme-bg-_2d1719, #2d1719)",color:"var(--theme-ink-_ffaaa5, #ffaaa5)",marginBottom:16}}>{error}</div>}
 
-    <section style={{overflowX:"auto",border:"1px solid #303a43",borderRadius:12,background:"#0e151c"}}>
+    <section style={{overflowX:"auto",border:"1px solid var(--theme-line-_303a43, #303a43)",borderRadius:12,background:"var(--theme-bg-_0e151c, #0e151c)"}}>
       <table style={{width:"100%",borderCollapse:"collapse",minWidth:1100}}>
-        <thead><tr>{["User","Role","Device","IP / Location","Created","Last activity","Expires","Action"].map(h=><th key={h} style={{textAlign:"left",padding:"13px 14px",fontSize:11,color:"#8997a2",borderBottom:"1px solid #2b363f"}}>{h}</th>)}</tr></thead>
-        <tbody>{sessions.map(s=><tr key={s.sessionId} style={{borderBottom:"1px solid #202a32"}}>
-          <td style={{padding:14}}><strong style={{display:"block"}}>{s.name||s.username||s.userId}</strong><small style={{color:"#87939d"}}>{s.userId}{s.current?" · THIS DEVICE":""}</small></td>
+        <thead><tr>{["User","Role","Device","IP / Location","Created","Last activity","Expires","Action"].map(h=><th key={h} style={{textAlign:"left",padding:"13px 14px",fontSize:11,color:"var(--theme-ink-_8997a2, #8997a2)",borderBottom:"1px solid var(--theme-line-_2b363f, #2b363f)"}}>{h}</th>)}</tr></thead>
+        <tbody>{sessions.map(s=><tr key={s.sessionId} style={{borderBottom:"1px solid var(--theme-line-_202a32, #202a32)"}}>
+          <td style={{padding:14}}><strong style={{display:"block"}}>{s.name||s.username||s.userId}</strong><small style={{color:"var(--theme-ink-_87939d, #87939d)"}}>{s.userId}{s.current?" · THIS DEVICE":""}</small></td>
           <td style={{padding:14,textTransform:"capitalize"}}>{s.role||"—"}</td>
-          <td style={{padding:14}}><strong style={{display:"block"}}>{s.deviceName||"Unknown device"}</strong><small style={{color:"#87939d"}}>{[s.browser,s.os].filter(Boolean).join(" · ")||s.deviceId||"—"}</small></td>
-          <td style={{padding:14}}><strong style={{display:"block"}}>{s.ipAddress||"—"}</strong><small style={{color:"#87939d"}}>{s.location||"Location unavailable"}</small></td>
+          <td style={{padding:14}}><strong style={{display:"block"}}>{s.deviceName||"Unknown device"}</strong><small style={{color:"var(--theme-ink-_87939d, #87939d)"}}>{[s.browser,s.os].filter(Boolean).join(" · ")||s.deviceId||"—"}</small></td>
+          <td style={{padding:14}}><strong style={{display:"block"}}>{s.ipAddress||"—"}</strong><small style={{color:"var(--theme-ink-_87939d, #87939d)"}}>{s.location||"Location unavailable"}</small></td>
           <td style={{padding:14}}>{when(s.createdAt)}</td>
           <td style={{padding:14}}>{when(s.lastSeenAt)}</td>
           <td style={{padding:14}}>{when(s.expiresAt)}</td>
-          <td style={{padding:14}}>{s.current?<span style={{color:"#76c992",fontWeight:800}}>Current</span>:<button disabled={busy===s.sessionId} onClick={()=>void terminate(s.sessionId)} style={{height:34,padding:"0 12px",borderRadius:7,border:"1px solid #7a3338",background:"#35191c",color:"#ff8b84",cursor:"pointer"}}>{busy===s.sessionId?"Terminating…":"Terminate"}</button>}</td>
-        </tr>)}{!loading&&!sessions.length&&<tr><td colSpan={8} style={{padding:26,textAlign:"center",color:"#87939d"}}>No active sessions found.</td></tr>}</tbody>
+          <td style={{padding:14}}>{s.current?<span style={{color:"var(--theme-ink-_76c992, #76c992)",fontWeight:800}}>Current</span>:<button disabled={busy===s.sessionId} onClick={()=>void terminate(s.sessionId)} style={{height:34,padding:"0 12px",borderRadius:7,border:"1px solid var(--theme-line-_7a3338, #7a3338)",background:"var(--theme-bg-_35191c, #35191c)",color:"var(--theme-ink-_ff8b84, #ff8b84)",cursor:"pointer"}}>{busy===s.sessionId?"Terminating…":"Terminate"}</button>}</td>
+        </tr>)}{!loading&&!sessions.length&&<tr><td colSpan={8} style={{padding:26,textAlign:"center",color:"var(--theme-ink-_87939d, #87939d)"}}>No active sessions found.</td></tr>}</tbody>
       </table>
     </section>
-    <p style={{marginTop:12,color:"#78858f",fontSize:12}}>Login history is also recorded in the Google Sheet tab <strong>Login Sessions</strong>. Browsers cannot expose MAC addresses, so LAND VIEW uses a persistent random Device ID instead.</p>
+    <p style={{marginTop:12,color:"var(--theme-ink-_78858f, #78858f)",fontSize:12}}>Login history is also recorded in the Google Sheet tab <strong>Login Sessions</strong>. Browsers cannot expose MAC addresses, so LAND VIEW uses a persistent random Device ID instead.</p>
   </main>;
 }

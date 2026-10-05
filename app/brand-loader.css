@@ -7,10 +7,10 @@
   place-items:center;
   overflow:hidden;
   background:
-    radial-gradient(circle at 50% 38%,rgba(214,31,38,.12),transparent 24%),
-    radial-gradient(circle at 18% 86%,rgba(255,255,255,.025),transparent 26%),
-    #080a0d;
-  color:#fff;
+    radial-gradient(circle at 50% 38%,var(--theme-bg-rgba_214_31_38__12_, rgba(214,31,38,.12)),transparent 24%),
+    radial-gradient(circle at 18% 86%,var(--theme-bg-rgba_255_255_255__025_, rgba(255,255,255,.025)),transparent 26%),
+    var(--theme-bg-_080a0d, #080a0d);
+  color:var(--theme-ink-_fff, #fff);
   isolation:isolate;
   transition:opacity .42s ease,visibility .42s ease;
 }
@@ -24,8 +24,8 @@
   inset:-10%;
   opacity:.16;
   background-image:
-    linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),
-    linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+    linear-gradient(var(--theme-bg-rgba_255_255_255__045_, rgba(255,255,255,.045)) 1px,transparent 1px),
+    linear-gradient(90deg,var(--theme-bg-rgba_255_255_255__045_, rgba(255,255,255,.045)) 1px,transparent 1px);
   background-size:72px 72px;
   transform:perspective(700px) rotateX(66deg) scale(1.35) translateY(16%);
   transform-origin:center bottom;
@@ -43,17 +43,17 @@
   height:30vw;
   min-width:280px;
   min-height:280px;
-  border:1px solid rgba(214,31,38,.14);
+  border:1px solid var(--theme-line-rgba_214_31_38__14_, rgba(214,31,38,.14));
   right:-8vw;
   top:-10vw;
-  box-shadow:0 0 110px rgba(214,31,38,.08);
+  box-shadow:0 0 110px var(--theme-shadow-rgba_214_31_38__08_, rgba(214,31,38,.08));
 }
 .landview-loader-glow-b{
   width:24vw;
   height:24vw;
   min-width:220px;
   min-height:220px;
-  border:1px solid rgba(255,255,255,.08);
+  border:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));
   left:-8vw;
   bottom:-8vw;
 }
@@ -83,7 +83,7 @@
 }
 .landview-loader-orbit{
   position:absolute;
-  border:1px solid rgba(214,31,38,.28);
+  border:1px solid var(--theme-line-rgba_214_31_38__28_, rgba(214,31,38,.28));
   border-radius:50%;
   transform:rotate(-18deg);
 }
@@ -95,7 +95,7 @@
 .orbit-two{
   width:62%;
   height:76%;
-  border-color:rgba(255,255,255,.12);
+  border-color:var(--theme-line-rgba_255_255_255__12_, rgba(255,255,255,.12));
   transform:rotate(34deg);
   animation:lv-orbit-two 3.2s ease-in-out infinite;
 }
@@ -109,7 +109,7 @@
 }
 .landview-loader-rule span{
   height:1px;
-  background:linear-gradient(90deg,transparent,rgba(255,255,255,.5));
+  background:linear-gradient(90deg,transparent,var(--theme-bg-rgba_255_255_255__5_, rgba(255,255,255,.5)));
 }
 .landview-loader-rule span:last-child{
   background:linear-gradient(90deg,rgba(214,31,38,.8),transparent);
@@ -119,14 +119,14 @@
   height:5px;
   border-radius:50%;
   background:#d61f26;
-  box-shadow:0 0 0 5px rgba(214,31,38,.08),0 0 18px rgba(214,31,38,.42);
+  box-shadow:0 0 0 5px var(--theme-shadow-rgba_214_31_38__08_, rgba(214,31,38,.08)),0 0 18px var(--theme-shadow-rgba_214_31_38__42_, rgba(214,31,38,.42));
 }
 .landview-loader-status{
   display:flex;
   align-items:center;
   gap:8px;
   margin-top:17px;
-  color:#89939e;
+  color:var(--theme-ink-_89939e, #89939e);
   font-size:9px;
   font-weight:800;
   letter-spacing:.16em;
@@ -137,7 +137,7 @@
   height:6px;
   border-radius:50%;
   background:#d61f26;
-  box-shadow:0 0 0 4px rgba(214,31,38,.1);
+  box-shadow:0 0 0 4px var(--theme-shadow-rgba_214_31_38__1_, rgba(214,31,38,.1));
   animation:lv-dot-pulse 1.15s ease-in-out infinite;
 }
 .landview-loader-progress{
@@ -145,14 +145,14 @@
   height:2px;
   margin-top:18px;
   overflow:hidden;
-  background:rgba(255,255,255,.08);
+  background:var(--theme-bg-rgba_255_255_255__08_, rgba(255,255,255,.08));
 }
 .landview-loader-progress span{
   display:block;
   width:34%;
   height:100%;
   background:linear-gradient(90deg,#a60f16,#ff4148,#a60f16);
-  box-shadow:0 0 18px rgba(214,31,38,.35);
+  box-shadow:0 0 18px var(--theme-shadow-rgba_214_31_38__35_, rgba(214,31,38,.35));
   animation:lv-loader-progress 1.25s cubic-bezier(.42,0,.2,1) infinite;
 }
 .landview-loader-footer{
@@ -170,7 +170,7 @@
   letter-spacing:.16em;
   text-transform:uppercase;
 }
-.landview-loader-footer span:nth-child(2){color:#7e8790}
+.landview-loader-footer span:nth-child(2){color:var(--theme-ink-_7e8790, #7e8790)}
 .phase-route .landview-loader-center{transform:translateY(-1vh) scale(.98)}
 @keyframes lv-grid-drift{
   from{transform:perspective(700px) rotateX(66deg) scale(1.35) translateY(18%)}
