@@ -1,0 +1,61 @@
+name: Apply Client WhatsApp LID Fix
+
+on:
+  push:
+    branches:
+      - fix/client-whatsapp-inbound-lid
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, '[lid-fix-applied]') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/client-whatsapp-inbound-lid
+          fetch-depth: 0
+
+      - name: Patch WhatsApp inbound routing
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('whatsapp-service/server.mjs')
+          text = path.read_text()
+
+          old = """    reconnectTimer: null,\n    connectingPromise: null,\n  }"""
+          new = """    reconnectTimer: null,\n    connectingPromise: null,\n    openedAt: 0,\n  }"""
+          assert old in text, 'session state block not found'
+          text = text.replace(old, new, 1)
+
+          old = """        if (connection === 'open') {\n          state.connection = 'open'\n          state.qrDataUrl = ''\n          state.lastError = ''"""
+          new = """        if (connection === 'open') {\n          state.connection = 'open'\n          state.openedAt = Date.now()\n          state.qrDataUrl = ''\n          state.lastError = ''"""
+          assert old in text, 'connection open block not found'
+          text = text.replace(old, new, 1)
+
+          old = """function incomingJid(message) {\n  const direct = String(message?.key?.remoteJid || '')\n  const alt = String(message?.key?.remoteJidAlt || message?.key?.participantAlt || '')\n  if (direct.endsWith('@lid') && alt.endsWith('@s.whatsapp.net')) return alt\n  return direct\n}"""
+          new = """function bareUserJid(value) {\n  return String(value || '').trim().replace(/:\\d+@/, '@')\n}\n\nfunction phoneFromPnJid(value) {\n  const jid = bareUserJid(value)\n  return jid.endsWith('@s.whatsapp.net') ? jid.split('@')[0].replace(/\\D/g, '') : ''\n}\n\nasync function resolveIncomingAddress(message, sock) {\n  const direct = bareUserJid(message?.key?.remoteJid)\n  const altCandidates = [\n    message?.key?.remoteJidAlt,\n    message?.key?.participantAlt,\n  ].map(bareUserJid).filter(Boolean)\n\n  if (direct.endsWith('@s.whatsapp.net')) {\n    return { jid: direct, phoneNumber: phoneFromPnJid(direct), mapped: true }\n  }\n\n  if (direct.endsWith('@lid')) {\n    const altPn = altCandidates.find((jid) => jid.endsWith('@s.whatsapp.net'))\n    if (altPn) return { jid: direct, phoneNumber: phoneFromPnJid(altPn), mapped: true }\n\n    try {\n      const mappedPn = bareUserJid(await sock?.signalRepository?.lidMapping?.getPNForLID?.(direct))\n      if (mappedPn.endsWith('@s.whatsapp.net')) {\n        return { jid: direct, phoneNumber: phoneFromPnJid(mappedPn), mapped: true }\n      }\n    } catch (error) {\n      logger.warn({ jidType: 'lid', err: String(error?.message || error).slice(0, 300) }, 'Could not resolve inbound WhatsApp LID')\n    }\n  }\n\n  return { jid: direct, phoneNumber: 'unknown', mapped: false }\n}"""
+          assert old in text, 'incomingJid block not found'
+          text = text.replace(old, new, 1)
+
+          old = """async function handleClientInbound(event) {\n  if (event?.type && event.type !== 'notify') return\n  for (const message of event?.messages || []) {\n    if (!message?.key || message.key.fromMe) continue\n    const jid = incomingJid(message)\n    if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast' || jid.endsWith('@broadcast')) continue\n\n    const body = messageBody(message.message)\n    const type = messageType(message.message)\n    const timestampSeconds = Number(message.messageTimestamp || 0)\n    const sentAt = timestampSeconds > 0 ? new Date(timestampSeconds * 1000).toISOString() : new Date().toISOString()\n    const inbound = await store('clientInbound', {\n      jid,\n      phoneNumber: jid.split('@')[0],"""
+          new = """async function handleClientInbound(event, sock) {\n  const eventType = String(event?.type || '')\n  for (const message of event?.messages || []) {\n    if (!message?.key || message.key.fromMe) continue\n\n    const timestampSeconds = Number(message.messageTimestamp || 0)\n    const messageTimeMs = timestampSeconds > 0 ? timestampSeconds * 1000 : 0\n    const freshAppend = eventType === 'append' && messageTimeMs > 0 && messageTimeMs >= Math.max(0, Number(clientSession?.state?.openedAt || 0) - 30000)\n    if (eventType && eventType !== 'notify' && !freshAppend) continue\n\n    const address = await resolveIncomingAddress(message, sock)\n    const jid = address.jid\n    if (!jid || jid.endsWith('@g.us') || jid === 'status@broadcast' || jid.endsWith('@broadcast')) continue\n\n    const body = messageBody(message.message)\n    const type = messageType(message.message)\n    const sentAt = timestampSeconds > 0 ? new Date(timestampSeconds * 1000).toISOString() : new Date().toISOString()\n\n    logger.info({\n      eventType: eventType || 'unknown',\n      jidType: jid.endsWith('@lid') ? 'lid' : jid.endsWith('@s.whatsapp.net') ? 'pn' : 'other',\n      phoneMapped: Boolean(address.mapped),\n      messageType: type,\n      messageId: String(message.key.id || '').slice(0, 80),\n    }, 'Client WhatsApp inbound message received')\n\n    const inbound = await store('clientInbound', {\n      jid,\n      phoneNumber: address.phoneNumber,"""
+          assert old in text, 'client inbound block not found'
+          text = text.replace(old, new, 1)
+
+          path.write_text(text)
+
+      - name: Validate WhatsApp service
+        run: node --check whatsapp-service/server.mjs
+
+      - name: Commit fix
+        run: |
+          rm .github/workflows/apply-client-lid-fix.yml
+          git config user.name "landview-ci"
+          git config user.email "actions@users.noreply.github.com"
+          git add whatsapp-service/server.mjs .github/workflows/apply-client-lid-fix.yml
+          git commit -m "Fix client WhatsApp inbound LID routing [lid-fix-applied]"
+          git push origin HEAD:fix/client-whatsapp-inbound-lid
