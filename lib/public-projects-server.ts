@@ -14,6 +14,10 @@ export type PublicProjectSeo = {
   coverImageUrl?: string;
   galleryImages?: string[];
   services?: string[];
+  mapEnabled?: boolean;
+  mapLatitude?: number;
+  mapLongitude?: number;
+  mapPrecision?: "exact" | "approximate";
 };
 
 export function normalizePublicImageUrl(url?: string) {
@@ -33,6 +37,20 @@ export function normalizePublicImageUrl(url?: string) {
 
 function splitList(value: unknown) {
   return String(value ?? "").split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
+}
+
+function publicMap(row: any) {
+  if (row.public_map_enabled !== true) return {};
+  const latitude = Number(row.public_map_latitude);
+  const longitude = Number(row.public_map_longitude);
+  if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180) return {};
+  const precision: "exact" | "approximate" = row.public_map_precision === "exact" ? "exact" : "approximate";
+  return {
+    mapEnabled: true,
+    mapPrecision: precision,
+    mapLatitude: precision === "exact" ? Number(latitude.toFixed(6)) : Number(latitude.toFixed(2)),
+    mapLongitude: precision === "exact" ? Number(longitude.toFixed(6)) : Number(longitude.toFixed(2)),
+  };
 }
 
 export const getPublicProjectsForSeo = cache(async function getPublicProjectsForSeo(): Promise<PublicProjectSeo[]> {
@@ -55,6 +73,7 @@ export const getPublicProjectsForSeo = cache(async function getPublicProjectsFor
       coverImageUrl: String(row.cover_image_url || ""),
       galleryImages: splitList(row.gallery_images),
       services: splitList(row.public_services),
+      ...publicMap(row),
     }));
   } catch (error) {
     console.warn("LAND VIEW public projects Supabase read failed", {
