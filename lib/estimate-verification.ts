@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export type EstimateVerificationSnapshot = {
   version: 1;
@@ -21,6 +21,17 @@ export type EstimateVerificationSnapshot = {
   grandTotal: number;
 };
 
+export type CompactEstimateVerification = {
+  version: 2;
+  estimateId: string;
+  issueDate: string;
+  referenceId: string;
+  grandTotal: number;
+  fingerprint: string;
+};
+
+export type EstimateVerificationRecord = EstimateVerificationSnapshot | CompactEstimateVerification;
+
 function secret() {
   const value = process.env.LAND_VIEW_VERIFICATION_SECRET || process.env.LAND_VIEW_PROXY_SECRET || "";
   if (!value) throw new Error("LAND_VIEW_VERIFICATION_SECRET is not configured.");
@@ -35,8 +46,12 @@ function decode(value: string) {
   return Buffer.from(value, "base64url").toString("utf8");
 }
 
-function signatureFor(body: string) {
+function legacySignatureFor(body: string) {
   return createHmac("sha256", secret()).update(`estimate|${body}`).digest("base64url");
+}
+
+function compactSignatureFor(body: string) {
+  return createHmac("sha256", secret()).update(`estimate-v2|${body}`).digest().subarray(0, 16).toString("base64url");
 }
 
 function text(value: unknown, max = 100) {
@@ -46,6 +61,24 @@ function text(value: unknown, max = 100) {
 function amount(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? Math.round(parsed * 100) / 100 : 0;
+}
+
+function safeCompactText(value: string, max: number) {
+  return text(value, max).toUpperCase().replace(/[^A-Z0-9._/-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+}
+
+function compactDate(value: string) {
+  const match = String(value || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return match ? `${match[1]}${match[2]}${match[3]}` : "00000000";
+}
+
+function expandDate(value: string) {
+  return /^\d{8}$/.test(value) ? `${value.slice(0, 4)}-${value.slice(4, 6)}-${value.slice(6, 8)}` : "";
+}
+
+function snapshotFingerprint(snapshot: EstimateVerificationSnapshot) {
+  const canonical = JSON.stringify(snapshot);
+  return createHash("sha256").update(canonical).digest().subarray(0, 8).toString("base64url");
 }
 
 export function normalizeEstimateVerificationSnapshot(value: any): EstimateVerificationSnapshot {
@@ -76,37 +109,50 @@ export function normalizeEstimateVerificationSnapshot(value: any): EstimateVerif
 
 export function signEstimateVerification(snapshot: EstimateVerificationSnapshot) {
   const normalized = normalizeEstimateVerificationSnapshot(snapshot);
-  // Compact field names keep the QR easy to scan while the signed payload remains
-  // a complete immutable verification snapshot of the issued estimate.
-  const compact = {
-    v: 1,
-    i: normalized.estimateId,
-    d: normalized.issueDate,
-    r: normalized.referenceId,
-    o: normalized.ownerName,
-    p: normalized.contactNo,
-    n: normalized.projectTitle,
-    l: normalized.location,
-    t: normalized.projectType,
-    f: normalized.floorStory,
-    a: normalized.landArea,
-    s: normalized.status,
-    ta: normalized.totalArea,
-    rt: normalized.ratePerSft,
-    b: normalized.baseCost,
-    al: normalized.allowanceTotal,
-    c: normalized.contingency,
-    g: normalized.grandTotal,
-  };
-  const body = encode(JSON.stringify(compact));
-  return `${body}.${signatureFor(body)}`;
+  const estimateId = safeCompactText(normalized.estimateId, 50) || "EST-NEW";
+  const referenceId = safeCompactText(normalized.referenceId, 50);
+  const grandCents = Math.round(normalized.grandTotal * 100);
+  const fingerprint = snapshotFingerprint(normalized);
+
+  // V2 intentionally mirrors the Billing QR approach: only a short signed
+  // reference is encoded in the QR. The fingerprint binds it to the full
+  // issued estimate without embedding all client/project fields in the QR.
+  const body = encode(`${estimateId}|${compactDate(normalized.issueDate)}|${referenceId}|${grandCents}|${fingerprint}`);
+  return `2.${body}.${compactSignatureFor(body)}`;
 }
 
-export function verifyEstimateVerification(token: string): EstimateVerificationSnapshot | null {
+function verifyCompact(token: string): CompactEstimateVerification | null {
+  const [version, body, signature, extra] = String(token || "").split(".");
+  if (version !== "2" || !body || !signature || extra || body.length > 500) return null;
+
+  const expected = compactSignatureFor(body);
+  const supplied = Buffer.from(signature);
+  const expectedBuffer = Buffer.from(expected);
+  if (supplied.length !== expectedBuffer.length || !timingSafeEqual(supplied, expectedBuffer)) return null;
+
+  try {
+    const [estimateId, date, referenceId, grandCentsText, fingerprint, extraField] = decode(body).split("|");
+    if (!estimateId || extraField !== undefined || !/^\d{8}$/.test(date || "") || !/^[A-Za-z0-9_-]{8,16}$/.test(fingerprint || "")) return null;
+    const grandCents = Number(grandCentsText);
+    if (!Number.isSafeInteger(grandCents) || grandCents < 0) return null;
+    return {
+      version: 2,
+      estimateId,
+      issueDate: expandDate(date),
+      referenceId: referenceId || "",
+      grandTotal: grandCents / 100,
+      fingerprint,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function verifyLegacy(token: string): EstimateVerificationSnapshot | null {
   const [body, signature, extra] = String(token || "").split(".");
   if (!body || !signature || extra || body.length > 6000) return null;
 
-  const expected = signatureFor(body);
+  const expected = legacySignatureFor(body);
   const supplied = Buffer.from(signature);
   const expectedBuffer = Buffer.from(expected);
   if (supplied.length !== expectedBuffer.length || !timingSafeEqual(supplied, expectedBuffer)) return null;
@@ -136,4 +182,8 @@ export function verifyEstimateVerification(token: string): EstimateVerificationS
   } catch {
     return null;
   }
+}
+
+export function verifyEstimateVerification(token: string): EstimateVerificationRecord | null {
+  return String(token || "").startsWith("2.") ? verifyCompact(token) : verifyLegacy(token);
 }
