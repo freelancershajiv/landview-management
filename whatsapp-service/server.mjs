@@ -27,7 +27,7 @@ async function store(action, input = {}) {
       'x-land-view-bot-token': BOT_TOKEN,
     },
     body: JSON.stringify({ action, ...input }),
-    signal: AbortSignal.timeout(20000),
+    signal: AbortSignal.timeout(45000),
   })
   const json = await response.json().catch(() => null)
   if (!response.ok || !json?.success) {
@@ -52,6 +52,13 @@ async function useSupabaseAuthState(sessionId) {
   async function writeData(keyId, value) {
     await store('authSet', { sessionId, keyId, value: serialize(value) })
   }
+  async function writeMany(items) {
+    if (!items.length) return
+    await store('authSetMany', {
+      sessionId,
+      items: items.map(({ keyId, value }) => ({ keyId, value: serialize(value) })),
+    })
+  }
   async function removeData(keyId) {
     await store('authDelete', { sessionId, keyId })
   }
@@ -73,15 +80,23 @@ async function useSupabaseAuthState(sessionId) {
           return data
         },
         set: async (data) => {
-          const tasks = []
+          const writes = []
+          const deletes = []
           for (const category of Object.keys(data)) {
             for (const id of Object.keys(data[category] || {})) {
               const value = data[category][id]
               const keyId = `${category}-${id}`
-              tasks.push(value ? writeData(keyId, value) : removeData(keyId))
+              if (value) writes.push({ keyId, value })
+              else deletes.push(keyId)
             }
           }
-          await Promise.all(tasks)
+
+          if (writes.length) await writeMany(writes)
+          if (deletes.length) {
+            for (let i = 0; i < deletes.length; i += 25) {
+              await Promise.all(deletes.slice(i, i + 25).map(removeData))
+            }
+          }
         },
       },
     },
@@ -141,7 +156,12 @@ async function connectWhatsApp() {
     })
     sock = wa
 
-    wa.ev.on('creds.update', saveCreds)
+    wa.ev.on('creds.update', () => {
+      saveCreds().catch((error) => {
+        lastError = String(error?.message || error)
+        logger.error({ err: lastError }, 'WhatsApp credential save failed')
+      })
+    })
     wa.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
       if (qr) {
         connectionState = 'pairing'
