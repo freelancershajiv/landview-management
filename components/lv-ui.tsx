@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { cloneElement, isValidElement, ReactNode, useEffect, useState } from "react";
+import { cloneElement, isValidElement, ReactElement, ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
@@ -185,10 +185,13 @@ export function Field({ label, children, hint }: { label: string; children: Reac
     </label>;
   }
 
-  const renderedChildren = isProjectLocationTag && isValidElement<any>(children)
-    ? cloneElement(children, {
+  const locationTagElement = isProjectLocationTag && isValidElement(children)
+    ? children as ReactElement<any>
+    : null;
+  const renderedChildren = locationTagElement
+    ? cloneElement(locationTagElement, {
         onBlur: (event: any) => {
-          children.props.onBlur?.(event);
+          locationTagElement.props.onBlur?.(event);
           void normalizeLocationTag(String(event.currentTarget?.value || event.target?.value || ""));
         },
       })
