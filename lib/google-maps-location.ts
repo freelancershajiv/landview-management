@@ -131,6 +131,38 @@ const REQUEST_HEADERS = {
   "accept-language": "en-US,en;q=0.9",
 };
 
+async function expandWithHeadRedirects(first: URL) {
+  let current = first;
+  for (let redirect = 0; redirect < 8; redirect += 1) {
+    const currentValue = current.toString();
+    const parsedCurrent = parseGoogleMapsCoordinates(currentValue, "expanded-link", currentValue);
+    if (parsedCurrent) return parsedCurrent;
+
+    let response: Response;
+    try {
+      response = await fetch(current, {
+        method: "HEAD",
+        redirect: "manual",
+        cache: "no-store",
+        headers: REQUEST_HEADERS,
+        signal: AbortSignal.timeout(7000),
+      });
+    } catch {
+      return null;
+    }
+
+    const location = response.headers.get("location");
+    if (!location || response.status < 300 || response.status >= 400) return null;
+    const next = safeGoogleUrl(location, currentValue);
+    if (!next) return null;
+
+    const fromLocation = parseGoogleMapsCoordinates(next.toString(), "expanded-link", next.toString());
+    if (fromLocation) return fromLocation;
+    current = next;
+  }
+  return null;
+}
+
 export async function resolveGoogleMapsLocation(value: unknown): Promise<ResolvedGoogleMapsLocation | null> {
   const raw = text(value, 4000);
   if (!raw) return null;
@@ -141,9 +173,16 @@ export async function resolveGoogleMapsLocation(value: unknown): Promise<Resolve
   const first = safeGoogleUrl(raw);
   if (!first) return null;
 
-  // First let the HTTP client follow the entire short-link chain. For
-  // maps.app.goo.gl this usually produces the full /maps/.../@lat,lng URL and is
-  // considerably more reliable than interpreting intermediate Google pages.
+  // Short Google Maps links often expose the destination more reliably through
+  // HEAD redirects than through a server-side GET. Follow only HTTPS Google hosts
+  // so project locations never pass through a third-party unshortening service.
+  if (first.hostname.toLowerCase().endsWith("goo.gl")) {
+    const fromHead = await expandWithHeadRedirects(first);
+    if (fromHead) return fromHead;
+  }
+
+  // Next let the HTTP client follow the entire short-link chain. For
+  // maps.app.goo.gl this can produce the full /maps/.../@lat,lng URL.
   try {
     const response = await fetch(first, {
       method: "GET",
