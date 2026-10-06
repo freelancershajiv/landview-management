@@ -28,7 +28,9 @@ export default async function WebsiteReadinessPage() {
           </div>
           <div className="wr-actions">
             <Link className="wr-button" href="/admin/projects">Back to Projects</Link>
-            <Link className="wr-button primary" href="/admin/projects/locations">Complete Locations</Link>
+            <Link className="wr-button" href="/admin/projects/locations">Complete Locations</Link>
+            <Link className="wr-button" href="/admin/website-leads">Project Enquiries</Link>
+            <Link className="wr-button primary" href="/admin/projects/website-curation">Curate Website Projects</Link>
           </div>
         </header>
 
@@ -39,7 +41,7 @@ export default async function WebsiteReadinessPage() {
           <article className="wr-stat"><small>Average Score</small><strong>{average}%</strong></article>
         </section>
 
-        <div className="wr-note">Projects are not automatically removed from the website because their score is low. This dashboard is the cleanup queue: finish the strongest projects first, then use them as the curated portfolio and homepage features.</div>
+        <div className="wr-note">Use <strong>Website Curation</strong> to finish and rank the strongest 10–15 projects. The public homepage now uses that curated shortlist first and quality-ranked published projects as a fallback.</div>
 
         <div className="wr-table-wrap">
           {projects.length ? <table className="wr-table">
