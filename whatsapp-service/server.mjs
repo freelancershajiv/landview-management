@@ -255,7 +255,7 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
   return { state, status, connect, reset, scheduleReconnect }
 }
 
-let cachedGroup = { inviteCode: '', jid: '' }
+let cachedGroup = { target: '', jid: '' }
 let siteDrainTimer = null
 let clientDrainTimer = null
 
@@ -265,24 +265,59 @@ function inviteCodeFrom(value) {
   return (match?.[1] || raw).slice(0, 200)
 }
 
-async function ensureGroup(inviteValue) {
+function normalizedGroupName(value) {
+  return String(value || '').trim().replace(/^name\s*:/i, '').trim().replace(/\s+/g, ' ')
+}
+
+async function listSiteGroups() {
   const sock = siteSession.state.sock
   if (!sock || siteSession.state.connection !== 'open') throw new Error('Site Visit WhatsApp is not connected.')
-  const inviteCode = inviteCodeFrom(inviteValue || DEFAULT_INVITE)
+  const groups = await sock.groupFetchAllParticipating()
+  return Object.entries(groups || {}).map(([jid, group]) => ({
+    jid: String(jid),
+    name: String(group?.subject || '').trim(),
+    participantCount: Array.isArray(group?.participants) ? group.participants.length : null,
+  })).filter((group) => group.jid && group.name).sort((a, b) => a.name.localeCompare(b.name))
+}
+
+async function ensureGroup(targetValue) {
+  const sock = siteSession.state.sock
+  if (!sock || siteSession.state.connection !== 'open') throw new Error('Site Visit WhatsApp is not connected.')
+
+  const rawTarget = String(targetValue || DEFAULT_INVITE).trim()
+  if (!rawTarget) throw new Error('WhatsApp group destination is missing.')
+
+  if (/^name\s*:/i.test(rawTarget)) {
+    const groupName = normalizedGroupName(rawTarget)
+    if (!groupName) throw new Error('WhatsApp group name is missing.')
+    const targetKey = `name:${groupName.toLocaleLowerCase()}`
+    if (cachedGroup.target === targetKey && cachedGroup.jid) return cachedGroup.jid
+
+    const groups = await listSiteGroups()
+    const matches = groups.filter((group) => group.name.toLocaleLowerCase() === groupName.toLocaleLowerCase())
+    if (!matches.length) throw new Error(`WhatsApp group “${groupName}” is not available to the connected LAND VIEW account.`)
+    if (matches.length > 1) throw new Error(`More than one WhatsApp group is named “${groupName}”. Rename one group or use an invite link.`)
+
+    cachedGroup = { target: targetKey, jid: matches[0].jid }
+    return matches[0].jid
+  }
+
+  const inviteCode = inviteCodeFrom(rawTarget)
   if (!inviteCode) throw new Error('WhatsApp group invite code is missing.')
-  if (cachedGroup.inviteCode === inviteCode && cachedGroup.jid) return cachedGroup.jid
+  const targetKey = `invite:${inviteCode}`
+  if (cachedGroup.target === targetKey && cachedGroup.jid) return cachedGroup.jid
 
   const info = await sock.groupGetInviteInfo(inviteCode)
-  const groupJid = String(info?.id || '')
+  let groupJid = String(info?.id || '')
   if (!groupJid) throw new Error('Could not resolve the WhatsApp group invite.')
 
   const groups = await sock.groupFetchAllParticipating().catch(() => ({}))
   if (!groups?.[groupJid]) {
     const joined = await sock.groupAcceptInvite(inviteCode)
-    if (joined) cachedGroup = { inviteCode, jid: String(joined) }
+    if (joined) groupJid = String(joined)
   }
-  if (!cachedGroup.jid) cachedGroup = { inviteCode, jid: groupJid }
-  return cachedGroup.jid
+  cachedGroup = { target: targetKey, jid: groupJid }
+  return groupJid
 }
 
 async function processSiteOutboxOnce() {
@@ -712,7 +747,7 @@ const siteSession = createManagedSession({
   sessionId: SITE_SESSION_ID,
   label: 'LAND VIEW Site Visits',
   onOpen: async () => {
-    cachedGroup = { inviteCode: '', jid: '' }
+    cachedGroup = { target: '', jid: '' }
     await store('outboxRecoverStale').catch(() => null)
     scheduleSiteDrain(250)
   },
@@ -753,6 +788,15 @@ app.use(express.json({ limit: '64kb' }))
 app.get('/', (_req, res) => res.json({ ok: true, siteVisitBot: siteSession.status(), clientBot: clientSession.status() }))
 app.get('/health', (_req, res) => res.json(siteSession.status()))
 app.get('/client/health', (_req, res) => res.json(clientSession.status()))
+app.get('/groups', async (req, res) => {
+  if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
+  try {
+    const groups = await listSiteGroups()
+    return res.json({ ok: true, groups })
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: String(error?.message || error) })
+  }
+})
 
 app.post('/wake', (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
@@ -779,7 +823,7 @@ app.get('/client/pair', (req, res) => {
 app.post('/admin/reset', async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   try {
-    cachedGroup = { inviteCode: '', jid: '' }
+    cachedGroup = { target: '', jid: '' }
     await siteSession.reset()
     return res.json({ ok: true })
   } catch (error) {
