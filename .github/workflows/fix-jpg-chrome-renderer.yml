@@ -1,0 +1,116 @@
+name: Fix JPG Chrome renderer
+
+on:
+  push:
+    paths:
+      - ".jpg-renderer-fix-trigger"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install safe DOM rasterizer
+        run: npm install html2canvas@1.4.1 --save-exact
+      - name: Replace SVG foreignObject renderer
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path('lib/save-document-jpg.ts')
+          text = path.read_text()
+
+          if 'import html2canvas from "html2canvas";' not in text:
+              text = text.replace(
+                  'import type { SheetInvoices } from "@/lib/sheet-invoices";\n',
+                  'import type { SheetInvoices } from "@/lib/sheet-invoices";\nimport html2canvas from "html2canvas";\n',
+                  1,
+              )
+
+          text, removed = re.subn(
+              r'function loadSvgImage\(blob: Blob\) \{.*?\n\}\n\n(?=function canvasToJpeg)',
+              '',
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if removed != 1 and 'function loadSvgImage' in text:
+              raise SystemExit('Could not remove the foreignObject SVG loader')
+
+          replacement = '''async function renderPageToJpeg(page: HTMLElement) {
+            const rect = page.getBoundingClientRect();
+            const width = Math.max(1, Math.round(rect.width));
+            const height = Math.max(1, Math.round(rect.height));
+            const scale = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
+
+            // The page lives only inside the off-screen JPG export host, so it is
+            // safe to sanitize it in place. Embedding all <img> resources and
+            // inlining URL-free computed styles keeps html2canvas origin-clean.
+            inlineComputedStyles(page, page);
+            await embedImages(page, page);
+            stripNetworkReferences(page);
+            await waitForFrame();
+
+            const canvas = await html2canvas(page, {
+              backgroundColor: "#ffffff",
+              scale,
+              useCORS: false,
+              allowTaint: false,
+              foreignObjectRendering: false,
+              logging: false,
+              width,
+              height,
+              windowWidth: width,
+              windowHeight: height,
+              scrollX: 0,
+              scrollY: 0,
+              imageTimeout: 5000,
+            });
+
+            return canvasToJpeg(canvas);
+          }'''
+
+          text, changed = re.subn(
+              r'async function renderPageToJpeg\(page: HTMLElement\) \{.*?\n\}\n\n(?=function downloadBlob)',
+              replacement + '\n\n',
+              text,
+              count=1,
+              flags=re.S,
+          )
+          if changed != 1:
+              raise SystemExit('Could not replace renderPageToJpeg')
+
+          # Include the page root itself when stripping inline URL references.
+          text = text.replace(
+              'root.querySelectorAll<HTMLElement>("*").forEach((element) => {',
+              '[root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))].forEach((element) => {',
+              1,
+          )
+
+          path.write_text(text)
+          PY
+      - name: Verify production build
+        run: npm run build
+      - name: Commit safe JPG renderer
+        run: |
+          if git diff --quiet -- lib/save-document-jpg.ts package.json package-lock.json; then
+            echo "No JPG renderer changes needed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add lib/save-document-jpg.ts package.json package-lock.json
+          git commit -m "Use origin-clean renderer for JPG export"
+          git push origin main
