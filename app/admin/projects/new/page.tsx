@@ -175,7 +175,7 @@ export default function NewProjectPage() {
       const json = await response.json();
       if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not create the project."));
       const createdId = text(json.data?.Project_ID);
-      setMessage({ kind: "ok", text: `${createdId} was created successfully in Supabase.`, id: createdId });
+      setMessage({ kind: "ok", text: `${createdId} was created successfully in Supabase. Add its structured address next so it can be filtered by Division, District, Upazila, local body and Ward on the public map.`, id: createdId });
       setExistingIds((current) => new Set([...current, createdId]));
       setForm({ ...emptyForm, Start_Date: new Date().toISOString().slice(0, 10) });
       setLocationMessage("");
@@ -194,7 +194,7 @@ export default function NewProjectPage() {
   return <>
     <style dangerouslySetInnerHTML={{__html:css}} />
     <div className="new-project-page">
-      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="New Project" description="Create a new Supabase project using the normal automatic LV number or intentionally reuse a genuinely unused historical gap." action={<div className="new-project-actions"><Link className="new-project-btn" href="/admin/projects">← Projects</Link><Link className="new-project-btn" href="/admin/projects/legacy">Legacy Projects</Link></div>} />
+      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="New Project" description="Create a new Supabase project using the normal automatic LV number or intentionally reuse a genuinely unused historical gap." action={<div className="new-project-actions"><Link className="new-project-btn" href="/admin/projects">← Projects</Link><Link className="new-project-btn" href="/admin/projects/locations">Locations</Link><Link className="new-project-btn" href="/admin/projects/legacy">Legacy Projects</Link></div>} />
 
       <section className="new-project-card">
         <div className="new-project-head"><strong>Project ID method</strong><small>Automatic is the normal choice. Manual is for an intentionally unused LV number that you know will never belong to its original lost project.</small></div>
@@ -227,7 +227,7 @@ export default function NewProjectPage() {
           <button className="new-project-btn primary submit" type="submit" disabled={!canManage || saving || (mode === "manual" && manualExists)}>{saving ? "Creating project…" : mode === "automatic" ? "Create Project with Automatic ID" : `Create Project as ${normalizedManual || "Manual ID"}`}</button>
         </form>
 
-        {message && <div className={`message ${message.kind}`}>{message.text}{message.kind === "ok" && message.id && <div className="created-box"><Link className="new-project-btn" href="/admin/projects">View Projects</Link><button className="new-project-btn" type="button" onClick={()=>router.push(`/admin/projects/${encodeURIComponent(message.id || "")}`)}>Open Project</button></div>}</div>}
+        {message && <div className={`message ${message.kind}`}>{message.text}{message.kind === "ok" && message.id && <div className="created-box"><Link className="new-project-btn primary" href={`/admin/projects/locations?project=${encodeURIComponent(message.id)}`}>Add Structured Address</Link><Link className="new-project-btn" href="/admin/projects">View Projects</Link><button className="new-project-btn" type="button" onClick={()=>router.push(`/admin/projects/${encodeURIComponent(message.id || "")}`)}>Open Project</button></div>}</div>}
         {!canManage && <div className="message err">Admin or manager access is required to create projects.</div>}
         <div className="new-project-note">Manual gap reuse keeps the LV numbering sequence compact, but it does not materially reduce database storage. Use a manual ID only when you are certain the old number is permanently abandoned.</div>
       </section>
