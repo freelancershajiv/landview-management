@@ -40,31 +40,33 @@ async function authorizedUser(request: NextRequest) {
 }
 
 function validCoordinates(latitude: unknown, longitude: unknown) {
-  const lat = Number(latitude);
-  const lng = Number(longitude);
+  const latText = String(latitude ?? "").trim();
+  const lngText = String(longitude ?? "").trim();
+  if (!latText || !lngText) return null;
+  const lat = Number(latText);
+  const lng = Number(lngText);
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) return null;
   return { latitude: lat, longitude: lng };
 }
 
 async function projectMapSource(row: Record<string, any>) {
   const locationTag = String(row.location_tag || "").trim();
-  if (locationTag) {
-    const direct = parseGoogleMapsCoordinates(locationTag);
-    if (direct) return { latitude: direct.latitude, longitude: direct.longitude, source: "location-tag" as const };
+  if (!locationTag) return null;
 
-    if (looksLikeGoogleMapsLocation(locationTag)) {
-      try {
-        const resolved = await resolveGoogleMapsLocation(locationTag);
-        if (resolved) return { latitude: resolved.latitude, longitude: resolved.longitude, source: "location-tag" as const };
-      } catch {}
-    }
+  const direct = parseGoogleMapsCoordinates(locationTag);
+  if (direct) return { latitude: direct.latitude, longitude: direct.longitude, source: "location-tag" as const };
+
+  if (looksLikeGoogleMapsLocation(locationTag)) {
+    try {
+      const resolved = await resolveGoogleMapsLocation(locationTag);
+      if (resolved) return { latitude: resolved.latitude, longitude: resolved.longitude, source: "location-tag" as const };
+    } catch {}
   }
 
+  // Only use the stored site coordinates when a Location Tag exists but Google
+  // cannot temporarily expand it. These values are synchronized from the tag.
   const site = validCoordinates(row.site_latitude, row.site_longitude);
   if (site) return { ...site, source: "site-coordinates" as const };
-
-  const legacy = validCoordinates(row.public_map_latitude, row.public_map_longitude);
-  if (legacy) return { ...legacy, source: "legacy-public-coordinates" as const };
 
   return null;
 }
@@ -131,12 +133,19 @@ export async function POST(request: NextRequest) {
     const project = rows[0];
     const publicMapEnabled = body.publicMapEnabled === true;
     const publicMapPrecision = body.publicMapPrecision === "exact" ? "exact" : "approximate";
+    const locationTag = String(project.location_tag || "").trim();
     const source = await projectMapSource(project);
 
+    if (publicMapEnabled && !locationTag) {
+      return NextResponse.json({
+        success: false,
+        error: "Add a Location Tag in the project editor before publishing this project on the public map.",
+      }, { status: 400 });
+    }
     if (publicMapEnabled && !source) {
       return NextResponse.json({
         success: false,
-        error: "Set a valid Location Tag in the project editor before publishing this project on the public map.",
+        error: "The project Location Tag could not be resolved. Open the project editor, refresh the Location Tag, and try again.",
       }, { status: 400 });
     }
 
@@ -148,8 +157,6 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
-    // Keep the internal site coordinates synchronized when the Location Tag was
-    // successfully resolved. Site Visits and the public map then use one location.
     if (source?.source === "location-tag") {
       changes.site_latitude = source.latitude;
       changes.site_longitude = source.longitude;
