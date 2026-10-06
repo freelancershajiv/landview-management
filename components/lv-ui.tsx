@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ReactNode } from "react";
+import { isValidElement, ReactNode, useState } from "react";
+import { usePathname } from "next/navigation";
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
   return (
@@ -67,7 +68,68 @@ export function Money({ value }: { value: unknown }) {
 }
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
-  return <label className="form-field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
+  const pathname = usePathname();
+  const [locating, setLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState("");
+
+  const normalizedLabel = label.trim().toUpperCase();
+  const isProjectEditorLocation = normalizedLabel === "LOCATION" && /^\/admin\/projects\/(?!new(?:\/|$)|legacy(?:\/|$)|reclassify(?:\/|$))[^/]+\/?$/.test(pathname || "");
+
+  function useCurrentLocation() {
+    if (locating) return;
+    setLocationMessage("");
+
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setLocationMessage("Current location requires a secure HTTPS connection.");
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationMessage("Current location is not available in this browser.");
+      return;
+    }
+    if (!isValidElement<{ onChange?: (event: any) => void }>(children) || typeof children.props.onChange !== "function") {
+      setLocationMessage("This location field cannot be updated automatically.");
+      return;
+    }
+
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const latitude = Number(position.coords.latitude.toFixed(8));
+        const longitude = Number(position.coords.longitude.toFixed(8));
+        const mapUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+        children.props.onChange?.({
+          target: { value: mapUrl },
+          currentTarget: { value: mapUrl },
+        });
+        const accuracy = Number.isFinite(position.coords.accuracy) ? Math.round(position.coords.accuracy) : 0;
+        setLocationMessage(`Current location added${accuracy ? ` · accuracy ±${accuracy} m` : ""}. Save the project to apply it.`);
+        setLocating(false);
+      },
+      error => {
+        const message = error.code === error.PERMISSION_DENIED
+          ? "Location access is blocked. Allow Location for LAND VIEW in your browser/site settings, then try again."
+          : error.code === error.POSITION_UNAVAILABLE
+            ? "Your current location could not be determined. Check GPS and try again."
+            : "Location request timed out. Check GPS and try again.";
+        setLocationMessage(message);
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
+    );
+  }
+
+  return <label className="form-field">
+    <span>{label}</span>
+    {children}
+    {isProjectEditorLocation && <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:7}}>
+      <button type="button" className="btn btn-small" onClick={event=>{event.preventDefault();event.stopPropagation();useCurrentLocation();}} disabled={locating}>
+        {locating ? "Getting current location..." : "Use Current Location"}
+      </button>
+      {locationMessage && <small style={{margin:0,flex:"1 1 180px"}}>{locationMessage}</small>}
+    </div>}
+    {hint && <small>{hint}</small>}
+  </label>;
 }
 
 export function pick(obj: Record<string, any> | undefined | null, keys: string[], fallback = "") {
