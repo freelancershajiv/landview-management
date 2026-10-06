@@ -9,6 +9,7 @@ import BrandLoader from "@/components/brand-loader";
 import GlobalActionFeedback from "@/components/global-action-feedback";
 import SessionExpiryGuard from "@/components/session-expiry-guard";
 import VisitorAnalytics from "@/components/visitor-analytics";
+import PublicLeadActions from "@/components/public-lead-actions";
 import "./globals.css";
 import "./brand-loader.css";
 import "./premium-theme.css";
@@ -91,6 +92,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemeSwitch />
         <BrandLoader />
         {children}
+        <PublicLeadActions />
         <VisitorAnalytics />
         <SessionExpiryGuard />
         <Analytics />
