@@ -54,21 +54,29 @@ export function parseGoogleMapsCoordinates(value: unknown, method: ResolvedGoogl
   try { candidates.push(decodeURIComponent(raw)); } catch {}
 
   for (const candidate of candidates) {
-    const patterns = [
-      /@(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)(?:[,/]|$)/,
-      /[?&](?:q|query|ll|center)=(-?\d{1,2}(?:\.\d+)?)(?:%2C|,|%2c)\s*(-?\d{1,3}(?:\.\d+)?)(?:&|$)/i,
-      /!3d(-?\d{1,2}(?:\.\d+)?).*?!4d(-?\d{1,3}(?:\.\d+)?)/i,
-      /(?:^|[^\d.-])(-?\d{1,2}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})(?:[^\d.]|$)/,
-    ];
-    for (const pattern of patterns) {
-      const found = pair(candidate, pattern, method, sourceUrl);
-      if (found) return found;
-    }
+    // Prefer coordinates that identify the explicit Google Maps pin/place. An
+    // expanded place URL can also contain @lat,lng, but that pair is only the
+    // viewport centre and may be kilometres away from the actual project pin.
+    const query = pair(candidate, /[?&](?:q|query|ll|center)=(-?\d{1,2}(?:\.\d+)?)(?:%2C|,|%2c)\s*(-?\d{1,3}(?:\.\d+)?)(?:&|$)/i, method, sourceUrl);
+    if (query) return query;
+
+    const placePin = pair(candidate, /!3d(-?\d{1,2}(?:\.\d+)?).*?!4d(-?\d{1,3}(?:\.\d+)?)/i, method, sourceUrl);
+    if (placePin) return placePin;
 
     const lngLat = candidate.match(/!2d(-?\d{1,3}(?:\.\d+)?).*?!3d(-?\d{1,2}(?:\.\d+)?)/i);
     if (lngLat) {
       const found = resolved(Number(lngLat[2]), Number(lngLat[1]), method, sourceUrl);
       if (found) return found;
+    }
+
+    // @lat,lng is trustworthy when the user pasted a direct Maps URL, but not
+    // when it came from expanding a short link because it can be just a viewport.
+    if (method === "direct") {
+      const viewport = pair(candidate, /@(-?\d{1,2}(?:\.\d+)?),\s*(-?\d{1,3}(?:\.\d+)?)(?:[,/]|$)/, method, sourceUrl);
+      if (viewport) return viewport;
+
+      const generic = pair(candidate, /(?:^|[^\d.-])(-?\d{1,2}\.\d{4,})\s*,\s*(-?\d{1,3}\.\d{4,})(?:[^\d.]|$)/, method, sourceUrl);
+      if (generic) return generic;
     }
   }
   return null;
@@ -173,16 +181,15 @@ export async function resolveGoogleMapsLocation(value: unknown): Promise<Resolve
   const first = safeGoogleUrl(raw);
   if (!first) return null;
 
-  // Short Google Maps links often expose the destination more reliably through
-  // HEAD redirects than through a server-side GET. Follow only HTTPS Google hosts
-  // so project locations never pass through a third-party unshortening service.
+  // Short Google Maps links can expose the destination through redirects. Follow
+  // only HTTPS Google hosts so project locations never pass through a third-party
+  // unshortening service. Expanded links must contain explicit pin/place data;
+  // viewport-only @lat,lng coordinates are intentionally rejected.
   if (first.hostname.toLowerCase().endsWith("goo.gl")) {
     const fromHead = await expandWithHeadRedirects(first);
     if (fromHead) return fromHead;
   }
 
-  // Next let the HTTP client follow the entire short-link chain. For
-  // maps.app.goo.gl this can produce the full /maps/.../@lat,lng URL.
   try {
     const response = await fetch(first, {
       method: "GET",
