@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
 import EmployeeCommandCenter, { type EmployeeCommandView } from "@/components/employee-command-center";
+import EmployeeWhatsAppConnect from "@/components/employee-whatsapp-connect";
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
 import EmployeeExpenseCenter from "@/components/employee-expense-center";
 import EmployeeCertificateCenter from "@/components/employee-certificate-center";
@@ -101,6 +102,7 @@ export default function EmployeePortalShell() {
     </div>
 
     <div className="employee-workspace-body">
+      {active === "dashboard" && <EmployeeWhatsAppConnect />}
       {commandView && <EmployeeCommandCenter view={commandView} />}
       {active === "visits" && <EmployeeSiteVisitCenter />}
       {active === "expenses" && <EmployeeExpenseCenter />}
