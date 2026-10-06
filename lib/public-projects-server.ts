@@ -41,17 +41,33 @@ export function cleanPublicValue(value: unknown) {
 
 function cleanProjectTitle(value: unknown) {
   return cleanPublicValue(value)
-    .replace(/\s*\((?:referred|reference)\s+by\b[^)]*\)\s*$/i, "")
-    .replace(/\s*[-–—|]\s*(?:referred|reference)\s+by\b.*$/i, "")
+    .replace(/\s*\((?:ref(?:erred)?\.?|reference)\s*[:.]?\s*[^)]*\)\s*$/i, "")
+    .replace(/\s*[-–—|]\s*(?:ref(?:erred)?\.?|reference)\s*[:.]?\s*.*$/i, "")
+    .replace(/\s*\((?:eng(?:ineer)?\.?\s+[^)]*(?:fnd|friend|cousin|mama|uncle|aunty))\)\s*$/i, "")
+    .replace(/\s*[-–—]\s*(?:eng(?:ineer)?\.?\s+.*(?:fnd|friend|cousin|mama|uncle|aunty))\s*$/i, "")
     .trim();
 }
 
 function cleanStories(value: unknown) {
   const text = cleanPublicValue(value);
   if (!text) return "";
-  const plainCount = text.match(/^(\d+)\s*(?:stories?|storied|floors?)$/i);
-  if (plainCount) return plainCount[1];
-  return text.replace(/\s+(?:stories?|floors?)\s+(?:stories?|floors?)$/i, "").trim();
+  const normalized = text
+    .replace(/\s*(?:stories?|storied|storeid|floors?)\s*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!normalized || /^(?:re-?design|estimate|flat design|duplex|triplex)$/i.test(normalized)) return "";
+  return /^(?:[A-Za-z]+\+)?\d+(?:\/\d+)?$/i.test(normalized) ? normalized.toUpperCase() : "";
+}
+
+function cleanArea(value: unknown) {
+  const text = cleanPublicValue(value);
+  if (!text || /^(?:re-?design|estimate|flat design|duplex|triplex|\d+\s*(?:stories?|storied|storeid|floors?))$/i.test(text)) return "";
+  return text
+    .replace(/\bdecim(?:al)?\b/gi, "Decimal")
+    .replace(/\bdeimal\b/gi, "Decimal")
+    .replace(/\bsq\.?\s*ft\.?\b/gi, "sq ft")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function normalizePublicImageUrl(url?: string) {
@@ -204,7 +220,7 @@ export const getPublicProjectsForSeo = cache(async function getPublicProjectsFor
           if (supervision !== "Completed") return "Supervision / Construction";
           return "Completed";
         })(),
-        area: cleanPublicValue(row.project_area_text || row.plot_area),
+        area: cleanArea(row.project_area_text || row.plot_area),
         stories: cleanStories(row.number_of_stories_text || row.floors),
         completionYear: cleanPublicValue(row.completion_year),
         description: cleanPublicValue(row.public_description),
