@@ -63,8 +63,6 @@ async function projectMapSource(row: Record<string, any>) {
     } catch {}
   }
 
-  // Only use the stored site coordinates when a Location Tag exists but Google
-  // cannot temporarily expand it. These values are synchronized from the tag.
   const site = validCoordinates(row.site_latitude, row.site_longitude);
   if (site) return { ...site, source: "site-coordinates" as const };
 
@@ -80,7 +78,7 @@ async function settings(row: Record<string, any>) {
     locationTag: String(row.location_tag || ""),
     publicDisplay: Boolean(row.public_display),
     publicMapEnabled: Boolean(row.public_map_enabled),
-    publicMapPrecision: row.public_map_precision === "exact" ? "exact" : "approximate",
+    publicMapPrecision: "exact" as const,
     publicMapLatitude: source?.latitude ?? "",
     publicMapLongitude: source?.longitude ?? "",
     mapSource: source?.source || "",
@@ -132,7 +130,6 @@ export async function POST(request: NextRequest) {
 
     const project = rows[0];
     const publicMapEnabled = body.publicMapEnabled === true;
-    const publicMapPrecision = body.publicMapPrecision === "exact" ? "exact" : "approximate";
     const locationTag = String(project.location_tag || "").trim();
     const source = await projectMapSource(project);
 
@@ -151,7 +148,7 @@ export async function POST(request: NextRequest) {
 
     const changes: Record<string, unknown> = {
       public_map_enabled: publicMapEnabled,
-      public_map_precision: publicMapPrecision,
+      public_map_precision: "exact",
       public_map_latitude: source?.latitude ?? null,
       public_map_longitude: source?.longitude ?? null,
       updated_at: new Date().toISOString(),
