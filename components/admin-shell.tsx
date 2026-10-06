@@ -19,6 +19,7 @@ const nav = [
   { href: "/admin/certificate-requests", label: "Requests" },
   { href: "/admin/certificates", label: "Certificates" },
   { href: "/admin/finance", label: "Finance", accounts: true },
+  { href: "/admin/municipality-file-pass", label: "Municipality File Pass", accounts: true },
   { href: "/projectmanagement", label: "Project Management", accounts: true, adminOnly: true },
 ];
 
