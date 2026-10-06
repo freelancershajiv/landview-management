@@ -1,0 +1,73 @@
+/* LAND VIEW portal navigation scroll lock.
+   Desktop navigation stays attached to the viewport while page content scrolls.
+   Long navigation lists may scroll internally without moving the entire rail. */
+
+@media screen and (min-width: 901px) {
+  /* Admin currently uses a top navigation composition. Keep the complete
+     management masthead pinned even though nested admin theme rules may try
+     to reset it to position: relative. */
+  html body .portal-admin .masthead {
+    position: sticky !important;
+    top: 0 !important;
+    z-index: 300 !important;
+    transform: none !important;
+  }
+
+  /* Employee rail is a permanent desktop sidebar. */
+  html body .portal-employee .employee-sidebar {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+    overscroll-behavior: contain;
+  }
+
+  html body .portal-employee .employee-nav {
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+}
+
+@media screen and (min-width: 981px) {
+  /* Client rail used sticky positioning, which can move with its containing
+     page. Pin it directly to the viewport and reserve its width in the stage. */
+  html body .lv-client-shell .lv-client-side {
+    position: fixed !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    left: 0 !important;
+    width: 278px !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+    overscroll-behavior: contain;
+  }
+
+  html body .lv-client-shell .lv-client-nav {
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  html body .lv-client-shell .lv-client-stage {
+    width: calc(100% - 278px) !important;
+    margin-left: 278px !important;
+    min-width: 0 !important;
+  }
+}
+
+/* Mobile/tablet keeps the existing slide-out drawer behavior. */
+@media screen and (max-width: 980px) {
+  html body .lv-client-shell .lv-client-stage {
+    width: 100% !important;
+    margin-left: 0 !important;
+  }
+}
