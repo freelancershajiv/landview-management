@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { isValidElement, ReactNode, useState } from "react";
+import { isValidElement, ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
@@ -73,7 +73,27 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   const [locationMessage, setLocationMessage] = useState("");
 
   const normalizedLabel = label.trim().toUpperCase();
-  const isProjectEditorLocation = normalizedLabel === "LOCATION" && /^\/admin\/projects\/(?!new(?:\/|$)|legacy(?:\/|$)|reclassify(?:\/|$))[^/]+\/?$/.test(pathname || "");
+  const isProjectEditor = /^\/admin\/projects\/(?!new(?:\/|$)|legacy(?:\/|$)|reclassify(?:\/|$))[^/]+\/?$/.test(pathname || "");
+  const isProjectAddress = isProjectEditor && normalizedLabel === "LOCATION";
+  const isProjectLocationTag = isProjectEditor && normalizedLabel === "LOCATION TAG";
+  const isProjectCoordinate = isProjectEditor && (normalizedLabel === "SITE LATITUDE" || normalizedLabel === "SITE LONGITUDE");
+  const displayLabel = isProjectAddress ? "ADDRESS" : label;
+
+  useEffect(() => {
+    if (!isProjectCoordinate || typeof window === "undefined") return;
+    if (!isValidElement<{ onChange?: (event: any) => void }>(children) || typeof children.props.onChange !== "function") return;
+
+    const handler = (event: Event) => {
+      const detail = (event as CustomEvent<{ latitude?: number; longitude?: number }>).detail || {};
+      const value = normalizedLabel === "SITE LATITUDE" ? detail.latitude : detail.longitude;
+      if (!Number.isFinite(Number(value))) return;
+      const text = String(value);
+      children.props.onChange?.({ target: { value: text }, currentTarget: { value: text } });
+    };
+
+    window.addEventListener("landview-project-location", handler as EventListener);
+    return () => window.removeEventListener("landview-project-location", handler as EventListener);
+  }, [children, isProjectCoordinate, normalizedLabel]);
 
   function useCurrentLocation() {
     if (locating) return;
@@ -88,7 +108,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
       return;
     }
     if (!isValidElement<{ onChange?: (event: any) => void }>(children) || typeof children.props.onChange !== "function") {
-      setLocationMessage("This location field cannot be updated automatically.");
+      setLocationMessage("This location tag cannot be updated automatically.");
       return;
     }
 
@@ -98,12 +118,18 @@ export function Field({ label, children, hint }: { label: string; children: Reac
         const latitude = Number(position.coords.latitude.toFixed(8));
         const longitude = Number(position.coords.longitude.toFixed(8));
         const mapUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+
         children.props.onChange?.({
           target: { value: mapUrl },
           currentTarget: { value: mapUrl },
         });
+
+        window.dispatchEvent(new CustomEvent("landview-project-location", {
+          detail: { latitude, longitude },
+        }));
+
         const accuracy = Number.isFinite(position.coords.accuracy) ? Math.round(position.coords.accuracy) : 0;
-        setLocationMessage(`Current location added${accuracy ? ` · accuracy ±${accuracy} m` : ""}. Save the project to apply it.`);
+        setLocationMessage(`Location tag updated${accuracy ? ` · accuracy ±${accuracy} m` : ""}. GPS coordinates will be stored internally when you save.`);
         setLocating(false);
       },
       error => {
@@ -119,15 +145,23 @@ export function Field({ label, children, hint }: { label: string; children: Reac
     );
   }
 
+  if (isProjectCoordinate) {
+    return <label className="form-field" style={{display:"none"}} aria-hidden="true">
+      <span>{label}</span>
+      {children}
+    </label>;
+  }
+
   return <label className="form-field">
-    <span>{label}</span>
+    <span>{displayLabel}</span>
     {children}
-    {isProjectEditorLocation && <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:7}}>
+    {isProjectLocationTag && <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:7}}>
       <button type="button" className="btn btn-small" onClick={event=>{event.preventDefault();event.stopPropagation();useCurrentLocation();}} disabled={locating}>
         {locating ? "Getting current location..." : "Use Current Location"}
       </button>
       {locationMessage && <small style={{margin:0,flex:"1 1 180px"}}>{locationMessage}</small>}
     </div>}
+    {isProjectLocationTag && !hint && <small>Use this for the Google Maps/GPS pin. Latitude and longitude are kept internally for the public map and Site Visit verification.</small>}
     {hint && <small>{hint}</small>}
   </label>;
 }
