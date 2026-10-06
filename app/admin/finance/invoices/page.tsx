@@ -15,6 +15,7 @@ import ProjectBillingDocument, {
   printBillingPdf,
 } from "@/components/project-billing-document";
 import EmailInvoiceButton from "@/components/email-invoice-button";
+import { saveBillingJpg } from "@/lib/save-document-jpg";
 import styles from "./invoice.module.css";
 
 const BILLING_SNAPSHOT_PREFIX = "landview_billing_snapshot_v3:";
@@ -207,6 +208,7 @@ export default function ProjectBillingPage() {
               </button>
             )}
             <button className={styles.printButton} type="button" onClick={() => printBillingPdf(result)}>Print / Save PDF</button>
+              <button className={styles.printButton} type="button" onClick={() => void saveBillingJpg(result).catch((error) => window.alert(error instanceof Error ? error.message : "Could not save JPG."))}>Save JPG</button>
           </div>
         )}
       </div>

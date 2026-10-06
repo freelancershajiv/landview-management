@@ -3,6 +3,7 @@
 import Link from "next/link";
 import ProposalFinanceBillingDocument, { toFinanceInvoice } from "@/components/proposal-finance-billing-document";
 import { printBillingPdf } from "@/components/project-billing-document";
+import { saveBillingJpg } from "@/lib/save-document-jpg";
 import { useEffect, useMemo, useState } from "react";
 import { getProposal, getProposalPermissions, saveProposal, updateProposalAction, type ProposalBundle, type ProposalItem, type ProposalRecord } from "@/lib/proposal-api";
 import { sortServicesByStandardOrder, standardServiceLabel } from "@/lib/service-order";
@@ -38,6 +39,7 @@ export default function ProposalWorkspace({proposalId}:{proposalId?:string}){
   const [loading,setLoading]=useState(Boolean(proposalId));
   const [saving,setSaving]=useState(false);
   const [printing,setPrinting]=useState(false);
+  const [exportingJpg,setExportingJpg]=useState(false);
   const [error,setError]=useState("");
   const [message,setMessage]=useState("");
 
@@ -96,6 +98,25 @@ export default function ProposalWorkspace({proposalId}:{proposalId?:string}){
     }
   }
 
+  async function saveProposalJpg(){
+    if(exportingJpg||printing||saving)return;
+    if(!record.Proposal_ID||!bundle)return setError("Save the proposal before exporting JPG.");
+    if(editing)return setError("Save your changes before exporting JPG.");
+    if(!canPrint)return setError("Your account does not have proposal export permission.");
+    setError("");
+    setExportingJpg(true);
+    try{
+      const pages=await saveBillingJpg(toFinanceInvoice(bundle,record.Proposal_ID),"Proposal");
+      if(!pages)return;
+      setStage(3);
+      setMessage(`${record.Proposal_ID} saved as ${pages===1?"a JPG":"JPG pages"}.`);
+    }catch(e){
+      setError(e instanceof Error?e.message:"Could not save proposal JPG.");
+    }finally{
+      setExportingJpg(false);
+    }
+  }
+
   if(loading)return <div style={{padding:28,color:"var(--theme-ink-_aab5be, #aab5be)"}}>Loading proposal…</div>;
 
   return <div className="proposal-workspace"><style>{`
@@ -103,8 +124,8 @@ export default function ProposalWorkspace({proposalId}:{proposalId?:string}){
     @media print{.pw-top,.pw-stage,.pw-msg,.pw-form,.pw-history{display:none!important}}
   `}</style>
 
-  <header className="pw-top"><div><small style={{color:"#ef6c66",fontWeight:900,letterSpacing:".14em"}}>LAND VIEW / PROPOSALS</small><h1>{record.Proposal_ID||"Add prospective client"}</h1><p>{record.Proposal_ID?`${record.Client_Name} · ${record.Status||"Draft"}`:"Save client and service pricing first, review the generated bill, then print or save PDF."}</p></div><div className="pw-actions"><Link className="pw-btn" href="/admin/proposals">← Proposals</Link>{record.Proposal_ID&&!editing&&canEdit&&<button className="pw-btn" onClick={()=>{setEditing(true);setStage(1)}}>Edit proposal</button>}{record.Proposal_ID&&canPrint&&<button className="pw-btn primary" disabled={printing||saving||editing||!bundle} onClick={()=>void printProposal()}>{printing?"Preparing PDF…":"Print / Save PDF"}</button>}</div></header>
-  <div className="pw-stage"><div className={stage===1?"active":""}><b>1 · Input & Save</b><small>Client, project and pricing</small></div><div className={stage===2?"active":""}><b>2 · Generate & Review</b><small>Check the official proposal bill</small></div><div className={stage===3?"active":""}><b>3 · Print / PDF</b><small>Final client copy</small></div></div>
+  <header className="pw-top"><div><small style={{color:"#ef6c66",fontWeight:900,letterSpacing:".14em"}}>LAND VIEW / PROPOSALS</small><h1>{record.Proposal_ID||"Add prospective client"}</h1><p>{record.Proposal_ID?`${record.Client_Name} · ${record.Status||"Draft"}`:"Save client and service pricing first, review the generated bill, then print or save PDF."}</p></div><div className="pw-actions"><Link className="pw-btn" href="/admin/proposals">← Proposals</Link>{record.Proposal_ID&&!editing&&canEdit&&<button className="pw-btn" onClick={()=>{setEditing(true);setStage(1)}}>Edit proposal</button>}{record.Proposal_ID&&canPrint&&<button className="pw-btn primary" disabled={printing||saving||editing||!bundle} onClick={()=>void printProposal()}>{printing?"Preparing PDF…":"Print / Save PDF"}</button>}{record.Proposal_ID&&canPrint&&<button className="pw-btn" disabled={exportingJpg||printing||saving||editing||!bundle} onClick={()=>void saveProposalJpg()}>{exportingJpg?"Preparing JPG…":"Save JPG"}</button>}</div></header>
+  <div className="pw-stage"><div className={stage===1?"active":""}><b>1 · Input & Save</b><small>Client, project and pricing</small></div><div className={stage===2?"active":""}><b>2 · Generate & Review</b><small>Check the official proposal bill</small></div><div className={stage===3?"active":""}><b>3 · Print / PDF / JPG</b><small>Final client copy</small></div></div>
   {error&&<div className="pw-msg error">{error}</div>}{message&&<div className="pw-msg ok">{message}</div>}
 
   {(editing||!record.Proposal_ID)&&<div className="pw-form">
