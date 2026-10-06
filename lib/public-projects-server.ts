@@ -27,7 +27,32 @@ export type PublicProjectSeo = {
   mapLatitude?: number;
   mapLongitude?: number;
   mapPrecision?: "exact" | "approximate";
+  publicReadiness?: number;
+  publicReady?: boolean;
+  publicMissing?: string[];
 };
+
+const EMPTY_PUBLIC_VALUES = new Set(["", "-", "—", "–", "0", "n/a", "na", "nil", "null", "undefined"]);
+
+export function cleanPublicValue(value: unknown) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  return EMPTY_PUBLIC_VALUES.has(text.toLowerCase()) ? "" : text;
+}
+
+function cleanProjectTitle(value: unknown) {
+  return cleanPublicValue(value)
+    .replace(/\s*\((?:referred|reference)\s+by\b[^)]*\)\s*$/i, "")
+    .replace(/\s*[-–—|]\s*(?:referred|reference)\s+by\b.*$/i, "")
+    .trim();
+}
+
+function cleanStories(value: unknown) {
+  const text = cleanPublicValue(value);
+  if (!text) return "";
+  const plainCount = text.match(/^(\d+)\s*(?:stories?|storied|floors?)$/i);
+  if (plainCount) return plainCount[1];
+  return text.replace(/\s+(?:stories?|floors?)\s+(?:stories?|floors?)$/i, "").trim();
+}
 
 export function normalizePublicImageUrl(url?: string) {
   const value = String(url || "").trim();
@@ -45,7 +70,49 @@ export function normalizePublicImageUrl(url?: string) {
 }
 
 function splitList(value: unknown) {
-  return String(value ?? "").split(/[\n,;]+/).map((item) => item.trim()).filter(Boolean);
+  return String(value ?? "")
+    .split(/[\n,;]+/)
+    .map((item) => cleanPublicValue(item))
+    .filter(Boolean);
+}
+
+function localBodyLabel(type: string, name: string) {
+  if (!name) return "";
+  const normalizedType = type.toLowerCase();
+  if (/union/i.test(name) || /paurashava|pourashava|municipality/i.test(name) || /city corporation/i.test(name)) return name;
+  if (normalizedType.includes("union")) return `${name} Union`;
+  if (normalizedType.includes("city")) return `${name} City Corporation`;
+  if (normalizedType.includes("paur") || normalizedType.includes("pour") || normalizedType.includes("municip")) return `${name} Paurashava`;
+  return name;
+}
+
+function structuredAddress(row: any) {
+  const division = cleanPublicValue(row.division);
+  const district = cleanPublicValue(row.district);
+  const upazila = cleanPublicValue(row.upazila_thana);
+  const localType = cleanPublicValue(row.local_body_type);
+  const localName = localBodyLabel(localType, cleanPublicValue(row.local_body_name));
+  const wardRaw = cleanPublicValue(row.ward_no).replace(/^ward\s*/i, "");
+  const ward = wardRaw ? `Ward ${wardRaw.padStart(2, "0")}` : "";
+  const village = cleanPublicValue(row.village_area);
+  const road = cleanPublicValue(row.road_holding);
+
+  const parts = [road, village, ward, localName, upazila, district, division].filter(Boolean);
+  const seen = new Set<string>();
+  return parts.filter((part) => {
+    const key = part.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  }).join(" · ");
+}
+
+function publicLocation(row: any) {
+  const structured = structuredAddress(row);
+  if (structured) return structured;
+  const legacy = cleanPublicValue(row.location);
+  if (!legacy || looksLikeGoogleMapsLocation(legacy) || /^https?:\/\//i.test(legacy)) return "";
+  return legacy;
 }
 
 function validCoordinates(latitude: unknown, longitude: unknown) {
@@ -87,6 +154,25 @@ async function publicMap(row: any) {
   };
 }
 
+function readiness(row: any, project: PublicProjectSeo) {
+  const checks = [
+    { label: "Public title", ok: Boolean(cleanPublicValue(row.public_project_title)) },
+    { label: "Project category", ok: Boolean(project.category) },
+    { label: "Structured address", ok: Boolean(structuredAddress(row)) },
+    { label: "Cover image", ok: Boolean(project.coverImageUrl) },
+    { label: "Public description", ok: Boolean(project.description && project.description.length >= 40) },
+    { label: "Services", ok: Boolean(project.services?.length) },
+    { label: "Project ID", ok: Boolean(project.projectId) },
+  ];
+  const passed = checks.filter((check) => check.ok).length;
+  const score = Math.round((passed / checks.length) * 100);
+  return {
+    publicReadiness: score,
+    publicReady: score >= 72 && Boolean(project.coverImageUrl && project.location && project.title),
+    publicMissing: checks.filter((check) => !check.ok).map((check) => check.label),
+  };
+}
+
 export const getPublicProjectsForSeo = cache(async function getPublicProjectsForSeo(): Promise<PublicProjectSeo[]> {
   try {
     const rows = await selectRows("projects", {
@@ -95,37 +181,40 @@ export const getPublicProjectsForSeo = cache(async function getPublicProjectsFor
       limit: 1000,
     });
 
-    return await Promise.all(rows.map(async (row: any) => ({
-      projectId: String(row.project_code || ""),
-      title: String(row.public_project_title || row.project_name || row.project_code || ""),
-      category: String(row.project_category || row.project_type || ""),
-      location: String(row.location || ""),
-      division: String(row.division || ""),
-      district: String(row.district || ""),
-      upazilaThana: String(row.upazila_thana || ""),
-      localBodyType: String(row.local_body_type || ""),
-      localBodyName: String(row.local_body_name || ""),
-      wardNo: String(row.ward_no || ""),
-      villageArea: String(row.village_area || ""),
-      roadHolding: String(row.road_holding || ""),
-      currentStage: (() => {
-        const design=String(row.design_stage_status||"Pending");
-        const approval=String(row.approval_stage_status||"Pending");
-        const supervision=String(row.supervision_stage_status||"Completed");
-        if(design!=="Completed") return "Design Stage";
-        if(approval!=="Completed") return "Approval Stage";
-        if(supervision!=="Completed") return "Supervision / Construction";
-        return "Completed";
-      })(),
-      area: String(row.project_area_text || row.plot_area || ""),
-      stories: String(row.number_of_stories_text || row.floors || ""),
-      completionYear: String(row.completion_year || ""),
-      description: String(row.public_description || ""),
-      coverImageUrl: String(row.cover_image_url || ""),
-      galleryImages: splitList(row.gallery_images),
-      services: splitList(row.public_services),
-      ...(await publicMap(row)),
-    })));
+    return await Promise.all(rows.map(async (row: any) => {
+      const project: PublicProjectSeo = {
+        projectId: String(row.project_code || "").trim(),
+        title: cleanProjectTitle(row.public_project_title || row.project_name || row.project_code || ""),
+        category: cleanPublicValue(row.project_category || row.project_type),
+        location: publicLocation(row),
+        division: cleanPublicValue(row.division),
+        district: cleanPublicValue(row.district),
+        upazilaThana: cleanPublicValue(row.upazila_thana),
+        localBodyType: cleanPublicValue(row.local_body_type),
+        localBodyName: cleanPublicValue(row.local_body_name),
+        wardNo: cleanPublicValue(row.ward_no),
+        villageArea: cleanPublicValue(row.village_area),
+        roadHolding: cleanPublicValue(row.road_holding),
+        currentStage: (() => {
+          const design = String(row.design_stage_status || "Pending");
+          const approval = String(row.approval_stage_status || "Pending");
+          const supervision = String(row.supervision_stage_status || "Completed");
+          if (design !== "Completed") return "Design Stage";
+          if (approval !== "Completed") return "Approval Stage";
+          if (supervision !== "Completed") return "Supervision / Construction";
+          return "Completed";
+        })(),
+        area: cleanPublicValue(row.project_area_text || row.plot_area),
+        stories: cleanStories(row.number_of_stories_text || row.floors),
+        completionYear: cleanPublicValue(row.completion_year),
+        description: cleanPublicValue(row.public_description),
+        coverImageUrl: normalizePublicImageUrl(String(row.cover_image_url || "")),
+        galleryImages: splitList(row.gallery_images).map((item) => normalizePublicImageUrl(item)),
+        services: splitList(row.public_services),
+        ...(await publicMap(row)),
+      };
+      return { ...project, ...readiness(row, project) };
+    }));
   } catch (error) {
     console.warn("LAND VIEW public projects Supabase read failed", {
       message: error instanceof Error ? error.message.slice(0, 180) : "Unknown error",
