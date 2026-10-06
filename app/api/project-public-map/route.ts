@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { normalizeProjectCode, roleOf, selectRows, updateRows } from "@/lib/supabase-data";
+import { looksLikeGoogleMapsLocation, parseGoogleMapsCoordinates, resolveGoogleMapsLocation } from "@/lib/google-maps-location";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -38,22 +39,49 @@ async function authorizedUser(request: NextRequest) {
   return role === "admin" || role === "manager" ? user : null;
 }
 
-function coordinate(value: unknown, min: number, max: number) {
-  if (value === null || value === undefined || String(value).trim() === "") return null;
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= min && parsed <= max ? parsed : Number.NaN;
+function validCoordinates(latitude: unknown, longitude: unknown) {
+  const lat = Number(latitude);
+  const lng = Number(longitude);
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) return null;
+  return { latitude: lat, longitude: lng };
 }
 
-function settings(row: Record<string, any>) {
+async function projectMapSource(row: Record<string, any>) {
+  const locationTag = String(row.location_tag || "").trim();
+  if (locationTag) {
+    const direct = parseGoogleMapsCoordinates(locationTag);
+    if (direct) return { latitude: direct.latitude, longitude: direct.longitude, source: "location-tag" as const };
+
+    if (looksLikeGoogleMapsLocation(locationTag)) {
+      try {
+        const resolved = await resolveGoogleMapsLocation(locationTag);
+        if (resolved) return { latitude: resolved.latitude, longitude: resolved.longitude, source: "location-tag" as const };
+      } catch {}
+    }
+  }
+
+  const site = validCoordinates(row.site_latitude, row.site_longitude);
+  if (site) return { ...site, source: "site-coordinates" as const };
+
+  const legacy = validCoordinates(row.public_map_latitude, row.public_map_longitude);
+  if (legacy) return { ...legacy, source: "legacy-public-coordinates" as const };
+
+  return null;
+}
+
+async function settings(row: Record<string, any>) {
+  const source = await projectMapSource(row);
   return {
     projectId: String(row.project_code || ""),
     projectTitle: String(row.public_project_title || row.project_name || row.project_code || ""),
     location: String(row.location || ""),
+    locationTag: String(row.location_tag || ""),
     publicDisplay: Boolean(row.public_display),
     publicMapEnabled: Boolean(row.public_map_enabled),
     publicMapPrecision: row.public_map_precision === "exact" ? "exact" : "approximate",
-    publicMapLatitude: row.public_map_latitude ?? "",
-    publicMapLongitude: row.public_map_longitude ?? "",
+    publicMapLatitude: source?.latitude ?? "",
+    publicMapLongitude: source?.longitude ?? "",
+    mapSource: source?.source || "",
     siteLatitude: row.site_latitude ?? "",
     siteLongitude: row.site_longitude ?? "",
   };
@@ -73,7 +101,7 @@ export async function GET(request: NextRequest) {
     if (!rows[0]) return NextResponse.json({ success: false, error: "Project not found." }, { status: 404 });
 
     return NextResponse.json(
-      { success: true, data: settings(rows[0]) },
+      { success: true, data: await settings(rows[0]) },
       { headers: { "Cache-Control": "no-store", "X-Landview-Data": "supabase" } },
     );
   } catch (error) {
@@ -100,32 +128,36 @@ export async function POST(request: NextRequest) {
     const rows = await selectRows("projects", { filters: { project_code: projectId }, limit: 1 });
     if (!rows[0]) return NextResponse.json({ success: false, error: "Project not found." }, { status: 404 });
 
+    const project = rows[0];
     const publicMapEnabled = body.publicMapEnabled === true;
     const publicMapPrecision = body.publicMapPrecision === "exact" ? "exact" : "approximate";
-    const publicMapLatitude = coordinate(body.publicMapLatitude, -90, 90);
-    const publicMapLongitude = coordinate(body.publicMapLongitude, -180, 180);
+    const source = await projectMapSource(project);
 
-    if (Number.isNaN(publicMapLatitude) || Number.isNaN(publicMapLongitude)) {
-      return NextResponse.json({ success: false, error: "Enter valid public map latitude and longitude." }, { status: 400 });
+    if (publicMapEnabled && !source) {
+      return NextResponse.json({
+        success: false,
+        error: "Set a valid Location Tag in the project editor before publishing this project on the public map.",
+      }, { status: 400 });
     }
-    if (publicMapEnabled && (publicMapLatitude === null || publicMapLongitude === null)) {
-      return NextResponse.json({ success: false, error: "Public map coordinates are required before publishing a project on the map." }, { status: 400 });
+
+    const changes: Record<string, unknown> = {
+      public_map_enabled: publicMapEnabled,
+      public_map_precision: publicMapPrecision,
+      public_map_latitude: source?.latitude ?? null,
+      public_map_longitude: source?.longitude ?? null,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Keep the internal site coordinates synchronized when the Location Tag was
+    // successfully resolved. Site Visits and the public map then use one location.
+    if (source?.source === "location-tag") {
+      changes.site_latitude = source.latitude;
+      changes.site_longitude = source.longitude;
     }
 
-    const updated = await updateRows(
-      "projects",
-      { project_code: projectId },
-      {
-        public_map_enabled: publicMapEnabled,
-        public_map_precision: publicMapPrecision,
-        public_map_latitude: publicMapLatitude,
-        public_map_longitude: publicMapLongitude,
-        updated_at: new Date().toISOString(),
-      },
-    );
-
+    const updated = await updateRows("projects", { project_code: projectId }, changes);
     return NextResponse.json(
-      { success: true, data: settings(updated[0] || { ...rows[0], public_map_enabled: publicMapEnabled, public_map_precision: publicMapPrecision, public_map_latitude: publicMapLatitude, public_map_longitude: publicMapLongitude }) },
+      { success: true, data: await settings(updated[0] || { ...project, ...changes }) },
       { headers: { "Cache-Control": "no-store", "X-Landview-Data": "supabase" } },
     );
   } catch (error) {
