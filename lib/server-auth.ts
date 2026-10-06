@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { QUICK_USER_COOKIE, SESSION_COOKIE } from "@/lib/local-session";
 
 export type PortalRole = "admin" | "manager" | "accounts" | "employee" | "client";
 
@@ -25,7 +26,6 @@ type ValidationResult =
   | { kind: "auth" }
   | { kind: "transient" };
 
-const QUICK_USER_COOKIE = "landview_quick_user";
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 
 function normalizeHost(value: string | null | undefined) {
@@ -138,12 +138,15 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
   const cookieStore = await cookies();
   const requestHeaders = await headers();
 
-  const sessionCookie = cookieStore.get("landview_session")?.value;
+  // Keep the authoritative portal guard on the same v2 cookie names that
+  // login-fast/session-refresh mint. Reading legacy v1 cookies here can let a
+  // stale admin identity override a freshly authenticated employee session.
+  const sessionCookie = cookieStore.get(SESSION_COOKIE)?.value;
   if (!sessionCookie) loginRedirect();
 
   // Fast path: normal login and Quick PIN login both mint this server-signed,
   // HttpOnly identity cookie. Verify it locally instead of making another
-  // Apps Script round trip on every page navigation.
+  // Supabase round trip on every page navigation.
   const signedUser = readSignedWorkspaceUser(cookieStore.get(QUICK_USER_COOKIE)?.value);
   if (signedUser) {
     const role = roleOf(signedUser);
@@ -151,8 +154,7 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
     redirectForRole(role);
   }
 
-  // Compatibility path for sessions created before the signed identity cookie
-  // existed. It preserves existing users until their next normal sign-in.
+  // Compatibility path for sessions without the signed identity cookie.
   const incomingHost = normalizeHost(requestHeaders.get("host"));
   const host = trustedHosts().has(incomingHost)
     ? incomingHost
