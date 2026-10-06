@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
-import { employeeCodeOf, handleLandviewDataAction, roleOf, supabaseGateway } from "@/lib/supabase-data";
+import { employeeCodeOf, handleLandviewDataAction, roleOf, supabaseGateway, updateRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const OTHER_SERVICE_TYPES = new Set(["Soil Test", "Digital Survey", "Municipality File Pass"]);
 
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -20,6 +22,9 @@ function text(value: unknown, max = 500) {
 function num(value: unknown) {
   const n = Number(String(value ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
+}
+function normalized(value: unknown) {
+  return text(value, 120).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 }
 
 export async function POST(request: NextRequest) {
@@ -38,6 +43,14 @@ export async function POST(request: NextRequest) {
     const role = roleOf(user);
     if (!["admin", "manager", "accounts", "employee"].includes(role)) {
       return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
+    }
+
+    const paymentCategory = normalized(body.Payment_For || body.Income_Category || body.Category);
+    const serviceType = text(body.Service_Type || body.serviceType, 120);
+    if (action === "savePayment" && (paymentCategory === "other services bill" || paymentCategory === "other services" || paymentCategory === "others bill")) {
+      if (!OTHER_SERVICE_TYPES.has(serviceType)) {
+        return NextResponse.json({ success: false, error: "Choose Soil Test, Digital Survey or Municipality File Pass for Other Services." }, { status: 400 });
+      }
     }
 
     let data: unknown;
@@ -60,6 +73,13 @@ export async function POST(request: NextRequest) {
       });
     } else {
       data = await handleLandviewDataAction(action, { ...body, Idempotency_Key: idempotencyKey }, user);
+      if (action === "savePayment" && serviceType) {
+        const paymentCode = text((data as Record<string, unknown>)?.Payment_ID, 160);
+        if (!paymentCode) throw new Error("Payment was saved but its payment ID could not be resolved for service routing.");
+        const financeScope = serviceType === "Municipality File Pass" ? "municipality_file_pass" : "main";
+        await updateRows("payments", { payment_code: paymentCode }, { service_type: serviceType, finance_scope: financeScope });
+        data = { ...(data as Record<string, unknown>), Service_Type: serviceType, Finance_Scope: financeScope };
+      }
     }
 
     const masterAdmin = role === "admin";
@@ -79,7 +99,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error && error.name === "TimeoutError"
       ? "The billing write response timed out. Refresh Billing before trying again so you do not duplicate a transaction."
       : error instanceof Error ? error.message : "Billing write failed.";
-    const status = /required|invalid|cannot exceed|must be greater/i.test(message) ? 400 : 502;
+    const status = /required|invalid|cannot exceed|must be greater|choose soil test/i.test(message) ? 400 : 502;
     return NextResponse.json({ success: false, error: message }, { status, headers: { "Cache-Control": "no-store" } });
   }
 }
