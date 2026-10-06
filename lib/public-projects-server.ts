@@ -52,7 +52,7 @@ function cleanStories(value: unknown) {
   const text = cleanPublicValue(value);
   if (!text) return "";
   const normalized = text
-    .replace(/\s*(?:stories?|storied|storeid|floors?)\s*$/i, "")
+    .replace(/\s*(?:story|stories|storied|storeid|floor|floors)\s*$/i, "")
     .replace(/\s+/g, " ")
     .trim();
   if (!normalized || /^(?:re-?design|estimate|flat design|duplex|triplex)$/i.test(normalized)) return "";
@@ -61,7 +61,7 @@ function cleanStories(value: unknown) {
 
 function cleanArea(value: unknown) {
   const text = cleanPublicValue(value);
-  if (!text || /^(?:re-?design|estimate|flat design|duplex|triplex|\d+\s*(?:stories?|storied|storeid|floors?))$/i.test(text)) return "";
+  if (!text || /^(?:re-?design|estimate|flat design|duplex|triplex|\d+\s*(?:story|stories|storied|storeid|floor|floors))$/i.test(text)) return "";
   return text
     .replace(/\bdecim(?:al)?\b/gi, "Decimal")
     .replace(/\bdeimal\b/gi, "Decimal")
