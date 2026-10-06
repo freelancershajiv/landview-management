@@ -92,7 +92,6 @@ jobs:
           if changed != 1:
               raise SystemExit('Could not replace renderPageToJpeg')
 
-          # Include the page root itself when stripping inline URL references.
           text = text.replace(
               'root.querySelectorAll<HTMLElement>("*").forEach((element) => {',
               '[root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))].forEach((element) => {',
@@ -103,6 +102,54 @@ jobs:
           PY
       - name: Verify production build
         run: npm run build
+      - name: Chromium JPG smoke test
+        run: |
+          cp node_modules/html2canvas/dist/html2canvas.min.js /tmp/html2canvas.min.js
+          cat > /tmp/jpg-smoke.html <<'EOF'
+          <!doctype html>
+          <html><head><meta charset="utf-8"><title>JPG_PENDING</title></head>
+          <body style="margin:0;background:#eee">
+            <div id="page" style="width:794px;height:1123px;background:#fff;padding:40px;box-sizing:border-box;font-family:Arial,sans-serif;color:#111">
+              <h1>LAND VIEW JPG smoke test</h1>
+              <img alt="pixel" src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==" style="width:10px;height:10px">
+              <table style="width:100%;border-collapse:collapse"><tr><td style="border:1px solid #222;padding:8px">Billing</td><td style="border:1px solid #222;padding:8px">Proposal</td></tr></table>
+            </div>
+            <div id="status">JPG_PENDING</div>
+            <script src="./html2canvas.min.js"></script>
+            <script>
+              (async () => {
+                const status = document.getElementById('status');
+                try {
+                  const canvas = await html2canvas(document.getElementById('page'), {
+                    backgroundColor: '#ffffff', scale: 2, useCORS: false,
+                    allowTaint: false, foreignObjectRendering: false, logging: false
+                  });
+                  await new Promise((resolve, reject) => {
+                    try {
+                      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error('null blob')), 'image/jpeg', 0.96);
+                    } catch (error) { reject(error); }
+                  });
+                  status.textContent = 'JPG_OK';
+                  document.title = 'JPG_OK';
+                } catch (error) {
+                  status.textContent = 'JPG_FAIL:' + (error && error.message ? error.message : String(error));
+                  document.title = 'JPG_FAIL';
+                }
+              })();
+            </script>
+          </body></html>
+          EOF
+          BROWSER="$(command -v google-chrome || command -v chromium || command -v chromium-browser || true)"
+          if [ -z "$BROWSER" ]; then
+            echo "No Chromium browser found on runner"
+            exit 1
+          fi
+          "$BROWSER" --headless=new --no-sandbox --disable-gpu --virtual-time-budget=10000 --dump-dom file:///tmp/jpg-smoke.html > /tmp/jpg-smoke.out 2>/tmp/jpg-smoke.err || {
+            cat /tmp/jpg-smoke.err
+            exit 1
+          }
+          cat /tmp/jpg-smoke.out
+          grep -q 'JPG_OK' /tmp/jpg-smoke.out
       - name: Commit safe JPG renderer
         run: |
           if git diff --quiet -- lib/save-document-jpg.ts package.json package-lock.json; then
