@@ -67,13 +67,12 @@ async function locationTagCoordinates(row: any) {
 }
 
 async function publicMap(row: any) {
-  if (row.public_map_enabled !== true) return {};
-
   const locationTag = String(row.location_tag || "").trim();
   if (!locationTag) return {};
 
-  // The Location Tag is the public map source of truth. Stored site coordinates
-  // are used only if Google cannot temporarily expand an existing short tag.
+  // Location Tag alone controls map membership. There is no separate public-map
+  // switch anymore. Stored site coordinates are only a fallback for an existing
+  // tag when Google cannot temporarily expand the link.
   const fromTag = await locationTagCoordinates(row);
   const fromSite = validCoordinates(row.site_latitude, row.site_longitude);
   const source = fromTag || fromSite;
