@@ -43,6 +43,8 @@ type Summary = {
 
 const STATUS_OPTIONS = ["New", "Contacted", "Qualified", "Converted", "Closed"];
 const PRIORITY_OPTIONS = ["Low", "Normal", "High", "Urgent"];
+const FOLLOW_OPTIONS = ["All", "Due", "Late", "Today", "Scheduled"];
+const PRIORITY_RANK: Record<string, number> = { Urgent: 0, High: 1, Normal: 2, Low: 3 };
 
 function formatDate(value?: string) {
   if (!value) return "—";
@@ -65,6 +67,11 @@ function dhakaParts(date: Date) {
     hourCycle: "h23",
   }).formatToParts(date);
   return Object.fromEntries(parts.map((part) => [part.type, part.value]));
+}
+
+function dhakaDay(date: Date) {
+  const map = dhakaParts(date);
+  return `${map.year}-${map.month}-${map.day}`;
 }
 
 function toLocalInput(value?: string) {
@@ -94,15 +101,27 @@ function dueState(lead: Lead) {
   const due = new Date(lead.follow_up_at);
   if (Number.isNaN(due.getTime())) return "";
   const now = new Date();
-  const day = (date: Date) => new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(date);
-  if (day(due) === day(now)) return "today";
+  if (dhakaDay(due) === dhakaDay(now)) return "today";
   if (due.getTime() < now.getTime()) return "overdue";
   return "future";
+}
+
+function daysOpen(lead: Lead) {
+  if (!lead.created_at || ["Converted", "Closed"].includes(lead.status || "")) return null;
+  const created = new Date(lead.created_at);
+  if (Number.isNaN(created.getTime())) return null;
+  return Math.max(0, Math.floor((Date.now() - created.getTime()) / 86400000));
+}
+
+function normalizeStatus(value: string | null) {
+  return value && STATUS_OPTIONS.includes(value) ? value : "All";
+}
+
+function normalizeFollow(value: string | null) {
+  if (!value) return "All";
+  if (value === "Overdue") return "Due"; // backwards-compatible dashboard shortcut: overdue + today
+  if (value === "Due Today") return "Today";
+  return FOLLOW_OPTIONS.includes(value) ? value : "All";
 }
 
 export default function WebsiteLeadsPage() {
@@ -114,6 +133,7 @@ export default function WebsiteLeadsPage() {
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [followFilter, setFollowFilter] = useState("All");
+  const [filtersReady, setFiltersReady] = useState(false);
   const [savingId, setSavingId] = useState("");
   const [proposalConvertingId, setProposalConvertingId] = useState("");
   const [projectConvertingId, setProjectConvertingId] = useState("");
@@ -137,34 +157,67 @@ export default function WebsiteLeadsPage() {
     }
   }
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setStatusFilter(normalizeStatus(params.get("status")));
+    setFollowFilter(normalizeFollow(params.get("follow")));
+    setQuery(String(params.get("q") || ""));
+    setFiltersReady(true);
+    void load();
+  }, []);
+
+  useEffect(() => {
+    if (!filtersReady) return;
+    const params = new URLSearchParams(window.location.search);
+    if (statusFilter === "All") params.delete("status"); else params.set("status", statusFilter);
+    if (followFilter === "All") params.delete("follow");
+    else if (followFilter === "Late") params.set("follow", "Late");
+    else if (followFilter === "Today") params.set("follow", "Due Today");
+    else params.set("follow", followFilter);
+    if (query.trim()) params.set("q", query.trim()); else params.delete("q");
+    const next = `${window.location.pathname}${params.toString() ? `?${params.toString()}` : ""}`;
+    window.history.replaceState(null, "", next);
+  }, [statusFilter, followFilter, query, filtersReady]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return leads.filter((lead) => {
       if (statusFilter !== "All" && (lead.status || "New") !== statusFilter) return false;
       const due = dueState(lead);
-      if (followFilter === "Overdue" && due !== "overdue") return false;
-      if (followFilter === "Due Today" && due !== "today") return false;
+      if (followFilter === "Due" && !["overdue", "today"].includes(due)) return false;
+      if (followFilter === "Late" && due !== "overdue") return false;
+      if (followFilter === "Today" && due !== "today") return false;
       if (followFilter === "Scheduled" && !["future", "today"].includes(due)) return false;
       if (!q) return true;
       return [
-        lead.lead_code,
-        lead.name,
-        lead.phone,
-        lead.email,
-        lead.project_location,
-        lead.project_type,
-        lead.next_action,
-        lead.converted_proposal_code,
-        lead.converted_project_code,
+        lead.lead_code, lead.name, lead.phone, lead.email, lead.project_location, lead.project_type,
+        lead.next_action, lead.assigned_to, lead.converted_proposal_code, lead.converted_project_code,
         ...(lead.services || []),
       ].filter(Boolean).join(" ").toLowerCase().includes(q);
+    }).sort((a, b) => {
+      const dueRank = (lead: Lead) => dueState(lead) === "overdue" ? 0 : dueState(lead) === "today" ? 1 : 2;
+      const byDue = dueRank(a) - dueRank(b);
+      if (byDue) return byDue;
+      const byPriority = (PRIORITY_RANK[a.priority || "Normal"] ?? 2) - (PRIORITY_RANK[b.priority || "Normal"] ?? 2);
+      if (byPriority) return byPriority;
+      return String(b.created_at || "").localeCompare(String(a.created_at || ""));
     });
   }, [leads, query, statusFilter, followFilter]);
 
+  const pipeline = useMemo(() => ({
+    unassigned: leads.filter((lead) => !["Converted", "Closed"].includes(lead.status || "") && !String(lead.assigned_to || "").trim()).length,
+    noFollowUp: leads.filter((lead) => !["Converted", "Closed"].includes(lead.status || "") && !lead.follow_up_at).length,
+    stale: leads.filter((lead) => (daysOpen(lead) || 0) >= 7).length,
+  }), [leads]);
+
   function patchDraft(id: string, changes: Partial<Lead>) {
     setDrafts((current) => ({ ...current, [id]: { ...(current[id] || {}), ...changes } }));
+  }
+
+  function resetFilters() {
+    setQuery("");
+    setStatusFilter("All");
+    setFollowFilter("All");
   }
 
   async function refreshSummary() {
@@ -177,9 +230,7 @@ export default function WebsiteLeadsPage() {
 
   async function saveLead(id: string) {
     const draft = drafts[id] || {};
-    setSavingId(id);
-    setError("");
-    setMessage("");
+    setSavingId(id); setError(""); setMessage("");
     try {
       const response = await fetch("/api/admin/website-leads", {
         method: "PATCH",
@@ -205,9 +256,7 @@ export default function WebsiteLeadsPage() {
       void refreshSummary();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save lead.");
-    } finally {
-      setSavingId("");
-    }
+    } finally { setSavingId(""); }
   }
 
   async function createProposal(lead: Lead) {
@@ -216,15 +265,10 @@ export default function WebsiteLeadsPage() {
       window.location.href = `/admin/proposals/${encodeURIComponent(lead.converted_proposal_code)}`;
       return;
     }
-    setProposalConvertingId(lead.id);
-    setError("");
-    setMessage("");
+    setProposalConvertingId(lead.id); setError(""); setMessage("");
     try {
       const response = await fetch("/api/admin/website-leads/convert-proposal", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ id: lead.id }),
+        method: "POST", headers: { "content-type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ id: lead.id }),
       });
       const json = await response.json();
       if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not create proposal."));
@@ -243,15 +287,10 @@ export default function WebsiteLeadsPage() {
       window.location.href = `/admin/projects/${encodeURIComponent(lead.converted_project_code)}`;
       return;
     }
-    setProjectConvertingId(lead.id);
-    setError("");
-    setMessage("");
+    setProjectConvertingId(lead.id); setError(""); setMessage("");
     try {
       const response = await fetch("/api/admin/website-leads/convert-project", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({ id: lead.id }),
+        method: "POST", headers: { "content-type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ id: lead.id }),
       });
       const json = await response.json();
       if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not create project."));
@@ -264,17 +303,19 @@ export default function WebsiteLeadsPage() {
     }
   }
 
+  const followLabel = followFilter === "Due" ? "Due / Overdue" : followFilter === "Late" ? "Overdue only" : followFilter === "Today" ? "Due Today" : followFilter;
+
   return (
     <main className="wl-page">
       <style>{`
-        .wl-page{min-height:100vh;padding:28px;background:#f4f6f8;color:#17212b}.wl-wrap{width:min(100% - 28px,1540px);margin:0 auto}.wl-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:20px}.wl-kicker{display:block;margin-bottom:7px;color:#c6252b;font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.wl-head h1{margin:0;font-size:clamp(28px,4vw,44px);line-height:1}.wl-head p{max-width:800px;margin:10px 0 0;color:#667581;line-height:1.6}.wl-actions{display:flex;gap:8px;flex-wrap:wrap}.wl-btn{min-height:40px;display:inline-flex;align-items:center;justify-content:center;padding:0 14px;border:1px solid #cbd2d9;border-radius:8px;background:#fff;color:#17212b!important;text-decoration:none;font-size:12px;font-weight:800;cursor:pointer}.wl-btn.primary{border-color:#c6252b;background:#c6252b;color:#fff!important}.wl-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:16px}.wl-stat{padding:15px;border:1px solid #dde3e8;border-radius:12px;background:#fff}.wl-stat small{display:block;color:#7a8792;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.wl-stat strong{display:block;margin-top:6px;font-size:26px}.wl-stat.alert strong{color:#c6252b}.wl-toolbar{display:grid;grid-template-columns:minmax(260px,1fr) 180px 180px auto;gap:9px;margin-bottom:14px;padding:12px;border:1px solid #dde3e8;border-radius:12px;background:#fff}.wl-toolbar input,.wl-toolbar select{min-height:40px;border:1px solid #ccd4db;border-radius:8px;background:#fff;padding:0 11px;color:#1c2730}.wl-error,.wl-message{margin-bottom:14px;padding:12px 14px;border-radius:8px}.wl-error{border-left:3px solid #c6252b;background:#fff1f1;color:#8f2626}.wl-message{border-left:3px solid #31895b;background:#eefaf3;color:#256b48}.wl-grid{display:grid;gap:12px}.wl-card{display:grid;grid-template-columns:minmax(225px,.78fr) minmax(270px,1fr) minmax(340px,1.15fr);border:1px solid #dce2e7;border-radius:13px;background:#fff;overflow:hidden}.wl-col{padding:16px;border-right:1px solid #edf0f2}.wl-col:last-child{border-right:0}.wl-code{display:flex;align-items:center;justify-content:space-between;gap:10px}.wl-code strong{font-size:13px}.wl-badge{padding:5px 8px;border-radius:999px;background:#f1f3f5;font-size:9px;font-weight:900}.wl-badge.New{background:#fff1d9;color:#8a5a00}.wl-badge.Qualified{background:#e6f2ff;color:#155e9c}.wl-badge.Converted{background:#e6f6ec;color:#19703a}.wl-follow{display:inline-flex;margin-top:9px;padding:5px 7px;border-radius:6px;font-size:9px;font-weight:900}.wl-follow.overdue{background:#ffe7e7;color:#a82424}.wl-follow.today{background:#fff2d4;color:#875600}.wl-follow.future{background:#edf4ff;color:#315f94}.wl-card h2{margin:12px 0 4px;font-size:19px}.wl-meta{display:grid;gap:5px;color:#667581;font-size:12px;line-height:1.45}.wl-links{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.wl-links a,.wl-links button{padding:7px 9px;border:1px solid #d8dee4;border-radius:6px;background:#fff;color:#24313c!important;text-decoration:none;font-size:10px;font-weight:800;cursor:pointer}.wl-links button:disabled{opacity:.45;cursor:not-allowed}.wl-links .proposal{border-color:#c6252b;background:#c6252b;color:#fff!important}.wl-links .project{border-color:#24313c;background:#17212b;color:#fff!important}.wl-details{display:grid;grid-template-columns:1fr 1fr;gap:9px}.wl-item{padding:10px;border-radius:8px;background:#f7f9fa}.wl-item small{display:block;color:#7b8893;font-size:9px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.wl-item strong,.wl-item span{display:block;margin-top:4px;font-size:12px;line-height:1.45}.wl-services{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.wl-chip{padding:4px 6px;border-radius:5px;background:#edf1f4;color:#52606b;font-size:10px;font-weight:700}.wl-form{display:grid;grid-template-columns:1fr 1fr;gap:9px}.wl-form label{display:grid;gap:5px;color:#6e7b86;font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}.wl-form select,.wl-form input,.wl-form textarea{width:100%;border:1px solid #ccd4db;border-radius:7px;background:#fff;padding:9px 10px;color:#19242d;font:inherit}.wl-form textarea{grid-column:1/-1;min-height:72px;resize:vertical}.wl-form .wide{grid-column:1/-1}.wl-quick{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}.wl-quick button{min-height:30px;padding:0 9px;border:1px solid #d7dde2;border-radius:7px;background:#f7f9fa;color:#4a5965;font-size:9px;font-weight:800;cursor:pointer}.wl-save{grid-column:1/-1;min-height:39px;border:0;border-radius:8px;background:#c6252b;color:#fff;font-weight:900;cursor:pointer}.wl-save:disabled{opacity:.55}.wl-empty{padding:36px;border:1px dashed #cfd7de;border-radius:12px;background:#fff;text-align:center;color:#687681}@media(max-width:1200px){.wl-stats{grid-template-columns:repeat(3,1fr)}.wl-card{grid-template-columns:1fr 1fr}.wl-card .wl-col:last-child{grid-column:1/-1;border-top:1px solid #edf0f2}.wl-col:nth-child(2){border-right:0}}@media(max-width:760px){.wl-page{padding:20px 0}.wl-head{align-items:flex-start;flex-direction:column}.wl-stats{grid-template-columns:1fr 1fr}.wl-toolbar{grid-template-columns:1fr}.wl-card{grid-template-columns:1fr}.wl-col{border-right:0;border-bottom:1px solid #edf0f2}.wl-card .wl-col:last-child{grid-column:auto;border-bottom:0}.wl-details{grid-template-columns:1fr}.wl-form{grid-template-columns:1fr}.wl-form textarea,.wl-form .wide,.wl-quick,.wl-save{grid-column:auto}}
+        .wl-page{min-height:100vh;padding:28px;background:#f4f6f8;color:#17212b}.wl-wrap{width:min(100% - 28px,1540px);margin:0 auto}.wl-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:20px}.wl-kicker{display:block;margin-bottom:7px;color:#c6252b;font-size:10px;font-weight:900;letter-spacing:.14em;text-transform:uppercase}.wl-head h1{margin:0;font-size:clamp(28px,4vw,44px);line-height:1}.wl-head p{max-width:820px;margin:10px 0 0;color:#667581;line-height:1.6}.wl-actions{display:flex;gap:8px;flex-wrap:wrap}.wl-btn{min-height:40px;display:inline-flex;align-items:center;justify-content:center;padding:0 14px;border:1px solid #cbd2d9;border-radius:8px;background:#fff;color:#17212b!important;text-decoration:none;font-size:12px;font-weight:800;cursor:pointer}.wl-btn.primary{border-color:#c6252b;background:#c6252b;color:#fff!important}.wl-stats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;margin-bottom:10px}.wl-stat{padding:0;border:1px solid #dde3e8;border-radius:12px;background:#fff;overflow:hidden}.wl-stat button,.wl-stat>div{width:100%;height:100%;padding:15px;border:0;background:transparent;text-align:left;cursor:pointer}.wl-stat small{display:block;color:#7a8792;font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.07em}.wl-stat strong{display:block;margin-top:6px;font-size:26px}.wl-stat.alert strong{color:#c6252b}.wl-health{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:16px}.wl-health article{padding:11px 13px;border-left:3px solid #d9a52a;background:#fff;border-radius:8px;box-shadow:0 0 0 1px #e2e7eb inset}.wl-health small{display:block;color:#7a8792;font-size:8px;font-weight:900;text-transform:uppercase}.wl-health strong{display:block;margin-top:4px;font-size:17px}.wl-toolbar{display:grid;grid-template-columns:minmax(260px,1fr) 180px 190px auto auto;gap:9px;margin-bottom:10px;padding:12px;border:1px solid #dde3e8;border-radius:12px;background:#fff}.wl-toolbar input,.wl-toolbar select{min-height:40px;border:1px solid #ccd4db;border-radius:8px;background:#fff;padding:0 11px;color:#1c2730}.wl-filter-note{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px;padding:9px 12px;border-radius:8px;background:#edf2f5;color:#55636e;font-size:10px}.wl-error,.wl-message{margin-bottom:14px;padding:12px 14px;border-radius:8px}.wl-error{border-left:3px solid #c6252b;background:#fff1f1;color:#8f2626}.wl-message{border-left:3px solid #31895b;background:#eefaf3;color:#256b48}.wl-grid{display:grid;gap:12px}.wl-card{display:grid;grid-template-columns:minmax(225px,.78fr) minmax(270px,1fr) minmax(340px,1.15fr);border:1px solid #dce2e7;border-radius:13px;background:#fff;overflow:hidden}.wl-card.stale{border-color:#e2be66;box-shadow:0 0 0 1px rgba(226,190,102,.12)}.wl-col{padding:16px;border-right:1px solid #edf0f2}.wl-col:last-child{border-right:0}.wl-code{display:flex;align-items:center;justify-content:space-between;gap:10px}.wl-code strong{font-size:13px}.wl-badge{padding:5px 8px;border-radius:999px;background:#f1f3f5;font-size:9px;font-weight:900}.wl-badge.New{background:#fff1d9;color:#8a5a00}.wl-badge.Qualified{background:#e6f2ff;color:#155e9c}.wl-badge.Converted{background:#e6f6ec;color:#19703a}.wl-follow,.wl-age{display:inline-flex;margin:9px 6px 0 0;padding:5px 7px;border-radius:6px;font-size:9px;font-weight:900}.wl-follow.overdue{background:#ffe7e7;color:#a82424}.wl-follow.today{background:#fff2d4;color:#875600}.wl-follow.future{background:#edf4ff;color:#315f94}.wl-age{background:#f3f1eb;color:#75622d}.wl-age.stale{background:#fff1d4;color:#875c00}.wl-card h2{margin:12px 0 4px;font-size:19px}.wl-meta{display:grid;gap:5px;color:#667581;font-size:12px;line-height:1.45}.wl-links{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px}.wl-links a,.wl-links button{padding:7px 9px;border:1px solid #d8dee4;border-radius:6px;background:#fff;color:#24313c!important;text-decoration:none;font-size:10px;font-weight:800;cursor:pointer}.wl-links button:disabled{opacity:.45;cursor:not-allowed}.wl-links .proposal{border-color:#c6252b;background:#c6252b;color:#fff!important}.wl-links .project{border-color:#24313c;background:#17212b;color:#fff!important}.wl-details{display:grid;grid-template-columns:1fr 1fr;gap:9px}.wl-item{padding:10px;border-radius:8px;background:#f7f9fa}.wl-item small{display:block;color:#7b8893;font-size:9px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.wl-item strong,.wl-item span{display:block;margin-top:4px;font-size:12px;line-height:1.45}.wl-item a{display:inline-block;margin-top:5px;color:#b51e24;font-size:11px;font-weight:900;text-decoration:none}.wl-services{display:flex;flex-wrap:wrap;gap:5px;margin-top:7px}.wl-chip{padding:4px 6px;border-radius:5px;background:#edf1f4;color:#52606b;font-size:10px;font-weight:700}.wl-form{display:grid;grid-template-columns:1fr 1fr;gap:9px}.wl-form label{display:grid;gap:5px;color:#6e7b86;font-size:9px;font-weight:900;letter-spacing:.06em;text-transform:uppercase}.wl-form select,.wl-form input,.wl-form textarea{width:100%;border:1px solid #ccd4db;border-radius:7px;background:#fff;padding:9px 10px;color:#19242d;font:inherit}.wl-form textarea{grid-column:1/-1;min-height:72px;resize:vertical}.wl-form .wide{grid-column:1/-1}.wl-quick{grid-column:1/-1;display:flex;gap:6px;flex-wrap:wrap}.wl-quick button{min-height:30px;padding:0 9px;border:1px solid #d7dde2;border-radius:7px;background:#f7f9fa;color:#4a5965;font-size:9px;font-weight:800;cursor:pointer}.wl-save{grid-column:1/-1;min-height:39px;border:0;border-radius:8px;background:#c6252b;color:#fff;font-weight:900;cursor:pointer}.wl-save:disabled{opacity:.55}.wl-empty{padding:36px;border:1px dashed #cfd7de;border-radius:12px;background:#fff;text-align:center;color:#687681}@media(max-width:1200px){.wl-stats{grid-template-columns:repeat(3,1fr)}.wl-card{grid-template-columns:1fr 1fr}.wl-card .wl-col:last-child{grid-column:1/-1;border-top:1px solid #edf0f2}.wl-col:nth-child(2){border-right:0}}@media(max-width:760px){.wl-page{padding:20px 0}.wl-head{align-items:flex-start;flex-direction:column}.wl-stats{grid-template-columns:1fr 1fr}.wl-health{grid-template-columns:1fr}.wl-toolbar{grid-template-columns:1fr}.wl-filter-note{align-items:flex-start;flex-direction:column}.wl-card{grid-template-columns:1fr}.wl-col{border-right:0;border-bottom:1px solid #edf0f2}.wl-card .wl-col:last-child{grid-column:auto;border-bottom:0}.wl-details{grid-template-columns:1fr}.wl-form{grid-template-columns:1fr}.wl-form textarea,.wl-form .wide,.wl-quick,.wl-save{grid-column:auto}}
       `}</style>
       <div className="wl-wrap">
         <header className="wl-head">
           <div>
             <span className="wl-kicker">Website Enquiry CRM</span>
             <h1>Project Enquiries</h1>
-            <p>Qualify public website enquiries, schedule follow-ups, prepare WhatsApp replies, create proposals and convert accepted enquiries into real LAND VIEW projects without retyping the client details.</p>
+            <p>Work the enquiry queue from first contact to proposal and real LAND VIEW project. Urgent, overdue and due-today leads are automatically brought to the top.</p>
           </div>
           <div className="wl-actions">
             <Link className="wl-btn" href="/admin/website-analytics">Conversion Analytics</Link>
@@ -284,21 +325,29 @@ export default function WebsiteLeadsPage() {
         </header>
 
         <section className="wl-stats">
-          <article className="wl-stat"><small>Total</small><strong>{summary.total ?? leads.length}</strong></article>
-          <article className="wl-stat alert"><small>New</small><strong>{summary.newCount ?? 0}</strong></article>
-          <article className="wl-stat alert"><small>Overdue</small><strong>{summary.overdueFollowUps ?? 0}</strong></article>
-          <article className="wl-stat"><small>Due Today</small><strong>{summary.dueToday ?? 0}</strong></article>
-          <article className="wl-stat"><small>Qualified</small><strong>{summary.qualified ?? 0}</strong></article>
-          <article className="wl-stat"><small>Converted</small><strong>{summary.converted ?? 0}</strong></article>
+          <article className="wl-stat"><button onClick={resetFilters}><small>Total</small><strong>{summary.total ?? leads.length}</strong></button></article>
+          <article className="wl-stat alert"><button onClick={() => { setStatusFilter("New"); setFollowFilter("All"); }}><small>New</small><strong>{summary.newCount ?? 0}</strong></button></article>
+          <article className="wl-stat alert"><button onClick={() => { setStatusFilter("All"); setFollowFilter("Late"); }}><small>Overdue</small><strong>{summary.overdueFollowUps ?? 0}</strong></button></article>
+          <article className="wl-stat"><button onClick={() => { setStatusFilter("All"); setFollowFilter("Today"); }}><small>Due Today</small><strong>{summary.dueToday ?? 0}</strong></button></article>
+          <article className="wl-stat"><button onClick={() => { setStatusFilter("Qualified"); setFollowFilter("All"); }}><small>Qualified</small><strong>{summary.qualified ?? 0}</strong></button></article>
+          <article className="wl-stat"><button onClick={() => { setStatusFilter("Converted"); setFollowFilter("All"); }}><small>Converted</small><strong>{summary.converted ?? 0}</strong></button></article>
+        </section>
+
+        <section className="wl-health" aria-label="Pipeline health">
+          <article><small>Unassigned Open Leads</small><strong>{pipeline.unassigned}</strong></article>
+          <article><small>No Follow-up Scheduled</small><strong>{pipeline.noFollowUp}</strong></article>
+          <article><small>Open 7+ Days</small><strong>{pipeline.stale}</strong></article>
         </section>
 
         <div className="wl-toolbar">
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, phone, location, service, proposal, project or lead code" />
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option>All</option>{STATUS_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select>
-          <select value={followFilter} onChange={(e) => setFollowFilter(e.target.value)}><option>All</option><option>Overdue</option><option>Due Today</option><option>Scheduled</option></select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="All">All statuses</option>{STATUS_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select>
+          <select value={followFilter} onChange={(e) => setFollowFilter(e.target.value)}><option value="All">All follow-ups</option><option value="Due">Due / Overdue</option><option value="Late">Overdue only</option><option value="Today">Due Today</option><option value="Scheduled">Scheduled</option></select>
+          <button className="wl-btn" onClick={resetFilters}>Reset</button>
           <button className="wl-btn" onClick={() => void load()} disabled={loading}>Refresh</button>
         </div>
 
+        {(statusFilter !== "All" || followFilter !== "All" || query) ? <div className="wl-filter-note"><span>Showing {filtered.length} of {leads.length} · Status: <b>{statusFilter}</b> · Follow-up: <b>{followLabel}</b>{query ? ` · Search: ${query}` : ""}</span><button className="wl-btn" onClick={resetFilters}>Clear filters</button></div> : null}
         {error ? <div className="wl-error">{error}</div> : null}
         {message ? <div className="wl-message">{message}</div> : null}
 
@@ -307,13 +356,16 @@ export default function WebsiteLeadsPage() {
             const draft = drafts[lead.id] || lead;
             const wa = whatsapp(lead.phone, lead.name, lead.lead_code);
             const due = dueState(lead);
+            const age = daysOpen(lead);
+            const stale = age !== null && age >= 7;
             const canConvertProject = Boolean(lead.converted_project_code || lead.converted_proposal_code || lead.status === "Qualified");
-            return <article className="wl-card" key={lead.id}>
+            return <article className={`wl-card ${stale ? "stale" : ""}`} key={lead.id}>
               <div className="wl-col">
                 <div className="wl-code"><strong>{lead.lead_code || "Website Lead"}</strong><span className={`wl-badge ${lead.status || "New"}`}>{lead.status || "New"}</span></div>
                 <h2>{lead.name || "Unnamed enquiry"}</h2>
-                <div className="wl-meta"><span>{formatDate(lead.created_at)}</span><span>{lead.project_location || "Location not supplied"}</span><span>Source: {lead.source_path || "/"}</span></div>
+                <div className="wl-meta"><span>{formatDate(lead.created_at)}</span><span>{lead.project_location || "Location not supplied"}</span><span>Source: {lead.source_path || "/"}</span><span>Assigned: {lead.assigned_to || "Not assigned"}</span></div>
                 {due ? <span className={`wl-follow ${due}`}>{due === "overdue" ? `OVERDUE · ${formatDate(lead.follow_up_at)}` : due === "today" ? `DUE TODAY · ${formatDate(lead.follow_up_at)}` : `FOLLOW-UP · ${formatDate(lead.follow_up_at)}`}</span> : null}
+                {age !== null ? <span className={`wl-age ${stale ? "stale" : ""}`}>{stale ? `STALE · ${age} DAYS OPEN` : `${age} DAYS OPEN`}</span> : null}
                 <div className="wl-links">
                   {lead.phone ? <a href={`tel:${lead.phone}`}>Call</a> : null}
                   {wa ? <a href={wa} target="_blank" rel="noreferrer">WhatsApp Reply</a> : null}
@@ -330,8 +382,8 @@ export default function WebsiteLeadsPage() {
                   <div className="wl-item" style={{gridColumn:"1/-1"}}><small>Services</small><div className="wl-services">{lead.services?.length ? lead.services.map((service) => <span className="wl-chip" key={service}>{service}</span>) : <span>Not selected</span>}</div></div>
                   <div className="wl-item" style={{gridColumn:"1/-1"}}><small>Client Message</small><span>{lead.message || "No additional message."}</span></div>
                   {lead.next_action ? <div className="wl-item" style={{gridColumn:"1/-1"}}><small>Next Action</small><strong>{lead.next_action}</strong></div> : null}
-                  {lead.converted_proposal_code ? <div className="wl-item"><small>Proposal</small><strong>{lead.converted_proposal_code}</strong></div> : null}
-                  {lead.converted_project_code ? <div className="wl-item"><small>Project</small><strong>{lead.converted_project_code}</strong></div> : null}
+                  {lead.converted_proposal_code ? <div className="wl-item"><small>Proposal</small><strong>{lead.converted_proposal_code}</strong><Link href={`/admin/proposals/${encodeURIComponent(lead.converted_proposal_code)}`}>Open proposal →</Link></div> : null}
+                  {lead.converted_project_code ? <div className="wl-item"><small>Project</small><strong>{lead.converted_project_code}</strong><Link href={`/admin/projects/${encodeURIComponent(lead.converted_project_code)}`}>Open project →</Link></div> : null}
                   {lead.utm_source ? <div className="wl-item" style={{gridColumn:"1/-1"}}><small>Campaign</small><span>{[lead.utm_source, lead.utm_medium, lead.utm_campaign].filter(Boolean).join(" · ")}</span></div> : null}
                 </div>
               </div>
