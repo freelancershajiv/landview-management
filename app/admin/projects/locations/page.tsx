@@ -76,12 +76,15 @@ export default function ProjectLocationsPage(){
   useEffect(()=>{if(!form.division||!form.district||!form.upazilaThana){setLocalOptions({unions:[],pourashavas:[]});return;}void getJson(`/api/bangladesh-locations?level=local&division=${encodeURIComponent(form.division)}&district=${encodeURIComponent(form.district)}&upazila=${encodeURIComponent(form.upazilaThana)}`).then(setLocalOptions).catch(()=>setLocalOptions({unions:[],pourashavas:[]}));},[form.division,form.district,form.upazilaThana]);
 
   async function save(e:React.FormEvent){
-    e.preventDefault();if(!selectedId||saving)return;setSaving(true);setMessage(null);
+    e.preventDefault();if(!selectedId||saving)return;const savedId=selectedId;setSaving(true);setMessage(null);
     try{
-      const response=await fetch("/api/projects/locations",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",cache:"no-store",body:JSON.stringify({projectId:selectedId,...form,fullAddress:generatedAddress})});
+      const response=await fetch("/api/projects/locations",{method:"POST",headers:{"Content-Type":"application/json"},credentials:"same-origin",cache:"no-store",body:JSON.stringify({projectId:savedId,...form,fullAddress:generatedAddress})});
       const json=await response.json();if(!response.ok||!json?.success)throw new Error(String(json?.error||"Could not save location."));
-      setProjects(current=>current.map(p=>p.projectId===selectedId?{...p,...json.data,legacyLocation:generatedAddress}:p));
-      setMessage({kind:"ok",text:"Structured address saved. The public map can now filter this project by its administrative location."});
+      setProjects(current=>current.map(p=>p.projectId===savedId?{...p,...json.data,legacyLocation:generatedAddress}:p));
+      setSelectedId("");
+      setForm(EMPTY);
+      if(typeof window!=="undefined")window.history.replaceState(null,"","/admin/projects/locations");
+      setMessage({kind:"ok",text:`${savedId} structured address saved successfully. The editor has been closed.`});
     }catch(e:any){setMessage({kind:"err",text:e?.message||"Could not save location."});}finally{setSaving(false);}
   }
 
@@ -94,6 +97,7 @@ export default function ProjectLocationsPage(){
       <div className="pl-picker"><input className="pl-input" value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search LV-157, project name, client or address"/><select className="pl-select" value={selectedId} onChange={e=>setSelectedId(e.target.value)}><option value="">Choose project…</option>{filteredProjects.map(p=><option key={p.projectId} value={p.projectId}>{p.projectId} · {p.projectName||p.clientName||"Unnamed project"}</option>)}</select></div>
       {selected&&<div className="pl-meta"><b>{selected.projectId}</b> · {selected.projectName||selected.clientName||"Project"}{selected.legacyLocation?<> · Existing address: {selected.legacyLocation}</>:null}</div>}
     </section>
+    {message&&<div className={`pl-message ${message.kind}`}>{message.text}</div>}
     {selected&&<section className="pl-card"><div className="pl-head"><strong>Bangladesh administrative address</strong><span>Division, District and Upazila are cascading. Union and Paurashava options come from the selected Upazila; City Corporation and Other remain editable for urban/special cases.</span></div>
       <form className="pl-form" onSubmit={save}>
         <label className="pl-field"><span>Division</span><select className="pl-select" value={form.division} onChange={e=>setForm(v=>({...v,division:e.target.value,district:"",upazilaThana:"",localBodyName:"",wardNo:""}))}><option value="">Select division…</option>{divisions.map(o=><option key={o.name} value={o.name}>{o.name}{o.bnName?` · ${o.bnName}`:""}</option>)}</select></label>
@@ -105,7 +109,6 @@ export default function ProjectLocationsPage(){
         <label className="pl-field"><span>Village / Area / Mohalla</span><input className="pl-input" value={form.villageArea} onChange={e=>setForm(v=>({...v,villageArea:e.target.value}))} placeholder="Village, area or mohalla"/></label>
         <label className="pl-field"><span>Road / Street / Holding No.</span><input className="pl-input" value={form.roadHolding} onChange={e=>setForm(v=>({...v,roadHolding:e.target.value}))} placeholder="Optional road, street or holding"/></label>
         <div className="pl-preview"><span>GENERATED PROJECT ADDRESS</span><strong>{generatedAddress||selected.legacyLocation||"Choose the administrative address above."}</strong></div>
-        {message&&<div className={`pl-message ${message.kind}`}>{message.text}</div>}
         <div className="pl-actions"><button type="button" className="pl-btn" onClick={()=>setForm({division:selected.division||"",district:selected.district||"",upazilaThana:selected.upazilaThana||"",localBodyType:selected.localBodyType||"",localBodyName:selected.localBodyName||"",wardNo:selected.wardNo||"",villageArea:selected.villageArea||"",roadHolding:selected.roadHolding||""})}>Reset</button><button className="pl-btn primary" disabled={saving}>{saving?"Saving…":"Save structured address"}</button></div>
       </form>
     </section>}
