@@ -22,7 +22,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     .map((project) => ({
       url: `${baseUrl}/projects/${encodeURIComponent(String(project.projectId))}`,
       changeFrequency: "monthly" as const,
-      priority: 0.8,
+      priority: project.publicReady ? 0.8 : 0.65,
       images: project.coverImageUrl ? [String(project.coverImageUrl)] : undefined,
     }));
 
@@ -41,6 +41,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/contact`, changeFrequency: "monthly", priority: 0.8 },
     { url: `${baseUrl}/team`, changeFrequency: "monthly", priority: 0.8 },
     { url: `${baseUrl}/projects`, changeFrequency: "weekly", priority: 0.9 },
+    { url: `${baseUrl}/projects/map`, changeFrequency: "weekly", priority: 0.85 },
     ...projectEntries,
   ];
 }
