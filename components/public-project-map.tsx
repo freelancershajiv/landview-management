@@ -32,7 +32,8 @@ function imageUrl(url?: string) {
 }
 
 export default function PublicProjectMap({initialProjects}:{initialProjects:PublicProjectSeo[]}) {
-  const mappedProjects=useMemo(()=>initialProjects.filter(validMapProject),[initialProjects]);
+  const [projects,setProjects]=useState<PublicProjectSeo[]>(initialProjects);
+  const mappedProjects=useMemo(()=>projects.filter(validMapProject),[projects]);
   const [query,setQuery]=useState(""); const [category,setCategory]=useState("All"); const [stage,setStage]=useState("All"); const [selectedId,setSelectedId]=useState(""); const [scriptReady,setScriptReady]=useState(false); const [mapReady,setMapReady]=useState(false); const [mapError,setMapError]=useState("");
   const mapNode=useRef<HTMLDivElement|null>(null); const mapRef=useRef<any>(null); const layerRef=useRef<any>(null); const markerRef=useRef<Record<string,any>>({});
   const categories=useMemo(()=>["All",...Array.from(new Set(mappedProjects.map(p=>String(p.category||"").trim()).filter(Boolean))).sort()],[mappedProjects]);
@@ -40,6 +41,27 @@ export default function PublicProjectMap({initialProjects}:{initialProjects:Publ
   const filtered=useMemo(()=>{const term=query.trim().toLowerCase();return mappedProjects.filter(p=>(category==="All"||p.category===category)&&(stage==="All"||p.currentStage===stage)&&(!term||searchText(p).includes(term)))},[mappedProjects,query,category,stage]);
   const selected=useMemo(()=>mappedProjects.find(p=>p.projectId===selectedId)||null,[mappedProjects,selectedId]);
   const completedCount=mappedProjects.filter(p=>p.currentStage==="Completed").length;
+
+  useEffect(()=>{
+    let cancelled=false;
+    async function refreshProjects(){
+      try{
+        const response=await fetch(`/api/public/projects?mapRefresh=${Date.now()}`,{cache:"no-store"});
+        const json=await response.json();
+        if(!cancelled&&response.ok&&json?.success&&Array.isArray(json.data))setProjects(json.data as PublicProjectSeo[]);
+      }catch{}
+    }
+    void refreshProjects();
+    const onPageShow=()=>{void refreshProjects()};
+    const onVisibility=()=>{if(document.visibilityState==="visible")void refreshProjects()};
+    window.addEventListener("pageshow",onPageShow);
+    document.addEventListener("visibilitychange",onVisibility);
+    return()=>{cancelled=true;window.removeEventListener("pageshow",onPageShow);document.removeEventListener("visibilitychange",onVisibility)};
+  },[]);
+
+  useEffect(()=>{
+    if(typeof window!=="undefined"&&window.L)setScriptReady(true);
+  },[]);
 
   useEffect(()=>{
     if(!scriptReady||!mapNode.current||mapRef.current||!window.L)return;
