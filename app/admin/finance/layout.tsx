@@ -1,9 +1,11 @@
+import BillingLocationTagCleaner from "@/components/billing-location-tag-cleaner";
 import FinanceDiscountAction from "@/components/finance-discount-action";
 import "./invoices/invoice-revamp-print-fix.css";
 import "./invoices/invoice-column-alignment-fix.css";
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
   return <>
+    <BillingLocationTagCleaner />
     <FinanceDiscountAction />
     {children}
   </>;
