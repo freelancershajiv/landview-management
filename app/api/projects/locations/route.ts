@@ -12,6 +12,13 @@ function sameOrigin(request: NextRequest) {
   if (!origin) return process.env.NODE_ENV !== "production" || request.headers.get("sec-fetch-site") === "same-origin";
   try { return new URL(origin).host === request.nextUrl.host; } catch { return false; }
 }
+function has(input: Record<string, unknown>, ...keys: string[]) { return keys.some((key) => Object.prototype.hasOwnProperty.call(input, key)); }
+function finiteNumber(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const parsed = Number(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
 function fullAddress(input: Record<string, unknown>) {
   const parts = [
     text(input.roadHolding || input.Road_Holding),
@@ -30,6 +37,9 @@ function publicRow(row: Record<string, unknown>) {
     projectName: row.project_name || "",
     clientName: row.client_name_snapshot || "",
     legacyLocation: row.location || "",
+    locationTag: row.location_tag || "",
+    siteLatitude: row.site_latitude ?? "",
+    siteLongitude: row.site_longitude ?? "",
     division: row.division || "",
     district: row.district || "",
     upazilaThana: row.upazila_thana || "",
@@ -65,7 +75,7 @@ export async function POST(request: NextRequest) {
     const rows = await selectRows("projects", { filters: { project_code: projectCode }, select: "id,project_code", limit: 1 });
     if (!rows.length) return NextResponse.json({ success: false, error: "Project not found." }, { status: 404 });
 
-    const changes = {
+    const changes: Record<string, unknown> = {
       division: text(body.division || body.Division, 100) || null,
       district: text(body.district || body.District, 100) || null,
       upazila_thana: text(body.upazilaThana || body.Upazila_Thana, 140) || null,
@@ -77,6 +87,10 @@ export async function POST(request: NextRequest) {
       location: text(body.fullAddress, 1000) || fullAddress(body) || null,
       updated_at: new Date().toISOString(),
     };
+    if (has(body, "locationTag", "Location_Tag")) changes.location_tag = text(body.locationTag || body.Location_Tag, 4000) || null;
+    if (has(body, "siteLatitude", "Site_Latitude")) changes.site_latitude = finiteNumber(body.siteLatitude ?? body.Site_Latitude);
+    if (has(body, "siteLongitude", "Site_Longitude")) changes.site_longitude = finiteNumber(body.siteLongitude ?? body.Site_Longitude);
+
     const updated = await updateRows("projects", { project_code: projectCode }, changes);
     return NextResponse.json({ success: true, data: publicRow(updated[0] || { ...changes, project_code: projectCode }) }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
