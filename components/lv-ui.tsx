@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { isValidElement, ReactNode, useEffect, useState } from "react";
+import { cloneElement, isValidElement, ReactNode, useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
@@ -70,6 +70,7 @@ export function Money({ value }: { value: unknown }) {
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
   const pathname = usePathname();
   const [locating, setLocating] = useState(false);
+  const [normalizingTag, setNormalizingTag] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
 
   const normalizedLabel = label.trim().toUpperCase();
@@ -94,6 +95,38 @@ export function Field({ label, children, hint }: { label: string; children: Reac
     window.addEventListener("landview-project-location", handler as EventListener);
     return () => window.removeEventListener("landview-project-location", handler as EventListener);
   }, [children, isProjectCoordinate, normalizedLabel]);
+
+  async function normalizeLocationTag(value: string) {
+    const raw = String(value || "").trim();
+    if (!raw || normalizingTag) return;
+    if (!/(?:maps\.app\.goo\.gl|goo\.gl|google\.[a-z.]+\/maps|google\.com\/maps)/i.test(raw)) return;
+    if (!isValidElement<{ onChange?: (event: any) => void }>(children) || typeof children.props.onChange !== "function") return;
+
+    setNormalizingTag(true);
+    setLocationMessage("Resolving Location Tag…");
+    try {
+      const response = await fetch("/api/projects/resolve-location", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ location: raw }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) throw new Error(json?.error || "Could not resolve that Google Maps link.");
+      const latitude = Number(json.data?.latitude);
+      const longitude = Number(json.data?.longitude);
+      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error("Google Maps did not return valid coordinates.");
+
+      const mapUrl = `https://www.google.com/maps?q=${Number(latitude.toFixed(8))},${Number(longitude.toFixed(8))}`;
+      children.props.onChange?.({ target: { value: mapUrl }, currentTarget: { value: mapUrl } });
+      window.dispatchEvent(new CustomEvent("landview-project-location", { detail: { latitude, longitude } }));
+      setLocationMessage("Location Tag converted to exact coordinates. Save the project to publish the updated pin.");
+    } catch (error) {
+      setLocationMessage(error instanceof Error ? error.message : "Could not convert this Location Tag.");
+    } finally {
+      setNormalizingTag(false);
+    }
+  }
 
   function useCurrentLocation() {
     if (locating) return;
@@ -152,16 +185,25 @@ export function Field({ label, children, hint }: { label: string; children: Reac
     </label>;
   }
 
+  const renderedChildren = isProjectLocationTag && isValidElement<any>(children)
+    ? cloneElement(children, {
+        onBlur: (event: any) => {
+          children.props.onBlur?.(event);
+          void normalizeLocationTag(String(event.currentTarget?.value || event.target?.value || ""));
+        },
+      })
+    : children;
+
   return <label className="form-field">
     <span>{displayLabel}</span>
-    {children}
+    {renderedChildren}
     {isProjectLocationTag && <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap",marginTop:7}}>
-      <button type="button" className="btn btn-small" onClick={event=>{event.preventDefault();event.stopPropagation();useCurrentLocation();}} disabled={locating}>
-        {locating ? "Getting current location..." : "Use Current Location"}
+      <button type="button" className="btn btn-small" onClick={event=>{event.preventDefault();event.stopPropagation();useCurrentLocation();}} disabled={locating || normalizingTag}>
+        {locating ? "Getting current location..." : normalizingTag ? "Resolving Location Tag..." : "Use Current Location"}
       </button>
       {locationMessage && <small style={{margin:0,flex:"1 1 180px"}}>{locationMessage}</small>}
     </div>}
-    {isProjectLocationTag && !hint && <small>Use this for the Google Maps/GPS pin. Latitude and longitude are kept internally for the public map and Site Visit verification.</small>}
+    {isProjectLocationTag && !hint && <small>Paste a Google Maps link or use current location. Short Google Maps links are converted to an exact coordinate link automatically. Only projects with a Location Tag appear on the public map.</small>}
     {hint && <small>{hint}</small>}
   </label>;
 }
