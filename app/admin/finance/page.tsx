@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { landViewApi, type BillingBookData } from "@/lib/api";
 
 const BILL_CATEGORIES = ["Engineering Bill", "Supervision Bill", "Other Services Bill"] as const;
+const OTHER_SERVICE_TYPES = ["Soil Test", "Digital Survey", "Municipality File Pass"] as const;
 type BillCategory = typeof BILL_CATEGORIES[number];
 type BillingFilter = "due" | "paid" | "written" | "all";
 type CategoryDueFilter = "all" | "eb" | "sb" | "ob";
@@ -36,7 +37,7 @@ type WriteOffEvent = {
 };
 
 type BillingForm = { projectId: string; category: BillCategory; service: string; amount: string; discount: string; date: string; notes: string };
-type PaymentForm = { projectId: string; category: BillCategory; amount: string; date: string; method: string; account: string; reference: string; notes: string };
+type PaymentForm = { projectId: string; category: BillCategory; serviceType: string; amount: string; date: string; method: string; account: string; reference: string; notes: string };
 type WriteOffForm = { projectId: string; category: BillCategory; amount: string; date: string; reason: string; notes: string };
 type RecoveryForm = { projectId: string; category: BillCategory; amount: string; date: string; method: string; account: string; reference: string; notes: string };
 
@@ -129,7 +130,7 @@ export default function BillingPage() {
   const [writeOffOpen, setWriteOffOpen] = useState(false);
   const [recoveryOpen, setRecoveryOpen] = useState(false);
   const [billForm, setBillForm] = useState<BillingForm>({ projectId: "", category: "Engineering Bill", service: "", amount: "", discount: "", date: today(), notes: "" });
-  const [paymentForm, setPaymentForm] = useState<PaymentForm>({ projectId: "", category: "Engineering Bill", amount: "", date: today(), method: "Bank Transfer", account: "Bank Account", reference: "", notes: "" });
+  const [paymentForm, setPaymentForm] = useState<PaymentForm>({ projectId: "", category: "Engineering Bill", serviceType: "", amount: "", date: today(), method: "Bank Transfer", account: "Bank Account", reference: "", notes: "" });
   const [writeOffForm, setWriteOffForm] = useState<WriteOffForm>({ projectId: "", category: "Engineering Bill", amount: "", date: today(), reason: "Client unreachable", notes: "" });
   const [recoveryForm, setRecoveryForm] = useState<RecoveryForm>({ projectId: "", category: "Engineering Bill", amount: "", date: today(), method: "Bank Transfer", account: "Bank Account", reference: "", notes: "" });
 
@@ -260,12 +261,13 @@ export default function BillingPage() {
   async function savePayment() {
     const value = amount(paymentForm.amount);
     if (!paymentForm.projectId) return setModalError("Choose a project first.");
+    if (paymentForm.category === "Other Services Bill" && !paymentForm.serviceType) return setModalError("Choose Soil Test, Digital Survey or Municipality File Pass.");
     if (!(selectedPaymentDue > 0)) return setModalError("This category has no collectible due.");
     if (!(value > 0) || value > selectedPaymentDue + 0.01) return setModalError(`Payment must be between BDT 1 and ${money(selectedPaymentDue)}.`);
     setSaving(true); setModalError("");
     try {
-      await writeBilling("savePayment", { Project_ID: paymentForm.projectId, Payment_Date: paymentForm.date, Amount: value, Payment_Method: paymentForm.method, Deposit_Account: paymentForm.account, Reference_No: paymentForm.reference.trim(), Payment_For: paymentForm.category, Income_Category: paymentForm.category, Transaction_Type: "Business Income", Affects_Business_Balance: "Yes", Received_From: findProject(paymentForm.projectId)?.clientName || "", Notes: paymentForm.notes.trim(), Idempotency_Key: `web-payment-${crypto.randomUUID()}` });
-      setPaymentOpen(false); refresh("Payment recorded successfully.");
+      await writeBilling("savePayment", { Project_ID: paymentForm.projectId, Payment_Date: paymentForm.date, Amount: value, Payment_Method: paymentForm.method, Deposit_Account: paymentForm.account, Reference_No: paymentForm.reference.trim(), Payment_For: paymentForm.category, Income_Category: paymentForm.category, Service_Type: paymentForm.category === "Other Services Bill" ? paymentForm.serviceType : "", Transaction_Type: "Business Income", Affects_Business_Balance: "Yes", Received_From: findProject(paymentForm.projectId)?.clientName || "", Notes: paymentForm.notes.trim(), Idempotency_Key: `web-payment-${crypto.randomUUID()}` });
+      setPaymentOpen(false); refresh(paymentForm.serviceType === "Municipality File Pass" ? "Payment recorded in Municipality File Pass ledger." : "Payment recorded successfully.");
     } catch (err) { setModalError(err instanceof Error ? err.message : "Could not record payment."); } finally { setSaving(false); }
   }
   async function saveWriteOff() {
@@ -302,7 +304,7 @@ export default function BillingPage() {
       <div><small>LAND VIEW / CLIENT BILLING</small><h1>Billing</h1></div>
       <div className="billing-actions">
         <button className="billing-btn primary" disabled={saving} onClick={() => { resetMessage(); setBillForm({ projectId: "", category: "Engineering Bill", service: "", amount: "", discount: "", date: today(), notes: "" }); setBillOpen(true); }}>+ Add Bill</button>
-        <button className="billing-btn" disabled={saving} onClick={() => { resetMessage(); setPaymentForm({ projectId: "", category: "Engineering Bill", amount: "", date: today(), method: "Bank Transfer", account: "Bank Account", reference: "", notes: "" }); setPaymentOpen(true); }}>+ Add Payment</button>
+        <button className="billing-btn" disabled={saving} onClick={() => { resetMessage(); setPaymentForm({ projectId: "", category: "Engineering Bill", serviceType: "", amount: "", date: today(), method: "Bank Transfer", account: "Bank Account", reference: "", notes: "" }); setPaymentOpen(true); }}>+ Add Payment</button>
         <button className="billing-btn warn" disabled={saving} onClick={() => { resetMessage(); setWriteOffForm({ projectId: "", category: "Engineering Bill", amount: "", date: today(), reason: "Client unreachable", notes: "" }); setWriteOffOpen(true); }}>Write Off Due</button>
         <button className="billing-btn recover" disabled={saving || writtenProjects.length === 0} onClick={() => { resetMessage(); setRecoveryForm({ projectId: "", category: "Engineering Bill", amount: "", date: today(), method: "Bank Transfer", account: "Bank Account", reference: "", notes: "" }); setRecoveryOpen(true); }}>Recover Write-off</button>
         <Link className="billing-btn" href="/admin/finance/invoices">Generate Invoice</Link>
@@ -372,7 +374,10 @@ export default function BillingPage() {
 
     {paymentOpen && <Modal title="Add Payment" intro="Only actual cash received is recorded as a payment. Written-off balances are not selectable here." error={modalError} saving={saving} onClose={() => setPaymentOpen(false)} onSave={savePayment} saveLabel="Save Payment">
       <div className="billing-field full"><label>Project with collectible receivable</label><select value={paymentForm.projectId} onChange={(e) => setPaymentForm((f) => ({ ...f, projectId: e.target.value }))}><option value="">Choose project</option>{dueProjects.map((p) => <option key={p.id} value={p.id}>{p.id} — {p.clientName || p.projectName} — Due {money(p.due)}</option>)}</select></div>
-      <CategoryDate category={paymentForm.category} date={paymentForm.date} dateLabel="Payment date" onCategory={(category) => setPaymentForm((f) => ({ ...f, category }))} onDate={(date) => setPaymentForm((f) => ({ ...f, date }))}/><div className="billing-preview"><span>Category collectible due</span><strong>{money(selectedPaymentDue)}</strong></div>
+      <CategoryDate category={paymentForm.category} date={paymentForm.date} dateLabel="Payment date" onCategory={(category) => setPaymentForm((f) => ({ ...f, category, serviceType: category === "Other Services Bill" ? f.serviceType : "" }))} onDate={(date) => setPaymentForm((f) => ({ ...f, date }))}/>
+      {paymentForm.category === "Other Services Bill" && <div className="billing-field full"><label>Other service</label><select value={paymentForm.serviceType} onChange={(e) => setPaymentForm((f) => ({ ...f, serviceType: e.target.value }))}><option value="">Choose service</option>{OTHER_SERVICE_TYPES.map((service) => <option key={service}>{service}</option>)}</select></div>}
+      {paymentForm.serviceType === "Municipality File Pass" && <div className="billing-preview"><span>Ledger routing</span><strong>Municipality File Pass</strong></div>}
+      <div className="billing-preview"><span>Category collectible due</span><strong>{money(selectedPaymentDue)}</strong></div>
       <div className="billing-field"><label>Amount received</label><input inputMode="decimal" value={paymentForm.amount} onChange={(e) => setPaymentForm((f) => ({ ...f, amount: e.target.value }))}/></div><PaymentFields method={paymentForm.method} account={paymentForm.account} reference={paymentForm.reference} onMethod={(method) => setPaymentForm((f) => ({ ...f, method }))} onAccount={(account) => setPaymentForm((f) => ({ ...f, account }))} onReference={(reference) => setPaymentForm((f) => ({ ...f, reference }))}/><div className="billing-field full"><label>Notes</label><textarea value={paymentForm.notes} onChange={(e) => setPaymentForm((f) => ({ ...f, notes: e.target.value }))}/></div>
     </Modal>}
 
