@@ -52,6 +52,42 @@ function isEffectivePayment(row: Row) {
   return !status || ["approved", "received", "paid", "verified", "complete", "completed", "full paid", "fully paid", "posted"].includes(status);
 }
 
+function dhakaDay(value: Date | string | number) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function leadSummary(rows: Row[]) {
+  const now = Date.now();
+  const today = dhakaDay(new Date());
+  let newCount = 0;
+  let overdueFollowUps = 0;
+  let dueToday = 0;
+  let qualified = 0;
+  let converted = 0;
+
+  for (const row of rows) {
+    const status = text(row.status) || "New";
+    if (status === "New") newCount += 1;
+    if (status === "Qualified") qualified += 1;
+    if (status === "Converted") converted += 1;
+    if (["Converted", "Closed"].includes(status) || !row.follow_up_at) continue;
+    const due = new Date(row.follow_up_at);
+    if (Number.isNaN(due.getTime())) continue;
+    const dueDay = dhakaDay(due);
+    if (due.getTime() < now && dueDay !== today) overdueFollowUps += 1;
+    if (dueDay === today) dueToday += 1;
+  }
+
+  return { total: rows.length, newCount, overdueFollowUps, dueToday, qualified, converted };
+}
+
 async function permissionsFor(user: Row) {
   const role = roleOf(user);
   const permissions: Record<string, boolean> = Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false]));
@@ -116,6 +152,10 @@ export async function GET(request: NextRequest) {
       ? selectRows("employees", { limit: 1000 })
       : Promise.resolve([] as Row[]);
 
+    const websiteLeadsPromise = management
+      ? selectRows("website_leads", { order: "created_at:desc", limit: 3000 })
+      : Promise.resolve([] as Row[]);
+
     let billsPromise: Promise<Row[]> = Promise.resolve([]);
     let paymentsPromise: Promise<Row[]> = Promise.resolve([]);
     if (financeVisible) {
@@ -128,11 +168,12 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const [documents, employees, bills, payments] = await Promise.all([
+    const [documents, employees, bills, payments, websiteLeads] = await Promise.all([
       documentsPromise,
       employeesPromise,
       billsPromise,
       paymentsPromise,
+      websiteLeadsPromise,
     ]);
 
     const effectiveBills = bills.filter(isEffectiveBill);
@@ -167,6 +208,7 @@ export async function GET(request: NextRequest) {
         totalPaid,
         pendingPayments: totalBill - totalPaid,
       },
+      websiteLeadSummary: management ? leadSummary(websiteLeads) : null,
       recentProjects,
       backend: "supabase-postgresql",
     };
