@@ -10,6 +10,7 @@ import GlobalActionFeedback from "@/components/global-action-feedback";
 import SessionExpiryGuard from "@/components/session-expiry-guard";
 import VisitorAnalytics from "@/components/visitor-analytics";
 import PublicLeadActions from "@/components/public-lead-actions";
+import PublicHomeProjectEnhancer from "@/components/public-home-project-enhancer";
 import "./globals.css";
 import "./brand-loader.css";
 import "./premium-theme.css";
@@ -93,6 +94,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <BrandLoader />
         {children}
         <PublicLeadActions />
+        <PublicHomeProjectEnhancer />
         <VisitorAnalytics />
         <SessionExpiryGuard />
         <Analytics />
