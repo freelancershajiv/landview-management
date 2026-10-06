@@ -7,6 +7,14 @@ export type PublicProjectSeo = {
   title?: string;
   category?: string;
   location?: string;
+  division?: string;
+  district?: string;
+  upazilaThana?: string;
+  localBodyType?: string;
+  localBodyName?: string;
+  wardNo?: string;
+  villageArea?: string;
+  roadHolding?: string;
   currentStage?: string;
   area?: string;
   stories?: string;
@@ -53,10 +61,8 @@ function validCoordinates(latitude: unknown, longitude: unknown) {
 async function locationTagCoordinates(row: any) {
   const locationTag = String(row.location_tag || "").trim();
   if (!locationTag) return null;
-
   const direct = parseGoogleMapsCoordinates(locationTag);
   if (direct) return { latitude: direct.latitude, longitude: direct.longitude };
-
   if (!looksLikeGoogleMapsLocation(locationTag)) return null;
   try {
     const resolved = await resolveGoogleMapsLocation(locationTag);
@@ -69,15 +75,10 @@ async function locationTagCoordinates(row: any) {
 async function publicMap(row: any) {
   const locationTag = String(row.location_tag || "").trim();
   if (!locationTag) return {};
-
-  // Location Tag alone controls map membership. There is no separate public-map
-  // switch anymore. Stored site coordinates are only a fallback for an existing
-  // tag when Google cannot temporarily expand the link.
   const fromTag = await locationTagCoordinates(row);
   const fromSite = validCoordinates(row.site_latitude, row.site_longitude);
   const source = fromTag || fromSite;
   if (!source) return {};
-
   return {
     mapEnabled: true,
     mapPrecision: "exact" as const,
@@ -99,7 +100,23 @@ export const getPublicProjectsForSeo = cache(async function getPublicProjectsFor
       title: String(row.public_project_title || row.project_name || row.project_code || ""),
       category: String(row.project_category || row.project_type || ""),
       location: String(row.location || ""),
-      currentStage: (() => { const design=String(row.design_stage_status||"Pending"); const approval=String(row.approval_stage_status||"Pending"); const supervision=String(row.supervision_stage_status||"Completed"); if(design!=="Completed") return "Design Stage"; if(approval!=="Completed") return "Approval Stage"; if(supervision!=="Completed") return "Supervision / Construction"; return "Completed"; })(),
+      division: String(row.division || ""),
+      district: String(row.district || ""),
+      upazilaThana: String(row.upazila_thana || ""),
+      localBodyType: String(row.local_body_type || ""),
+      localBodyName: String(row.local_body_name || ""),
+      wardNo: String(row.ward_no || ""),
+      villageArea: String(row.village_area || ""),
+      roadHolding: String(row.road_holding || ""),
+      currentStage: (() => {
+        const design=String(row.design_stage_status||"Pending");
+        const approval=String(row.approval_stage_status||"Pending");
+        const supervision=String(row.supervision_stage_status||"Completed");
+        if(design!=="Completed") return "Design Stage";
+        if(approval!=="Completed") return "Approval Stage";
+        if(supervision!=="Completed") return "Supervision / Construction";
+        return "Completed";
+      })(),
       area: String(row.project_area_text || row.plot_area || ""),
       stories: String(row.number_of_stories_text || row.floors || ""),
       completionYear: String(row.completion_year || ""),
