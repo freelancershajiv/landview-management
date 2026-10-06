@@ -16,6 +16,7 @@ type FormState = {
   Ref_Contact: string;
   Project_Type: string;
   Location: string;
+  Location_Tag: string;
   Project_Area: string;
   Number_of_Stories: string;
   Start_Date: string;
@@ -37,6 +38,7 @@ const emptyForm: FormState = {
   Ref_Contact: "",
   Project_Type: "",
   Location: "",
+  Location_Tag: "",
   Project_Area: "",
   Number_of_Stories: "",
   Start_Date: new Date().toISOString().slice(0, 10),
@@ -50,7 +52,7 @@ const emptyForm: FormState = {
 };
 
 const css = `
-.new-project-page{display:grid;gap:18px;max-width:1050px}.new-project-actions{display:flex;gap:8px;flex-wrap:wrap}.new-project-btn{height:40px;padding:0 14px;border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));border-radius:8px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_fff, #fff);font-size:12px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.new-project-btn.primary{background:#d61f26;border-color:var(--theme-line-_d61f26, #d61f26)}.new-project-btn:disabled{opacity:.5;cursor:not-allowed}.new-project-card{border:1px solid var(--theme-line-rgba_255_255_255__11_, rgba(255,255,255,.11));border-radius:12px;background:var(--theme-bg-_0e1720, #0e1720);overflow:hidden}.new-project-head{padding:16px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));background:var(--theme-bg-_141e28, #141e28)}.new-project-head strong{display:block;color:var(--theme-ink-_f4f6f8, #f4f6f8);font-size:14px}.new-project-head small{display:block;margin-top:5px;color:var(--theme-ink-_7e8b95, #7e8b95);font-size:11px;line-height:1.55}.id-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08))}.id-mode{padding:14px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:10px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_b9c2c9, #b9c2c9);text-align:left;cursor:pointer}.id-mode.active{border-color:var(--theme-line-_d61f26, #d61f26);background:var(--theme-bg-rgba_214_31_38__09_, rgba(214,31,38,.09))}.id-mode b{display:block;color:var(--theme-ink-_fff, #fff);font-size:12px}.id-mode span{display:block;margin-top:5px;color:var(--theme-ink-_7f8b95, #7f8b95);font-size:11px;line-height:1.5}.id-preview{margin:0 16px 2px;padding:12px 13px;border:1px solid var(--theme-line-rgba_255_255_255__09_, rgba(255,255,255,.09));border-radius:8px;background:var(--theme-bg-_101922, #101922);color:var(--theme-ink-_b8c1c8, #b8c1c8);font-size:11px;line-height:1.6}.id-preview b{color:var(--theme-ink-_ff7a72, #ff7a72)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px}.form-grid label{display:grid;gap:6px;color:var(--theme-ink-_8d99a3, #8d99a3);font-size:11px;font-weight:700}.form-grid label.full{grid-column:1/-1}.form-grid input,.form-grid select,.form-grid textarea{border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:7px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_edf1f4, #edf1f4);padding:0 10px;font-size:12px}.form-grid input,.form-grid select{height:41px}.form-grid textarea{min-height:96px;padding:10px;resize:vertical}.form-grid input:focus,.form-grid select:focus,.form-grid textarea:focus{outline:none;border-color:var(--theme-line-_d61f26, #d61f26)}.form-grid .submit{grid-column:1/-1}.message{margin:0 16px 16px;padding:11px 13px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:8px;font-size:11px;line-height:1.55}.message.ok{border-color:var(--theme-line-rgba_59_190_120__35_, rgba(59,190,120,.35));color:var(--theme-ink-_95e2b2, #95e2b2)}.message.err{border-color:var(--theme-line-rgba_214_31_38__35_, rgba(214,31,38,.35));color:var(--theme-ink-_ff9d96, #ff9d96)}.created-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.new-project-note{padding:12px 16px;border-top:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));color:var(--theme-ink-_74818c, #74818c);font-size:11px;line-height:1.6}@media(max-width:700px){.id-mode-grid,.form-grid{grid-template-columns:1fr}.form-grid label.full,.form-grid .submit{grid-column:auto}}
+.new-project-page{display:grid;gap:18px;max-width:1050px}.new-project-actions{display:flex;gap:8px;flex-wrap:wrap}.new-project-btn{height:40px;padding:0 14px;border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));border-radius:8px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_fff, #fff);font-size:12px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.new-project-btn.primary{background:#d61f26;border-color:var(--theme-line-_d61f26, #d61f26)}.new-project-btn:disabled{opacity:.5;cursor:not-allowed}.new-project-card{border:1px solid var(--theme-line-rgba_255_255_255__11_, rgba(255,255,255,.11));border-radius:12px;background:var(--theme-bg-_0e1720, #0e1720);overflow:hidden}.new-project-head{padding:16px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));background:var(--theme-bg-_141e28, #141e28)}.new-project-head strong{display:block;color:var(--theme-ink-_f4f6f8, #f4f6f8);font-size:14px}.new-project-head small{display:block;margin-top:5px;color:var(--theme-ink-_7e8b95, #7e8b95);font-size:11px;line-height:1.55}.id-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08))}.id-mode{padding:14px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:10px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_b9c2c9, #b9c2c9);text-align:left;cursor:pointer}.id-mode.active{border-color:var(--theme-line-_d61f26, #d61f26);background:var(--theme-bg-rgba_214_31_38__09_, rgba(214,31,38,.09))}.id-mode b{display:block;color:var(--theme-ink-_fff, #fff);font-size:12px}.id-mode span{display:block;margin-top:5px;color:var(--theme-ink-_7f8b95, #7f8b95);font-size:11px;line-height:1.5}.id-preview{margin:0 16px 2px;padding:12px 13px;border:1px solid var(--theme-line-rgba_255_255_255__09_, rgba(255,255,255,.09));border-radius:8px;background:var(--theme-bg-_101922, #101922);color:var(--theme-ink-_b8c1c8, #b8c1c8);font-size:11px;line-height:1.6}.id-preview b{color:var(--theme-ink-_ff7a72, #ff7a72)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px}.form-grid label{display:grid;gap:6px;color:var(--theme-ink-_8d99a3, #8d99a3);font-size:11px;font-weight:700}.form-grid label.full{grid-column:1/-1}.form-grid input,.form-grid select,.form-grid textarea{border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:7px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_edf1f4, #edf1f4);padding:0 10px;font-size:12px}.form-grid input,.form-grid select{height:41px}.form-grid textarea{min-height:96px;padding:10px;resize:vertical}.form-grid input:focus,.form-grid select:focus,.form-grid textarea:focus{outline:none;border-color:var(--theme-line-_d61f26, #d61f26)}.form-grid .submit{grid-column:1/-1}.location-tag-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.location-tag-actions .new-project-btn{height:34px;font-size:10px}.location-tag-status{font-size:10px;color:var(--theme-ink-_7f8b95, #7f8b95);line-height:1.45}.message{margin:0 16px 16px;padding:11px 13px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:8px;font-size:11px;line-height:1.55}.message.ok{border-color:var(--theme-line-rgba_59_190_120__35_, rgba(59,190,120,.35));color:var(--theme-ink-_95e2b2, #95e2b2)}.message.err{border-color:var(--theme-line-rgba_214_31_38__35_, rgba(214,31,38,.35));color:var(--theme-ink-_ff9d96, #ff9d96)}.created-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.new-project-note{padding:12px 16px;border-top:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));color:var(--theme-ink-_74818c, #74818c);font-size:11px;line-height:1.6}@media(max-width:700px){.id-mode-grid,.form-grid{grid-template-columns:1fr}.form-grid label.full,.form-grid .submit{grid-column:auto}}
 `;
 
 function text(value: unknown) { return String(value ?? "").trim(); }
@@ -72,6 +74,8 @@ export default function NewProjectPage() {
   const [existingIds, setExistingIds] = useState<Set<string>>(new Set());
   const [form, setForm] = useState<FormState>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [locating, setLocating] = useState(false);
+  const [locationMessage, setLocationMessage] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState<{kind:"ok"|"err"; text:string; id?:string}|null>(null);
 
@@ -109,6 +113,44 @@ export default function NewProjectPage() {
 
   useEffect(() => { void load(); }, []);
 
+  function useCurrentLocation() {
+    if (locating) return;
+    setLocationMessage("");
+    if (typeof window !== "undefined" && !window.isSecureContext) {
+      setLocationMessage("Current location requires HTTPS.");
+      return;
+    }
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      setLocationMessage("Current location is not available in this browser.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      position => {
+        const latitude = Number(position.coords.latitude.toFixed(8));
+        const longitude = Number(position.coords.longitude.toFixed(8));
+        const accuracy = Number.isFinite(position.coords.accuracy) ? Math.round(position.coords.accuracy) : 0;
+        setForm(current => ({
+          ...current,
+          Location_Tag: `https://www.google.com/maps?q=${latitude},${longitude}`,
+          Site_Latitude: String(latitude),
+          Site_Longitude: String(longitude),
+        }));
+        setLocationMessage(`Current location added${accuracy ? ` · accuracy ±${accuracy} m` : ""}. Coordinates will be stored internally.`);
+        setLocating(false);
+      },
+      geolocationError => {
+        setLocationMessage(geolocationError.code === geolocationError.PERMISSION_DENIED
+          ? "Location access is blocked. Allow Location for LAND VIEW in your browser/site settings and try again."
+          : geolocationError.code === geolocationError.POSITION_UNAVAILABLE
+            ? "Your current location could not be determined. Check GPS and try again."
+            : "Location request timed out. Check GPS and try again.");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 },
+    );
+  }
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (!canManage || saving) return;
@@ -136,6 +178,7 @@ export default function NewProjectPage() {
       setMessage({ kind: "ok", text: `${createdId} was created successfully in Supabase.`, id: createdId });
       setExistingIds((current) => new Set([...current, createdId]));
       setForm({ ...emptyForm, Start_Date: new Date().toISOString().slice(0, 10) });
+      setLocationMessage("");
       const refresh = await fetch("/api/projects/new", { cache: "no-store", credentials: "same-origin" }).then(r => r.json()).catch(() => null);
       if (refresh?.success) setNextId(text(refresh.data?.nextId));
     } catch (e:any) {
@@ -171,15 +214,14 @@ export default function NewProjectPage() {
           <label>Referred By<input value={form.Referred_By} onChange={(e)=>setForm({...form,Referred_By:e.target.value})} placeholder="Referrer name / source" /></label>
           <label>Ref. Contact<input value={form.Ref_Contact} onChange={(e)=>setForm({...form,Ref_Contact:e.target.value})} placeholder="Referrer phone / contact" /></label>
           <label>Project Type<input value={form.Project_Type} onChange={(e)=>setForm({...form,Project_Type:e.target.value})} placeholder="Residential / Commercial / etc." /></label>
-          <label>Location<input value={form.Location} onChange={(e)=>setForm({...form,Location:e.target.value})} /></label>
+          <label>Address<input value={form.Location} onChange={(e)=>setForm({...form,Location:e.target.value})} placeholder="Project/site address" /></label>
+          <label>Location Tag<input value={form.Location_Tag} onChange={(e)=>setForm({...form,Location_Tag:e.target.value})} placeholder="Google Maps link or use current location" /><div className="location-tag-actions"><button className="new-project-btn" type="button" onClick={useCurrentLocation} disabled={locating}>{locating ? "Getting location…" : "Use Current Location"}</button>{locationMessage && <span className="location-tag-status">{locationMessage}</span>}</div></label>
           <label>Project Area<input value={form.Project_Area} onChange={(e)=>setForm({...form,Project_Area:e.target.value})} placeholder="e.g. 5 decimal / 3200 sft" /></label>
           <label>Stories / Floors<input value={form.Number_of_Stories} onChange={(e)=>setForm({...form,Number_of_Stories:e.target.value})} /></label>
           <label>Start Date<input type="date" value={form.Start_Date} onChange={(e)=>setForm({...form,Start_Date:e.target.value})} /></label>
           <label>Design Stage<select value={form.Design_Stage_Status} onChange={(e)=>setForm({...form,Design_Stage_Status:e.target.value})}><option>Pending</option><option>In Progress</option><option>Completed</option></select></label>
           <label>Approval Stage<select value={form.Approval_Stage_Status} onChange={(e)=>setForm({...form,Approval_Stage_Status:e.target.value})}><option>Pending</option><option>In Progress</option><option>Completed</option></select></label>
           <label>Supervision / Construction Stage<select value={form.Supervision_Stage_Status} onChange={(e)=>setForm({...form,Supervision_Stage_Status:e.target.value})}><option value="Pending">Pending</option><option value="In Progress">In Progress</option><option value="Completed">Completed / Not Required</option></select></label>
-          <label>Site Latitude<input value={form.Site_Latitude} onChange={(e)=>setForm({...form,Site_Latitude:e.target.value})} placeholder="e.g. 22.94xxxx" /></label>
-          <label>Site Longitude<input value={form.Site_Longitude} onChange={(e)=>setForm({...form,Site_Longitude:e.target.value})} placeholder="e.g. 91.39xxxx" /></label>
           <label>Site Geofence Radius (m)<input type="number" min="25" max="1000" value={form.Site_Geofence_Radius_M} onChange={(e)=>setForm({...form,Site_Geofence_Radius_M:e.target.value})} /></label>
           <label className="full">Notes<textarea value={form.Notes} onChange={(e)=>setForm({...form,Notes:e.target.value})} placeholder="Optional project notes" /></label>
           <button className="new-project-btn primary submit" type="submit" disabled={!canManage || saving || (mode === "manual" && manualExists)}>{saving ? "Creating project…" : mode === "automatic" ? "Create Project with Automatic ID" : `Create Project as ${normalizedManual || "Manual ID"}`}</button>
