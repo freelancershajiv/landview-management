@@ -69,23 +69,21 @@ async function locationTagCoordinates(row: any) {
 async function publicMap(row: any) {
   if (row.public_map_enabled !== true) return {};
 
-  // Location Tag is mandatory and is the source of truth for the public pin.
-  // Site coordinates are only a temporary fallback when an existing Location Tag
-  // cannot be expanded at request time; projects with no Location Tag are not mapped.
   const locationTag = String(row.location_tag || "").trim();
   if (!locationTag) return {};
 
+  // The Location Tag is the public map source of truth. Stored site coordinates
+  // are used only if Google cannot temporarily expand an existing short tag.
   const fromTag = await locationTagCoordinates(row);
   const fromSite = validCoordinates(row.site_latitude, row.site_longitude);
   const source = fromTag || fromSite;
   if (!source) return {};
 
-  const precision: "exact" | "approximate" = row.public_map_precision === "exact" ? "exact" : "approximate";
   return {
     mapEnabled: true,
-    mapPrecision: precision,
-    mapLatitude: precision === "exact" ? Number(source.latitude.toFixed(6)) : Number(source.latitude.toFixed(2)),
-    mapLongitude: precision === "exact" ? Number(source.longitude.toFixed(6)) : Number(source.longitude.toFixed(2)),
+    mapPrecision: "exact" as const,
+    mapLatitude: Number(source.latitude.toFixed(6)),
+    mapLongitude: Number(source.longitude.toFixed(6)),
   };
 }
 
