@@ -1,4 +1,5 @@
 import type { SheetInvoices } from "@/lib/sheet-invoices";
+import html2canvas from "html2canvas";
 
 let jpgExportPending = false;
 const SAFE_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
@@ -219,7 +220,7 @@ async function embedImages(source: HTMLElement, target: HTMLElement) {
 }
 
 function stripNetworkReferences(root: HTMLElement) {
-  root.querySelectorAll<HTMLElement>("*").forEach((element) => {
+  [root, ...Array.from(root.querySelectorAll<HTMLElement>("*"))].forEach((element) => {
     element.removeAttribute("srcset");
     element.removeAttribute("sizes");
     const style = element.getAttribute("style");
@@ -230,23 +231,6 @@ function stripNetworkReferences(root: HTMLElement) {
         }
       }
     }
-  });
-}
-
-function loadSvgImage(blob: Blob) {
-  return new Promise<HTMLImageElement>((resolve, reject) => {
-    const url = URL.createObjectURL(blob);
-    const image = new Image();
-    image.decoding = "sync";
-    image.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(image);
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("The JPG renderer could not read the printable page."));
-    };
-    image.src = url;
   });
 }
 
@@ -267,34 +251,32 @@ async function renderPageToJpeg(page: HTMLElement) {
   const rect = page.getBoundingClientRect();
   const width = Math.max(1, Math.round(rect.width));
   const height = Math.max(1, Math.round(rect.height));
-  const clone = page.cloneNode(true) as HTMLElement;
-  inlineComputedStyles(page, clone);
-  await embedImages(page, clone);
-  stripNetworkReferences(clone);
-
-  const wrapper = document.createElement("div");
-  wrapper.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
-  wrapper.style.width = `${width}px`;
-  wrapper.style.height = `${height}px`;
-  wrapper.style.margin = "0";
-  wrapper.style.padding = "0";
-  wrapper.style.background = "#fff";
-  wrapper.appendChild(clone);
-
-  const markup = new XMLSerializer().serializeToString(wrapper);
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><foreignObject width="100%" height="100%">${markup}</foreignObject></svg>`;
-  const image = await loadSvgImage(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
-
   const scale = Math.min(3, Math.max(2, window.devicePixelRatio || 1));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.round(width * scale);
-  canvas.height = Math.round(height * scale);
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("The browser does not support JPG canvas export.");
-  context.scale(scale, scale);
-  context.fillStyle = "#fff";
-  context.fillRect(0, 0, width, height);
-  context.drawImage(image, 0, 0, width, height);
+
+  // The page lives only inside the off-screen JPG export host, so it is
+  // safe to sanitize it in place. Embedding all <img> resources and
+  // inlining URL-free computed styles keeps html2canvas origin-clean.
+  inlineComputedStyles(page, page);
+  await embedImages(page, page);
+  stripNetworkReferences(page);
+  await waitForFrame();
+
+  const canvas = await html2canvas(page, {
+    backgroundColor: "#ffffff",
+    scale,
+    useCORS: false,
+    allowTaint: false,
+    foreignObjectRendering: false,
+    logging: false,
+    width,
+    height,
+    windowWidth: width,
+    windowHeight: height,
+    scrollX: 0,
+    scrollY: 0,
+    imageTimeout: 5000,
+  });
+
   return canvasToJpeg(canvas);
 }
 
