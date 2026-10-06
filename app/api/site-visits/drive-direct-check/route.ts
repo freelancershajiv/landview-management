@@ -47,7 +47,10 @@ async function getGoogleAccessToken() {
         "Content-Type": "application/json",
       },
       cache: "no-store",
-      body: JSON.stringify({ scope: ["https://www.googleapis.com/auth/drive"] }),
+      body: JSON.stringify({ scope: [
+        "https://www.googleapis.com/auth/cloud-platform",
+        "https://www.googleapis.com/auth/drive",
+      ] }),
     },
   );
   const impersonation = await impersonationResponse.json().catch(() => null) as any;
@@ -57,17 +60,48 @@ async function getGoogleAccessToken() {
   return String(impersonation.accessToken);
 }
 
+async function enableDriveApi(token: string) {
+  const projectNumber = requiredEnv("GCP_PROJECT_NUMBER");
+  const response = await fetch(
+    `https://serviceusage.googleapis.com/v1/projects/${projectNumber}/services/drive.googleapis.com:enable`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+      body: "{}",
+    },
+  );
+  const json = await response.json().catch(() => null) as any;
+  if (!response.ok) {
+    throw new Error(`Could not enable Drive API (${response.status}): ${json?.error?.message || "unknown error"}`);
+  }
+  return json;
+}
+
 export async function GET() {
   let createdId = "";
   try {
     const token = await getGoogleAccessToken();
     const headers = { Authorization: `Bearer ${token}` };
 
-    const folderResponse = await fetch(
+    let folderResponse = await fetch(
       `https://www.googleapis.com/drive/v3/files/${ROOT_FOLDER_ID}?fields=id,name,mimeType,capabilities(canAddChildren)&supportsAllDrives=true`,
       { headers, cache: "no-store" },
     );
-    const folder = await folderResponse.json().catch(() => null) as any;
+    let folder = await folderResponse.json().catch(() => null) as any;
+
+    if (!folderResponse.ok && folderResponse.status === 403 && /API has not been used|disabled/i.test(String(folder?.error?.message || ""))) {
+      await enableDriveApi(token);
+      return NextResponse.json({
+        success: false,
+        stage: "drive-api-enabled",
+        error: "Google Drive API was disabled. An enable request has now been submitted; retry this check after Google finishes enabling it.",
+      }, { status: 503, headers: { "Cache-Control": "no-store" } });
+    }
+
     if (!folderResponse.ok) {
       throw new Error(`Drive folder lookup failed (${folderResponse.status}): ${folder?.error?.message || "unknown error"}`);
     }
