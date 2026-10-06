@@ -17,6 +17,14 @@ export type PublicTeamMember = {
   displayOrder?: number;
 };
 
+function cleanPublicTeamText(value: unknown) {
+  return String(value ?? "")
+    .replace(/\bArchicture\b/gi, "Architecture")
+    .replace(/\bArchitectre\b/gi, "Architecture")
+    .replace(/\s+\n/g, "\n")
+    .trim();
+}
+
 export function normalizePublicTeamImageUrl(url?: string, size = "w1000") {
   const value = String(url || "").trim();
   if (!value) return "";
@@ -40,18 +48,18 @@ export const getPublicTeamForSeo = cache(async function getPublicTeamForSeo(): P
       limit: 1000,
     });
     return rows.map((row: any) => ({
-      name: String(row.name || ""),
-      title: String(row.public_title || row.designation || ""),
-      designation: String(row.designation || row.public_title || ""),
-      position: String(row.public_title || row.designation || ""),
-      department: String(row.department || ""),
+      name: cleanPublicTeamText(row.name),
+      title: cleanPublicTeamText(row.public_title || row.designation),
+      designation: cleanPublicTeamText(row.designation || row.public_title),
+      position: cleanPublicTeamText(row.public_title || row.designation),
+      department: cleanPublicTeamText(row.department),
       degree: "",
       degrees: "",
       speciality: "",
       specialities: "",
-      bio: String(row.public_bio || ""),
-      photoUrl: String(row.photo_url || ""),
-      linkedInUrl: String(row.linkedin_url || ""),
+      bio: cleanPublicTeamText(row.public_bio),
+      photoUrl: String(row.photo_url || "").trim(),
+      linkedInUrl: String(row.linkedin_url || "").trim(),
       displayOrder: Number(row.display_order ?? 9999),
     }));
   } catch (error) {
