@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 const PUBLIC_PREFIXES = ["/services", "/projects", "/team", "/contact", "/feni", "/bn"];
 const WHATSAPP_NUMBER = "8801408080400";
@@ -30,7 +30,6 @@ const EMPTY_FORM: FormState = { name: "", phone: "", email: "", projectLocation:
 
 export default function PublicLeadActions() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
@@ -60,16 +59,17 @@ export default function PublicLeadActions() {
     if (busy) return;
     setBusy(true); setError(""); setLeadCode("");
     try {
+      const params = new URLSearchParams(window.location.search);
       const response = await fetch("/api/public/enquiry", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           ...form,
-          sourcePath: `${pathname || "/"}${searchParams?.toString() ? `?${searchParams.toString()}` : ""}`,
+          sourcePath: `${window.location.pathname}${window.location.search}`,
           sourceReferrer: document.referrer || "",
-          utmSource: searchParams?.get("utm_source") || "",
-          utmMedium: searchParams?.get("utm_medium") || "",
-          utmCampaign: searchParams?.get("utm_campaign") || "",
+          utmSource: params.get("utm_source") || "",
+          utmMedium: params.get("utm_medium") || "",
+          utmCampaign: params.get("utm_campaign") || "",
         }),
       });
       const json = await response.json();
