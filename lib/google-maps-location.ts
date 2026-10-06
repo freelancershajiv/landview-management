@@ -84,19 +84,52 @@ function safeGoogleUrl(value: string, base?: string) {
   }
 }
 
+function decodeHtmlUrl(value: string) {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/\\u003d/gi, "=")
+    .replace(/\\u0026/gi, "&")
+    .replace(/\\u002f/gi, "/")
+    .replace(/\\\//g, "/");
+}
+
 function coordinatesFromHtml(html: string, sourceUrl: string) {
-  const snippets: string[] = [];
-  const meta = /<(?:meta|link)[^>]+(?:content|href)=["']([^"']+)["'][^>]*>/gi;
-  for (let match = meta.exec(html); match && snippets.length < 30; match = meta.exec(html)) {
-    const value = match[1].replace(/&amp;/g, "&");
-    if (/google\.|maps/i.test(value)) snippets.push(value);
+  // Only trust canonical/location URL metadata. Generic coordinates elsewhere in
+  // Google's HTML can represent a server/default viewport rather than the shared pin.
+  const candidates: string[] = [];
+  const patterns = [
+    /<link[^>]+rel=["']canonical["'][^>]+href=["']([^"']+)["'][^>]*>/gi,
+    /<link[^>]+href=["']([^"']+)["'][^>]+rel=["']canonical["'][^>]*>/gi,
+    /<meta[^>]+(?:property|name)=["']og:url["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
+    /<meta[^>]+content=["']([^"']+)["'][^>]+(?:property|name)=["']og:url["'][^>]*>/gi,
+    /<meta[^>]+itemprop=["']url["'][^>]+content=["']([^"']+)["'][^>]*>/gi,
+  ];
+
+  for (const pattern of patterns) {
+    for (let match = pattern.exec(html); match && candidates.length < 20; match = pattern.exec(html)) {
+      candidates.push(decodeHtmlUrl(match[1]));
+    }
   }
-  for (const snippet of snippets) {
-    const found = parseGoogleMapsCoordinates(snippet, "expanded-link", sourceUrl);
+
+  // Google sometimes embeds the expanded Maps URL inside script data instead of
+  // exposing a canonical tag. Restrict this fallback to explicit /maps/ URLs.
+  const embedded = /https:\/\/(?:www\.)?google\.[^"'\\\s<]+\/maps\/[^"'\\\s<]+/gi;
+  for (let match = embedded.exec(html); match && candidates.length < 40; match = embedded.exec(html)) {
+    candidates.push(decodeHtmlUrl(match[0]));
+  }
+
+  for (const candidate of candidates) {
+    const found = parseGoogleMapsCoordinates(candidate, "expanded-link", sourceUrl);
     if (found) return found;
   }
   return null;
 }
+
+const REQUEST_HEADERS = {
+  "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/154.0.0.0 Safari/537.36",
+  accept: "text/html,application/xhtml+xml",
+  "accept-language": "en-US,en;q=0.9",
+};
 
 export async function resolveGoogleMapsLocation(value: unknown): Promise<ResolvedGoogleMapsLocation | null> {
   const raw = text(value, 4000);
@@ -108,21 +141,46 @@ export async function resolveGoogleMapsLocation(value: unknown): Promise<Resolve
   const first = safeGoogleUrl(raw);
   if (!first) return null;
 
+  // First let the HTTP client follow the entire short-link chain. For
+  // maps.app.goo.gl this usually produces the full /maps/.../@lat,lng URL and is
+  // considerably more reliable than interpreting intermediate Google pages.
+  try {
+    const response = await fetch(first, {
+      method: "GET",
+      redirect: "follow",
+      cache: "no-store",
+      headers: REQUEST_HEADERS,
+      signal: AbortSignal.timeout(10000),
+    });
+    const finalUrl = response.url || first.toString();
+    const fromFinalUrl = parseGoogleMapsCoordinates(finalUrl, "expanded-link", finalUrl);
+    if (fromFinalUrl) return fromFinalUrl;
+
+    if (response.ok) {
+      const html = (await response.text()).slice(0, 1_000_000);
+      const fromHtml = coordinatesFromHtml(html, finalUrl);
+      if (fromHtml) return fromHtml;
+    }
+  } catch {}
+
+  // Fallback for runtimes where automatic redirects are blocked or rewritten.
   let current = first;
-  for (let redirect = 0; redirect < 6; redirect += 1) {
+  for (let redirect = 0; redirect < 8; redirect += 1) {
     const parsed = parseGoogleMapsCoordinates(current.toString(), "expanded-link", current.toString());
     if (parsed) return parsed;
 
-    const response = await fetch(current, {
-      method: "GET",
-      redirect: "manual",
-      cache: "no-store",
-      headers: {
-        "user-agent": "Mozilla/5.0 (compatible; LAND-VIEW-Location-Resolver/1.0)",
-        accept: "text/html,application/xhtml+xml",
-      },
-      signal: AbortSignal.timeout(8000),
-    });
+    let response: Response;
+    try {
+      response = await fetch(current, {
+        method: "GET",
+        redirect: "manual",
+        cache: "no-store",
+        headers: REQUEST_HEADERS,
+        signal: AbortSignal.timeout(8000),
+      });
+    } catch {
+      return null;
+    }
 
     const location = response.headers.get("location");
     if (location && response.status >= 300 && response.status < 400) {
@@ -137,7 +195,7 @@ export async function resolveGoogleMapsLocation(value: unknown): Promise<Resolve
     if (fromFinalUrl) return fromFinalUrl;
 
     if (response.ok) {
-      const html = (await response.text()).slice(0, 750_000);
+      const html = (await response.text()).slice(0, 1_000_000);
       const fromHtml = coordinatesFromHtml(html, finalUrl);
       if (fromHtml) return fromHtml;
     }
