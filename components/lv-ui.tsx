@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { cloneElement, isValidElement, ReactElement, ReactNode, useEffect, useState } from "react";
+import { cloneElement, isValidElement, ReactElement, ReactNode, useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 
 export function PageHeader({ eyebrow, title, description, action }: { eyebrow?: string; title: string; description?: string; action?: ReactNode }) {
@@ -72,13 +72,18 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   const [locating, setLocating] = useState(false);
   const [normalizingTag, setNormalizingTag] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
+  const attemptedTagRef = useRef("");
 
   const normalizedLabel = label.trim().toUpperCase();
   const isProjectEditor = /^\/admin\/projects\/(?!new(?:\/|$)|legacy(?:\/|$)|reclassify(?:\/|$))[^/]+\/?$/.test(pathname || "");
   const isProjectAddress = isProjectEditor && normalizedLabel === "LOCATION";
   const isProjectLocationTag = isProjectEditor && normalizedLabel === "LOCATION TAG";
   const isProjectCoordinate = isProjectEditor && (normalizedLabel === "SITE LATITUDE" || normalizedLabel === "SITE LONGITUDE");
+  const isProjectPublicVisibility = isProjectEditor && normalizedLabel === "SHOW ON PUBLIC WEBSITE";
   const displayLabel = isProjectAddress ? "ADDRESS" : label;
+  const locationTagElement = isProjectLocationTag && isValidElement(children)
+    ? children as ReactElement<any>
+    : null;
 
   useEffect(() => {
     if (!isProjectCoordinate || typeof window === "undefined") return;
@@ -100,7 +105,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
     const raw = String(value || "").trim();
     if (!raw || normalizingTag) return;
     if (!/(?:maps\.app\.goo\.gl|goo\.gl|google\.[a-z.]+\/maps|google\.com\/maps)/i.test(raw)) return;
-    if (!isValidElement<{ onChange?: (event: any) => void }>(children) || typeof children.props.onChange !== "function") return;
+    if (!locationTagElement || typeof locationTagElement.props.onChange !== "function") return;
 
     setNormalizingTag(true);
     setLocationMessage("Resolving Location Tag…");
@@ -118,8 +123,9 @@ export function Field({ label, children, hint }: { label: string; children: Reac
       if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) throw new Error("Google Maps did not return valid coordinates.");
 
       const mapUrl = `https://www.google.com/maps?q=${Number(latitude.toFixed(8))},${Number(longitude.toFixed(8))}`;
-      children.props.onChange?.({ target: { value: mapUrl }, currentTarget: { value: mapUrl } });
+      locationTagElement.props.onChange?.({ target: { value: mapUrl }, currentTarget: { value: mapUrl } });
       window.dispatchEvent(new CustomEvent("landview-project-location", { detail: { latitude, longitude } }));
+      attemptedTagRef.current = mapUrl;
       setLocationMessage("Location Tag converted to exact coordinates. Save the project to publish the updated pin.");
     } catch (error) {
       setLocationMessage(error instanceof Error ? error.message : "Could not convert this Location Tag.");
@@ -127,6 +133,15 @@ export function Field({ label, children, hint }: { label: string; children: Reac
       setNormalizingTag(false);
     }
   }
+
+  useEffect(() => {
+    if (!isProjectLocationTag || !locationTagElement) return;
+    const value = String(locationTagElement.props.value ?? "").trim();
+    if (!/(?:maps\.app\.goo\.gl|goo\.gl\/maps)/i.test(value)) return;
+    if (attemptedTagRef.current === value) return;
+    attemptedTagRef.current = value;
+    void normalizeLocationTag(value);
+  }, [isProjectLocationTag, locationTagElement?.props.value]);
 
   function useCurrentLocation() {
     if (locating) return;
@@ -140,7 +155,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
       setLocationMessage("Current location is not available in this browser.");
       return;
     }
-    if (!isValidElement<{ onChange?: (event: any) => void }>(children) || typeof children.props.onChange !== "function") {
+    if (!locationTagElement || typeof locationTagElement.props.onChange !== "function") {
       setLocationMessage("This location tag cannot be updated automatically.");
       return;
     }
@@ -152,7 +167,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
         const longitude = Number(position.coords.longitude.toFixed(8));
         const mapUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
 
-        children.props.onChange?.({
+        locationTagElement.props.onChange?.({
           target: { value: mapUrl },
           currentTarget: { value: mapUrl },
         });
@@ -178,6 +193,17 @@ export function Field({ label, children, hint }: { label: string; children: Reac
     );
   }
 
+  if (isProjectPublicVisibility) {
+    return <div className="form-field">
+      <span>{label}</span>
+      <div style={{display:"flex",alignItems:"center",gap:9,minHeight:40,padding:"0 11px",border:"1px solid rgba(145,201,164,.28)",borderRadius:8,background:"rgba(145,201,164,.06)"}}>
+        <input type="checkbox" checked readOnly disabled style={{width:17,height:17}} />
+        <strong style={{fontSize:10,fontWeight:800}}>Automatically enabled for every project</strong>
+      </div>
+      <small>All projects are published to the public Projects section automatically.</small>
+    </div>;
+  }
+
   if (isProjectCoordinate) {
     return <label className="form-field" style={{display:"none"}} aria-hidden="true">
       <span>{label}</span>
@@ -185,14 +211,16 @@ export function Field({ label, children, hint }: { label: string; children: Reac
     </label>;
   }
 
-  const locationTagElement = isProjectLocationTag && isValidElement(children)
-    ? children as ReactElement<any>
-    : null;
   const renderedChildren = locationTagElement
     ? cloneElement(locationTagElement, {
         onBlur: (event: any) => {
           locationTagElement.props.onBlur?.(event);
           void normalizeLocationTag(String(event.currentTarget?.value || event.target?.value || ""));
+        },
+        onPaste: (event: any) => {
+          locationTagElement.props.onPaste?.(event);
+          const pasted = String(event.clipboardData?.getData?.("text") || "").trim();
+          if (pasted) globalThis.setTimeout(() => void normalizeLocationTag(pasted), 0);
         },
       })
     : children;
