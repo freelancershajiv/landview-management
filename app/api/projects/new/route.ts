@@ -83,18 +83,20 @@ export async function POST(request: NextRequest) {
     if (!projectName) return NextResponse.json({ success: false, error: "Project name is required." }, { status: 400 });
 
     const location = text(body.Location || body.location, 1000);
+    const locationTag = text(body.Location_Tag || body.locationTag || body.location_tag, 1000);
     let siteLatitude = coordinateOrNull(body.Site_Latitude ?? body.siteLatitude, -90, 90);
     let siteLongitude = coordinateOrNull(body.Site_Longitude ?? body.siteLongitude, -180, 180);
-    if (location && looksLikeGoogleMapsLocation(location)) {
+    const coordinateSource = locationTag || location;
+    if (coordinateSource && looksLikeGoogleMapsLocation(coordinateSource)) {
       try {
-        const resolved = await resolveGoogleMapsLocation(location);
+        const resolved = await resolveGoogleMapsLocation(coordinateSource);
         if (resolved) {
           siteLatitude = resolved.latitude;
           siteLongitude = resolved.longitude;
         }
       } catch {
         // A temporary Google redirect/network failure must not prevent project creation.
-        // Manual coordinates remain available as the fallback.
+        // GPS-derived internal coordinates remain available as the fallback.
       }
     }
 
@@ -106,6 +108,7 @@ export async function POST(request: NextRequest) {
       ref_contact: text(body.Ref_Contact || body.refContact, 120) || null,
       project_type: text(body.Project_Type || body.projectType, 160) || null,
       location: location || null,
+      location_tag: locationTag || null,
       project_area_text: text(body.Project_Area || body.projectArea, 120) || null,
       number_of_stories_text: text(body.Number_of_Stories || body.numberOfStories, 80) || null,
       start_date: cleanDate(body.Start_Date || body.startDate),
