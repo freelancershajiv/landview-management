@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
-import { requirePortalSession } from "@/lib/server-auth";
+import { NextRequest, NextResponse } from "next/server";
+import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { selectRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -68,9 +68,11 @@ async function count(table: string) {
   return rows.length;
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    await requirePortalSession(["admin"]);
+    const user = await requireLocalSession(request);
+    if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401, headers: { "Cache-Control": "no-store" } });
+    if (roleOf(user) !== "admin") return NextResponse.json({ success: false, error: "Admin access is required." }, { status: 403, headers: { "Cache-Control": "no-store" } });
 
     const [visitorCount, sessionCount, pageViewCount, locationCount, visitors, pageViews, locations, interactions, leads] = await Promise.all([
       count("website_analytics_visitors"), count("website_analytics_sessions"), count("website_analytics_page_views"), count("website_analytics_location_events"),
