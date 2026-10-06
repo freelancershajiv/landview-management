@@ -6,379 +6,82 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import PublicHeader from "@/components/public-header";
 import type { PublicProjectSeo } from "@/lib/public-projects-server";
 
-declare global {
-  interface Window {
-    L?: any;
-  }
-}
+declare global { interface Window { L?: any; } }
 
-const FENI_CENTER: [number, number] = [23.0159, 91.3976];
+const DEFAULT_CENTER: [number, number] = [23.0159, 91.3976];
 
 const css = `
-.project-map-page{min-height:100vh;background:#080d12;color:#f4f6f7}
-.project-map-wrap{width:min(100% - 36px,1320px);margin:auto}
-.project-map-hero{padding:54px 0 28px;background:radial-gradient(circle at 80% 10%,rgba(214,31,38,.12),transparent 34%),linear-gradient(180deg,#0d151d,#080d12);border-bottom:1px solid rgba(255,255,255,.08)}
-.project-map-kicker{color:#ef6c66;font-size:10px;font-weight:900;letter-spacing:.16em}
-.project-map-hero-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(280px,.75fr);gap:40px;align-items:end}
-.project-map-hero h1{max-width:820px;margin:12px 0;font-family:Georgia,"Times New Roman",serif;font-size:clamp(42px,6vw,72px);font-weight:400;line-height:.95;letter-spacing:-.045em}
-.project-map-hero p{max-width:700px;margin:0;color:#9da8b1;font-size:12px;line-height:1.75}
-.project-map-stats{display:grid;grid-template-columns:repeat(2,1fr);border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.025)}
-.project-map-stat{padding:16px}
-.project-map-stat:nth-child(odd){border-right:1px solid rgba(255,255,255,.08)}
-.project-map-stat strong{display:block;font-size:25px}
-.project-map-stat span{display:block;margin-top:4px;color:#77838d;font-size:8px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
-.project-map-toolbar{padding:16px 0;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(8,13,18,.95);position:sticky;top:0;z-index:20;backdrop-filter:blur(14px)}
-.project-map-controls{display:grid;grid-template-columns:minmax(220px,1fr) auto auto auto;gap:9px;align-items:center}
-.project-map-search,.project-map-select{height:42px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:#111922;color:#f5f5f5;outline:none;font-size:11px}
-.project-map-search{padding:0 13px}
-.project-map-select{padding:0 32px 0 11px}
-.project-map-search:focus,.project-map-select:focus{border-color:#d61f26;box-shadow:0 0 0 3px rgba(214,31,38,.1)}
-.project-map-link{height:42px;display:inline-flex;align-items:center;justify-content:center;padding:0 14px;border:1px solid rgba(214,31,38,.55);border-radius:8px;color:#fff;font-size:10px;font-weight:900;text-decoration:none;white-space:nowrap}
-.project-map-link:hover{background:#d61f26}
-.project-map-main{padding:24px 0 62px}
-.project-map-shell{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(310px,.6fr);height:clamp(590px,72vh,790px);min-height:590px;border:1px solid rgba(255,255,255,.1);border-radius:18px;overflow:hidden;background:#0e151c}
-.project-map-canvas-wrap{position:relative;min-width:0;min-height:0;background:#101821}
-.project-map-canvas{position:absolute;inset:0;z-index:1}
-.project-map-loading,.project-map-error{position:absolute;left:16px;top:16px;z-index:500;padding:9px 11px;border:1px solid rgba(255,255,255,.13);border-radius:8px;background:rgba(8,13,18,.9);color:#bec6cc;font-size:9px}
-.project-map-error{right:16px;border-color:rgba(214,31,38,.5);color:#f0c8c9}
-.project-map-side{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border-left:1px solid rgba(255,255,255,.09);background:#0c1218}
-.project-map-side-head{flex:0 0 auto;padding:16px;border-bottom:1px solid rgba(255,255,255,.08)}
-.project-map-side-head strong{display:block;font-size:13px}
-.project-map-side-head span{display:block;margin-top:4px;color:#78848d;font-size:9px}
-.project-map-list{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:10px;scrollbar-width:thin}
-.project-map-card{width:100%;display:grid;grid-template-columns:72px minmax(0,1fr);gap:11px;padding:10px;border:1px solid transparent;border-radius:10px;background:transparent;color:inherit;text-align:left;cursor:pointer}
-.project-map-card:hover,.project-map-card.active{border-color:rgba(214,31,38,.42);background:rgba(214,31,38,.055)}
-.project-map-thumb{width:72px;height:72px;border-radius:8px;object-fit:cover;background:#131c24}
-.project-map-thumb-fallback{display:grid;place-items:center;width:72px;height:72px;border-radius:8px;background:linear-gradient(145deg,#1b2731,#0c1217);color:rgba(255,255,255,.18);font-weight:900}
-.project-map-card-id{color:#ef6c66;font-size:8px;font-weight:900;letter-spacing:.09em}
-.project-map-card h3{margin:4px 0 5px;font-size:12px;line-height:1.25}
-.project-map-card p{margin:0;color:#89949c;font-size:9px;line-height:1.45}
-.project-map-card-meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}
-.project-map-card-meta span{padding:4px 6px;border-radius:5px;background:#17212a;color:#9ba6ae;font-size:7px;font-weight:800}
-.project-map-empty{padding:28px 18px;text-align:center;color:#78848d;font-size:10px;line-height:1.65}
-.project-map-detail{position:absolute;left:16px;bottom:16px;z-index:500;width:min(390px,calc(100% - 32px));padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:13px;background:rgba(8,13,18,.93);backdrop-filter:blur(13px);box-shadow:0 18px 50px rgba(0,0,0,.3)}
-.project-map-detail-top{display:flex;justify-content:space-between;gap:12px}
-.project-map-detail small{color:#ef6c66;font-size:8px;font-weight:900;letter-spacing:.11em}
-.project-map-detail h2{margin:5px 0 6px;font-size:20px;line-height:1.05}
-.project-map-detail p{margin:0;color:#98a2a9;font-size:9px;line-height:1.55}
-.project-map-detail-close{width:30px;height:30px;border:1px solid rgba(255,255,255,.12);border-radius:7px;background:#151d24;color:#fff;cursor:pointer}
-.project-map-detail-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}
-.project-map-detail-meta span{padding:5px 7px;border:1px solid rgba(255,255,255,.09);border-radius:6px;color:#b0b9bf;font-size:8px}
-.project-map-detail-actions{display:flex;gap:7px;margin-top:12px}
-.project-map-detail-actions a{min-height:35px;display:inline-flex;align-items:center;justify-content:center;padding:0 11px;border-radius:7px;border:1px solid #d61f26;background:#d61f26;color:#fff;font-size:9px;font-weight:900;text-decoration:none}
-.leaflet-container{background:#101821;font-family:inherit}
-.leaflet-control-zoom a{background:#101820!important;color:#fff!important;border-color:rgba(255,255,255,.12)!important}
-.leaflet-control-attribution{background:rgba(8,13,18,.76)!important;color:#b9c0c4!important}
-.leaflet-control-attribution a{color:#e1e5e8!important}
-.leaflet-tooltip{background:#101820!important;border:1px solid rgba(255,255,255,.16)!important;color:#fff!important;box-shadow:0 8px 24px rgba(0,0,0,.3)!important;font-size:10px!important}
-.leaflet-tooltip:before{display:none!important}
-@media(max-width:900px){.project-map-hero-grid{grid-template-columns:1fr}.project-map-stats{max-width:500px}.project-map-controls{grid-template-columns:1fr 1fr}.project-map-search{grid-column:1/-1}.project-map-shell{grid-template-columns:1fr;height:auto;min-height:0}.project-map-canvas-wrap{height:520px}.project-map-side{border-left:0;border-top:1px solid rgba(255,255,255,.09);height:min(420px,55vh);max-height:none}.project-map-list{max-height:none}}
-@media(max-width:560px){.project-map-wrap{width:min(100% - 24px,1320px)}.project-map-hero{padding-top:38px}.project-map-controls{grid-template-columns:1fr}.project-map-search{grid-column:auto}.project-map-canvas-wrap{height:470px}.project-map-detail{left:10px;bottom:10px;width:calc(100% - 20px)}.project-map-card{grid-template-columns:62px 1fr}.project-map-thumb,.project-map-thumb-fallback{width:62px;height:62px}}
+.project-map-page{min-height:100vh;background:#080d12;color:#f4f6f7}.project-map-wrap{width:min(100% - 36px,1380px);margin:auto}.project-map-hero{padding:48px 0 26px;background:radial-gradient(circle at 80% 10%,rgba(214,31,38,.12),transparent 34%),linear-gradient(180deg,#0d151d,#080d12);border-bottom:1px solid rgba(255,255,255,.08)}.project-map-hero-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(280px,.7fr);gap:40px;align-items:end}.project-map-kicker{color:#ef6c66;font-size:10px;font-weight:900;letter-spacing:.16em}.project-map-hero h1{max-width:850px;margin:11px 0;font-family:Georgia,"Times New Roman",serif;font-size:clamp(40px,5.6vw,68px);font-weight:400;line-height:.96;letter-spacing:-.04em}.project-map-hero p{max-width:720px;margin:0;color:#9da8b1;font-size:12px;line-height:1.75}.project-map-stats{display:grid;grid-template-columns:repeat(2,1fr);border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden;background:rgba(255,255,255,.025)}.project-map-stat{padding:15px}.project-map-stat:nth-child(odd){border-right:1px solid rgba(255,255,255,.08)}.project-map-stat:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.08)}.project-map-stat strong{display:block;font-size:23px}.project-map-stat span{display:block;margin-top:4px;color:#77838d;font-size:8px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+.project-map-toolbar{padding:13px 0;border-bottom:1px solid rgba(255,255,255,.08);background:rgba(8,13,18,.96);position:sticky;top:84px;z-index:50;backdrop-filter:blur(14px)}.project-map-controls{display:grid;grid-template-columns:minmax(200px,1.2fr) repeat(4,minmax(130px,.7fr));gap:8px;align-items:center}.project-map-controls.second{margin-top:8px;grid-template-columns:repeat(4,minmax(130px,1fr)) auto}.project-map-search,.project-map-select{height:40px;border:1px solid rgba(255,255,255,.12);border-radius:8px;background:#111922;color:#f5f5f5;outline:none;font-size:10px}.project-map-search{padding:0 12px}.project-map-select{padding:0 29px 0 10px}.project-map-search:focus,.project-map-select:focus{border-color:#d61f26;box-shadow:0 0 0 3px rgba(214,31,38,.1)}.project-map-reset{height:40px;padding:0 13px;border:1px solid rgba(214,31,38,.5);border-radius:8px;background:transparent;color:#fff;font-size:9px;font-weight:900;cursor:pointer;white-space:nowrap}.project-map-reset:hover{background:#d61f26}.project-map-main{padding:22px 0 60px}.project-map-shell{display:grid;grid-template-columns:minmax(0,1.62fr) minmax(320px,.62fr);height:clamp(590px,72vh,800px);min-height:590px;border:1px solid rgba(255,255,255,.1);border-radius:18px;overflow:hidden;background:#0e151c}.project-map-canvas-wrap{position:relative;min-width:0;min-height:0;background:#101821}.project-map-canvas{position:absolute;inset:0;z-index:1}.project-map-loading,.project-map-error{position:absolute;left:16px;top:16px;z-index:500;padding:9px 11px;border:1px solid rgba(255,255,255,.13);border-radius:8px;background:rgba(8,13,18,.9);color:#bec6cc;font-size:9px}.project-map-error{right:16px;border-color:rgba(214,31,38,.5);color:#f0c8c9}.project-map-side{min-width:0;min-height:0;display:flex;flex-direction:column;overflow:hidden;border-left:1px solid rgba(255,255,255,.09);background:#0c1218}.project-map-side-head{flex:0 0 auto;padding:15px 16px;border-bottom:1px solid rgba(255,255,255,.08)}.project-map-side-head strong{display:block;font-size:13px}.project-map-side-head span{display:block;margin-top:4px;color:#78848d;font-size:9px}.project-map-list{flex:1 1 auto;min-height:0;overflow-y:auto!important;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;padding:10px;scrollbar-width:thin}.project-map-card{width:100%;display:grid;grid-template-columns:72px minmax(0,1fr);gap:11px;padding:10px;border:1px solid transparent;border-radius:10px;background:transparent;color:inherit;text-align:left;cursor:pointer}.project-map-card:hover,.project-map-card.active{border-color:rgba(214,31,38,.42);background:rgba(214,31,38,.055)}.project-map-thumb{width:72px;height:72px;border-radius:8px;object-fit:cover;background:#131c24}.project-map-thumb-fallback{display:grid;place-items:center;width:72px;height:72px;border-radius:8px;background:linear-gradient(145deg,#1b2731,#0c1217);color:rgba(255,255,255,.18);font-weight:900}.project-map-card-id{color:#ef6c66;font-size:8px;font-weight:900;letter-spacing:.09em}.project-map-card h3{margin:4px 0 5px;font-size:12px;line-height:1.25}.project-map-card p{margin:0;color:#89949c;font-size:9px;line-height:1.5}.project-map-card-meta{display:flex;gap:5px;flex-wrap:wrap;margin-top:7px}.project-map-card-meta span{padding:4px 6px;border-radius:5px;background:#17212a;color:#9ba6ae;font-size:7px;font-weight:800}.project-map-empty{padding:28px 18px;text-align:center;color:#78848d;font-size:10px;line-height:1.65}.project-map-detail{position:absolute;left:16px;bottom:16px;z-index:500;width:min(410px,calc(100% - 32px));padding:16px;border:1px solid rgba(255,255,255,.14);border-radius:13px;background:rgba(8,13,18,.94);backdrop-filter:blur(13px);box-shadow:0 18px 50px rgba(0,0,0,.3)}.project-map-detail-top{display:flex;justify-content:space-between;gap:12px}.project-map-detail small{color:#ef6c66;font-size:8px;font-weight:900;letter-spacing:.11em}.project-map-detail h2{margin:5px 0 6px;font-size:20px;line-height:1.05}.project-map-detail p{margin:0;color:#98a2a9;font-size:9px;line-height:1.55}.project-map-detail-close{width:30px;height:30px;border:1px solid rgba(255,255,255,.12);border-radius:7px;background:#151d24;color:#fff;cursor:pointer}.project-map-detail-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:11px}.project-map-detail-meta span{padding:5px 7px;border:1px solid rgba(255,255,255,.09);border-radius:6px;color:#b0b9bf;font-size:8px}.project-map-detail-actions{display:flex;gap:7px;margin-top:12px}.project-map-detail-actions a{min-height:35px;display:inline-flex;align-items:center;justify-content:center;padding:0 11px;border-radius:7px;border:1px solid #d61f26;background:#d61f26;color:#fff;font-size:9px;font-weight:900;text-decoration:none}.leaflet-container{background:#101821;font-family:inherit}.leaflet-control-zoom a{background:#101820!important;color:#fff!important;border-color:rgba(255,255,255,.12)!important}.leaflet-control-attribution{background:rgba(8,13,18,.76)!important;color:#b9c0c4!important}.leaflet-control-attribution a{color:#e1e5e8!important}.leaflet-tooltip{background:#101820!important;border:1px solid rgba(255,255,255,.16)!important;color:#fff!important;box-shadow:0 8px 24px rgba(0,0,0,.3)!important;font-size:10px!important}.leaflet-tooltip:before{display:none!important}
+@media(max-width:1120px){.project-map-controls{grid-template-columns:1fr 1fr 1fr}.project-map-search{grid-column:1/-1}.project-map-controls.second{grid-template-columns:1fr 1fr 1fr}.project-map-reset{grid-column:auto}}
+@media(max-width:900px){.project-map-toolbar{top:74px}.project-map-hero-grid{grid-template-columns:1fr}.project-map-stats{max-width:500px}.project-map-shell{grid-template-columns:1fr;height:auto;min-height:0}.project-map-canvas-wrap{height:520px}.project-map-side{border-left:0;border-top:1px solid rgba(255,255,255,.09);height:min(430px,58vh);max-height:none}.project-map-list{max-height:none}}
+@media(max-width:620px){.project-map-wrap{width:min(100% - 24px,1380px)}.project-map-toolbar{top:66px}.project-map-controls,.project-map-controls.second{grid-template-columns:1fr 1fr}.project-map-search{grid-column:1/-1}.project-map-reset{grid-column:1/-1}.project-map-canvas-wrap{height:470px}.project-map-detail{left:10px;bottom:10px;width:calc(100% - 20px)}.project-map-card{grid-template-columns:62px 1fr}.project-map-thumb,.project-map-thumb-fallback{width:62px;height:62px}}
+@media(max-width:420px){.project-map-controls,.project-map-controls.second{grid-template-columns:1fr}.project-map-search,.project-map-reset{grid-column:auto}}
 `;
 
-function validMapProject(project: PublicProjectSeo) {
-  return project.mapEnabled === true && Number.isFinite(Number(project.mapLatitude)) && Number.isFinite(Number(project.mapLongitude));
+function text(value: unknown){return String(value ?? "").trim();}
+function unique(values: unknown[]){return Array.from(new Set(values.map(text).filter(Boolean))).sort((a,b)=>a.localeCompare(b));}
+function validMapProject(project: PublicProjectSeo){return project.mapEnabled===true&&Number.isFinite(Number(project.mapLatitude))&&Number.isFinite(Number(project.mapLongitude));}
+function imageUrl(url?: string){const value=text(url);if(!value)return "";const match=value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);if(match?.[1])return `https://drive.google.com/thumbnail?id=${encodeURIComponent(match[1])}&sz=w500`;return value;}
+function locationLine(project: PublicProjectSeo){
+  const structured=[project.wardNo?`Ward ${project.wardNo}`:"",project.localBodyName,project.upazilaThana,project.district,project.division].map(text).filter(Boolean);
+  return structured.length?structured.join(" · "):text(project.location)||"Location not specified";
 }
+function searchText(project: PublicProjectSeo){return [project.projectId,project.title,project.category,project.location,project.division,project.district,project.upazilaThana,project.localBodyType,project.localBodyName,project.wardNo,project.villageArea,project.roadHolding,project.currentStage,project.area,project.stories,project.description,...(project.services||[])].map(text).filter(Boolean).join(" ").toLowerCase();}
 
-function searchText(project: PublicProjectSeo) {
-  return [
-    project.projectId,
-    project.title,
-    project.category,
-    project.location,
-    project.currentStage,
-    project.area,
-    project.stories,
-    project.description,
-    ...(project.services || []),
-  ]
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
-}
+export default function PublicProjectMap({initialProjects}:{initialProjects:PublicProjectSeo[]}){
+  const [projects,setProjects]=useState<PublicProjectSeo[]>(initialProjects);
+  const mappedProjects=useMemo(()=>projects.filter(validMapProject),[projects]);
+  const [query,setQuery]=useState("");
+  const [division,setDivision]=useState("All");
+  const [district,setDistrict]=useState("All");
+  const [upazila,setUpazila]=useState("All");
+  const [localBody,setLocalBody]=useState("All");
+  const [ward,setWard]=useState("All");
+  const [category,setCategory]=useState("All");
+  const [stage,setStage]=useState("All");
+  const [selectedId,setSelectedId]=useState("");
+  const [scriptReady,setScriptReady]=useState(false);
+  const [mapReady,setMapReady]=useState(false);
+  const [mapError,setMapError]=useState("");
+  const mapNode=useRef<HTMLDivElement|null>(null);
+  const mapRef=useRef<any>(null);
+  const layerRef=useRef<any>(null);
+  const markerRef=useRef<Record<string,any>>({});
 
-function imageUrl(url?: string) {
-  const value = String(url || "").trim();
-  if (!value) return "";
-  const match = value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);
-  if (match?.[1]) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(match[1])}&sz=w500`;
-  return value;
-}
+  const divisions=useMemo(()=>["All",...unique(mappedProjects.map(p=>p.division))],[mappedProjects]);
+  const districtPool=useMemo(()=>mappedProjects.filter(p=>division==="All"||text(p.division)===division),[mappedProjects,division]);
+  const districts=useMemo(()=>["All",...unique(districtPool.map(p=>p.district))],[districtPool]);
+  const upazilaPool=useMemo(()=>districtPool.filter(p=>district==="All"||text(p.district)===district),[districtPool,district]);
+  const upazilas=useMemo(()=>["All",...unique(upazilaPool.map(p=>p.upazilaThana))],[upazilaPool]);
+  const localPool=useMemo(()=>upazilaPool.filter(p=>upazila==="All"||text(p.upazilaThana)===upazila),[upazilaPool,upazila]);
+  const localBodies=useMemo(()=>["All",...unique(localPool.map(p=>p.localBodyName))],[localPool]);
+  const wardPool=useMemo(()=>localPool.filter(p=>localBody==="All"||text(p.localBodyName)===localBody),[localPool,localBody]);
+  const wards=useMemo(()=>["All",...unique(wardPool.map(p=>p.wardNo))],[wardPool]);
+  const categories=useMemo(()=>["All",...unique(mappedProjects.map(p=>p.category))],[mappedProjects]);
+  const stages=useMemo(()=>["All",...unique(mappedProjects.map(p=>p.currentStage))],[mappedProjects]);
 
-export default function PublicProjectMap({ initialProjects }: { initialProjects: PublicProjectSeo[] }) {
-  const [projects, setProjects] = useState<PublicProjectSeo[]>(initialProjects);
-  const mappedProjects = useMemo(() => projects.filter(validMapProject), [projects]);
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("All");
-  const [stage, setStage] = useState("All");
-  const [selectedId, setSelectedId] = useState("");
-  const [scriptReady, setScriptReady] = useState(false);
-  const [mapReady, setMapReady] = useState(false);
-  const [mapError, setMapError] = useState("");
+  const filtered=useMemo(()=>{const term=query.trim().toLowerCase();return mappedProjects.filter(p=>(division==="All"||text(p.division)===division)&&(district==="All"||text(p.district)===district)&&(upazila==="All"||text(p.upazilaThana)===upazila)&&(localBody==="All"||text(p.localBodyName)===localBody)&&(ward==="All"||text(p.wardNo)===ward)&&(category==="All"||text(p.category)===category)&&(stage==="All"||text(p.currentStage)===stage)&&(!term||searchText(p).includes(term)));},[mappedProjects,query,division,district,upazila,localBody,ward,category,stage]);
+  const selected=useMemo(()=>mappedProjects.find(p=>text(p.projectId)===selectedId)||null,[mappedProjects,selectedId]);
+  const structuredCount=mappedProjects.filter(p=>text(p.division)&&text(p.district)&&text(p.upazilaThana)).length;
+  const completedCount=mappedProjects.filter(p=>p.currentStage==="Completed").length;
 
-  const mapNode = useRef<HTMLDivElement | null>(null);
-  const mapRef = useRef<any>(null);
-  const layerRef = useRef<any>(null);
-  const markerRef = useRef<Record<string, any>>({});
+  useEffect(()=>{let cancelled=false;async function refresh(){try{const response=await fetch(`/api/public/projects?mapRefresh=${Date.now()}`,{cache:"no-store"});const json=await response.json();if(!cancelled&&response.ok&&json?.success&&Array.isArray(json.data))setProjects(json.data);}catch{}}void refresh();const onPageShow=()=>void refresh();const onVisibility=()=>{if(document.visibilityState==="visible")void refresh();};window.addEventListener("pageshow",onPageShow);document.addEventListener("visibilitychange",onVisibility);return()=>{cancelled=true;window.removeEventListener("pageshow",onPageShow);document.removeEventListener("visibilitychange",onVisibility);};},[]);
+  useEffect(()=>{if(typeof window!=="undefined"&&window.L)setScriptReady(true);},[]);
+  useEffect(()=>{if(!scriptReady||!mapNode.current||mapRef.current||!window.L)return;try{const L=window.L;const map=L.map(mapNode.current,{zoomControl:true,preferCanvas:true}).setView(DEFAULT_CENTER,8);mapRef.current=map;L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:"&copy; OpenStreetMap contributors"}).addTo(map);layerRef.current=L.layerGroup().addTo(map);setMapReady(true);setTimeout(()=>map.invalidateSize(),80);}catch(error){console.error(error);setMapError("Interactive map could not initialize on this browser.");}return()=>{try{mapRef.current?.remove();}catch{}mapRef.current=null;layerRef.current=null;markerRef.current={};setMapReady(false);};},[scriptReady]);
+  useEffect(()=>{if(!mapReady||!mapRef.current||!layerRef.current||!window.L)return;const L=window.L;const map=mapRef.current;layerRef.current.clearLayers();markerRef.current={};const bounds:any[]=[];filtered.forEach(p=>{const lat=Number(p.mapLatitude),lng=Number(p.mapLongitude);bounds.push([lat,lng]);const marker=L.circleMarker([lat,lng],{radius:9,color:"#fff",weight:2,fillColor:"#d61f26",fillOpacity:.95});marker.bindTooltip(`${text(p.projectId)} · ${text(p.title)||"LAND VIEW Project"}`,{direction:"top",offset:[0,-8]});marker.on("click",()=>setSelectedId(text(p.projectId)));marker.addTo(layerRef.current);markerRef.current[text(p.projectId)]=marker;});if(!selectedId){if(bounds.length===1)map.setView(bounds[0],14,{animate:true});else if(bounds.length>1)map.fitBounds(bounds,{padding:[45,45],maxZoom:13});else map.setView(DEFAULT_CENTER,8);}setTimeout(()=>map.invalidateSize(),40);},[filtered,mapReady,selectedId]);
+  useEffect(()=>{if(!selected||!mapReady||!mapRef.current)return;const lat=Number(selected.mapLatitude),lng=Number(selected.mapLongitude);if(!Number.isFinite(lat)||!Number.isFinite(lng))return;const zoom=Math.max(Number(mapRef.current.getZoom?.()||0),15);mapRef.current.setView([lat,lng],zoom,{animate:true});markerRef.current[text(selected.projectId)]?.openTooltip?.();},[selected,mapReady]);
+  useEffect(()=>{if(selectedId&&!filtered.some(p=>text(p.projectId)===selectedId))setSelectedId("");},[filtered,selectedId]);
 
-  const categories = useMemo(
-    () => ["All", ...Array.from(new Set(mappedProjects.map((p) => String(p.category || "").trim()).filter(Boolean))).sort()],
-    [mappedProjects],
-  );
-  const stages = useMemo(
-    () => ["All", ...Array.from(new Set(mappedProjects.map((p) => String(p.currentStage || "").trim()).filter(Boolean))).sort()],
-    [mappedProjects],
-  );
-  const filtered = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return mappedProjects.filter(
-      (p) =>
-        (category === "All" || p.category === category) &&
-        (stage === "All" || p.currentStage === stage) &&
-        (!term || searchText(p).includes(term)),
-    );
-  }, [mappedProjects, query, category, stage]);
-  const selected = useMemo(
-    () => mappedProjects.find((p) => String(p.projectId || "") === selectedId) || null,
-    [mappedProjects, selectedId],
-  );
-  const completedCount = mappedProjects.filter((p) => p.currentStage === "Completed").length;
+  function resetFilters(){setQuery("");setDivision("All");setDistrict("All");setUpazila("All");setLocalBody("All");setWard("All");setCategory("All");setStage("All");setSelectedId("");}
+  function selectDivision(value:string){setDivision(value);setDistrict("All");setUpazila("All");setLocalBody("All");setWard("All");setSelectedId("");}
+  function selectDistrict(value:string){setDistrict(value);setUpazila("All");setLocalBody("All");setWard("All");setSelectedId("");}
+  function selectUpazila(value:string){setUpazila(value);setLocalBody("All");setWard("All");setSelectedId("");}
+  function selectLocal(value:string){setLocalBody(value);setWard("All");setSelectedId("");}
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function refreshProjects() {
-      try {
-        const response = await fetch(`/api/public/projects?mapRefresh=${Date.now()}`, { cache: "no-store" });
-        const json = await response.json();
-        if (!cancelled && response.ok && json?.success && Array.isArray(json.data)) {
-          setProjects(json.data as PublicProjectSeo[]);
-        }
-      } catch {}
-    }
-
-    void refreshProjects();
-    const onPageShow = () => {
-      void refreshProjects();
-    };
-    const onVisibility = () => {
-      if (document.visibilityState === "visible") void refreshProjects();
-    };
-
-    window.addEventListener("pageshow", onPageShow);
-    document.addEventListener("visibilitychange", onVisibility);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("pageshow", onPageShow);
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (typeof window !== "undefined" && window.L) setScriptReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!scriptReady || !mapNode.current || mapRef.current || !window.L) return;
-
-    try {
-      const L = window.L;
-      const map = L.map(mapNode.current, { zoomControl: true, preferCanvas: true }).setView(FENI_CENTER, 8);
-      mapRef.current = map;
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        maxZoom: 19,
-        attribution: "&copy; OpenStreetMap contributors",
-      }).addTo(map);
-      layerRef.current = L.layerGroup().addTo(map);
-      setMapReady(true);
-      setTimeout(() => map.invalidateSize(), 50);
-    } catch (error) {
-      console.error(error);
-      setMapError("Interactive map could not initialize on this browser.");
-    }
-
-    return () => {
-      try {
-        mapRef.current?.remove();
-      } catch {}
-      mapRef.current = null;
-      layerRef.current = null;
-      markerRef.current = {};
-      setMapReady(false);
-    };
-  }, [scriptReady]);
-
-  useEffect(() => {
-    if (!mapReady || !mapRef.current || !layerRef.current || !window.L) return;
-
-    const L = window.L;
-    const map = mapRef.current;
-    layerRef.current.clearLayers();
-    markerRef.current = {};
-    const bounds: any[] = [];
-
-    filtered.forEach((p) => {
-      const lat = Number(p.mapLatitude);
-      const lng = Number(p.mapLongitude);
-      bounds.push([lat, lng]);
-      const marker = L.circleMarker([lat, lng], {
-        radius: 9,
-        color: "#ffffff",
-        weight: 2,
-        fillColor: "#d61f26",
-        fillOpacity: 0.95,
-      });
-      marker.bindTooltip(`${p.projectId} · ${p.title || "LAND VIEW Project"}`, {
-        direction: "top",
-        offset: [0, -8],
-      });
-      marker.on("click", () => setSelectedId(String(p.projectId || "")));
-      marker.addTo(layerRef.current);
-      markerRef.current[String(p.projectId || "")] = marker;
-    });
-
-    if (bounds.length === 1) {
-      map.setView(bounds[0], 13, { animate: true });
-    } else if (bounds.length > 1) {
-      map.fitBounds(bounds, { padding: [45, 45], maxZoom: 13, animate: true });
-    } else {
-      map.setView(FENI_CENTER, 8, { animate: true });
-    }
-
-    setTimeout(() => map.invalidateSize(), 50);
-  }, [filtered, mapReady]);
-
-  useEffect(() => {
-    if (!selected || !mapReady || !mapRef.current) return;
-
-    const map = mapRef.current;
-    const projectId = String(selected.projectId || "");
-    const center: [number, number] = [Number(selected.mapLatitude), Number(selected.mapLongitude)];
-    const zoom = Math.max(Number(map.getZoom?.() || 0), 13);
-    const marker = markerRef.current[projectId];
-    const openTooltip = () => marker?.openTooltip?.();
-
-    map.stop?.();
-    map.flyTo(center, zoom, { animate: true, duration: 0.7 });
-    map.once?.("moveend", openTooltip);
-
-    return () => {
-      map.off?.("moveend", openTooltip);
-    };
-  }, [selected, mapReady, filtered]);
-
-  return (
-    <main className="project-map-page public-site">
-      <style dangerouslySetInnerHTML={{ __html: css }} />
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <Script
-        src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-        strategy="afterInteractive"
-        onLoad={() => setScriptReady(true)}
-        onError={() => setMapError("Map library failed to load. Please refresh the page.")}
-      />
-      <PublicHeader />
-
-      <section className="project-map-hero">
-        <div className="project-map-wrap project-map-hero-grid">
-          <div>
-            <span className="project-map-kicker">LAND VIEW · PROJECT NETWORK</span>
-            <h1>Explore our work across the map.</h1>
-            <p>
-              Browse selected LAND VIEW architectural and engineering projects by their registered project Location Tags. Every published marker follows the exact saved project pin.
-            </p>
-          </div>
-          <div className="project-map-stats">
-            <div className="project-map-stat"><strong>{mappedProjects.length}</strong><span>Mapped projects</span></div>
-            <div className="project-map-stat"><strong>{completedCount}</strong><span>Completed</span></div>
-            <div className="project-map-stat"><strong>{mappedProjects.length - completedCount}</strong><span>Active / design</span></div>
-            <div className="project-map-stat"><strong>{mappedProjects.length}</strong><span>Location-tag pins</span></div>
-          </div>
-        </div>
-      </section>
-
-      <section className="project-map-toolbar">
-        <div className="project-map-wrap project-map-controls">
-          <input
-            className="project-map-search"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search project, File ID, location or service…"
-            aria-label="Search mapped projects"
-          />
-          <select className="project-map-select" value={category} onChange={(e) => setCategory(e.target.value)}>
-            {categories.map((x) => <option key={x}>{x}</option>)}
-          </select>
-          <select className="project-map-select" value={stage} onChange={(e) => setStage(e.target.value)}>
-            {stages.map((x) => <option key={x}>{x}</option>)}
-          </select>
-          <Link className="project-map-link" href="/projects">Portfolio view</Link>
-        </div>
-      </section>
-
-      <section className="project-map-main">
-        <div className="project-map-wrap">
-          <div className="project-map-shell">
-            <div className="project-map-canvas-wrap">
-              <div ref={mapNode} className="project-map-canvas" aria-label="Interactive LAND VIEW project map" />
-              {!mapReady && !mapError && <div className="project-map-loading">Loading interactive map…</div>}
-              {mapError && <div className="project-map-error">{mapError}</div>}
-              {selected && (
-                <article className="project-map-detail">
-                  <div className="project-map-detail-top">
-                    <div>
-                      <small>{selected.projectId} · PROJECT LOCATION</small>
-                      <h2>{selected.title || selected.projectId}</h2>
-                      <p>{selected.location || "Bangladesh"}</p>
-                    </div>
-                    <button type="button" className="project-map-detail-close" onClick={() => setSelectedId("")}>×</button>
-                  </div>
-                  <div className="project-map-detail-meta">
-                    {selected.category && <span>{selected.category}</span>}
-                    {selected.currentStage && <span>{selected.currentStage}</span>}
-                    {selected.stories && <span>{selected.stories}</span>}
-                    {selected.area && <span>{selected.area}</span>}
-                  </div>
-                  <div className="project-map-detail-actions">
-                    <Link href={`/projects/${encodeURIComponent(String(selected.projectId || ""))}`}>View project →</Link>
-                  </div>
-                </article>
-              )}
-            </div>
-
-            <aside className="project-map-side">
-              <div className="project-map-side-head">
-                <strong>{filtered.length} project{filtered.length === 1 ? "" : "s"} in view</strong>
-                <span>Tap a project to focus its Location Tag.</span>
-              </div>
-              <div className="project-map-list">
-                {filtered.length ? filtered.map((p) => {
-                  const img = imageUrl(p.coverImageUrl);
-                  return (
-                    <button
-                      type="button"
-                      key={p.projectId}
-                      className={`project-map-card ${selectedId === String(p.projectId || "") ? "active" : ""}`}
-                      onClick={() => setSelectedId(String(p.projectId || ""))}
-                    >
-                      {img ? <img className="project-map-thumb" src={img} alt="" /> : <span className="project-map-thumb-fallback">LV</span>}
-                      <span>
-                        <span className="project-map-card-id">{p.projectId}</span>
-                        <h3>{p.title || p.projectId}</h3>
-                        <p>{p.location || "Location published on map"}</p>
-                        <span className="project-map-card-meta">
-                          {p.category && <span>{p.category}</span>}
-                          {p.currentStage && <span>{p.currentStage}</span>}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                }) : <div className="project-map-empty">No mapped projects match these filters.</div>}
-              </div>
-            </aside>
-          </div>
-        </div>
-      </section>
-    </main>
-  );
+  return <main className="public-site project-map-page"><style dangerouslySetInnerHTML={{__html:css}}/><link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/><Script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" strategy="afterInteractive" onLoad={()=>setScriptReady(true)}/><PublicHeader/>
+    <section className="project-map-hero"><div className="project-map-wrap project-map-hero-grid"><div><span className="project-map-kicker">LAND VIEW PROJECT DIRECTORY</span><h1>Explore our work by location.</h1><p>Search LAND VIEW projects across Bangladesh by administrative address, project type and delivery stage. Select any project to center it on the map and open its details.</p></div><div className="project-map-stats"><div className="project-map-stat"><strong>{mappedProjects.length}</strong><span>Mapped projects</span></div><div className="project-map-stat"><strong>{structuredCount}</strong><span>Structured addresses</span></div><div className="project-map-stat"><strong>{completedCount}</strong><span>Completed</span></div><div className="project-map-stat"><strong>{filtered.length}</strong><span>Current results</span></div></div></div></section>
+    <section className="project-map-toolbar"><div className="project-map-wrap"><div className="project-map-controls"><input className="project-map-search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search File ID, project, area or address…"/><select className="project-map-select" value={division} onChange={e=>selectDivision(e.target.value)}>{divisions.map(v=><option key={v} value={v}>{v==="All"?"All divisions":v}</option>)}</select><select className="project-map-select" value={district} onChange={e=>selectDistrict(e.target.value)} disabled={districts.length<=1}>{districts.map(v=><option key={v} value={v}>{v==="All"?"All districts / zila":v}</option>)}</select><select className="project-map-select" value={upazila} onChange={e=>selectUpazila(e.target.value)} disabled={upazilas.length<=1}>{upazilas.map(v=><option key={v} value={v}>{v==="All"?"All upazila / thana":v}</option>)}</select><select className="project-map-select" value={localBody} onChange={e=>selectLocal(e.target.value)} disabled={localBodies.length<=1}>{localBodies.map(v=><option key={v} value={v}>{v==="All"?"All union / municipality":v}</option>)}</select></div><div className="project-map-controls second"><select className="project-map-select" value={ward} onChange={e=>{setWard(e.target.value);setSelectedId("");}} disabled={wards.length<=1}>{wards.map(v=><option key={v} value={v}>{v==="All"?"All wards":`Ward ${v}`}</option>)}</select><select className="project-map-select" value={category} onChange={e=>{setCategory(e.target.value);setSelectedId("");}}>{categories.map(v=><option key={v} value={v}>{v==="All"?"All project types":v}</option>)}</select><select className="project-map-select" value={stage} onChange={e=>{setStage(e.target.value);setSelectedId("");}}>{stages.map(v=><option key={v} value={v}>{v==="All"?"All stages":v}</option>)}</select><select className="project-map-select" value="" disabled><option>Bangladesh</option></select><button className="project-map-reset" type="button" onClick={resetFilters}>Reset filters</button></div></div></section>
+    <section className="project-map-main"><div className="project-map-wrap"><div className="project-map-shell"><div className="project-map-canvas-wrap"><div ref={mapNode} className="project-map-canvas"/>{!mapReady&&!mapError&&<div className="project-map-loading">Loading interactive map…</div>}{mapError&&<div className="project-map-error">{mapError}</div>}{selected&&<div className="project-map-detail"><div className="project-map-detail-top"><div><small>{text(selected.projectId)}</small><h2>{text(selected.title)||"LAND VIEW Project"}</h2></div><button type="button" className="project-map-detail-close" onClick={()=>setSelectedId("")}>×</button></div><p>{locationLine(selected)}</p><div className="project-map-detail-meta">{selected.category&&<span>{selected.category}</span>}{selected.currentStage&&<span>{selected.currentStage}</span>}{selected.area&&<span>{selected.area}</span>}{selected.stories&&<span>{selected.stories} stories</span>}</div><div className="project-map-detail-actions"><Link href={`/projects/${encodeURIComponent(text(selected.projectId))}`}>View project</Link></div></div>}</div><aside className="project-map-side"><div className="project-map-side-head"><strong>{filtered.length} project{filtered.length===1?"":"s"}</strong><span>Select a project to center it on the map. This list is independently scrollable on desktop and mobile.</span></div><div className="project-map-list">{filtered.length?filtered.map(p=>{const id=text(p.projectId);const thumb=imageUrl(p.coverImageUrl);return <button type="button" key={id} className={`project-map-card ${selectedId===id?"active":""}`} onClick={()=>setSelectedId(id)}>{thumb?<img className="project-map-thumb" src={thumb} alt=""/>:<span className="project-map-thumb-fallback">LV</span>}<span><span className="project-map-card-id">{id}</span><h3>{text(p.title)||"LAND VIEW Project"}</h3><p>{locationLine(p)}</p><span className="project-map-card-meta">{p.category&&<span>{p.category}</span>}{p.currentStage&&<span>{p.currentStage}</span>}{p.wardNo&&<span>Ward {p.wardNo}</span>}</span></span></button>;}):<div className="project-map-empty">No mapped projects match these filters. Try a broader administrative area or reset the filters.</div>}</div></aside></div></div></section>
+  </main>;
 }
