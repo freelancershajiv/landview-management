@@ -41,8 +41,11 @@ function splitList(value: unknown) {
 }
 
 function validCoordinates(latitude: unknown, longitude: unknown) {
-  const lat = Number(latitude);
-  const lng = Number(longitude);
+  const latText = String(latitude ?? "").trim();
+  const lngText = String(longitude ?? "").trim();
+  if (!latText || !lngText) return null;
+  const lat = Number(latText);
+  const lng = Number(lngText);
   if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) return null;
   return { latitude: lat, longitude: lng };
 }
@@ -66,13 +69,15 @@ async function locationTagCoordinates(row: any) {
 async function publicMap(row: any) {
   if (row.public_map_enabled !== true) return {};
 
-  // Location Tag is the source of truth for the public map. Site coordinates are
-  // kept only as a resilient fallback because they are themselves synchronized
-  // from the Location Tag when a project is saved.
+  // Location Tag is mandatory and is the source of truth for the public pin.
+  // Site coordinates are only a temporary fallback when an existing Location Tag
+  // cannot be expanded at request time; projects with no Location Tag are not mapped.
+  const locationTag = String(row.location_tag || "").trim();
+  if (!locationTag) return {};
+
   const fromTag = await locationTagCoordinates(row);
   const fromSite = validCoordinates(row.site_latitude, row.site_longitude);
-  const fromLegacyPublic = validCoordinates(row.public_map_latitude, row.public_map_longitude);
-  const source = fromTag || fromSite || fromLegacyPublic;
+  const source = fromTag || fromSite;
   if (!source) return {};
 
   const precision: "exact" | "approximate" = row.public_map_precision === "exact" ? "exact" : "approximate";
