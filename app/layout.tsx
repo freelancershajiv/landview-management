@@ -22,6 +22,7 @@ import "./action-feedback.css";
 import "./portal-experiences.css";
 import "./brand-logo-overrides.css";
 import "./top-portal-navigation.css";
+import "./portal-sidebar-lock.css";
 // Keep typography last so it can normalize legacy component font sizes.
 import "./typography-system.css";
 
