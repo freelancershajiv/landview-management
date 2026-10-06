@@ -45,6 +45,9 @@ function coordinateOrNull(value: unknown, min: number, max: number) {
   const n = Number(value);
   return Number.isFinite(n) && n >= min && n <= max ? n : null;
 }
+function canonicalLocationTag(latitude: number, longitude: number) {
+  return `https://www.google.com/maps?q=${Number(latitude.toFixed(8))},${Number(longitude.toFixed(8))}`;
+}
 
 async function existingProjectCodes() {
   const rows = await selectRows("projects", { select: "project_code", limit: 10000 });
@@ -83,20 +86,21 @@ export async function POST(request: NextRequest) {
     if (!projectName) return NextResponse.json({ success: false, error: "Project name is required." }, { status: 400 });
 
     const location = text(body.Location || body.location, 1000);
-    const locationTag = text(body.Location_Tag || body.locationTag || body.location_tag, 1000);
+    let locationTag = text(body.Location_Tag || body.locationTag || body.location_tag, 1000);
     let siteLatitude = coordinateOrNull(body.Site_Latitude ?? body.siteLatitude, -90, 90);
     let siteLongitude = coordinateOrNull(body.Site_Longitude ?? body.siteLongitude, -180, 180);
-    const coordinateSource = locationTag || location;
-    if (coordinateSource && looksLikeGoogleMapsLocation(coordinateSource)) {
+
+    if (locationTag && looksLikeGoogleMapsLocation(locationTag)) {
       try {
-        const resolved = await resolveGoogleMapsLocation(coordinateSource);
+        const resolved = await resolveGoogleMapsLocation(locationTag);
         if (resolved) {
           siteLatitude = resolved.latitude;
           siteLongitude = resolved.longitude;
+          locationTag = canonicalLocationTag(resolved.latitude, resolved.longitude);
         }
       } catch {
-        // A temporary Google redirect/network failure must not prevent project creation.
-        // GPS-derived internal coordinates remain available as the fallback.
+        // Do not block project creation when Google temporarily refuses to expand
+        // a short link. The saved tag can be resolved again from the project editor.
       }
     }
 
@@ -119,7 +123,8 @@ export async function POST(request: NextRequest) {
       site_longitude: siteLongitude,
       site_geofence_radius_m: body.Site_Geofence_Radius_M !== undefined || body.siteGeofenceRadiusM !== undefined ? Math.max(25, Math.min(1000, Number(body.Site_Geofence_Radius_M ?? body.siteGeofenceRadiusM) || 150)) : 150,
       notes: text(body.Notes || body.notes, 2000) || null,
-      public_display: false,
+      public_display: true,
+      public_map_enabled: Boolean(locationTag),
       updated_at: new Date().toISOString(),
     };
     const floors = integerOrNull(body.Number_of_Stories || body.numberOfStories);
