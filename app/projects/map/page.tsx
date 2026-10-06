@@ -1,8 +1,30 @@
 import type { Metadata } from "next";
 import PublicProjectMap from "@/components/public-project-map";
+import PublicProjectMapMarkerStatus from "@/components/public-project-map-marker-status";
 import { getPublicProjectsForSeo } from "@/lib/public-projects-server";
+import { selectRows } from "@/lib/supabase-data";
 
 export const dynamic = "force-dynamic";
+
+type MarkerState = "completed" | "active" | "hold";
+
+function markerState(row: Record<string, any>): MarkerState {
+  const statusText = [
+    row.project_status,
+    row.status,
+    row.project_state,
+    row.design_stage_status,
+    row.approval_stage_status,
+    row.supervision_stage_status,
+  ].map((value) => String(value ?? "").trim().toLowerCase()).join(" ");
+
+  if (/on\s*hold|hold|paused|pause/.test(statusText)) return "hold";
+
+  const design = String(row.design_stage_status || "Pending");
+  const approval = String(row.approval_stage_status || "Pending");
+  const supervision = String(row.supervision_stage_status || "Completed");
+  return design === "Completed" && approval === "Completed" && supervision === "Completed" ? "completed" : "active";
+}
 
 export const metadata: Metadata = {
   title: "Project Map | LAND VIEW Engineers & Architects",
@@ -23,5 +45,19 @@ export const metadata: Metadata = {
 };
 
 export default async function ProjectMapPage() {
-  return <PublicProjectMap initialProjects={await getPublicProjectsForSeo()} />;
+  const [projects, rawProjects] = await Promise.all([
+    getPublicProjectsForSeo(),
+    selectRows("projects", { filters: { public_display: true }, limit: 1000 }).catch(() => []),
+  ]);
+
+  const states = Object.fromEntries(
+    (rawProjects || [])
+      .map((row: Record<string, any>) => [String(row.project_code || "").trim().toUpperCase(), markerState(row)] as const)
+      .filter(([id]) => Boolean(id)),
+  );
+
+  return <>
+    <PublicProjectMapMarkerStatus states={states} />
+    <PublicProjectMap initialProjects={projects} />
+  </>;
 }
