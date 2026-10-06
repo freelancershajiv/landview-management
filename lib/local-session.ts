@@ -4,10 +4,12 @@ import { supabaseAuthGateway } from "@/lib/supabase-auth";
 
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 
-export const SESSION_COOKIE = "landview_session";
-export const REFRESH_COOKIE = "landview_refresh";
-export const QUICK_USER_COOKIE = "landview_quick_user";
-export const REMEMBER_COOKIE = "landview_remember_device";
+// v2 cookie names intentionally invalidate the old persistent auth cookies.
+// All v2 auth cookies are browser-session cookies and disappear with the browser session.
+export const SESSION_COOKIE = "landview_session_v2";
+export const REFRESH_COOKIE = "landview_refresh_v2";
+export const QUICK_USER_COOKIE = "landview_quick_user_v2";
+export const REMEMBER_COOKIE = "landview_remember_device_v2";
 export const DEVICE_COOKIE = "landview_device";
 
 const SESSION_READ_CACHE_MS = 5_000;
