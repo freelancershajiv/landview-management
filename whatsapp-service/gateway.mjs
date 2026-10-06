@@ -14,6 +14,8 @@ import makeWASocket, {
 const PORT = Number(process.env.PORT || 10000)
 const LEGACY_PORT = Number(process.env.WHATSAPP_LEGACY_PORT || (PORT === 10001 ? 10002 : 10001))
 const STORE_URL = String(process.env.BOT_STORE_URL || 'https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-bot-store').trim()
+const FINANCE_STORE_URL = String(process.env.WHATSAPP_FINANCE_STORE_URL || 'https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-finance-outbox').trim()
+const FINANCE_EMPLOYEE_ID = String(process.env.WHATSAPP_FINANCE_EMPLOYEE_ID || 'EMP-0002').trim().toUpperCase()
 const BOT_TOKEN = String(process.env.BOT_API_TOKEN || '').trim()
 const DEFAULT_INVITE = String(process.env.WHATSAPP_GROUP_INVITE_CODE || 'IyK3AgVZUwB4g3XJ0qokmT').trim()
 const logger = P({ level: process.env.LOG_LEVEL || 'info' })
@@ -22,6 +24,7 @@ if (!BOT_TOKEN) throw new Error('BOT_API_TOKEN is required.')
 
 let legacyProcess = null
 let shuttingDown = false
+let financeDrainTimer = null
 
 function startLegacyService() {
   if (shuttingDown) return
@@ -46,8 +49,8 @@ function stopChildren() {
 process.once('SIGTERM', () => { stopChildren(); process.exit(0) })
 process.once('SIGINT', () => { stopChildren(); process.exit(0) })
 
-async function store(action, input = {}) {
-  const response = await fetch(STORE_URL, {
+async function callStore(url, action, input = {}) {
+  const response = await fetch(url, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -61,6 +64,14 @@ async function store(action, input = {}) {
     throw new Error(String(json?.error || `Bot store returned HTTP ${response.status}.`))
   }
   return json.data
+}
+
+async function store(action, input = {}) {
+  return callStore(STORE_URL, action, input)
+}
+
+async function financeStore(action, input = {}) {
+  return callStore(FINANCE_STORE_URL, action, input)
 }
 
 function serialize(value) {
@@ -225,6 +236,7 @@ function createEmployeeSession(employeeId) {
             state.lastError = String(error?.message || error)
           })
           logger.info({ employeeId, phoneNumber: phoneFromUserId(wa.user?.id) }, 'Employee WhatsApp connected')
+          if (employeeId === FINANCE_EMPLOYEE_ID) scheduleFinanceDrain(250)
         }
         if (connection === 'close') {
           if (state.sock === wa) state.sock = null
@@ -280,14 +292,37 @@ function inviteCodeFrom(value) {
   return (match?.[1] || raw).slice(0, 200)
 }
 
-async function ensureEmployeeGroup(session, inviteValue) {
+function groupNameFrom(value) {
+  return String(value || '').trim().replace(/^name\s*:/i, '').trim().replace(/\s+/g, ' ')
+}
+
+async function ensureEmployeeGroup(session, targetValue) {
   const sock = session.state.sock
   if (!sock || session.state.connection !== 'open') throw new Error('Employee WhatsApp is not connected.')
-  const inviteCode = inviteCodeFrom(inviteValue || DEFAULT_INVITE)
-  if (!inviteCode) throw new Error('WhatsApp group invite code is missing.')
+  const rawTarget = String(targetValue || DEFAULT_INVITE).trim()
+  if (!rawTarget) throw new Error('WhatsApp group destination is missing.')
 
   const cached = employeeGroupCache.get(session.employeeId)
-  if (cached?.inviteCode === inviteCode && cached?.jid) return cached.jid
+
+  if (/^name\s*:/i.test(rawTarget)) {
+    const groupName = groupNameFrom(rawTarget)
+    if (!groupName) throw new Error('WhatsApp group name is missing.')
+    const target = `name:${groupName.toLocaleLowerCase()}`
+    if (cached?.target === target && cached?.jid) return cached.jid
+
+    const groups = await sock.groupFetchAllParticipating()
+    const matches = Object.entries(groups || {}).filter(([, group]) => String(group?.subject || '').trim().toLocaleLowerCase() === groupName.toLocaleLowerCase())
+    if (!matches.length) throw new Error(`WhatsApp group “${groupName}” is not available to the connected employee account.`)
+    if (matches.length > 1) throw new Error(`More than one WhatsApp group is named “${groupName}”. Rename one group or use an invite link.`)
+    const jid = String(matches[0][0])
+    employeeGroupCache.set(session.employeeId, { target, jid })
+    return jid
+  }
+
+  const inviteCode = inviteCodeFrom(rawTarget)
+  if (!inviteCode) throw new Error('WhatsApp group invite code is missing.')
+  const target = `invite:${inviteCode}`
+  if (cached?.target === target && cached?.jid) return cached.jid
 
   const info = await sock.groupGetInviteInfo(inviteCode)
   let groupJid = String(info?.id || '')
@@ -298,8 +333,51 @@ async function ensureEmployeeGroup(session, inviteValue) {
     const joined = await sock.groupAcceptInvite(inviteCode)
     if (joined) groupJid = String(joined)
   }
-  employeeGroupCache.set(session.employeeId, { inviteCode, jid: groupJid })
+  employeeGroupCache.set(session.employeeId, { target, jid: groupJid })
   return groupJid
+}
+
+async function processFinanceOutboxOnce() {
+  const session = employeeSessionFor(FINANCE_EMPLOYEE_ID)
+  await session.connect()
+  if (!session.state.sock || session.state.connection !== 'open') return false
+
+  const row = await financeStore('next')
+  if (!row?.id) return false
+  try {
+    const jid = await ensureEmployeeGroup(session, row.group_invite_code)
+    const sent = await session.state.sock.sendMessage(jid, { text: String(row.message || '').slice(0, 4000) })
+    const messageId = String(sent?.key?.id || '')
+    await financeStore('sent', { id: row.id, messageId })
+    logger.info({ financeOutboxId: row.id, dedupeKey: row.dedupe_key, messageId }, 'Finance WhatsApp message sent')
+  } catch (error) {
+    const reason = String(error?.message || error).slice(0, 1000)
+    await financeStore('retry', { id: row.id, attemptCount: row.attempt_count, error: reason }).catch(() => null)
+    session.state.lastError = reason
+    logger.error({ financeOutboxId: row.id, err: reason }, 'Finance WhatsApp send failed')
+  }
+  return true
+}
+
+async function drainFinanceOutbox() {
+  const session = employeeSessionFor(FINANCE_EMPLOYEE_ID)
+  await session.connect()
+  if (!session.state.sock || session.state.connection !== 'open') return
+  for (let i = 0; i < 20; i += 1) {
+    if (!await processFinanceOutboxOnce()) break
+  }
+}
+
+function scheduleFinanceDrain(delay = 0) {
+  if (financeDrainTimer) return
+  financeDrainTimer = setTimeout(async () => {
+    financeDrainTimer = null
+    try {
+      await drainFinanceOutbox()
+    } catch (error) {
+      logger.error({ err: String(error?.message || error) }, 'Finance WhatsApp outbox drain failed')
+    }
+  }, delay)
 }
 
 function authorized(req) {
@@ -321,6 +399,23 @@ app.get('/employee/status', async (req, res) => {
   } catch (error) {
     return res.status(500).json({ ok: false, error: String(error?.message || error) })
   }
+})
+
+app.get('/finance/status', async (req, res) => {
+  if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
+  try {
+    const session = employeeSessionFor(FINANCE_EMPLOYEE_ID)
+    await session.connect()
+    return res.json({ ok: true, senderEmployeeId: FINANCE_EMPLOYEE_ID, ...session.status() })
+  } catch (error) {
+    return res.status(500).json({ ok: false, error: String(error?.message || error) })
+  }
+})
+
+app.post('/finance/wake', employeeJson, async (req, res) => {
+  if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
+  scheduleFinanceDrain(0)
+  return res.status(202).json({ ok: true, queued: true, senderEmployeeId: FINANCE_EMPLOYEE_ID })
 })
 
 app.post('/employee/reset', employeeJson, async (req, res) => {
@@ -394,5 +489,9 @@ app.use(async (req, res) => {
 
 startLegacyService()
 app.listen(PORT, '0.0.0.0', () => {
-  logger.info({ port: PORT, legacyPort: LEGACY_PORT }, 'LAND VIEW WhatsApp gateway listening')
+  logger.info({ port: PORT, legacyPort: LEGACY_PORT, financeEmployeeId: FINANCE_EMPLOYEE_ID }, 'LAND VIEW WhatsApp gateway listening')
+  financeStore('recover').catch((error) => logger.error({ err: String(error?.message || error) }, 'Finance outbox recovery failed'))
+  const financeSession = employeeSessionFor(FINANCE_EMPLOYEE_ID)
+  financeSession.connect().catch((error) => logger.error({ err: String(error?.message || error) }, 'Initial finance WhatsApp connection failed'))
+  setInterval(() => scheduleFinanceDrain(0), 15000).unref()
 })
