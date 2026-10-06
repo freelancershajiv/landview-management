@@ -10,8 +10,6 @@ export const QUICK_USER_COOKIE = "landview_quick_user";
 export const REMEMBER_COOKIE = "landview_remember_device";
 export const DEVICE_COOKIE = "landview_device";
 
-const NORMAL_MAX_AGE_SECONDS = 8 * 60 * 60;
-const REMEMBER_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
 const SESSION_READ_CACHE_MS = 5_000;
 
 export type WorkspaceUser = Record<string, unknown>;
@@ -61,8 +59,9 @@ export function userIdOf(user: WorkspaceUser | null | undefined) {
   return String(user?.userId || user?.User_ID || user?.username || user?.Username || "").trim();
 }
 
-export function sessionMaxAge(remembered: boolean) {
-  return remembered ? REMEMBER_MAX_AGE_SECONDS : NORMAL_MAX_AGE_SECONDS;
+/** Auth cookies are browser-session cookies: no Max-Age or Expires. */
+export function sessionMaxAge(_remembered: boolean): any {
+  return undefined;
 }
 
 function cacheKey(token: string) {
