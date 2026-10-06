@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-const COOKIE_NAME = "landview_session";
+const COOKIE_NAME = "landview_session_v2";
 const PROTECTED = ["/admin", "/employee", "/client"];
 
 function normalizeHost(value: string | null | undefined) {
@@ -59,8 +59,8 @@ export function proxy(request: NextRequest) {
       );
     }
 
-    // This is only an early UX gate. The server layouts and Apps Script
-    // backend perform authoritative session + role validation.
+    // This is only an early UX gate. The server layouts and Supabase backend
+    // perform authoritative session + role validation.
     if (!request.cookies.get(COOKIE_NAME)?.value) {
       const login = new URL("/login", request.url);
       login.searchParams.set("next", path);
