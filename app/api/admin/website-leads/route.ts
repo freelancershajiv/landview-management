@@ -32,6 +32,15 @@ function dhakaDay(value: Date | string | number) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
 }
 
+function parseFollowUp(rawValue: unknown) {
+  const raw = text(rawValue, 80);
+  if (!raw) return null;
+  const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw);
+  const normalized = !hasZone && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(raw) ? `${raw}${raw.length === 16 ? ":00" : ""}+06:00` : raw;
+  const parsed = new Date(normalized);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+}
+
 function leadSummary(rows: Record<string, any>[]) {
   const now = Date.now();
   const today = dhakaDay(new Date());
@@ -97,13 +106,9 @@ export async function PATCH(request: NextRequest) {
     if (Object.prototype.hasOwnProperty.call(body, "adminNotes")) changes.admin_notes = text(body.adminNotes, 3000) || null;
     if (Object.prototype.hasOwnProperty.call(body, "nextAction")) changes.next_action = text(body.nextAction, 500) || null;
     if (Object.prototype.hasOwnProperty.call(body, "followUpAt")) {
-      const raw = text(body.followUpAt, 80);
-      if (!raw) changes.follow_up_at = null;
-      else {
-        const parsed = new Date(raw);
-        if (Number.isNaN(parsed.getTime())) return NextResponse.json({ success: false, error: "Invalid follow-up date." }, { status: 400 });
-        changes.follow_up_at = parsed.toISOString();
-      }
+      const parsed = parseFollowUp(body.followUpAt);
+      if (parsed === undefined) return NextResponse.json({ success: false, error: "Invalid follow-up date." }, { status: 400 });
+      changes.follow_up_at = parsed;
     }
     if (Object.prototype.hasOwnProperty.call(body, "convertedProjectCode")) changes.converted_project_code = text(body.convertedProjectCode, 40).toUpperCase() || null;
     if (Object.prototype.hasOwnProperty.call(body, "convertedProposalCode")) changes.converted_proposal_code = text(body.convertedProposalCode, 80).toUpperCase() || null;
