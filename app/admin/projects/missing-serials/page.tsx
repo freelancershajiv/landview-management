@@ -96,7 +96,8 @@ export default function MissingProjectSerialsPage() {
       const drive = new Set<string>();
       for (const response of [running, paused, completed]) {
         Object.entries(response.projects || {}).forEach(([rawId, item]) => {
-          const id = normalizeProjectId(rawId || item?.projectId || item?.projectFolderName);
+          const itemRecord = item as Record<string, any>;
+          const id = normalizeProjectId(rawId || itemRecord.projectId || itemRecord.projectFolderName);
           if (id && withinLimit(id)) drive.add(id);
         });
       }
