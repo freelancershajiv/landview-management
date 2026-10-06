@@ -68,7 +68,7 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
   const problemPhotoUrl = text(payload.problemPhotoUrl, 1000);
   if (problemPhotoUrl) lines.push(`⚠️ *Problem Photo:* ${problemPhotoUrl}`);
 
-  lines.push("_Submitted automatically from the LAND VIEW Employee Portal._");
+  lines.push("_Sent from the employee's linked WhatsApp via the LAND VIEW Employee Portal._");
   return lines.join("\n").slice(0, 4000);
 }
 
@@ -142,34 +142,71 @@ async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhats
   }
 }
 
+async function sendFromEmployeeWhatsApp(
+  token: string,
+  groupInviteCode: string,
+  payload: SiteVisitWhatsAppPayload,
+): Promise<SiteVisitWhatsAppResult> {
+  const base = String(process.env.WHATSAPP_BOT_URL || "").trim().replace(/\/+$/, "");
+  const employeeId = text(payload.employeeId, 120);
+  if (!base) return { status: "skipped", reason: "LAND VIEW WhatsApp service URL is not configured." };
+  if (!employeeId) return { status: "skipped", reason: "Employee ID is missing, so the employee WhatsApp sender cannot be selected." };
+
+  const response = await fetch(`${base}/employee/send`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-land-view-bot-token": token,
+    },
+    body: JSON.stringify({
+      employeeId,
+      groupInviteCode,
+      message: formatSiteVisitWhatsAppMessage(payload),
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  const json = await response.json().catch(() => null) as any;
+
+  if (response.status === 409) {
+    return {
+      status: "skipped",
+      reason: text(json?.error || "Connect WhatsApp from the employee dashboard before Site Visit updates can be sent from this number.", 500),
+    };
+  }
+  if (!response.ok || !json?.ok) {
+    return {
+      status: "failed",
+      reason: text(json?.error || `Employee WhatsApp service returned HTTP ${response.status}.`, 500),
+    };
+  }
+  return {
+    status: "sent",
+    messageId: text(json?.messageId, 240) || undefined,
+  };
+}
+
 export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPayload): Promise<SiteVisitWhatsAppResult> {
   const token = String(process.env.WHATSAPP_BOT_API_TOKEN || "").trim();
   const groupInviteCode = String(process.env.WHATSAPP_SITE_VISIT_GROUP_INVITE_CODE || "").trim();
-  if (!token || !groupInviteCode) {
-    return { status: "skipped", reason: "LAND VIEW WhatsApp bot queue is not configured." };
+  if (!token) {
+    return { status: "skipped", reason: "LAND VIEW WhatsApp bot token is not configured." };
+  }
+
+  const clientUpdate = queueClientSiteVisitUpdate(token, payload);
+  if (!groupInviteCode) {
+    await clientUpdate;
+    return { status: "skipped", reason: "LAND VIEW Site Visit WhatsApp group is not configured." };
   }
 
   try {
-    const queued = await botStoreRequest(token, {
-      action: "enqueue",
-      dedupeKey: `site-visit:${text(payload.visitId, 120)}`,
-      message: formatSiteVisitWhatsAppMessage(payload),
-      groupInviteCode,
-    });
-
-    await Promise.all([
-      wakeBot(token),
-      queueClientSiteVisitUpdate(token, payload),
-    ]);
-
-    const state = text(queued?.status, 40).toLowerCase();
-    if (state === "sent") {
-      return { status: "sent", messageId: text(queued?.provider_message_id, 240) || undefined };
-    }
-    return { status: "queued", messageId: text(queued?.id, 240) || undefined };
+    const result = await sendFromEmployeeWhatsApp(token, groupInviteCode, payload);
+    await clientUpdate;
+    return result;
   } catch (error: any) {
-    const reason = text(error?.message || "WhatsApp queue request failed.", 500);
-    console.error("[site-visit-whatsapp] queue error", { message: reason });
+    await clientUpdate;
+    const reason = text(error?.message || "Employee WhatsApp send request failed.", 500);
+    console.error("[site-visit-whatsapp] employee send error", { message: reason });
     return { status: "failed", reason };
   }
 }
