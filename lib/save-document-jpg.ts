@@ -1,6 +1,7 @@
 import type { SheetInvoices } from "@/lib/sheet-invoices";
 
 let jpgExportPending = false;
+const SAFE_PIXEL = "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
 
 function safeFilePart(value: string) {
   return String(value || "")
@@ -120,12 +121,22 @@ async function waitForImages(root: HTMLElement) {
   }));
 }
 
+function safeComputedValue(property: string, value: string) {
+  if (!/url\(/i.test(value)) return value;
+  // Never serialize URL-backed CSS resources into the SVG. Even a single
+  // remote background/mask can taint the canvas after drawImage().
+  if (/^(background-image|mask-image|-webkit-mask-image|border-image-source|list-style-image|cursor|content)$/i.test(property)) {
+    return property === "cursor" ? "auto" : "none";
+  }
+  return "";
+}
+
 function inlineComputedStyles(source: Element, target: Element) {
   const computed = getComputedStyle(source);
   const targetElement = target as HTMLElement;
   let cssText = "";
   for (const property of Array.from(computed)) {
-    const value = computed.getPropertyValue(property);
+    const value = safeComputedValue(property, computed.getPropertyValue(property));
     if (value) cssText += `${property}:${value};`;
   }
   targetElement.setAttribute("style", cssText);
@@ -146,26 +157,80 @@ function blobToDataUrl(blob: Blob) {
   });
 }
 
+async function resourceToDataUrl(src: string) {
+  if (src.startsWith("data:")) return src;
+  const response = await fetch(src, {
+    mode: "cors",
+    credentials: new URL(src, window.location.href).origin === window.location.origin ? "same-origin" : "omit",
+    cache: "force-cache",
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return blobToDataUrl(await response.blob());
+}
+
 async function embedImages(source: HTMLElement, target: HTMLElement) {
   const sourceImages = Array.from(source.querySelectorAll<HTMLImageElement>("img"));
   const targetImages = Array.from(target.querySelectorAll<HTMLImageElement>("img"));
   await Promise.all(sourceImages.map(async (image, index) => {
     const targetImage = targetImages[index];
     if (!targetImage) return;
+
+    // Browsers may prefer srcset over src. Remove every alternate network
+    // source before assigning the embedded data URI.
+    targetImage.removeAttribute("srcset");
+    targetImage.removeAttribute("sizes");
+    targetImage.removeAttribute("crossorigin");
+    targetImage.removeAttribute("loading");
+    targetImage.setAttribute("decoding", "sync");
+
     const src = image.currentSrc || image.src;
-    if (!src) return;
-    if (src.startsWith("data:")) {
-      targetImage.src = src;
+    if (!src) {
+      targetImage.src = SAFE_PIXEL;
       return;
     }
+
     try {
-      const response = await fetch(src, { credentials: "same-origin", cache: "force-cache" });
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      targetImage.src = await blobToDataUrl(await response.blob());
+      targetImage.src = await resourceToDataUrl(src);
     } catch {
-      targetImage.src = src;
+      // Do NOT fall back to the original URL. A remote URL here would taint
+      // the canvas and make canvas.toBlob() throw a SecurityError.
+      targetImage.src = SAFE_PIXEL;
     }
   }));
+
+  // Inline SVG <image> nodes can also point to external resources. Embed them
+  // when possible; otherwise remove the network reference entirely.
+  const sourceSvgImages = Array.from(source.querySelectorAll<SVGImageElement>("svg image"));
+  const targetSvgImages = Array.from(target.querySelectorAll<SVGImageElement>("svg image"));
+  await Promise.all(sourceSvgImages.map(async (image, index) => {
+    const targetImage = targetSvgImages[index];
+    if (!targetImage) return;
+    const src = image.getAttribute("href") || image.getAttributeNS("http://www.w3.org/1999/xlink", "href") || "";
+    if (!src) return;
+    try {
+      const embedded = await resourceToDataUrl(src);
+      targetImage.setAttribute("href", embedded);
+      targetImage.removeAttributeNS("http://www.w3.org/1999/xlink", "href");
+    } catch {
+      targetImage.removeAttribute("href");
+      targetImage.removeAttributeNS("http://www.w3.org/1999/xlink", "href");
+    }
+  }));
+}
+
+function stripNetworkReferences(root: HTMLElement) {
+  root.querySelectorAll<HTMLElement>("*").forEach((element) => {
+    element.removeAttribute("srcset");
+    element.removeAttribute("sizes");
+    const style = element.getAttribute("style");
+    if (style && /url\(/i.test(style)) {
+      for (const property of Array.from(element.style)) {
+        if (/url\(/i.test(element.style.getPropertyValue(property))) {
+          element.style.removeProperty(property);
+        }
+      }
+    }
+  });
 }
 
 function loadSvgImage(blob: Blob) {
@@ -187,10 +252,14 @@ function loadSvgImage(blob: Blob) {
 
 function canvasToJpeg(canvas: HTMLCanvasElement) {
   return new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob((blob) => {
-      if (blob) resolve(blob);
-      else reject(new Error("The browser could not create the JPG file."));
-    }, "image/jpeg", 0.96);
+    try {
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("The browser could not create the JPG file."));
+      }, "image/jpeg", 0.96);
+    } catch (error) {
+      reject(error instanceof Error ? error : new Error("The browser blocked JPG export."));
+    }
   });
 }
 
@@ -201,6 +270,7 @@ async function renderPageToJpeg(page: HTMLElement) {
   const clone = page.cloneNode(true) as HTMLElement;
   inlineComputedStyles(page, clone);
   await embedImages(page, clone);
+  stripNetworkReferences(clone);
 
   const wrapper = document.createElement("div");
   wrapper.setAttribute("xmlns", "http://www.w3.org/1999/xhtml");
