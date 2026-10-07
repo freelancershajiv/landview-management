@@ -56,6 +56,7 @@ function responseStatus(message: string) {
 export async function GET(request: NextRequest) {
   try {
     const user = await requireFinanceUser(request);
+    const currentRole = roleOf(user);
     const [transactions, projects, accounts, expenses] = await Promise.all([
       selectRows("transactions", { filters: { finance_scope: MUNICIPALITY_SCOPE }, order: "transaction_date:desc", limit: 5000 }),
       selectRows("projects", { order: "project_code:asc", limit: 5000 }),
@@ -68,7 +69,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: {
-        canEditExpenses: roleOf(user) === "admin",
+        canAddExpense: currentRole === "admin" || currentRole === "manager" || currentRole === "accounts",
+        canEditExpenses: currentRole === "admin",
+        canSendToMainLedger: currentRole === "admin",
         transactions: transactions.map((row) => {
           const sourceType = text(row.source_type, 120);
           const isTransfer = sourceType === "MUNICIPALITY_TRANSFER_OUT";
@@ -92,11 +95,7 @@ export async function GET(request: NextRequest) {
             createdBy: row.source_created_by || "",
           };
         }),
-        projects: projects.map((row) => ({
-          id: row.project_code,
-          name: row.project_name || "",
-          client: row.client_name_snapshot || "",
-        })),
+        projects: projects.map((row) => ({ id: row.project_code, name: row.project_name || "", client: row.client_name_snapshot || "" })),
         accounts: accounts
           .filter((row) => text(row.status || "Active").toLowerCase() !== "inactive")
           .map((row) => ({ code: row.account_code || "", name: row.account_name || row.account_code || "" }))
@@ -123,16 +122,12 @@ export async function POST(request: NextRequest) {
     const actor = actorOf(user);
 
     if (action === "updateExpense") {
-      if (roleOf(user) !== "admin") {
-        return NextResponse.json({ success: false, error: "Admin access is required to edit Municipality expenses." }, { status: 403 });
-      }
+      if (roleOf(user) !== "admin") return NextResponse.json({ success: false, error: "Admin access is required to edit Municipality expenses." }, { status: 403 });
       const sourceId = text(body.Source_ID || body.sourceId, 160);
       if (!sourceId) return NextResponse.json({ success: false, error: "Municipality expense source ID is required." }, { status: 400 });
       const existingRows = await selectRows("expenses", { filters: { expense_code: sourceId }, limit: 1 });
       const existing = existingRows[0];
-      if (!existing || text(existing.finance_scope) !== MUNICIPALITY_SCOPE) {
-        return NextResponse.json({ success: false, error: "Municipality expense was not found." }, { status: 404 });
-      }
+      if (!existing || text(existing.finance_scope) !== MUNICIPALITY_SCOPE) return NextResponse.json({ success: false, error: "Municipality expense was not found." }, { status: 404 });
 
       const value = num(body.Amount || body.amount);
       if (!(value > 0)) return NextResponse.json({ success: false, error: "Enter a valid expense amount." }, { status: 400 });
@@ -164,9 +159,9 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "sendToMainLedger") {
+      if (roleOf(user) !== "admin") return NextResponse.json({ success: false, error: "Admin access is required to send Municipality balances to the Main Ledger." }, { status: 403 });
       const transferCode = `MUN-${crypto.randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`;
       const transferDate = dhakaToday();
-
       await insertRows("transactions", {
         transaction_code: `REQ-${transferCode}`,
         transaction_date: transferDate,
@@ -189,26 +184,13 @@ export async function POST(request: NextRequest) {
         service_type: "Municipality Accounts",
         finance_scope: MUNICIPALITY_SCOPE,
       });
-
       const mainCode = `TXN-MUN-MAIN-${transferCode}`;
       const transferred = await selectRows("transactions", { filters: { transaction_code: mainCode }, limit: 1 });
       if (!transferred.length) throw new Error("Municipality transfer completed without a resolvable Main Ledger entry.");
-
-      return NextResponse.json({
-        success: true,
-        data: {
-          transferCode,
-          projectId: projectCode,
-          amount: num(transferred[0].credit),
-          date: transferred[0].transaction_date || transferDate,
-          mainTransactionId: mainCode,
-        },
-      }, { status: 201, headers: { "Cache-Control": "no-store", "X-Landview-Data": "supabase" } });
+      return NextResponse.json({ success: true, data: { transferCode, projectId: projectCode, amount: num(transferred[0].credit), date: transferred[0].transaction_date || transferDate, mainTransactionId: mainCode } }, { status: 201, headers: { "Cache-Control": "no-store", "X-Landview-Data": "supabase" } });
     }
 
-    if (action !== "addExpense") {
-      return NextResponse.json({ success: false, error: "Unsupported Municipality Accounts action." }, { status: 400 });
-    }
+    if (action !== "addExpense") return NextResponse.json({ success: false, error: "Unsupported Municipality Accounts action." }, { status: 400 });
 
     const value = num(body.Amount || body.amount);
     if (!(value > 0)) return NextResponse.json({ success: false, error: "Enter a valid expense amount." }, { status: 400 });
