@@ -132,6 +132,15 @@ export default function LedgerOrderEnhancer() {
 
     const stateById = () => new Map(stateRows.map((row) => [row.id, row]));
 
+    async function loadAllState() {
+      const response = await fetch("/api/accounts/ledger/order", { credentials: "same-origin", cache: "no-store" });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success || !Array.isArray(json.rows)) {
+        throw new Error(String(json?.error || "Could not load ledger balance/order state."));
+      }
+      stateRows = json.rows as LedgerOrderRow[];
+    }
+
     async function moveTo(transactionIdValue: string, targetTransactionId: string, placement: DropPlacement) {
       if (!transactionIdValue || !targetTransactionId || transactionIdValue === targetTransactionId || busyId) return;
       busyId = transactionIdValue;
@@ -148,7 +157,7 @@ export default function LedgerOrderEnhancer() {
         if (!response.ok || !json?.success || !Array.isArray(json.rows)) {
           throw new Error(String(json?.error || "Could not reorder ledger entry."));
         }
-        stateRows = json.rows as LedgerOrderRow[];
+        await loadAllState();
       } catch (error) {
         console.error("Current month ledger drag reorder failed", error);
         window.alert(error instanceof Error ? error.message : "Could not reorder ledger entry.");
@@ -261,13 +270,12 @@ export default function LedgerOrderEnhancer() {
       const map = stateById();
       const currentMonthActive = activeCurrentMonthTab();
       document.querySelectorAll<HTMLTableElement>("table.bank-table").forEach((table) => {
-        if (currentMonthActive) {
-          reorderVisibleRows(table, map);
-          updateBalances(table, map);
-          addOrderControls(table, map);
-        } else {
-          removeOrderControls(table);
-        }
+        // Balance and row order must always come from the same source of truth,
+        // regardless of which business-ledger tab is currently visible.
+        reorderVisibleRows(table, map);
+        updateBalances(table, map);
+        if (currentMonthActive) addOrderControls(table, map);
+        else removeOrderControls(table);
       });
     }
 
@@ -283,20 +291,9 @@ export default function LedgerOrderEnhancer() {
     const observer = new MutationObserver(scheduleApply);
     observer.observe(document.body, { childList: true, subtree: true });
 
-    const orderUrl = monthKey
-      ? `/api/accounts/ledger/order?month=${encodeURIComponent(monthKey)}`
-      : "/api/accounts/ledger/order";
-
-    fetch(orderUrl, { credentials: "same-origin", cache: "no-store" })
-      .then(async (response) => {
-        const json = await response.json().catch(() => null);
-        if (!response.ok || !json?.success || !Array.isArray(json.rows)) {
-          throw new Error(String(json?.error || "Could not load current month ledger order."));
-        }
-        stateRows = json.rows as LedgerOrderRow[];
-        apply();
-      })
-      .catch((error) => console.error("Current month ledger order load failed", error));
+    loadAllState()
+      .then(apply)
+      .catch((error) => console.error("Ledger balance/order state load failed", error));
 
     return () => {
       disposed = true;
