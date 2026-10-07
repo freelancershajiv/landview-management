@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import { ErrorState, LoadingState, PageHeader, pick } from "@/components/lv-ui";
+import { notifyClientProjectStage } from "@/lib/client-project-whatsapp";
 
 type ProjectCategory = "Running" | "Paused" | "Completed" | "Cancelled";
 type StageFilter = "Ongoing" | "Design Stage" | "Approval Stage" | "Supervision / Construction" | "Completed";
@@ -300,6 +301,11 @@ export default function ProjectsPage() {
         ...(updated as Record<string, unknown>),
         [field]: value,
       } : row));
+      try {
+        await notifyClientProjectStage({ projectId: id, projectName: project.Project_Name, clientName: project.Client_Name, field, value });
+      } catch (notifyError: any) {
+        setError(`Stage saved, but the client WhatsApp update was not delivered: ${notifyError?.message || "WhatsApp delivery failed."}`);
+      }
     } catch (e: any) {
       setError(e?.message || ("Could not update " + field.replace(/_Status$/, "").replace(/_/g, " ") + " for " + id + "."));
     } finally {

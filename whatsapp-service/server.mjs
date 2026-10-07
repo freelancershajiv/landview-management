@@ -406,6 +406,19 @@ function phoneFromPnJid(value) {
   return jid.endsWith('@s.whatsapp.net') ? jid.split('@')[0].replace(/\D/g, '') : ''
 }
 
+function canonicalBangladeshPhone(value) {
+  let digits = String(value || '').replace(/\D/g, '')
+  if (digits.startsWith('880') && digits.length >= 13) digits = `0${digits.slice(3)}`
+  else if (digits.startsWith('88') && digits.length >= 13) digits = digits.slice(2)
+  if (digits.length === 10 && digits.startsWith('1')) digits = `0${digits}`
+  return /^01\d{9}$/.test(digits) ? digits : ''
+}
+
+function whatsappNumberFromBangladeshPhone(value) {
+  const local = canonicalBangladeshPhone(value)
+  return local ? `88${local}` : ''
+}
+
 async function resolveIncomingAddress(message, sock) {
   const direct = bareUserJid(message?.key?.remoteJid)
   const altCandidates = [
@@ -711,6 +724,16 @@ async function processClientOutboxOnce() {
   const row = await store('clientOutboxNext')
   if (!row?.id) return false
   try {
+    const recipientPhone = phoneFromPnJid(row.to_jid)
+    if (recipientPhone) {
+      const registration = await sock.onWhatsApp(recipientPhone)
+      const registered = Array.isArray(registration) && registration.some((item) => item?.exists)
+      if (!registered) {
+        await store('clientOutboxRetry', { id: row.id, attemptCount: 10, error: 'Client phone number is not registered on WhatsApp.' })
+        logger.warn({ outboxId: row.id }, 'Client WhatsApp delivery rejected: number is not registered')
+        return true
+      }
+    }
     const sent = await sock.sendMessage(String(row.to_jid), { text: String(row.message || '').slice(0, 4000) })
     const messageId = String(sent?.key?.id || '')
     await store('clientOutboxSent', { id: row.id, messageId })
@@ -803,6 +826,23 @@ app.post('/wake', (req, res) => {
   scheduleSiteDrain(0)
   return res.status(202).json({ ok: true, queued: true, connection: siteSession.state.connection })
 })
+app.post('/client/check-number', async (req, res) => {
+  if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
+  const sock = clientSession.state.sock
+  if (!sock || clientSession.state.connection !== 'open') return res.status(503).json({ ok: false, error: 'Client WhatsApp bot is not connected. Open Admin → WhatsApp and pair the Client WhatsApp Bot first.' })
+  const localPhone = canonicalBangladeshPhone(req.body?.phoneNumber)
+  const waNumber = whatsappNumberFromBangladeshPhone(localPhone)
+  if (!waNumber) return res.status(400).json({ ok: false, error: 'Enter a valid Bangladesh mobile number, for example 01XXXXXXXXX.' })
+  try {
+    const results = await sock.onWhatsApp(waNumber)
+    const match = Array.isArray(results) ? results.find((item) => item?.exists) : null
+    return res.json({ ok: true, registered: Boolean(match?.exists), normalizedPhone: localPhone, e164: `+88${localPhone}`, jid: match?.jid || null })
+  } catch (error) {
+    logger.error({ err: String(error?.message || error).slice(0, 500) }, 'WhatsApp number check failed')
+    return res.status(502).json({ ok: false, error: 'WhatsApp could not verify this number right now. Please try again.' })
+  }
+})
+
 app.post('/client/wake', (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   scheduleClientDrain(0)

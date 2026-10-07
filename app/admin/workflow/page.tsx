@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState, PageHeader, pick } from "@/components/lv-ui";
+import { notifyClientWorkflowComplete, notifyClientWorkflowService } from "@/lib/client-project-whatsapp";
 
 type Task = Record<string, unknown>;
 type Filter = "All" | "Pending" | "In Progress" | "Blocked" | "Completed";
@@ -144,9 +145,12 @@ export default function WorkflowPage(){
         ? await saveWorkflow({workflowOp:"create",...base})
         : await saveWorkflow({workflowOp:"update",id:taskId(task),...base});
       applySavedTask(task,saved,base);
-      setNotice(`${projectId} · ${title} marked completed.`);
+      let whatsappNote = "Client WhatsApp update queued.";
+      try { await notifyClientWorkflowService({ projectId, projectName: projects[projectId], serviceTitle: title }); }
+      catch(notifyError:any){ whatsappNote = `Client WhatsApp not queued: ${notifyError?.message || "delivery failed."}`; }
       // Re-read source of truth so a newly created WF-* id replaces AUTO::* immediately.
       await fetchWorkflowTasks();
+      setNotice(`${projectId} · ${title} marked completed. ${whatsappNote}`);
     }catch(e:any){
       setError(e?.message||"Could not mark service complete.");
     }finally{
@@ -171,8 +175,11 @@ export default function WorkflowPage(){
           : await saveWorkflow({workflowOp:"update",id:taskId(task),...base});
         applySavedTask(task,saved,base);
       }
-      setNotice(`${id} marked 100% complete.`);
+      let whatsappNote = "Client WhatsApp update queued.";
+      try { await notifyClientWorkflowComplete({ projectId: id, projectName: projects[id], completedCount: remaining.length }); }
+      catch(notifyError:any){ whatsappNote = `Client WhatsApp not queued: ${notifyError?.message || "delivery failed."}`; }
       await fetchWorkflowTasks();
+      setNotice(`${id} marked 100% complete. ${whatsappNote}`);
     }catch(e:any){
       setError(e?.message||`Could not complete ${id}.`);
       // Still refresh to show any services that were completed before the failure.
