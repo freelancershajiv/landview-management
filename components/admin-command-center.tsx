@@ -36,6 +36,32 @@ const money = (v: unknown) => `৳${n(v).toLocaleString("en-BD", { maximumFracti
 const pick = (r: Row, keys: string[], fallback = "") =>
   keys.map(k => r[k]).find(v => v !== undefined && v !== null && String(v).trim() !== "") ?? fallback;
 
+
+const ADMIN_EDIT_ACTIONS = [
+  ["/admin/projects/new", "New Project", "Create a complete project record"],
+  ["/admin/projects/legacy", "Legacy Registration", "Register or correct older projects"],
+  ["/admin/projects", "Project Editor", "Open any project and edit its full details"],
+  ["/admin/projects/locations", "Project Locations", "Edit project map and location data"],
+  ["/admin/projects/payment-routing", "Payment Routing", "Correct project/payment relationships"],
+  ["/admin/projects/reclassify", "Project Reclassify", "Correct project classifications"],
+  ["/admin/employees", "Employee Editor", "Edit employees, status and roles"],
+  ["/admin/proposals", "Proposal Editor", "Create and revise proposals"],
+  ["/admin/finance/bills", "Bills Editor", "Edit project billing records"],
+  ["/admin/finance/invoices", "Invoice Register", "Review and manage invoices"],
+  ["/admin/accounts/entry", "Main Accounts", "Create main account entries"],
+  ["/admin/accounts", "Ledger Editor", "Edit, reorder and correct ledger history"],
+  ["/admin/accounts/export", "Ledger Export", "Generate account exports"],
+  ["/admin/registers", "Document Registry", "Edit document and design-book records"],
+  ["/admin/site-visits", "Site Visits", "Review and correct site visit records"],
+  ["/admin/projects/website-curation", "Website Curation", "Control public project presentation"],
+  ["/admin/projects/website-readiness", "Website Readiness", "Fix public project completeness"],
+  ["/admin/municipality-accounts", "Municipality Accounts", "Manage municipality financial records"],
+  ["/admin/municipality-file-pass", "Municipality File Pass", "Manage municipality file workflow"],
+  ["/admin/access", "Access Control", "Manage permissions and role authority"],
+  ["/admin/security", "Security", "Manage Admin security controls"],
+  ["/admin/whatsapp", "WhatsApp", "Manage WhatsApp integration settings"],
+] as const;
+
 export default function AdminCommandCenter() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,6 +88,7 @@ export default function AdminCommandCenter() {
   const stats = data?.stats || {};
   const role = String(data?.user?.role || "").toLowerCase();
   const full = role === "admin" || role === "manager";
+  const isAdmin = role === "admin";
   const leadSummary = data?.websiteLeadSummary || {};
   const permissions = data?.permissions || {};
   const can = (key: string) => full || Boolean(permissions[key]);
@@ -95,6 +122,12 @@ export default function AdminCommandCenter() {
         .lv-command-actions{display:flex;gap:8px;flex-wrap:wrap}.lv-command-btn{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:0 14px;border-radius:9px;border:1px solid var(--theme-line-_39434d, #39434d);background:var(--theme-bg-_151b21, #151b21);color:var(--theme-ink-_eef2f5, #eef2f5);text-decoration:none;font-weight:800;font-size:11px}.lv-command-btn.primary{border-color:var(--theme-line-_e02b32, #e02b32);background:#d61f26;color:#fff}.lv-command-btn.leads{border-color:var(--theme-line-rgba_255_105_110__55_,rgba(255,105,110,.55));position:relative}.lv-command-btn.leads b{display:inline-grid;place-items:center;min-width:20px;height:20px;margin-left:7px;padding:0 5px;border-radius:999px;background:#d61f26;color:#fff;font-size:9px}.lv-command-btn:hover{border-color:var(--theme-line-_e04a50, #e04a50)}
         .lv-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:14px 0}.lv-kpi{padding:15px 16px;border:1px solid var(--theme-line-_2d3841, #2d3841);border-radius:12px;background:linear-gradient(150deg,var(--theme-bg-_151c22, #151c22),var(--theme-bg-_0d1318, #0d1318));min-height:108px;position:relative;overflow:hidden}.lv-kpi:before{content:"";position:absolute;left:0;top:0;width:38px;height:2px;background:#e21f27}.lv-kpi.attention{border-color:var(--theme-line-rgba_226_31_39__42_,rgba(226,31,39,.42))}.lv-kpi.attention strong{color:#ff7176}.lv-kpi small{display:block;color:var(--theme-ink-_7f8b96, #7f8b96);text-transform:uppercase;letter-spacing:.09em;font-weight:800;font-size:9px}.lv-kpi strong{display:block;font-size:22px;margin-top:9px;color:var(--theme-ink-_fff, #fff)}.lv-kpi span{display:block;margin-top:5px;color:var(--theme-ink-_77848f, #77848f);font-size:10px}
         .lv-grid{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(300px,.85fr);gap:14px}.lv-panel{border:1px solid var(--theme-line-_2c3740, #2c3740);border-radius:13px;background:var(--theme-bg-_10161c, #10161c);overflow:hidden;box-shadow:0 10px 28px var(--theme-shadow-rgba_0_0_0__08_, rgba(0,0,0,.08))}.lv-panel-head{display:flex;justify-content:space-between;align-items:center;padding:15px 17px;border-bottom:1px solid var(--theme-line-_273139, #273139);background:var(--theme-bg-_11181f, #11181f)}.lv-panel-head h2{font-size:14px;margin:0;color:var(--theme-ink-_fff, #fff)}.lv-panel-head a{font-size:10px;color:var(--theme-ink-_ff7478, #ff7478);text-decoration:none;font-weight:800}.lv-search{margin:14px 16px;width:calc(100% - 32px);height:40px;border:1px solid var(--theme-line-_33404a, #33404a);border-radius:8px;background:var(--theme-bg-_0b1014, #0b1014);color:var(--theme-ink-_fff, #fff);padding:0 12px;font-size:11px}.lv-project{display:grid;grid-template-columns:82px minmax(0,1fr) auto;gap:12px;align-items:center;margin:0 14px 8px;padding:12px;border:1px solid var(--theme-line-_29323a, #29323a);border-radius:10px;background:var(--theme-bg-_12181e, #12181e);color:var(--theme-ink-_eef2f5, #eef2f5);text-decoration:none}.lv-project:hover{border-color:var(--theme-line-_4b5661, #4b5661)}.lv-project-id{color:#ff666b;font-weight:900;font-size:11px}.lv-project strong{display:block;font-size:12px}.lv-project small{color:var(--theme-ink-_7f8b96, #7f8b96)}.lv-status{font-size:10px;color:var(--theme-ink-_9aa5af, #9aa5af)}.lv-actions{display:grid;gap:8px;padding:14px}.lv-action{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid var(--theme-line-_29323a, #29323a);border-radius:10px;background:var(--theme-bg-_12181e, #12181e);color:var(--theme-ink-_eef2f5, #eef2f5);text-decoration:none;font-weight:800;font-size:11px}.lv-action:hover{border-color:var(--theme-line-_4b5661, #4b5661)}.lv-action i{font-style:normal;width:30px;height:30px;display:grid;place-items:center;border-radius:8px;background:var(--theme-bg-_20191b, #20191b);color:var(--theme-ink-_ff777b, #ff777b)}.lv-attention{display:grid;gap:8px;padding:14px}.lv-alert{display:flex;gap:10px;padding:11px;border-radius:9px;border:1px solid var(--theme-line-_3a3031, #3a3031);background:var(--theme-bg-_191416, #191416);text-decoration:none}.lv-alert b{color:#ff696e;font-size:11px;white-space:nowrap}.lv-alert span{color:var(--theme-ink-_8f9aa4, #8f9aa4);font-size:10px;line-height:1.45}.lv-health{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:14px}.lv-health div{padding:12px;border:1px solid var(--theme-line-_29323a, #29323a);border-radius:9px;background:var(--theme-bg-_12181e, #12181e)}.lv-health b{display:block;color:var(--theme-ink-_7bd49b, #7bd49b);font-size:10px}.lv-health span{font-size:10px;color:var(--theme-ink-_7f8b96, #7f8b96)}.lv-empty{padding:20px;color:var(--theme-ink-_7f8b96, #7f8b96);font-size:11px}.lv-error{margin:0 0 14px;padding:12px;border:1px solid var(--theme-line-_74373a, #74373a);background:var(--theme-bg-_211416, #211416);border-radius:10px;color:var(--theme-ink-_ff9a9e, #ff9a9e);font-size:11px}.lv-command-loading{padding:50px 20px;color:var(--theme-ink-_8c98a3, #8c98a3)}
+
+        .lv-admin-edit-center{margin-top:14px;padding:18px;border:1px solid var(--theme-line-_34414b,#34414b);border-radius:14px;background:linear-gradient(145deg,var(--theme-bg-_12191f,#12191f),var(--theme-bg-_0d1318,#0d1318))}
+        .lv-admin-edit-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:12px}.lv-admin-edit-head h2{margin:0;color:var(--theme-ink-_fff,#fff);font-size:18px}.lv-admin-edit-head p{margin:4px 0 0;color:var(--theme-ink-_7f8b95,#7f8b95);font-size:10px}.lv-admin-edit-head span{font-size:9px;font-weight:900;letter-spacing:.12em;text-transform:uppercase;color:#ff686d}.lv-admin-edit-head>strong{color:#ff686d;font-size:10px}
+        .lv-admin-edit-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.lv-admin-edit-link{min-height:64px;padding:11px 12px;border:1px solid var(--theme-line-_303b45,#303b45);border-radius:10px;background:var(--theme-bg-_151c22,#151c22);text-decoration:none;display:flex;flex-direction:column;justify-content:center;transition:.16s ease}.lv-admin-edit-link strong{color:var(--theme-ink-_f6f8fa,#f6f8fa);font-size:11px}.lv-admin-edit-link small{margin-top:4px;color:var(--theme-ink-_788691,#788691);font-size:8.5px;line-height:1.35}.lv-admin-edit-link:hover{border-color:var(--theme-line-_d61f26,#d61f26);transform:translateY(-1px);background:var(--theme-bg-_192128,#192128)}
+        @media(max-width:1180px){.lv-admin-edit-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+        @media(max-width:760px){.lv-admin-edit-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.lv-admin-edit-center{padding:14px}}
         @media(max-width:1100px){.lv-grid{grid-template-columns:1fr}}
         @media(max-width:700px){.lv-command-hero{display:block;padding:20px}.lv-command-actions{margin-top:16px}.lv-kpis{grid-template-columns:repeat(2,1fr)}.lv-project{grid-template-columns:70px minmax(0,1fr)}.lv-status{display:none}.lv-health{grid-template-columns:1fr}}
         @media(max-width:420px){.lv-kpis{grid-template-columns:1fr}}
@@ -114,6 +147,11 @@ export default function AdminCommandCenter() {
           {can("proposals.create") && <Link className="lv-command-btn" href="/admin/proposals/new">+ Client / Proposal</Link>}
         </div>
       </section>
+
+      {isAdmin && <section className="lv-admin-edit-center" aria-label="Admin Editing Center">
+        <div className="lv-admin-edit-head"><div><span>ADMIN AUTHORITY</span><h2>Admin Editing Center</h2><p>Direct access to every major editing and control workspace.</p></div><strong>{ADMIN_EDIT_ACTIONS.length} CONTROLS</strong></div>
+        <div className="lv-admin-edit-grid">{ADMIN_EDIT_ACTIONS.map(([href,label,description]) => <Link key={href} href={href} className="lv-admin-edit-link"><strong>{label}</strong><small>{description}</small></Link>)}</div>
+      </section>}
 
       {error && <div className="lv-error">{error} <button className="lv-command-btn" onClick={() => void load()} style={{marginLeft:8,minHeight:30}}>Retry</button></div>}
 

@@ -17,33 +17,47 @@ type WorkspaceAccess = {
   permissions?: PermissionMap;
 };
 
-type NavItem = { href: string; label: string; icon: string; permission?: string; adminOnly?: boolean };
+type NavItem = { href: string; label: string; icon: string; section: string; permission?: string; adminOnly?: boolean };
 
 const nav: NavItem[] = [
-  { href: "/admin", label: "Dashboard", icon: "⌂", permission: "dashboard.view" },
-  { href: "/admin/projects", label: "Projects", icon: "▣", permission: "projects.view" },
-  { href: "/projectmanagement", label: "Project Management", icon: "◈", permission: "project_management.view" },
-  { href: "/admin/estimate", label: "Estimates", icon: "▤", permission: "estimates.view" },
-  { href: "/admin/workflow", label: "Workflow", icon: "↗", permission: "workflow.view" },
-  { href: "/admin/site-visits", label: "Site Visits", icon: "⌖", permission: "site.view" },
-  { href: "/admin/registers", label: "Document Registry", icon: "▧", permission: "documents.view" },
-  { href: "/admin/employees", label: "Employees", icon: "♙", permission: "employees.view" },
-  { href: "/admin/certificates", label: "Certificates", icon: "⌑", permission: "certificates.view" },
-  { href: "/admin/finance", label: "Billing", icon: "৳", permission: "finance.view" },
-  { href: "/admin/expenses", label: "Expenses", icon: "◫", permission: "expenses.view_all" },
-  { href: "/admin/accounts/entry", label: "Main Accounts", icon: "▥", adminOnly: true },
-  { href: "/admin/accounts", label: "Ledger", icon: "≡", permission: "ledger.view" },
-  { href: "/admin/proposals", label: "Proposals", icon: "✎", permission: "proposals.view" },
-  { href: "/admin/website-leads", label: "Website Enquiries", icon: "✦", permission: "public.view" },
-  { href: "/admin/website-analytics", label: "Website Analytics", icon: "⌁", permission: "analytics.view" },
-  { href: "/admin/access", label: "Access Control", icon: "⚿", adminOnly: true },
-];
+  { href: "/admin", label: "Dashboard", icon: "⌂", section: "Overview", permission: "dashboard.view" },
 
-const navOrder = [
-  "/admin/projects", "/projectmanagement", "/admin/estimate", "/admin/workflow", "/admin/site-visits", "/admin/proposals",
-  "/admin/registers", "/admin/certificates",
-  "/admin/finance", "/admin/expenses", "/admin/accounts/entry", "/admin/accounts",
-  "/admin/employees", "/admin/website-leads", "/admin/website-analytics", "/admin/access",
+  { href: "/admin/projects", label: "Projects", icon: "▣", section: "Projects & Operations", permission: "projects.view" },
+  { href: "/projectmanagement", label: "Project Management", icon: "◈", section: "Projects & Operations", permission: "project_management.view" },
+  { href: "/admin/estimate", label: "Estimates", icon: "▤", section: "Projects & Operations", permission: "estimates.view" },
+  { href: "/admin/workflow", label: "Workflow", icon: "↗", section: "Projects & Operations", permission: "workflow.view" },
+  { href: "/admin/site-visits", label: "Site Visits", icon: "⌖", section: "Projects & Operations", permission: "site.view" },
+
+  { href: "/admin/registers", label: "Document Registry", icon: "▧", section: "People & Records", permission: "documents.view" },
+  { href: "/admin/employees", label: "Employees", icon: "♙", section: "People & Records", permission: "employees.view" },
+  { href: "/admin/certificates", label: "Certificates", icon: "⌑", section: "People & Records", permission: "certificates.view" },
+
+  { href: "/admin/proposals", label: "Proposals", icon: "✎", section: "Finance & Commercial", permission: "proposals.view" },
+  { href: "/admin/finance", label: "Billing", icon: "৳", section: "Finance & Commercial", permission: "finance.view" },
+  { href: "/admin/expenses", label: "Expenses", icon: "◫", section: "Finance & Commercial", permission: "expenses.view_all" },
+  { href: "/admin/accounts/entry", label: "Main Accounts", icon: "▥", section: "Finance & Commercial", adminOnly: true },
+  { href: "/admin/accounts", label: "Ledger", icon: "≡", section: "Finance & Commercial", permission: "ledger.view" },
+
+  { href: "/admin/website-leads", label: "Website Enquiries", icon: "✦", section: "Website & Insights", permission: "public.view" },
+  { href: "/admin/website-analytics", label: "Website Analytics", icon: "⌁", section: "Website & Insights", permission: "analytics.view" },
+
+  { href: "/admin/access", label: "Access Control", icon: "⚿", section: "Administration", adminOnly: true },
+
+  { href: "/admin/projects/new", label: "New Project", icon: "+", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/projects/legacy", label: "Legacy Registration", icon: "◷", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/projects/locations", label: "Project Locations", icon: "⌖", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/projects/missing-serials", label: "Missing Serials", icon: "#", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/projects/payment-routing", label: "Payment Routing", icon: "↔", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/projects/reclassify", label: "Project Reclassify", icon: "⇄", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/projects/website-curation", label: "Website Curation", icon: "✦", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/projects/website-readiness", label: "Website Readiness", icon: "✓", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/finance/bills", label: "Bills Editor", icon: "৳", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/finance/invoices", label: "Invoice Register", icon: "▤", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/accounts/export", label: "Ledger Export", icon: "⇩", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/municipality-accounts", label: "Municipality Accounts", icon: "▦", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/municipality-file-pass", label: "Municipality File Pass", icon: "✓", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/security", label: "Security", icon: "◆", section: "Admin Editing", adminOnly: true },
+  { href: "/admin/whatsapp", label: "WhatsApp", icon: "●", section: "Admin Editing", adminOnly: true },
 ];
 const SESSION_WATCHDOG_MS = 8000;
 
@@ -186,10 +200,15 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     return Boolean(item.permission && permissions[item.permission]);
   }), [all, isAdmin, permissions]);
 
-  const orderedVisibleNav = useMemo(
-    () => navOrder.map((href) => nav.find((item) => item.href === href)).filter((item): item is NavItem => Boolean(item) && visibleNav.some((v) => v.href === item!.href)),
-    [visibleNav]
-  );
+  const groupedVisibleNav = useMemo(() => {
+    const groups: Array<{ section: string; items: NavItem[] }> = [];
+    for (const item of visibleNav) {
+      const existing = groups.find((group) => group.section === item.section);
+      if (existing) existing.items.push(item);
+      else groups.push({ section: item.section, items: [item] });
+    }
+    return groups;
+  }, [visibleNav]);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -350,11 +369,15 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
           <span><strong>LAND VIEW</strong><small>MANAGEMENT SYSTEM</small></span>
         </Link>
         <div className="primary-nav-inner">
-          <Link href="/admin" aria-current={pathname === "/admin" ? "page" : undefined} className={pathname === "/admin" ? "active dashboard-nav" : "dashboard-nav"} onClick={()=>setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">⌂</span><span>Dashboard</span></Link>
-{orderedVisibleNav.map((item) => {
-  const active = currentMatches(pathname, item.href);
-  return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
-})}
+          {groupedVisibleNav.map((group) => (
+            <section className={`sidebar-nav-section ${group.section === "Admin Editing" ? "sidebar-admin-editing" : ""}`} key={group.section} aria-label={group.section}>
+              <div className="sidebar-section-label">{group.section}</div>
+              {group.items.map((item) => {
+                const active = currentMatches(pathname, item.href);
+                return <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined} className={active ? "active" : ""} onClick={() => setMobileOpen(false)}><span className="nav-icon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;
+              })}
+            </section>
+          ))}
         </div>
         <div className="admin-mobile-account">
           <strong>{name}</strong>
