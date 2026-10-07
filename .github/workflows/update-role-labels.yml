@@ -1,0 +1,98 @@
+name: Apply Management role labels
+
+on:
+  push:
+    paths:
+      - '.github/workflows/update-role-labels.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  update-role-labels:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Update visible role labels without changing internal roles
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          def replace_required(path, old, new, count=None):
+              p = Path(path)
+              text = p.read_text()
+              found = text.count(old)
+              if found == 0:
+                  raise SystemExit(f"Expected text not found in {path}: {old[:120]!r}")
+              if count is not None and found != count:
+                  raise SystemExit(f"Expected {count} occurrence(s) in {path}, found {found}: {old[:120]!r}")
+              p.write_text(text.replace(old, new))
+              print(f"Updated {path}: {found} replacement(s)")
+
+          permission = 'components/permission-matrix-v2.tsx'
+          replace_required(
+              permission,
+              'function role(row:Row){return text(row.Role||row.role).toLowerCase()}\n',
+              'function role(row:Row){return text(row.Role||row.role).toLowerCase()}\nfunction roleLabel(value:string){if(value==="manager")return "Management";if(value==="employee")return "Employees";if(value==="client")return "Clients";if(value==="admin")return "Admin";return value||"User"}\n',
+              1,
+          )
+          replace_required(
+              permission,
+              'Create and manage LAND VIEW Admin, Manager, Employee and Client accounts from the same source of truth.',
+              'Create and manage LAND VIEW Admin, Management, Employees and Clients accounts from the same source of truth.',
+              1,
+          )
+          replace_required(
+              permission,
+              'Admin and Manager accounts have full workspace access. Detailed permission switches apply to Employee users. Client accounts are managed here for portal access and password resets.',
+              'Admin and Management accounts have full workspace access. Detailed permission switches apply to Employees. Clients accounts are managed here for portal access and password resets.',
+              1,
+          )
+          replace_required(
+              permission,
+              '<option>Admin</option><option>Manager</option><option>Employee</option><option>Client</option>',
+              '<option value="Admin">Admin</option><option value="Manager">Management</option><option value="Employee">Employees</option><option value="Client">Clients</option>',
+              1,
+          )
+          replace_required(
+              permission,
+              '<span className={`pm-role ${userRole}`}>{userRole||"user"}</span>',
+              '<span className={`pm-role ${userRole}`}>{roleLabel(userRole)}</span>',
+              1,
+          )
+
+          shell = 'components/management-shell-v2.tsx'
+          replace_required(
+              shell,
+              'function roleOf(user?: SessionUser | null) {\n  return String(user?.role || user?.Role || "").trim().toLowerCase();\n}\n',
+              'function roleOf(user?: SessionUser | null) {\n  return String(user?.role || user?.Role || "").trim().toLowerCase();\n}\nfunction roleLabel(role: string) {\n  if (role === "manager") return "Management";\n  if (role === "employee") return "Employees";\n  if (role === "client") return "Clients";\n  if (role === "admin") return "Admin";\n  return "User";\n}\n',
+              1,
+          )
+          replace_required(shell, '{role || "User"}', '{roleLabel(role)}')
+
+          # Update any explicit role selector labels elsewhere while preserving values.
+          for p in list(Path('app').rglob('*.tsx')) + list(Path('components').rglob('*.tsx')):
+              text = p.read_text()
+              updated = (text
+                  .replace('<option value="manager">Manager</option>', '<option value="manager">Management</option>')
+                  .replace('<option value="Manager">Manager</option>', '<option value="Manager">Management</option>')
+                  .replace('>Manager account<', '>Management account<'))
+              if updated != text:
+                  p.write_text(updated)
+                  print(f"Updated additional visible labels in {p}")
+          PY
+
+      - name: Remove temporary workflow
+        run: rm .github/workflows/update-role-labels.yml
+
+      - name: Commit role label update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git commit -m "Rename Manager UI role to Management"
+          git push
