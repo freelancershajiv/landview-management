@@ -47,6 +47,13 @@ const SESSION_WATCHDOG_MS = 8000;
 function roleOf(user?: SessionUser | null) {
   return String(user?.role || user?.Role || "").trim().toLowerCase();
 }
+function roleLabel(role: string) {
+  if (role === "manager") return "Management";
+  if (role === "employee") return "Employees";
+  if (role === "client") return "Clients";
+  if (role === "admin") return "Admin";
+  return "User";
+}
 function isWorkspaceRole(role: string) {
   return ["admin", "manager", "employee"].includes(role);
 }
@@ -327,7 +334,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
           <button type="button" className="notification-button" aria-label="Notifications">
             <span aria-hidden="true">♧</span><b>3</b>
           </button>
-          <div className="utility-item user-utility"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><span><small>{role || "User"}</small>{name}</span></div>
+          <div className="utility-item user-utility"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><span><small>{roleLabel(role)}</small>{name}</span></div>
           {(isAdmin || isManager) && quickConfigured && <button className="utility-logout" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `TRUSTED ${daysLeft}D` : "TRUST DEVICE"}</button>}
           {(isAdmin || isManager) && <button className="utility-logout" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN LOCK" : "SET PIN"}</button>}
           <button className="utility-logout" onClick={logout}>Sign out</button>
@@ -352,7 +359,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
           <button type="button" onClick={logout}>Sign out</button>
         </div>
         <div className="sidebar-footer">
-          <div className="sidebar-user"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><div><strong>{name}</strong><small>{role || "User"}</small></div></div>
+          <div className="sidebar-user"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><div><strong>{name}</strong><small>{roleLabel(role)}</small></div></div>
         </div>
       </nav>
     </header>
