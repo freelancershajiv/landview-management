@@ -1,30 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { handleLandviewDataAction, selectRows } from "@/lib/supabase-data";
+import { PERMISSION_DEFINITIONS, mergeRolePermissions, roleDefaultPermissions } from "@/lib/role-permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
 
-const PERMISSION_KEYS = [
-  "dashboard.view",
-  "projects.view", "projects.edit",
-  "workflow.view", "workflow.edit", "workflow.assign",
-  "employees.view", "employees.manage",
-  "requests.view",
-  "certificates.view", "certificates.process", "certificates.issue",
-  "finance.view", "finance.edit",
-  "accounts.view", "accounts.edit",
-  "ledger.view",
-  "proposals.view", "proposals.create", "proposals.edit", "proposals.print", "proposals.view_all", "proposals.convert",
-  "documents.view", "documents.edit",
-  "site.view", "site.edit",
-  "attendance.view", "attendance.edit",
-  "expenses.submit", "expenses.view_all", "expenses.approve",
-  "public.view", "public.edit",
-  "reports.view",
-] as const;
+const PERMISSION_KEYS = PERMISSION_DEFINITIONS.map((item) => item.key);
 
 const ACCOUNTS_DEFAULTS = new Set([
   "dashboard.view", "projects.view",
@@ -90,31 +74,14 @@ function leadSummary(rows: Row[]) {
 
 async function permissionsFor(user: Row) {
   const role = roleOf(user);
-  const permissions: Record<string, boolean> = Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false]));
-
-  if (role === "admin" || role === "manager") {
-    for (const key of PERMISSION_KEYS) permissions[key] = true;
-    return permissions;
-  }
-
-  if (role === "accounts") {
-    for (const key of ACCOUNTS_DEFAULTS) permissions[key] = true;
-  }
-
+  if (role === "admin") return roleDefaultPermissions("admin");
   const userKey = userIdOf(user);
-  if (userKey) {
-    const rows = await selectRows("app_permissions", {
-      filters: { user_key: userKey },
-      order: "created_at:asc",
-      limit: 5000,
-    });
-    for (const row of rows) {
-      const key = text(row.permission);
-      if (key) permissions[key] = text(row.status).toLowerCase() === "active";
-    }
-  }
-
-  return permissions;
+  const overrides: Record<string, boolean> = {};
+  if (userKey) { const rows = await selectRows("app_permissions", { filters: { user_key: userKey }, order: "created_at:asc", limit: 5000 }); for (const row of rows) { const key = text(row.permission); if (key) overrides[key] = text(row.status).toLowerCase() === "active"; } }
+  if (role === "manager" || role === "employee" || role === "client") return mergeRolePermissions(role, overrides);
+  const permissions: Record<string, boolean> = Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false]));
+  if (role === "accounts") for (const key of ACCOUNTS_DEFAULTS) permissions[key] = true;
+  for (const [key, enabled] of Object.entries(overrides)) permissions[key] = enabled; return permissions;
 }
 
 export async function GET(request: NextRequest) {

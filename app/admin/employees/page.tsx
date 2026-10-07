@@ -83,9 +83,11 @@ export default function EmployeesPage() {
     setLoading(true);
     setError("");
     try {
+      const session = await landViewApi.getSession();
+      const currentRole = String(session?.user?.role || session?.user?.Role || "").trim().toLowerCase();
       const [employeeRows, userRows] = await Promise.all([
         landViewApi.getEmployees(),
-        landViewApi.getUsers(),
+        currentRole === "admin" ? landViewApi.getUsers() : Promise.resolve([]),
       ]);
       setRows(employeeRows || []);
       setUsers(userRows || []);

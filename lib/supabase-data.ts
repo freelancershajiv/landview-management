@@ -1,4 +1,5 @@
 import { getVercelOidcToken } from "@vercel/oidc";
+import { mergeRolePermissions } from "@/lib/role-permissions";
 
 const DATA_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-data";
 const AUDIENCE = "https://supabase.landview.internal";
@@ -74,6 +75,13 @@ export async function uploadSiteVisitMedia(input: { path: string; contentType: s
 export async function getSiteVisitMediaUrl(path: string, expiresIn = 900) {
   return (await supabaseGateway("getSiteVisitMediaUrl", { path, expiresIn })) as { path: string; url: string };
 }
+
+async function requireWorkspacePermission(user: WorkspaceUser, permission: string) {
+  const role = roleOf(user); if (role === "admin") return; const userKey = text((user as Row)?.userId || (user as Row)?.User_ID || (user as Row)?.username || (user as Row)?.Username); const overrides: Record<string, boolean> = {};
+  if (userKey) { const rows = await selectRows("app_permissions", { filters: { user_key: userKey }, order: "created_at:asc", limit: 5000 }); for (const row of rows) overrides[text(row.permission)] = text(row.status).toLowerCase() === "active"; }
+  const permissions = role === "manager" || role === "employee" || role === "client" ? mergeRolePermissions(role, overrides) : overrides; if (!permissions[permission]) throw new Error(`Permission required: ${permission}`);
+}
+const ACTION_PERMISSIONS: Record<string, string> = { createProject:"projects.edit", updateProject:"projects.edit", deleteProject:"projects.delete", createEmployee:"employees.manage", updateEmployee:"employees.manage", deleteEmployee:"employees.manage", updateProjectEmployees:"workflow.assign", createDocument:"documents.edit", createSiteVisit:"site.edit", initializeErpSheets:"access.manage" };
 
 function projectLegacy(row: Row, billed?: number) {
   return {
@@ -255,6 +263,8 @@ async function getProjectBilling(projectId: unknown) {
 
 export async function handleLandviewDataAction(action: string, input: Row, user: WorkspaceUser) {
   const role = roleOf(user);
+  const requiredPermission = ACTION_PERMISSIONS[action];
+  if (requiredPermission) await requireWorkspacePermission(user, requiredPermission);
   if (action === "getDashboard") {
     const [{projects}, employees, documents, {bills,map}, payments] = await Promise.all([projectMaps(), selectRows("employees",{limit:1000}), selectRows("documents",{limit:5000}), billTotals(), selectRows("payments",{limit:5000})]);
     const validPayments = payments.filter(effectivePayment);
