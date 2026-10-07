@@ -1,0 +1,36 @@
+name: Site visit WhatsApp opt-out guard
+on:
+  push:
+    branches: [fix/site-visit-whatsapp-optout]
+permissions:
+  contents: write
+jobs:
+  patch-build:
+    if: github.event.head_commit.message != 'Apply site visit WhatsApp opt-out guard'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply verified site-visit opt-out patch
+        shell: bash
+        run: |
+          curl -fsSL 'https://sb-1gaukdtjzds3.vercel.run/site-visit-whatsapp-optout.patch' -o /tmp/site-visit-whatsapp-optout.patch
+          echo '1eaf9f6baf81beefe5701eac66a2ae2b4cd141205dc20867e05fcfa328ef30fb  /tmp/site-visit-whatsapp-optout.patch' | sha256sum -c -
+          git apply /tmp/site-visit-whatsapp-optout.patch
+      - name: Verify diff
+        run: git diff --check
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build application
+        run: npm run build
+      - name: Commit verified change
+        shell: bash
+        run: |
+          git config user.name 'LAND VIEW CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add lib/whatsapp-site-visits.ts
+          git commit -m 'Apply site visit WhatsApp opt-out guard'
+          git push origin HEAD:${{ github.ref_name }}
