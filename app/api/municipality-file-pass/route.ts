@@ -4,7 +4,7 @@ import {
   readSignedWorkspaceUser,
   requireLocalSession,
 } from "@/lib/local-session";
-import { normalizeProjectCode, roleOf, selectRows, insertRows } from "@/lib/supabase-data";
+import { normalizeProjectCode, roleOf, selectRows, insertRows, updateRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -55,22 +55,27 @@ function responseStatus(message: string) {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireFinanceUser(request);
-    const [transactions, projects, accounts] = await Promise.all([
+    const user = await requireFinanceUser(request);
+    const [transactions, projects, accounts, expenses] = await Promise.all([
       selectRows("transactions", { filters: { finance_scope: MUNICIPALITY_SCOPE }, order: "transaction_date:desc", limit: 5000 }),
       selectRows("projects", { order: "project_code:asc", limit: 5000 }),
       selectRows("accounts", { order: "account_name:asc", limit: 1000 }),
+      selectRows("expenses", { filters: { finance_scope: MUNICIPALITY_SCOPE }, limit: 5000 }),
     ]);
     const projectMap = new Map(projects.map((row) => [row.id, row.project_code]));
     const accountMap = new Map(accounts.map((row) => [row.id, row.account_name || row.account_code]));
+    const expenseMap = new Map(expenses.map((row) => [row.expense_code, row]));
     return NextResponse.json({
       success: true,
       data: {
+        canEditExpenses: roleOf(user) === "admin",
         transactions: transactions.map((row) => {
           const sourceType = text(row.source_type, 120);
           const isTransfer = sourceType === "MUNICIPALITY_TRANSFER_OUT";
+          const sourceExpense = sourceType === "EXPENSE" ? expenseMap.get(row.source_id) : undefined;
           return {
             id: row.transaction_code,
+            sourceId: row.source_id || "",
             date: row.transaction_date || "",
             type: isTransfer ? "Transfer" : num(row.credit) > 0 ? "Income" : "Expense",
             sourceType,
@@ -82,6 +87,8 @@ export async function GET(request: NextRequest) {
             account: accountMap.get(row.account_id) || row.account_snapshot || "",
             method: row.payment_method || "",
             reference: row.reference_no || "",
+            paidTo: sourceExpense?.paid_to || "",
+            notes: sourceExpense?.notes || "",
             createdBy: row.source_created_by || "",
           };
         }),
@@ -115,13 +122,51 @@ export async function POST(request: NextRequest) {
 
     const actor = actorOf(user);
 
+    if (action === "updateExpense") {
+      if (roleOf(user) !== "admin") {
+        return NextResponse.json({ success: false, error: "Admin access is required to edit Municipality expenses." }, { status: 403 });
+      }
+      const sourceId = text(body.Source_ID || body.sourceId, 160);
+      if (!sourceId) return NextResponse.json({ success: false, error: "Municipality expense source ID is required." }, { status: 400 });
+      const existingRows = await selectRows("expenses", { filters: { expense_code: sourceId }, limit: 1 });
+      const existing = existingRows[0];
+      if (!existing || text(existing.finance_scope) !== MUNICIPALITY_SCOPE) {
+        return NextResponse.json({ success: false, error: "Municipality expense was not found." }, { status: 404 });
+      }
+
+      const value = num(body.Amount || body.amount);
+      if (!(value > 0)) return NextResponse.json({ success: false, error: "Enter a valid expense amount." }, { status: 400 });
+      const date = text(body.Expense_Date || body.date, 20) || dhakaToday();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return NextResponse.json({ success: false, error: "Choose a valid expense date." }, { status: 400 });
+      const account = text(body.Account || body.Payment_Method || body.account, 160);
+      if (!account) return NextResponse.json({ success: false, error: "Choose the account the expense was paid from." }, { status: 400 });
+
+      const changes = {
+        project_id: projects[0].id,
+        expense_date: date,
+        file_id: projectCode,
+        project_name_snapshot: projects[0].project_name || null,
+        category: text(body.Category || body.category, 200) || "Municipality Fee",
+        description: text(body.Description || body.description, 1000) || "Municipality expense",
+        amount: value,
+        paid_to: text(body.Paid_To || body.paidTo, 250) || null,
+        payment_method: account,
+        reference_no: text(body.Reference_No || body.reference, 300) || null,
+        notes: text(body.Notes || body.notes, 1000) || null,
+        approved_by_code: actor,
+        approved_at: new Date().toISOString(),
+        service_type: "Municipality Accounts",
+        finance_scope: MUNICIPALITY_SCOPE,
+      };
+      const saved = await updateRows("expenses", { expense_code: sourceId }, changes);
+      if (!saved.length) throw new Error("Municipality expense update did not return a saved row.");
+      return NextResponse.json({ success: true, data: saved[0] }, { headers: { "Cache-Control": "no-store", "X-Landview-Data": "supabase" } });
+    }
+
     if (action === "sendToMainLedger") {
       const transferCode = `MUN-${crypto.randomUUID().replace(/-/g, "").slice(0, 16).toUpperCase()}`;
       const transferDate = dhakaToday();
 
-      // The database intercepts this command row before insert, locks the project,
-      // calculates the exact remaining municipality balance, and atomically writes
-      // the special-ledger debit plus the Main Ledger credit.
       await insertRows("transactions", {
         transaction_code: `REQ-${transferCode}`,
         transaction_date: transferDate,
