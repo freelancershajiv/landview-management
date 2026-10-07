@@ -28,6 +28,15 @@ type LedgerRow = {
   status: string;
 };
 
+type LedgerStateRow = {
+  id: string;
+  date: string;
+  order: number | null;
+  position: number;
+  dayCount: number;
+  balance: number;
+};
+
 function text(value: unknown, max = 1500) {
   return String(value ?? "").trim().slice(0, max);
 }
@@ -121,7 +130,7 @@ async function loadLedgerRows() {
     .filter((row) => row.id && row.date && (row.debit > 0 || row.credit > 0) && isLedgerTransaction(row));
 }
 
-function buildState(rows: LedgerRow[], openingBalance = 0) {
+function buildState(rows: LedgerRow[], openingBalance = 0, statementDisplay = false) {
   const chronological = [...rows].sort((a, b) => {
     const dateOrder = a.date.localeCompare(b.date);
     if (dateOrder) return dateOrder;
@@ -136,7 +145,7 @@ function buildState(rows: LedgerRow[], openingBalance = 0) {
   }
 
   let balance = openingBalance;
-  return chronological.map((row) => {
+  const state = chronological.map<LedgerStateRow>((row) => {
     balance += row.credit - row.debit;
     const group = dayGroups.get(row.date) || [];
     const position = group.findIndex((item) => item.id === row.id);
@@ -149,6 +158,28 @@ function buildState(rows: LedgerRow[], openingBalance = 0) {
       balance,
     };
   });
+
+  if (!statementDisplay || !state.length) return state;
+
+  // The statement is rendered newest date first while keeping the user's manual
+  // order (1, 2, 3...) inside each date. A forward chronological balance therefore
+  // makes the first visible row look stale whenever the latest date has >1 entry.
+  // Recalculate balances in the exact direction the statement is displayed so the
+  // first visible balance always equals the true current/net balance.
+  const stateById = new Map(state.map((row) => [row.id, row]));
+  const displayOrder = [...chronological].sort((a, b) => {
+    const dateOrder = b.date.localeCompare(a.date);
+    if (dateOrder) return dateOrder;
+    return compareWithinDate(a, b);
+  });
+  let displayBalance = openingBalance + chronological.reduce((sum, row) => sum + row.credit - row.debit, 0);
+  for (const row of displayOrder) {
+    const item = stateById.get(row.id);
+    if (item) item.balance = displayBalance;
+    displayBalance -= row.credit - row.debit;
+  }
+
+  return state;
 }
 
 function buildMonthState(rows: LedgerRow[], monthKey: string) {
@@ -158,7 +189,7 @@ function buildMonthState(rows: LedgerRow[], monthKey: string) {
     return sum + row.credit - row.debit;
   }, 0);
   const monthRows = rows.filter((row) => row.date.slice(0, 7) === monthKey);
-  return buildState(monthRows, openingBalance);
+  return buildState(monthRows, openingBalance, true);
 }
 
 function stateFor(rows: LedgerRow[], monthKey: string) {
