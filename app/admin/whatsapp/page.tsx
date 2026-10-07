@@ -80,7 +80,7 @@ function BotCard({
 
       {state?.paired ? (
         <div style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", lineHeight: 1.55 }}>
-          <strong>Connected.</strong> {dedicated ? "Clients can message this LAND VIEW number and queued client updates can be delivered." : "Site Visit group announcements are ready."}
+          <strong>Connected.</strong> {dedicated ? "Clients can message this LAND VIEW number and queued client updates can be delivered." : "Admin, EMP-0002, client updates, project finance and Site Visit messaging are ready."}
         </div>
       ) : state?.qrDataUrl ? (
         <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "minmax(210px, 300px) 1fr", gap: 20, alignItems: "center" }}>
@@ -89,7 +89,7 @@ function BotCard({
             <img src={state.qrDataUrl} alt={`${title} pairing QR`} style={{ width: "100%", maxWidth: 280, height: "auto" }} />
           </div>
           <div style={{ color: "#334155", lineHeight: 1.7 }}>
-            <strong>{dedicated ? "Scan using the dedicated LAND VIEW client WhatsApp number." : "Scan using the internal LAND VIEW sender account."}</strong>
+            <strong>{dedicated ? "Scan using the dedicated LAND VIEW client WhatsApp number." : "Scan using your Admin / EMP-0002 WhatsApp number."}</strong>
             <div style={{ marginTop: 7 }}>WhatsApp → Linked devices → Link a device → scan the QR.</div>
             {dedicated ? <div style={{ marginTop: 8, color: "#92400e" }}>Do not scan this client QR from the same account used for the internal Site Visit bot.</div> : null}
           </div>
@@ -170,7 +170,7 @@ export default function WhatsAppPage() {
   }
 
   async function resetPairing(which: "site" | "client") {
-    const name = which === "site" ? "internal Site Visit bot" : "dedicated client bot";
+    const name = which === "site" ? "central Admin bot" : "central Admin bot";
     if (!confirm(`Reset the ${name} linked-device session and generate a new QR code?`)) return;
     setResetting(which);
     try {
@@ -239,7 +239,7 @@ export default function WhatsAppPage() {
         <div>
           <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: "#64748b" }}>LAND VIEW</div>
           <h1 style={{ margin: "6px 0 8px", fontSize: 30 }}>WhatsApp Center</h1>
-          <p style={{ margin: 0, color: "#64748b", lineHeight: 1.6 }}>Internal Site Visit automation plus a dedicated two-way client WhatsApp bot and inbox.</p>
+          <p style={{ margin: 0, color: "#64748b", lineHeight: 1.6 }}>One centralized Admin WhatsApp session powers Admin, EMP-0002, client updates/replies, project finance and Site Visit messaging. Other employees keep their own WhatsApp sessions.</p>
         </div>
         <button onClick={() => { loadStatus(); loadConversations(); }} disabled={loading} style={{ border: "1px solid #cbd5e1", background: "white", borderRadius: 10, padding: "10px 14px", cursor: "pointer", fontWeight: 700 }}>
           {loading ? "Checking…" : "Refresh"}
@@ -247,8 +247,7 @@ export default function WhatsAppPage() {
       </div>
 
       <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(360px,1fr))", gap: 18 }}>
-        <BotCard title="Internal Site Visit Bot" description="Existing LAND VIEW account used for automatic Site Visit announcements to the internal WhatsApp group." state={siteState} loading={loading} error={siteError} onReset={() => resetPairing("site")} resetting={resetting === "site"} />
-        <BotCard title="Client WhatsApp Bot" description="Pair a separate LAND VIEW WhatsApp number for client messages, project updates and human replies." state={clientState} loading={loading} error={clientError} onReset={() => resetPairing("client")} resetting={resetting === "client"} dedicated />
+        <BotCard title="Admin Bot · EMP-0002" description="Your WhatsApp number. This single session sends Admin and EMP-0002 messages, client project updates/replies, project finance updates and Site Visit announcements." state={siteState} loading={loading} error={siteError || clientError} onReset={() => resetPairing("site")} resetting={resetting === "site"} />
       </div>
 
       <section style={{ marginTop: 22, border: "1px solid #e2e8f0", borderRadius: 16, background: "white", overflow: "hidden", boxShadow: "0 8px 30px rgba(15,23,42,.05)" }}>

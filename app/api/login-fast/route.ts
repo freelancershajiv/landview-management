@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAuthGateway } from "@/lib/supabase-auth";
 import {
+  ACTING_USER_COOKIE,
   DEVICE_COOKIE,
   QUICK_USER_COOKIE,
   REFRESH_COOKIE,
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
     response.cookies.set(SESSION_COOKIE, data.accessToken, cookieOptions(maxAge));
     response.cookies.set(REFRESH_COOKIE, data.refreshToken, cookieOptions(maxAge));
     response.cookies.set(QUICK_USER_COOKIE, signWorkspaceUser(data.user), cookieOptions(maxAge));
+    response.cookies.set(ACTING_USER_COOKIE, "", cookieOptions(0));
     response.cookies.set(REMEMBER_COOKIE, remembered ? "1" : "", cookieOptions(remembered ? maxAge : 0));
     if (!existingDeviceId) response.cookies.set(DEVICE_COOKIE, `LVD-${randomUUID()}`, cookieOptions(DEVICE_MAX_AGE_SECONDS));
     return response;

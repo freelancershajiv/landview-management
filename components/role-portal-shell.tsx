@@ -56,6 +56,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
   const [passwordMessage, setPasswordMessage] = useState("");
   const [passwordSaving, setPasswordSaving] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [roleSwitchBusy, setRoleSwitchBusy] = useState(false);
 
   useEffect(() => {
     const update = () => setActiveHash(window.location.hash || "#dashboard");
@@ -109,6 +110,27 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
     router.replace("/login");
   }
 
+  async function returnToAdmin() {
+    if (roleSwitchBusy) return;
+    setRoleSwitchBusy(true);
+    try {
+      const response = await fetch("/api/admin/role-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        body: JSON.stringify({ action: "admin" }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not return to Admin."));
+      clearStoredSession();
+      window.location.assign("/admin");
+    } catch (err: any) {
+      window.alert(err?.message || "Could not return to Admin.");
+      setRoleSwitchBusy(false);
+    }
+  }
+
   async function changePassword(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (newPassword.length < 8) { setPasswordMessage("New password must be at least 8 characters."); return; }
@@ -126,6 +148,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
 
   const name = user?.name || user?.Name || user?.username || user?.Username || "LAND VIEW User";
   const employeeId = user?.employeeId || user?.Employee_ID || user?.userId || user?.User_ID || "Employee";
+  const actingFromAdmin = user?.actingFromAdmin === true;
   const initials = String(name).split(/\s+/).filter(Boolean).slice(0,2).map(part=>part[0]).join("").toUpperCase() || "LV";
 
   if (portal === "client") {
@@ -226,6 +249,8 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
         .portal-employee .employee-account-menu button{width:100%;height:42px;border:0;border-radius:7px;background:transparent;color:var(--theme-ink-_e9edf0, #e9edf0);text-align:left;padding:0 12px;font-size:11px;font-weight:800;cursor:pointer}
         .portal-employee .employee-account-menu button:hover{background:var(--theme-bg-_202831, #202831)}
         .portal-employee .employee-account-menu .account-danger{color:var(--theme-ink-_ff777b, #ff777b)}
+        .portal-employee .employee-action.admin-mode-action{border-color:rgba(69,200,132,.45);background:rgba(69,200,132,.12);color:#7ee4ae;font-weight:900}
+        .portal-employee .acting-admin-banner{margin:14px 0 0;padding:10px 14px;border:1px solid rgba(69,200,132,.28);border-radius:9px;background:rgba(69,200,132,.08);color:#a7eac6;font-size:11px;font-weight:800}
         .portal-employee .employee-nav-overlay{display:block;position:fixed;z-index:105;inset:64px 0 0;border:0;background:var(--theme-bg-rgba_0_0_0__5_, rgba(0,0,0,.5));backdrop-filter:blur(2px)}
       }
       @media(max-width:520px){.portal-employee .employee-action.signout-action{display:none}}
@@ -256,14 +281,23 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
         <button className="employee-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-expanded={mobileOpen} onClick={()=>setMobileOpen(v=>!v)}>☰</button>
         <div className="employee-search" role="search"><span aria-hidden="true">⌕</span><input aria-label="Search employee workspace" placeholder="Search..." /></div>
         <div className="employee-tools">
-          <div className="employee-user"><div className="employee-avatar">{initials}</div><div className="employee-user-copy"><strong>{String(name)}</strong><small>Employee · {String(employeeId)}</small></div></div>
-          <button className="employee-action password-action" onClick={()=>{setPasswordOpen(true);setPasswordMessage("")}}>Password</button>
-          <button className="employee-action signout-action" onClick={logout}>Sign out</button>\n          <button type="button" className="employee-account" aria-label="Account menu" aria-expanded={accountOpen} onClick={()=>setAccountOpen(v=>!v)}>{initials}</button>\n          {accountOpen && <div className="employee-account-menu">\n            <button type="button" onClick={()=>{setAccountOpen(false);setPasswordOpen(true);setPasswordMessage("")}}>🔒 Change password</button>\n            <button type="button" className="account-danger" onClick={()=>{setAccountOpen(false);void logout()}}>↪ Sign out</button>\n          </div>}
+          <div className="employee-user"><div className="employee-avatar">{initials}</div><div className="employee-user-copy"><strong>{String(name)}</strong><small>{actingFromAdmin ? "Admin acting as" : "Employee"} · {String(employeeId)}</small></div></div>
+          {actingFromAdmin && <button className="employee-action admin-mode-action" onClick={returnToAdmin} disabled={roleSwitchBusy}>{roleSwitchBusy ? "Switching..." : "Return to Admin"}</button>}
+          {!actingFromAdmin && <button className="employee-action password-action" onClick={()=>{setPasswordOpen(true);setPasswordMessage("")}}>Password</button>}
+          <button className="employee-action signout-action" onClick={logout}>Sign out</button>
+          <button type="button" className="employee-account" aria-label="Account menu" aria-expanded={accountOpen} onClick={()=>setAccountOpen(v=>!v)}>{initials}</button>
+          {accountOpen && <div className="employee-account-menu">
+            {actingFromAdmin ? <button type="button" onClick={()=>{setAccountOpen(false);void returnToAdmin()}}>↩ Return to Admin</button> : <button type="button" onClick={()=>{setAccountOpen(false);setPasswordOpen(true);setPasswordMessage("")}}>🔒 Change password</button>}
+            <button type="button" className="account-danger" onClick={()=>{setAccountOpen(false);void logout()}}>↪ Sign out</button>
+          </div>}
         </div>
       </div>
     </header>
     <div className="employee-main">
-      <main id="workspace-content" className="employee-content">{children}</main>
+      <main id="workspace-content" className="employee-content">
+        {actingFromAdmin && <div className="acting-admin-banner">ADMIN SESSION · You are working in the EMP-0002 employee workspace. Your Main Admin account remains signed in.</div>}
+        {children}
+      </main>
     </div>
     {passwordModal}
   </div>;

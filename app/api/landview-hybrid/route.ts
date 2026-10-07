@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GET as legacyGET, POST as legacyPOST } from "../landview/route";
-import { QUICK_USER_COOKIE, REMEMBER_COOKIE, SESSION_COOKIE, requireLocalSession, revokeLocalSession } from "@/lib/local-session";
+import { ACTING_USER_COOKIE, QUICK_USER_COOKIE, REMEMBER_COOKIE, SESSION_COOKIE, requireLocalSession, revokeLocalSession } from "@/lib/local-session";
 import {
   handleLandviewDataAction,
   normalizeProjectCode,
@@ -157,6 +157,7 @@ function clearSessionCookies(response: NextResponse) {
   const options = { httpOnly:true, secure:process.env.NODE_ENV === "production", sameSite:"lax" as const, path:"/", maxAge:0 };
   response.cookies.set(SESSION_COOKIE,"",options);
   response.cookies.set(QUICK_USER_COOKIE,"",options);
+  response.cookies.set(ACTING_USER_COOKIE,"",options);
   response.cookies.set(REMEMBER_COOKIE,"",options);
 }
 

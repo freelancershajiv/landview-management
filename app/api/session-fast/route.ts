@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  ACTING_USER_COOKIE,
   QUICK_USER_COOKIE,
   REMEMBER_COOKIE,
   SESSION_COOKIE,
@@ -20,6 +21,7 @@ function clearAuthCookies(response: NextResponse) {
   response.cookies.set(SESSION_COOKIE, "", options);
   response.cookies.set(QUICK_USER_COOKIE, "", options);
   response.cookies.set(REMEMBER_COOKIE, "", options);
+  response.cookies.set(ACTING_USER_COOKIE, "", options);
 }
 
 export async function GET(request: NextRequest) {
