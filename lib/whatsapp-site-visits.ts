@@ -1,3 +1,5 @@
+import { normalizeProjectCode, selectRows } from "@/lib/supabase-data";
+
 type SiteVisitWhatsAppPayload = {
   visitId: string;
   projectId: string;
@@ -130,9 +132,17 @@ async function wakeBot(token: string, path = "/wake") {
 
 async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhatsAppPayload) {
   try {
+    const projectCode = normalizeProjectCode(text(payload.projectId, 80));
+    const project = (await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 }))[0];
+    if (!project || project.whatsapp_updates_enabled !== true) return;
+
+    const checkedPhone = text(project.whatsapp_checked_phone, 100).replace(/\D/g, "");
+    const currentPhone = text(project.phone_number_snapshot, 100).replace(/\D/g, "");
+    if (project.whatsapp_number_status === "inactive" && checkedPhone && checkedPhone === currentPhone) return;
+
     await botStoreRequest(token, {
       action: "clientProjectQueue",
-      projectCode: text(payload.projectId, 80),
+      projectCode,
       message: formatClientSiteVisitMessage(payload),
       dedupeKey: `client-site-visit:${text(payload.visitId, 120)}`,
       source: "site-visit",
