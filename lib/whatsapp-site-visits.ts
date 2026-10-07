@@ -151,7 +151,7 @@ async function waitForEmployeeWhatsApp(
   token: string,
   employeeId: string,
 ): Promise<{ ready: boolean; reason?: string }> {
-  const deadline = Date.now() + 30_000;
+  const deadline = Date.now() + 60_000;
   let lastState = "";
   let lastError = "";
 
@@ -162,7 +162,7 @@ async function waitForEmployeeWhatsApp(
         method: "GET",
         headers: { "x-land-view-bot-token": token },
         cache: "no-store",
-        signal: AbortSignal.timeout(Math.max(1_500, Math.min(12_000, remaining))),
+        signal: AbortSignal.timeout(Math.max(1_500, Math.min(15_000, remaining))),
       });
       const json = await response.json().catch(() => null) as any;
       lastState = text(json?.connection, 80);
@@ -181,8 +181,8 @@ async function waitForEmployeeWhatsApp(
       lastError = text(error?.message || "WhatsApp service is waking up.", 500);
     }
 
-    if (Date.now() + 750 >= deadline) break;
-    await sleep(750);
+    if (Date.now() + 1_000 >= deadline) break;
+    await sleep(1_000);
   }
 
   const detail = [lastState ? `state: ${lastState}` : "", lastError].filter(Boolean).join(" · ");
@@ -209,38 +209,60 @@ async function sendFromEmployeeWhatsApp(
     return { status: "skipped", reason: readiness.reason };
   }
 
-  const response = await fetch(`${base}/employee/send`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-land-view-bot-token": token,
-    },
-    body: JSON.stringify({
-      employeeId,
-      groupInviteCode,
-      message: formatSiteVisitWhatsAppMessage(payload),
-    }),
-    cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
-  });
-  const json = await response.json().catch(() => null) as any;
+  const message = formatSiteVisitWhatsAppMessage(payload);
+  let lastReason = "Employee WhatsApp send request failed.";
 
-  if (response.status === 409) {
-    return {
-      status: "skipped",
-      reason: text(json?.error || "Connect WhatsApp from the employee dashboard before Site Visit updates can be sent from this number.", 500),
-    };
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const response = await fetch(`${base}/employee/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-land-view-bot-token": token,
+        },
+        body: JSON.stringify({
+          employeeId,
+          groupInviteCode,
+          message,
+        }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(25_000),
+      });
+      const json = await response.json().catch(() => null) as any;
+
+      if (response.status === 409) {
+        return {
+          status: "skipped",
+          reason: text(json?.error || "Connect WhatsApp from the employee dashboard before Site Visit updates can be sent from this number.", 500),
+        };
+      }
+      if (response.ok && json?.ok) {
+        return {
+          status: "sent",
+          messageId: text(json?.messageId, 240) || undefined,
+        };
+      }
+
+      lastReason = text(json?.error || `Employee WhatsApp service returned HTTP ${response.status}.`, 500);
+      const retryable = [429, 502, 503, 504].includes(response.status);
+      if (!retryable || attempt === 3) {
+        return { status: "failed", reason: lastReason };
+      }
+    } catch (error: any) {
+      lastReason = text(error?.message || "Employee WhatsApp send request failed.", 500);
+      if (attempt === 3) {
+        return { status: "failed", reason: lastReason };
+      }
+    }
+
+    await sleep(1_500 * attempt);
+    const retryReadiness = await waitForEmployeeWhatsApp(base, token, employeeId);
+    if (!retryReadiness.ready && attempt === 2) {
+      return { status: "skipped", reason: retryReadiness.reason || lastReason };
+    }
   }
-  if (!response.ok || !json?.ok) {
-    return {
-      status: "failed",
-      reason: text(json?.error || `Employee WhatsApp service returned HTTP ${response.status}.`, 500),
-    };
-  }
-  return {
-    status: "sent",
-    messageId: text(json?.messageId, 240) || undefined,
-  };
+
+  return { status: "failed", reason: lastReason };
 }
 
 export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPayload): Promise<SiteVisitWhatsAppResult> {
