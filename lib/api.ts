@@ -40,6 +40,7 @@ export type SessionUser = {
   userId?: string; username?: string; name?: string; role?: string;
   User_ID?: string; Username?: string; Name?: string; Role?: string;
   employeeId?: string; projectIds?: string; Employee_ID?: string; Project_IDs?: string;
+  actingFromAdmin?: boolean; designation?: string; department?: string; phoneNumber?: string; email?: string;
 };
 export type SessionData = { authenticated: boolean; user: SessionUser };
 

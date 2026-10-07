@@ -15,7 +15,8 @@ const PORT = Number(process.env.PORT || 10000)
 const LEGACY_PORT = Number(process.env.WHATSAPP_LEGACY_PORT || (PORT === 10001 ? 10002 : 10001))
 const STORE_URL = String(process.env.BOT_STORE_URL || 'https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-bot-store').trim()
 const FINANCE_STORE_URL = String(process.env.WHATSAPP_FINANCE_STORE_URL || 'https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-finance-outbox').trim()
-const FINANCE_EMPLOYEE_ID = String(process.env.WHATSAPP_FINANCE_EMPLOYEE_ID || 'EMP-0002').trim().toUpperCase()
+const ADMIN_EMPLOYEE_ID = String(process.env.WHATSAPP_ADMIN_EMPLOYEE_ID || 'EMP-0002').trim().toUpperCase()
+const FINANCE_EMPLOYEE_ID = String(process.env.WHATSAPP_FINANCE_EMPLOYEE_ID || ADMIN_EMPLOYEE_ID).trim().toUpperCase()
 const BOT_TOKEN = String(process.env.BOT_API_TOKEN || '').trim()
 const DEFAULT_INVITE = String(process.env.WHATSAPP_GROUP_INVITE_CODE || 'IyK3AgVZUwB4g3XJ0qokmT').trim()
 const logger = P({ level: process.env.LOG_LEVEL || 'info' })
@@ -337,32 +338,84 @@ async function ensureEmployeeGroup(session, targetValue) {
   return groupJid
 }
 
+function isSharedAdminEmployee(value) {
+  return normalizedEmployeeId(value) === ADMIN_EMPLOYEE_ID
+}
+
+async function legacyAdminRequest(path, init = {}) {
+  const headers = new Headers(init.headers || {})
+  headers.set('x-land-view-bot-token', BOT_TOKEN)
+  if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json')
+  const response = await fetch(`http://127.0.0.1:${LEGACY_PORT}${path}`, { ...init, headers })
+  const raw = await response.text()
+  let json = null
+  try { json = raw ? JSON.parse(raw) : null } catch {}
+  if (!response.ok || json?.ok === false) {
+    const error = new Error(String(json?.error || `Admin WhatsApp returned HTTP ${response.status}.`))
+    error.status = response.status
+    throw error
+  }
+  return json || { ok: true }
+}
+
+async function sharedAdminStatus(employeeId = ADMIN_EMPLOYEE_ID) {
+  const status = await legacyAdminRequest('/health')
+  return {
+    ...status,
+    ok: true,
+    employeeId: normalizedEmployeeId(employeeId),
+    sharedWithAdmin: true,
+    senderType: 'admin-shared',
+  }
+}
+
 async function processFinanceOutboxOnce() {
-  const session = employeeSessionFor(FINANCE_EMPLOYEE_ID)
-  await session.connect()
-  if (!session.state.sock || session.state.connection !== 'open') return false
+  const sharedAdmin = FINANCE_EMPLOYEE_ID === ADMIN_EMPLOYEE_ID
+  let session = null
+  if (sharedAdmin) {
+    const status = await sharedAdminStatus(FINANCE_EMPLOYEE_ID)
+    if (status.connection !== 'open' || !status.paired) return false
+  } else {
+    session = employeeSessionFor(FINANCE_EMPLOYEE_ID)
+    await session.connect()
+    if (!session.state.sock || session.state.connection !== 'open') return false
+  }
 
   const row = await financeStore('next')
   if (!row?.id) return false
   try {
-    const jid = await ensureEmployeeGroup(session, row.group_invite_code)
-    const sent = await session.state.sock.sendMessage(jid, { text: String(row.message || '').slice(0, 4000) })
-    const messageId = String(sent?.key?.id || '')
+    let messageId = ''
+    if (sharedAdmin) {
+      const sent = await legacyAdminRequest('/admin/send-group', {
+        method: 'POST',
+        body: JSON.stringify({ groupInviteCode: row.group_invite_code, message: String(row.message || '').slice(0, 4000) }),
+      })
+      messageId = String(sent?.messageId || '')
+    } else {
+      const jid = await ensureEmployeeGroup(session, row.group_invite_code)
+      const sent = await session.state.sock.sendMessage(jid, { text: String(row.message || '').slice(0, 4000) })
+      messageId = String(sent?.key?.id || '')
+    }
     await financeStore('sent', { id: row.id, messageId })
-    logger.info({ financeOutboxId: row.id, dedupeKey: row.dedupe_key, messageId }, 'Finance WhatsApp message sent')
+    logger.info({ financeOutboxId: row.id, dedupeKey: row.dedupe_key, messageId, sharedAdmin }, 'Finance WhatsApp message sent')
   } catch (error) {
     const reason = String(error?.message || error).slice(0, 1000)
     await financeStore('retry', { id: row.id, attemptCount: row.attempt_count, error: reason }).catch(() => null)
-    session.state.lastError = reason
-    logger.error({ financeOutboxId: row.id, err: reason }, 'Finance WhatsApp send failed')
+    if (session) session.state.lastError = reason
+    logger.error({ financeOutboxId: row.id, err: reason, sharedAdmin }, 'Finance WhatsApp send failed')
   }
   return true
 }
 
 async function drainFinanceOutbox() {
-  const session = employeeSessionFor(FINANCE_EMPLOYEE_ID)
-  await session.connect()
-  if (!session.state.sock || session.state.connection !== 'open') return
+  if (FINANCE_EMPLOYEE_ID === ADMIN_EMPLOYEE_ID) {
+    const status = await sharedAdminStatus(FINANCE_EMPLOYEE_ID)
+    if (status.connection !== 'open' || !status.paired) return
+  } else {
+    const session = employeeSessionFor(FINANCE_EMPLOYEE_ID)
+    await session.connect()
+    if (!session.state.sock || session.state.connection !== 'open') return
+  }
   for (let i = 0; i < 20; i += 1) {
     if (!await processFinanceOutboxOnce()) break
   }
@@ -393,22 +446,28 @@ const employeeJson = express.json({ limit: '64kb' })
 app.get('/employee/status', async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   try {
-    const session = employeeSessionFor(req.query.employeeId)
+    const employeeId = normalizedEmployeeId(req.query.employeeId)
+    if (isSharedAdminEmployee(employeeId)) return res.json(await sharedAdminStatus(employeeId))
+    const session = employeeSessionFor(employeeId)
     await session.connect()
     return res.json(session.status())
   } catch (error) {
-    return res.status(500).json({ ok: false, error: String(error?.message || error) })
+    return res.status(Number(error?.status) || 500).json({ ok: false, error: String(error?.message || error) })
   }
 })
 
 app.get('/finance/status', async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   try {
+    if (FINANCE_EMPLOYEE_ID === ADMIN_EMPLOYEE_ID) {
+      const status = await sharedAdminStatus(FINANCE_EMPLOYEE_ID)
+      return res.json({ ...status, senderEmployeeId: FINANCE_EMPLOYEE_ID })
+    }
     const session = employeeSessionFor(FINANCE_EMPLOYEE_ID)
     await session.connect()
     return res.json({ ok: true, senderEmployeeId: FINANCE_EMPLOYEE_ID, ...session.status() })
   } catch (error) {
-    return res.status(500).json({ ok: false, error: String(error?.message || error) })
+    return res.status(Number(error?.status) || 500).json({ ok: false, error: String(error?.message || error) })
   }
 })
 
@@ -421,18 +480,35 @@ app.post('/finance/wake', employeeJson, async (req, res) => {
 app.post('/employee/reset', employeeJson, async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   try {
-    const session = employeeSessionFor(req.body?.employeeId)
+    const employeeId = normalizedEmployeeId(req.body?.employeeId)
+    if (isSharedAdminEmployee(employeeId)) {
+      await legacyAdminRequest('/admin/reset', { method: 'POST', body: '{}' })
+      return res.json(await sharedAdminStatus(employeeId).catch(() => ({ ok: true, employeeId, sharedWithAdmin: true, connection: 'resetting', paired: false })))
+    }
+    const session = employeeSessionFor(employeeId)
     await session.reset()
     return res.json(session.status())
   } catch (error) {
-    return res.status(500).json({ ok: false, error: String(error?.message || error) })
+    return res.status(Number(error?.status) || 500).json({ ok: false, error: String(error?.message || error) })
   }
 })
 
 app.post('/employee/send', employeeJson, async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   try {
-    const session = employeeSessionFor(req.body?.employeeId)
+    const employeeId = normalizedEmployeeId(req.body?.employeeId)
+    const message = String(req.body?.message || '').trim().slice(0, 4000)
+    if (!message) return res.status(400).json({ ok: false, error: 'WhatsApp message is empty.' })
+
+    if (isSharedAdminEmployee(employeeId)) {
+      const sent = await legacyAdminRequest('/admin/send-group', {
+        method: 'POST',
+        body: JSON.stringify({ groupInviteCode: req.body?.groupInviteCode, message }),
+      })
+      return res.json({ ...sent, employeeId, sharedWithAdmin: true, senderType: 'admin-shared' })
+    }
+
+    const session = employeeSessionFor(employeeId)
     await session.connect()
     if (session.state.connection !== 'open' || !session.state.sock) {
       return res.status(409).json({
@@ -441,8 +517,6 @@ app.post('/employee/send', employeeJson, async (req, res) => {
         ...session.status(),
       })
     }
-    const message = String(req.body?.message || '').trim().slice(0, 4000)
-    if (!message) return res.status(400).json({ ok: false, error: 'WhatsApp message is empty.' })
     const jid = await ensureEmployeeGroup(session, req.body?.groupInviteCode)
     const sent = await session.state.sock.sendMessage(jid, { text: message })
     return res.json({
@@ -453,8 +527,7 @@ app.post('/employee/send', employeeJson, async (req, res) => {
     })
   } catch (error) {
     const reason = String(error?.message || error)
-    logger.error({ err: reason }, 'Employee WhatsApp send failed')
-    return res.status(500).json({ ok: false, error: reason })
+    return res.status(Number(error?.status) || 500).json({ ok: false, error: reason })
   }
 })
 
@@ -489,9 +562,11 @@ app.use(async (req, res) => {
 
 startLegacyService()
 app.listen(PORT, '0.0.0.0', () => {
-  logger.info({ port: PORT, legacyPort: LEGACY_PORT, financeEmployeeId: FINANCE_EMPLOYEE_ID }, 'LAND VIEW WhatsApp gateway listening')
+  logger.info({ port: PORT, legacyPort: LEGACY_PORT, adminEmployeeId: ADMIN_EMPLOYEE_ID, financeEmployeeId: FINANCE_EMPLOYEE_ID }, 'LAND VIEW WhatsApp gateway listening')
   financeStore('recover').catch((error) => logger.error({ err: String(error?.message || error) }, 'Finance outbox recovery failed'))
-  const financeSession = employeeSessionFor(FINANCE_EMPLOYEE_ID)
-  financeSession.connect().catch((error) => logger.error({ err: String(error?.message || error) }, 'Initial finance WhatsApp connection failed'))
+  if (FINANCE_EMPLOYEE_ID !== ADMIN_EMPLOYEE_ID) {
+    const financeSession = employeeSessionFor(FINANCE_EMPLOYEE_ID)
+    financeSession.connect().catch((error) => logger.error({ err: String(error?.message || error) }, 'Initial finance WhatsApp connection failed'))
+  }
   setInterval(() => scheduleFinanceDrain(0), 15000).unref()
 })

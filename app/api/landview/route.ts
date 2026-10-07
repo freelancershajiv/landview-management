@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import {
+  ACTING_USER_COOKIE,
   QUICK_USER_COOKIE,
   REFRESH_COOKIE,
   REMEMBER_COOKIE,
@@ -52,7 +53,7 @@ function fail(error: unknown, status = 500) {
   return NextResponse.json({ success: false, error: message }, { status: auth ? 401 : denied ? 403 : status, headers: { "Cache-Control": "no-store" } });
 }
 function clearAuth(response: NextResponse) {
-  for (const name of [SESSION_COOKIE, REFRESH_COOKIE, QUICK_USER_COOKIE, REMEMBER_COOKIE]) response.cookies.set(name, "", cookieOptions(0));
+  for (const name of [SESSION_COOKIE, REFRESH_COOKIE, QUICK_USER_COOKIE, REMEMBER_COOKIE, ACTING_USER_COOKIE]) response.cookies.set(name, "", cookieOptions(0));
 }
 
 async function requireUser(request: NextRequest) {
@@ -400,7 +401,7 @@ export async function POST(request: NextRequest) {
     if (action === "login") {
       const data=await supabaseAuthGateway<{accessToken:string;refreshToken:string;user:Row}>("signIn", { userId:text(input.userId||input.username), password:String(input.password||"") });
       const maxAge=sessionMaxAge(false); const response=ok({user:data.user,remembered:false,backend:"supabase-auth"},{"X-Landview-Auth":"supabase"});
-      response.cookies.set(SESSION_COOKIE,data.accessToken,cookieOptions(maxAge)); response.cookies.set(REFRESH_COOKIE,data.refreshToken,cookieOptions(maxAge)); response.cookies.set(QUICK_USER_COOKIE,signWorkspaceUser(data.user),cookieOptions(maxAge)); return response;
+      response.cookies.set(SESSION_COOKIE,data.accessToken,cookieOptions(maxAge)); response.cookies.set(REFRESH_COOKIE,data.refreshToken,cookieOptions(maxAge)); response.cookies.set(QUICK_USER_COOKIE,signWorkspaceUser(data.user),cookieOptions(maxAge)); response.cookies.set(ACTING_USER_COOKIE,"",cookieOptions(0)); return response;
     }
     if (action === "logout") {
       const token=request.cookies.get(SESSION_COOKIE)?.value||""; if(token) await revokeLocalSession(token); const response=ok({loggedOut:true}); clearAuth(response); return response;

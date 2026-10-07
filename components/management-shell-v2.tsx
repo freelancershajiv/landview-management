@@ -112,6 +112,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const [trustedDevice, setTrustedDevice] = useState(false);
   const [trustedUntil, setTrustedUntil] = useState<number | null>(null);
   const [quickBusy, setQuickBusy] = useState(false);
+  const [roleSwitchBusy, setRoleSwitchBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -268,6 +269,27 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     router.replace("/login");
   }
 
+  async function switchToEmployeeMode() {
+    if (!isAdmin || roleSwitchBusy) return;
+    setRoleSwitchBusy(true);
+    try {
+      const response = await fetch("/api/admin/role-switch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        body: JSON.stringify({ action: "employee" }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not switch to EMP-0002."));
+      clearStoredSession();
+      window.location.assign("/employee");
+    } catch (err: any) {
+      window.alert(err?.message || "Could not switch to EMP-0002.");
+      setRoleSwitchBusy(false);
+    }
+  }
+
   async function setupOrLockQuickPin() {
     if (quickBusy || (!isAdmin && !isManager)) return;
     if (quickConfigured) {
@@ -358,6 +380,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
             <span aria-hidden="true">♧</span><b>3</b>
           </button>
           <div className="utility-item user-utility"><div className="utility-avatar">{String(name).slice(0,1).toUpperCase()}</div><span><small>{roleLabel(role)}</small>{name}</span></div>
+          {isAdmin && <button className="utility-logout" onClick={switchToEmployeeMode} disabled={roleSwitchBusy}>{roleSwitchBusy ? "SWITCHING..." : "EMP-0002 MODE"}</button>}
           {(isAdmin || isManager) && quickConfigured && <button className="utility-logout" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `TRUSTED ${daysLeft}D` : "TRUST DEVICE"}</button>}
           {(isAdmin || isManager) && <button className="utility-logout" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN LOCK" : "SET PIN"}</button>}
           <button className="utility-logout" onClick={logout}>Sign out</button>
@@ -381,6 +404,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
         </div>
         <div className="admin-mobile-account">
           <strong>{name}</strong>
+          {isAdmin && <button type="button" onClick={switchToEmployeeMode} disabled={roleSwitchBusy}>{roleSwitchBusy ? "Switching..." : "Switch to EMP-0002 workspace"}</button>}
           {(isAdmin || isManager) && quickConfigured && <button type="button" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `Trusted device · ${daysLeft} days` : "Trust this device"}</button>}
           {(isAdmin || isManager) && <button type="button" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN lock" : "Set PIN"}</button>}
           <button type="button" onClick={logout}>Sign out</button>

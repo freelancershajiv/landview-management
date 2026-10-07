@@ -11,6 +11,7 @@ export const REFRESH_COOKIE = "landview_refresh_v2";
 export const QUICK_USER_COOKIE = "landview_quick_user_v2";
 export const REMEMBER_COOKIE = "landview_remember_device_v2";
 export const DEVICE_COOKIE = "landview_device";
+export const ACTING_USER_COOKIE = "landview_acting_user_v1";
 
 const SESSION_READ_CACHE_MS = 5_000;
 
@@ -51,6 +52,27 @@ export function readSignedWorkspaceUser(value: string | undefined): WorkspaceUse
 export function signWorkspaceUser(user: WorkspaceUser) {
   const payload = Buffer.from(JSON.stringify(user), "utf8").toString("base64url");
   return `${payload}.${hmac(`quick-user|${payload}`)}`;
+}
+
+export function readSignedActingWorkspaceUser(value: string | undefined): WorkspaceUser | null {
+  if (!PROXY_SECRET) return null;
+  const text = String(value || "");
+  const dot = text.lastIndexOf(".");
+  if (dot < 1) return null;
+  const payload = text.slice(0, dot);
+  const signature = text.slice(dot + 1);
+  if (!secureEqual(signature, hmac(`acting-user|${payload}`))) return null;
+  try {
+    const user = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as WorkspaceUser;
+    return roleOf(user) === "employee" && user?.actingFromAdmin === true ? user : null;
+  } catch {
+    return null;
+  }
+}
+
+export function signActingWorkspaceUser(user: WorkspaceUser) {
+  const payload = Buffer.from(JSON.stringify(user), "utf8").toString("base64url");
+  return `${payload}.${hmac(`acting-user|${payload}`)}`;
 }
 
 export function roleOf(user: WorkspaceUser | null | undefined) {
@@ -103,10 +125,18 @@ async function readSupabaseAuthUser(token: string): Promise<WorkspaceUser | null
   }
 }
 
-export async function requireLocalSession(request: NextRequest): Promise<WorkspaceUser | null> {
+export async function requireOriginalLocalSession(request: NextRequest): Promise<WorkspaceUser | null> {
   const token = request.cookies.get(SESSION_COOKIE)?.value?.trim() || "";
   if (!token) return null;
   return readSupabaseAuthUser(token);
+}
+
+export async function requireLocalSession(request: NextRequest): Promise<WorkspaceUser | null> {
+  const original = await requireOriginalLocalSession(request);
+  if (!original) return null;
+  if (roleOf(original) !== "admin") return original;
+  const acting = readSignedActingWorkspaceUser(request.cookies.get(ACTING_USER_COOKIE)?.value);
+  return acting || original;
 }
 
 export async function revokeLocalSession(token: string) {

@@ -12,7 +12,6 @@ import makeWASocket, {
 
 const PORT = Number(process.env.PORT || 10000)
 const SITE_SESSION_ID = String(process.env.WHATSAPP_SESSION_ID || 'land-view-site-visits').trim()
-const CLIENT_SESSION_ID = String(process.env.WHATSAPP_CLIENT_SESSION_ID || 'land-view-client-bot').trim()
 const STORE_URL = String(process.env.BOT_STORE_URL || 'https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-bot-store').trim()
 const CLIENT_FINANCE_URL = String(process.env.BOT_CLIENT_FINANCE_URL || 'https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-client-finance').trim()
 const BOT_TOKEN = String(process.env.BOT_API_TOKEN || '').trim()
@@ -146,6 +145,8 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
       connection: state.connection,
       paired: state.connection === 'open',
       qrAvailable: Boolean(state.qrDataUrl),
+      qrDataUrl: state.qrDataUrl || null,
+      phoneNumber: phoneFromPnJid(state.sock?.user?.id) || null,
       lastError: state.lastError || null,
     }
   }
@@ -654,7 +655,10 @@ async function handleClientInbound(event, sock) {
     const fileIdLike = /(?:^|\b)lv\s*[- ]?\s*\d{1,6}(?:\b|$)/i.test(body) || /^\d{1,6}$/.test(body.trim())
 
     if (!inbound?.verified) {
-      await queueAutoReply(conversationId, projectSelectionText([]))
+      // The Admin Bot can also receive non-client chats. Never auto-reply unless the
+      // LAND VIEW client store has matched this number to at least one project.
+      const knownProjects = Array.isArray(inbound?.projects) ? inbound.projects : []
+      if (knownProjects.length > 0) await queueAutoReply(conversationId, projectSelectionText(knownProjects))
       continue
     }
 
@@ -768,23 +772,19 @@ function scheduleClientDrain(delay = 0) {
 
 const siteSession = createManagedSession({
   sessionId: SITE_SESSION_ID,
-  label: 'LAND VIEW Site Visits',
+  label: 'LAND VIEW Admin Bot',
+  onMessages: handleClientInbound,
   onOpen: async () => {
     cachedGroup = { target: '', jid: '' }
     await store('outboxRecoverStale').catch(() => null)
     scheduleSiteDrain(250)
-  },
-})
-
-const clientSession = createManagedSession({
-  sessionId: CLIENT_SESSION_ID,
-  label: 'LAND VIEW Client Bot',
-  onMessages: handleClientInbound,
-  onOpen: async () => {
-    await store('outboxRecoverStale').catch(() => null)
     scheduleClientDrain(250)
   },
 })
+
+// Client messaging, project updates and EMP-0002 all share the Admin WhatsApp session.
+// Keep this alias so existing /client/* API contracts continue to work without a second login.
+const clientSession = siteSession
 
 function authorized(req) {
   const header = String(req.get('x-land-view-bot-token') || '').trim()
@@ -808,7 +808,7 @@ const app = express()
 app.disable('x-powered-by')
 app.use(express.json({ limit: '64kb' }))
 
-app.get('/', (_req, res) => res.json({ ok: true, siteVisitBot: siteSession.status(), clientBot: clientSession.status() }))
+app.get('/', (_req, res) => res.json({ ok: true, adminBot: siteSession.status(), siteVisitBot: siteSession.status(), clientBot: clientSession.status(), centralized: true }))
 app.get('/health', (_req, res) => res.json(siteSession.status()))
 app.get('/client/health', (_req, res) => res.json(clientSession.status()))
 app.get('/groups', async (req, res) => {
@@ -829,7 +829,7 @@ app.post('/wake', (req, res) => {
 app.post('/client/check-number', async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   const sock = clientSession.state.sock
-  if (!sock || clientSession.state.connection !== 'open') return res.status(503).json({ ok: false, error: 'Client WhatsApp bot is not connected. Open Admin → WhatsApp and pair the Client WhatsApp Bot first.' })
+  if (!sock || clientSession.state.connection !== 'open') return res.status(503).json({ ok: false, error: 'Admin WhatsApp bot is not connected. Open Admin → WhatsApp and pair the Admin Bot first.' })
   const localPhone = canonicalBangladeshPhone(req.body?.phoneNumber)
   const waNumber = whatsappNumberFromBangladeshPhone(localPhone)
   if (!waNumber) return res.status(400).json({ ok: false, error: 'Enter a valid Bangladesh mobile number, for example 01XXXXXXXXX.' })
@@ -857,7 +857,26 @@ app.get('/pair', (req, res) => {
 app.get('/client/pair', (req, res) => {
   if (!authorized(req)) return res.status(401).send('Unauthorized')
   res.set('cache-control', 'no-store')
-  res.send(pairHtml(clientSession, { path: '/client/pair', value: req.query.key }, 'LAND VIEW Client WhatsApp Bot'))
+  res.send(pairHtml(clientSession, { path: '/client/pair', value: req.query.key }, 'LAND VIEW Admin WhatsApp Bot'))
+})
+
+app.post('/admin/send-group', async (req, res) => {
+  if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
+  const sock = siteSession.state.sock
+  if (!sock || siteSession.state.connection !== 'open') {
+    return res.status(409).json({ ok: false, error: 'Admin WhatsApp is not connected.', ...siteSession.status() })
+  }
+  const message = String(req.body?.message || '').trim().slice(0, 4000)
+  if (!message) return res.status(400).json({ ok: false, error: 'WhatsApp message is empty.' })
+  try {
+    const jid = await ensureGroup(req.body?.groupInviteCode)
+    const sent = await sock.sendMessage(jid, { text: message })
+    return res.json({ ok: true, sent: true, messageId: String(sent?.key?.id || ''), sharedAdminSession: true })
+  } catch (error) {
+    const reason = String(error?.message || error).slice(0, 1000)
+    siteSession.state.lastError = reason
+    return res.status(500).json({ ok: false, error: reason })
+  }
 })
 
 app.post('/admin/reset', async (req, res) => {
@@ -885,14 +904,8 @@ app.listen(PORT, '0.0.0.0', () => {
   siteSession.connect().catch((error) => {
     siteSession.state.lastError = String(error?.message || error)
     siteSession.state.connection = 'error'
-    logger.error({ err: siteSession.state.lastError }, 'Initial Site Visit WhatsApp connection failed')
+    logger.error({ err: siteSession.state.lastError }, 'Initial Admin WhatsApp connection failed')
     siteSession.scheduleReconnect(10000)
-  })
-  clientSession.connect().catch((error) => {
-    clientSession.state.lastError = String(error?.message || error)
-    clientSession.state.connection = 'error'
-    logger.error({ err: clientSession.state.lastError }, 'Initial Client WhatsApp connection failed')
-    clientSession.scheduleReconnect(10000)
   })
   setInterval(() => scheduleSiteDrain(0), 15000).unref()
   setInterval(() => scheduleClientDrain(0), 10000).unref()

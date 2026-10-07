@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { QUICK_USER_COOKIE, SESSION_COOKIE } from "@/lib/local-session";
+import { ACTING_USER_COOKIE, QUICK_USER_COOKIE, SESSION_COOKIE, readSignedActingWorkspaceUser } from "@/lib/local-session";
 
 export type PortalRole = "admin" | "manager" | "accounts" | "employee" | "client";
 
@@ -149,8 +149,13 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
   // Supabase round trip on every page navigation.
   const signedUser = readSignedWorkspaceUser(cookieStore.get(QUICK_USER_COOKIE)?.value);
   if (signedUser) {
-    const role = roleOf(signedUser);
-    if (allowedRoles.includes(role)) return { user: signedUser, role };
+    const signedRole = roleOf(signedUser);
+    const actingUser = signedRole === "admin"
+      ? readSignedActingWorkspaceUser(cookieStore.get(ACTING_USER_COOKIE)?.value) as SessionUser | null
+      : null;
+    const effectiveUser = actingUser || signedUser;
+    const role = roleOf(effectiveUser);
+    if (allowedRoles.includes(role)) return { user: effectiveUser, role };
     redirectForRole(role);
   }
 
@@ -180,8 +185,13 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
 
   const json = validation.json;
   const user = json.data!.user!;
-  const role = roleOf(user);
+  const originalRole = roleOf(user);
+  const actingUser = originalRole === "admin"
+    ? readSignedActingWorkspaceUser(cookieStore.get(ACTING_USER_COOKIE)?.value) as SessionUser | null
+    : null;
+  const effectiveUser = actingUser || user;
+  const role = roleOf(effectiveUser);
 
   if (!allowedRoles.includes(role)) redirectForRole(role);
-  return { user, role };
+  return { user: effectiveUser, role };
 }
