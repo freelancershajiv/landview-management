@@ -161,11 +161,6 @@ function buildState(rows: LedgerRow[], openingBalance = 0, statementDisplay = fa
 
   if (!statementDisplay || !state.length) return state;
 
-  // The statement is rendered newest date first while keeping the user's manual
-  // order (1, 2, 3...) inside each date. A forward chronological balance therefore
-  // makes the first visible row look stale whenever the latest date has >1 entry.
-  // Recalculate balances in the exact direction the statement is displayed so the
-  // first visible balance always equals the true current/net balance.
   const stateById = new Map(state.map((row) => [row.id, row]));
   const displayOrder = [...chronological].sort((a, b) => {
     const dateOrder = b.date.localeCompare(a.date);
@@ -193,7 +188,7 @@ function buildMonthState(rows: LedgerRow[], monthKey: string) {
 }
 
 function stateFor(rows: LedgerRow[], monthKey: string) {
-  return monthKey ? buildMonthState(rows, monthKey) : buildState(rows);
+  return monthKey ? buildMonthState(rows, monthKey) : buildState(rows, 0, true);
 }
 
 async function stabilizeDayOrder(dayRows: LedgerRow[]) {
@@ -218,15 +213,7 @@ async function saveDayOrder(dayRows: LedgerRow[]) {
 
 async function requireLedgerUser(request: NextRequest) {
   let user = await requireLocalSession(request);
-
-  // The main workspace also carries an HMAC-signed quick-user cookie. Use it as
-  // a safe fallback when Supabase access-token validation is temporarily stale
-  // or awaiting refresh, so this helper does not falsely report an active
-  // browser session as expired.
-  if (!user) {
-    user = readSignedWorkspaceUser(request.cookies.get(QUICK_USER_COOKIE)?.value);
-  }
-
+  if (!user) user = readSignedWorkspaceUser(request.cookies.get(QUICK_USER_COOKIE)?.value);
   if (!user) {
     return {
       error: NextResponse.json(
@@ -235,7 +222,6 @@ async function requireLedgerUser(request: NextRequest) {
       ),
     };
   }
-
   if (!EDIT_ROLES.has(roleOf(user))) {
     return { error: NextResponse.json({ success: false, error: "Admin, manager or accounts access is required." }, { status: 403 }) };
   }
@@ -246,13 +232,9 @@ export async function GET(request: NextRequest) {
   try {
     const access = await requireLedgerUser(request);
     if (access.error) return access.error;
-
     const requestedMonth = request.nextUrl.searchParams.get("month");
     const monthKey = requestedMonth ? validMonthKey(requestedMonth) : "";
-    if (requestedMonth && !monthKey) {
-      return NextResponse.json({ success: false, error: "Month must use YYYY-MM format." }, { status: 400 });
-    }
-
+    if (requestedMonth && !monthKey) return NextResponse.json({ success: false, error: "Month must use YYYY-MM format." }, { status: 400 });
     const rows = await loadLedgerRows();
     return NextResponse.json(
       { success: true, rows: stateFor(rows, monthKey), month: monthKey || null },
@@ -266,13 +248,9 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    if (!sameOrigin(request)) {
-      return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
-    }
-
+    if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
     const access = await requireLedgerUser(request);
     if (access.error) return access.error;
-
     const body = await request.json() as Record<string, unknown>;
     const transactionId = text(body.transactionId || body.Transaction_ID, 160);
     const direction = text(body.direction, 20).toLowerCase();
@@ -282,34 +260,22 @@ export async function PATCH(request: NextRequest) {
     const monthKey = requestedMonth ? validMonthKey(requestedMonth) : "";
     const dragRequest = Boolean(targetTransactionId);
 
-    if (requestedMonth && !monthKey) {
-      return NextResponse.json({ success: false, error: "Month must use YYYY-MM format." }, { status: 400 });
-    }
-    if (!transactionId) {
-      return NextResponse.json({ success: false, error: "Transaction ID is required." }, { status: 400 });
-    }
+    if (requestedMonth && !monthKey) return NextResponse.json({ success: false, error: "Month must use YYYY-MM format." }, { status: 400 });
+    if (!transactionId) return NextResponse.json({ success: false, error: "Transaction ID is required." }, { status: 400 });
     if (dragRequest) {
-      if (placement !== "before" && placement !== "after") {
-        return NextResponse.json({ success: false, error: "Placement must be before or after." }, { status: 400 });
-      }
+      if (placement !== "before" && placement !== "after") return NextResponse.json({ success: false, error: "Placement must be before or after." }, { status: 400 });
     } else if (direction !== "up" && direction !== "down") {
       return NextResponse.json({ success: false, error: "Direction must be up or down." }, { status: 400 });
     }
 
     const allRows = await loadLedgerRows();
     const current = allRows.find((row) => row.id === transactionId);
-    if (!current) {
-      return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
-    }
-    if (monthKey && current.date.slice(0, 7) !== monthKey) {
-      return NextResponse.json({ success: false, error: "Only entries from the current month can be reordered here." }, { status: 400 });
-    }
+    if (!current) return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
+    if (monthKey && current.date.slice(0, 7) !== monthKey) return NextResponse.json({ success: false, error: "Only entries from the current month can be reordered here." }, { status: 400 });
 
     const dayRows = allRows.filter((row) => row.date === current.date).sort(compareWithinDate);
     const currentIndex = dayRows.findIndex((row) => row.id === transactionId);
-    if (currentIndex < 0) {
-      return NextResponse.json({ success: false, error: "Ledger transaction was not found for its date." }, { status: 404 });
-    }
+    if (currentIndex < 0) return NextResponse.json({ success: false, error: "Ledger transaction was not found for its date." }, { status: 404 });
 
     await stabilizeDayOrder(dayRows);
 
@@ -328,40 +294,27 @@ export async function PATCH(request: NextRequest) {
           { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
         );
       }
-
       const target = dayRows.find((row) => row.id === targetTransactionId);
       if (!target) {
         const targetAnywhere = allRows.find((row) => row.id === targetTransactionId);
-        const error = targetAnywhere
-          ? "Ledger entries can only be dragged within the same date."
-          : "Drop target was not found.";
+        const error = targetAnywhere ? "Ledger entries can only be dragged within the same date." : "Drop target was not found.";
         return NextResponse.json({ success: false, error }, { status: 400 });
       }
-
       const fromOrder = current.order || currentIndex + 1;
       const withoutCurrent = dayRows.filter((row) => row.id !== transactionId);
       const targetIndex = withoutCurrent.findIndex((row) => row.id === targetTransactionId);
       let insertIndex = placement === "after" ? targetIndex + 1 : targetIndex;
       insertIndex = Math.max(0, Math.min(insertIndex, withoutCurrent.length));
       withoutCurrent.splice(insertIndex, 0, current);
-
       await saveDayOrder(withoutCurrent);
       const toOrder = withoutCurrent.findIndex((row) => row.id === transactionId) + 1;
-
       if (toOrder !== fromOrder) {
         await insertRows("app_audit_log", {
           actor_user_key: actor,
           action: "ledger_reorder_drag",
           target: transactionId,
           outcome: "success",
-          details: {
-            transaction_date: current.date,
-            month: monthKey || null,
-            moved_relative_to: targetTransactionId,
-            placement,
-            from_order: fromOrder,
-            to_order: toOrder,
-          },
+          details: { transaction_date: current.date, month: monthKey || null, moved_relative_to: targetTransactionId, placement, from_order: fromOrder, to_order: toOrder },
         });
       }
     } else {
@@ -371,26 +324,16 @@ export async function PATCH(request: NextRequest) {
         const second = dayRows[neighborIndex];
         const firstOrder = first.order || currentIndex + 1;
         const secondOrder = second.order || neighborIndex + 1;
-
         await updateRows("transactions", { transaction_code: first.id }, { ledger_order: secondOrder });
         await updateRows("transactions", { transaction_code: second.id }, { ledger_order: firstOrder });
-
         first.order = secondOrder;
         second.order = firstOrder;
-
         await insertRows("app_audit_log", {
           actor_user_key: actor,
           action: "ledger_reorder",
           target: transactionId,
           outcome: "success",
-          details: {
-            transaction_date: current.date,
-            month: monthKey || null,
-            direction,
-            swapped_with: second.id,
-            from_order: firstOrder,
-            to_order: secondOrder,
-          },
+          details: { transaction_date: current.date, month: monthKey || null, direction, swapped_with: second.id, from_order: firstOrder, to_order: secondOrder },
         });
       }
     }
