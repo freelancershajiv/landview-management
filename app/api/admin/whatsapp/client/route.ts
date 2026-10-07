@@ -110,6 +110,33 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({})) as Row;
     const action = clean(body.action, 40).toLowerCase();
 
+    if (action === "check-number") {
+      const phoneNumber = clean(body.phoneNumber, 100);
+      if (!phoneNumber) return deny("Phone number is required.", 400);
+      const { base, token } = config();
+      const response = await fetch(`${base}/client/check-number`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-land-view-bot-token": token },
+        body: JSON.stringify({ phoneNumber }),
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      });
+      const json = await response.json().catch(() => null) as any;
+      if (!response.ok || !json?.ok) throw new Error(clean(json?.error || `WhatsApp bot returned HTTP ${response.status}.`, 800));
+      return NextResponse.json({ success: true, data: json });
+    }
+
+    if (action === "project-update") {
+      const projectId = clean(body.projectId, 100);
+      const projectCode = clean(body.projectCode, 100);
+      const message = clean(body.message, 4000);
+      const dedupeKey = clean(body.dedupeKey, 240);
+      if ((!projectId && !projectCode) || !message) return deny("Project and update message are required.", 400);
+      const queued = await storeRequest("clientProjectQueue", { projectId, projectCode, message, dedupeKey, source: clean(body.source, 80) || "project-update" });
+      await wakeClientBot();
+      return NextResponse.json({ success: true, data: queued });
+    }
+
     if (action === "reset") {
       const { base, token } = config();
       const response = await fetch(`${base}/client/admin/reset`, {

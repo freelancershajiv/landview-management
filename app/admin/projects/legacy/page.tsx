@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import { ErrorState, LoadingState, PageHeader, pick } from "@/components/lv-ui";
+import WhatsAppNumberCheck from "@/components/whatsapp-number-check";
 
 type Row = Record<string, unknown>;
 type LegacyProject = {
@@ -421,7 +422,7 @@ export default function LegacyProjectsPage() {
             <label>Project Type<input value={form.Project_Type} onChange={(e)=>setField("Project_Type",e.target.value)} /></label>
             <label className="full">Project Name<input value={form.Project_Name} onChange={(e)=>setForm((current)=>({...current,Project_Name:e.target.value,Client_Name:current.Client_Name || e.target.value}))} required /></label>
             <label>Client Name<input value={form.Client_Name} onChange={(e)=>setField("Client_Name",e.target.value)} /></label>
-            <label>Phone<input value={form.Phone_Number} onChange={(e)=>setField("Phone_Number",e.target.value)} /></label>
+            <label>Phone<input value={form.Phone_Number} onChange={(e)=>setField("Phone_Number",e.target.value)} /><WhatsAppNumberCheck phoneNumber={form.Phone_Number} /></label>
             <label>Referred By<input value={form.Referred_By} onChange={(e)=>setField("Referred_By",e.target.value)} /></label>
             <label>Ref. Contact<input value={form.Ref_Contact} onChange={(e)=>setField("Ref_Contact",e.target.value)} /></label>
             <label className="full">Location / Address<input value={form.Location} onChange={(e)=>setField("Location",e.target.value)} placeholder="Address or Google Maps link" /></label>

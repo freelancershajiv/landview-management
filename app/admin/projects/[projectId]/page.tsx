@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { landViewApi, ProjectServiceFolderInfo } from "@/lib/api";
 import { ErrorState, Field, LoadingState, Money, PageHeader, formatDate, pick } from "@/components/lv-ui";
+import WhatsAppNumberCheck from "@/components/whatsapp-number-check";
+import { notifyClientProjectStage } from "@/lib/client-project-whatsapp";
 import { PROJECT_SERVICE_FOLDERS, uploadProjectFile } from "@/lib/project-service-folders";
 import WorkflowStage from "@/components/workflow-stage";
 
@@ -78,7 +80,18 @@ export default function ProjectDetailPage(){
   const progress=orderedTasks.length?Math.round(completed/orderedTasks.length*100):0;
   const assignedPeople=employees.filter((e:any)=>assigned.includes(idOf(e,["Employee_ID","Employee ID","EmployeeId"]))); const folderMap=new Map(serviceFolders.map(f=>[f.name,f]));
 
-  async function saveEdit(e:FormEvent){ e.preventDefault(); if(savingProject)return; setSavingProject(true); try{ await landViewApi.updateProject(projectId,draft); setEditing(false); await load(); }catch(e:any){setError(e?.message||"Update failed.")}finally{setSavingProject(false)} }
+  async function saveEdit(e:FormEvent){ e.preventDefault(); if(savingProject)return; setSavingProject(true); try{
+    const stageFields = ["Design_Stage_Status","Approval_Stage_Status","Supervision_Stage_Status"] as const;
+    const changes = stageFields.filter((field)=>String((project as any)?.[field] ?? "") !== String((draft as any)?.[field] ?? ""));
+    await landViewApi.updateProject(projectId,draft);
+    const failures:string[]=[];
+    for (const field of changes) {
+      try { await notifyClientProjectStage({ projectId, projectName:(draft as any)?.Project_Name || (project as any)?.Project_Name, clientName:(draft as any)?.Client_Name || (project as any)?.Client_Name, field, value:(draft as any)?.[field] }); }
+      catch(notifyError:any){ failures.push(notifyError?.message || "WhatsApp delivery failed."); }
+    }
+    setEditing(false); await load();
+    if(failures.length) setError(`Project saved, but ${failures.length} client WhatsApp update${failures.length===1?"":"s"} could not be delivered: ${failures[0]}`);
+  }catch(e:any){setError(e?.message||"Update failed.")}finally{setSavingProject(false)} }
   async function saveTeam(){ setSavingTeam(true); try{ await landViewApi.updateProjectEmployees(projectId,assigned); await load(); }catch(e:any){setError(e?.message||"Could not update team.")}finally{setSavingTeam(false)} }
   async function uploadToFolder(folderName:string){ const file=folderFiles[folderName]; if(!file)return; setUploadingFolder(folderName); try{ await uploadProjectFile(projectId,folderName,file); setFolderFiles(v=>({...v,[folderName]:null})); await load(); }catch(e:any){setError(e?.message||"Upload failed.")}finally{setUploadingFolder("")} }
   async function remove(){ if(!window.confirm(`Delete ${projectId}? This deletes the project row.`))return; try{ await landViewApi.deleteProject(projectId); router.push("/admin/projects"); }catch(e:any){setError(e?.message||"Delete failed.")} }
@@ -102,7 +115,7 @@ export default function ProjectDetailPage(){
         <div className="form-grid">
           <Field label="PROJECT NAME"><input value={String(draft?.Project_Name ?? "")} onChange={e=>setDraft((v:any)=>({...v,Project_Name:e.target.value}))}/></Field>
           <Field label="CLIENT NAME"><input value={String(draft?.Client_Name ?? "")} onChange={e=>setDraft((v:any)=>({...v,Client_Name:e.target.value}))}/></Field>
-          <Field label="PHONE"><input value={String(draft?.Phone_Number ?? "")} onChange={e=>setDraft((v:any)=>({...v,Phone_Number:e.target.value}))}/></Field>
+          <Field label="PHONE"><input value={String(draft?.Phone_Number ?? "")} onChange={e=>setDraft((v:any)=>({...v,Phone_Number:e.target.value}))}/><WhatsAppNumberCheck phoneNumber={String(draft?.Phone_Number ?? "")} /></Field>
           <Field label="REFERRED BY"><input value={String(draft?.Referred_By ?? "")} onChange={e=>setDraft((v:any)=>({...v,Referred_By:e.target.value}))}/></Field>
           <Field label="REF. CONTACT"><input value={String(draft?.Ref_Contact ?? "")} onChange={e=>setDraft((v:any)=>({...v,Ref_Contact:e.target.value}))}/></Field>
           <Field label="PROJECT TYPE"><input value={String(draft?.Project_Type ?? "")} onChange={e=>setDraft((v:any)=>({...v,Project_Type:e.target.value}))}/></Field>
