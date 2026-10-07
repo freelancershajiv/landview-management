@@ -1,3 +1,4 @@
+# Triggered patch workflow
 name: Add Municipality expense editing
 
 on:
@@ -158,7 +159,6 @@ jobs:
           replace_required(page,
             '<button className="mun-btn primary" disabled={saving} onClick={() => void saveExpense()}>{saving ? "Saving…" : "Save Expense"}</button>',
             '<button className="mun-btn primary" disabled={saving} onClick={() => void saveExpense()}>{saving ? "Saving…" : editSourceId ? "Save Changes" : "Save Expense"}</button>')
-
           PY
 
       - name: Remove temporary workflow
