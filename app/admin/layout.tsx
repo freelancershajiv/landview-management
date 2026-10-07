@@ -2,6 +2,7 @@ import ManagementShellV2 from "@/components/management-shell-v2";
 import PortalPreloader from "@/components/portal-preloader";
 import ProjectManagementEnhancements from "@/components/project-management-enhancements";
 import AdminProjectMapDrawer from "@/components/admin-project-map-drawer";
+import MunicipalityAccountsNavLink from "@/components/municipality-accounts-nav-link";
 import { requirePortalSession } from "@/lib/server-auth";
 import "./admin-brand-theme.css";
 import "./admin-layout-polish.css";
@@ -15,6 +16,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <PortalPreloader portal="admin"/>
     <ProjectManagementEnhancements />
     <AdminProjectMapDrawer />
+    <MunicipalityAccountsNavLink />
     <style>{`
       a[href="/admin/projects/new"],a[href="/admin/public-projects"]{display:none!important}
       .primary-nav a[href="/admin/accounts/entry"]{display:none!important}
