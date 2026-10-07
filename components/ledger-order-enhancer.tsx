@@ -20,7 +20,7 @@ const money = new Intl.NumberFormat("en-BD", {
 
 function activeLedgerTab() {
   return Array.from(document.querySelectorAll<HTMLButtonElement>(".bank-tabs button.active"))
-    .some((button) => button.textContent?.trim().toLowerCase() === "ledger");
+    .some((button) => button.textContent?.trim().toLowerCase().includes("ledger"));
 }
 
 function transactionId(row: HTMLTableRowElement) {
