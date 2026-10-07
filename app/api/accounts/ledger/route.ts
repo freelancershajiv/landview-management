@@ -5,9 +5,6 @@ import { insertRows, normalizeProjectCode, roleOf, selectRows, updateRows } from
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const EDIT_ROLES = new Set(["admin", "manager", "accounts"]);
-const HISTORICAL_PREFIXES = ["TXN-HIST-2026-", "TXN-LEDGER-2025-"];
-
 function text(value: unknown, max = 1500) {
   return String(value ?? "").trim().slice(0, max);
 }
@@ -44,8 +41,8 @@ export async function PATCH(request: NextRequest) {
 
     const user = await requireLocalSession(request);
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
-    if (!EDIT_ROLES.has(roleOf(user))) {
-      return NextResponse.json({ success: false, error: "Admin, manager or accounts access is required to edit ledger entries." }, { status: 403 });
+    if (roleOf(user) !== "admin") {
+      return NextResponse.json({ success: false, error: "Admin access is required to edit ledger history." }, { status: 403 });
     }
 
     const body = await request.json() as Record<string, unknown>;
