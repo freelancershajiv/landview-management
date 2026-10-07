@@ -34,6 +34,10 @@ function addLine(lines: string[], label: string, value: unknown, max = 600) {
   if (cleaned) lines.push(`*${label}:* ${cleaned}`);
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload) {
   const lines: string[] = ["🏗️ *LAND VIEW — SITE VISIT UPDATE*"];
 
@@ -142,6 +146,54 @@ async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhats
   }
 }
 
+async function waitForEmployeeWhatsApp(
+  base: string,
+  token: string,
+  employeeId: string,
+): Promise<{ ready: boolean; reason?: string }> {
+  const deadline = Date.now() + 30_000;
+  let lastState = "";
+  let lastError = "";
+
+  while (Date.now() < deadline) {
+    const remaining = deadline - Date.now();
+    try {
+      const response = await fetch(`${base}/employee/status?employeeId=${encodeURIComponent(employeeId)}`, {
+        method: "GET",
+        headers: { "x-land-view-bot-token": token },
+        cache: "no-store",
+        signal: AbortSignal.timeout(Math.max(1_500, Math.min(12_000, remaining))),
+      });
+      const json = await response.json().catch(() => null) as any;
+      lastState = text(json?.connection, 80);
+      lastError = text(json?.error || json?.lastError, 500);
+
+      if (response.ok && lastState === "open" && json?.paired !== false) {
+        return { ready: true };
+      }
+      if (lastState === "pairing") {
+        return { ready: false, reason: "WhatsApp needs to be linked from the employee dashboard before Site Visit updates can be sent." };
+      }
+      if (lastState === "logged_out") {
+        return { ready: false, reason: "The employee WhatsApp session is logged out. Reconnect it from the employee dashboard." };
+      }
+    } catch (error: any) {
+      lastError = text(error?.message || "WhatsApp service is waking up.", 500);
+    }
+
+    if (Date.now() + 750 >= deadline) break;
+    await sleep(750);
+  }
+
+  const detail = [lastState ? `state: ${lastState}` : "", lastError].filter(Boolean).join(" · ");
+  return {
+    ready: false,
+    reason: detail
+      ? `Employee WhatsApp did not become ready in time (${detail}).`
+      : "Employee WhatsApp did not become ready in time. Please try the Site Visit again after the WhatsApp connection is open.",
+  };
+}
+
 async function sendFromEmployeeWhatsApp(
   token: string,
   groupInviteCode: string,
@@ -151,6 +203,11 @@ async function sendFromEmployeeWhatsApp(
   const employeeId = text(payload.employeeId, 120);
   if (!base) return { status: "skipped", reason: "LAND VIEW WhatsApp service URL is not configured." };
   if (!employeeId) return { status: "skipped", reason: "Employee ID is missing, so the employee WhatsApp sender cannot be selected." };
+
+  const readiness = await waitForEmployeeWhatsApp(base, token, employeeId);
+  if (!readiness.ready) {
+    return { status: "skipped", reason: readiness.reason };
+  }
 
   const response = await fetch(`${base}/employee/send`, {
     method: "POST",
@@ -164,7 +221,7 @@ async function sendFromEmployeeWhatsApp(
       message: formatSiteVisitWhatsAppMessage(payload),
     }),
     cache: "no-store",
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(20_000),
   });
   const json = await response.json().catch(() => null) as any;
 
