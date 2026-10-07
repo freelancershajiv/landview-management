@@ -113,6 +113,24 @@ async function botStoreRequest(token: string, input: Record<string, unknown>) {
   }
   return json.data as any;
 }
+async function projectQueueRequest(token: string, input: Record<string, unknown>) {
+  const url = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-project-queue";
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-land-view-bot-token": token,
+    },
+    body: JSON.stringify({ action: "projectQueue", ...input }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  });
+  const json = await response.json().catch(() => null) as any;
+  if (!response.ok || !json?.success) {
+    throw new Error(text(json?.error || `WhatsApp project queue returned HTTP ${response.status}.`, 500));
+  }
+  return json.data as any;
+}
 
 async function wakeBot(token: string, path = "/wake") {
   const base = String(process.env.WHATSAPP_BOT_URL || "").trim().replace(/\/+$/, "");
@@ -140,8 +158,7 @@ async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhats
     const currentPhone = text(project.phone_number_snapshot, 100).replace(/\D/g, "");
     if (project.whatsapp_number_status === "inactive" && checkedPhone && checkedPhone === currentPhone) return;
 
-    await botStoreRequest(token, {
-      action: "clientProjectQueue",
+    await projectQueueRequest(token, {
       projectCode,
       message: formatClientSiteVisitMessage(payload),
       dedupeKey: `client-site-visit:${text(payload.visitId, 120)}`,

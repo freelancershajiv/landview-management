@@ -407,17 +407,20 @@ function phoneFromPnJid(value) {
   return jid.endsWith('@s.whatsapp.net') ? jid.split('@')[0].replace(/\D/g, '') : ''
 }
 
-function canonicalBangladeshPhone(value) {
-  let digits = String(value || '').replace(/\D/g, '')
-  if (digits.startsWith('880') && digits.length >= 13) digits = `0${digits.slice(3)}`
-  else if (digits.startsWith('88') && digits.length >= 13) digits = digits.slice(2)
-  if (digits.length === 10 && digits.startsWith('1')) digits = `0${digits}`
-  return /^01\d{9}$/.test(digits) ? digits : ''
-}
+function canonicalInternationalPhone(value) {
+  const raw = String(value || '').trim()
+  let digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
 
-function whatsappNumberFromBangladeshPhone(value) {
-  const local = canonicalBangladeshPhone(value)
-  return local ? `88${local}` : ''
+  // Bangladesh numbers remain convenient: 01XXXXXXXXX and 1XXXXXXXXX are accepted.
+  if (/^01\d{9}$/.test(digits)) digits = `88${digits}`
+  else if (/^1\d{9}$/.test(digits)) digits = `880${digits}`
+  else if (digits.startsWith('00')) digits = digits.slice(2)
+
+  // E.164 permits up to 15 digits. International local-only numbers beginning with 0
+  // are intentionally rejected; foreign clients should include their country code.
+  if (!/^[1-9]\d{7,14}$/.test(digits)) return ''
+  return digits
 }
 
 async function resolveIncomingAddress(message, sock) {
@@ -830,13 +833,12 @@ app.post('/client/check-number', async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   const sock = clientSession.state.sock
   if (!sock || clientSession.state.connection !== 'open') return res.status(503).json({ ok: false, error: 'Admin WhatsApp bot is not connected. Open Admin → WhatsApp and pair the Admin Bot first.' })
-  const localPhone = canonicalBangladeshPhone(req.body?.phoneNumber)
-  const waNumber = whatsappNumberFromBangladeshPhone(localPhone)
-  if (!waNumber) return res.status(400).json({ ok: false, error: 'Enter a valid Bangladesh mobile number, for example 01XXXXXXXXX.' })
+  const waNumber = canonicalInternationalPhone(req.body?.phoneNumber)
+  if (!waNumber) return res.status(400).json({ ok: false, error: 'Enter a valid WhatsApp number with country code, for example +8801XXXXXXXXX, +9715XXXXXXXX or +44XXXXXXXXXX. Bangladesh 01XXXXXXXXX is also accepted.' })
   try {
     const results = await sock.onWhatsApp(waNumber)
     const match = Array.isArray(results) ? results.find((item) => item?.exists) : null
-    return res.json({ ok: true, registered: Boolean(match?.exists), normalizedPhone: localPhone, e164: `+88${localPhone}`, jid: match?.jid || null })
+    return res.json({ ok: true, registered: Boolean(match?.exists), normalizedPhone: `+${waNumber}`, e164: `+${waNumber}`, jid: match?.jid || null })
   } catch (error) {
     logger.error({ err: String(error?.message || error).slice(0, 500) }, 'WhatsApp number check failed')
     return res.status(502).json({ ok: false, error: 'WhatsApp could not verify this number right now. Please try again.' })
