@@ -1,0 +1,36 @@
+name: Project WhatsApp controls
+on:
+  push:
+    branches: [feature/project-whatsapp-controls]
+permissions:
+  contents: write
+jobs:
+  patch-build:
+    if: github.event.head_commit.message != 'Apply project WhatsApp controls'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply verified WhatsApp controls patch
+        shell: bash
+        run: |
+          curl -fsSL 'https://sb-1gaukdtjzds3.vercel.run/project-whatsapp-controls.patch' -o /tmp/project-whatsapp-controls.patch
+          echo '1911115ad600fe57022fb92bb706797cd8364d1f38047108ce141b72db3dcce6  /tmp/project-whatsapp-controls.patch' | sha256sum -c -
+          git apply /tmp/project-whatsapp-controls.patch
+      - name: Verify diff
+        run: git diff --check
+      - name: Install dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build application
+        run: npm run build
+      - name: Commit verified changes
+        shell: bash
+        run: |
+          git config user.name 'LAND VIEW CI'
+          git config user.email 'actions@users.noreply.github.com'
+          git add app/admin/projects/page.tsx app/api/admin/whatsapp/client/route.ts lib/supabase-data.ts
+          git commit -m 'Apply project WhatsApp controls'
+          git push origin HEAD:${{ github.ref_name }}
