@@ -96,7 +96,7 @@ const MANAGER_DEFAULTS = new Set([
   "municipality.view", "municipality.expense_add",
   "accounts.view", "ledger.view",
   "expenses.view_all", "expenses.approve",
-  "employees.view", "attendance.view",
+  "employees.view", "attendance.view", "attendance.edit",
   "public.view", "public.edit", "analytics.view",
   "reports.view",
 ]);

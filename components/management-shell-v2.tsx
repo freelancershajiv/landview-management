@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { clearStoredSession, landViewApi, readSessionCache, saveSessionCache, type SessionUser } from "@/lib/api";
+import { roleDefaultPermissions } from "@/lib/role-permissions";
 
 type PermissionMap = Record<string, boolean>;
 type WorkspaceAccess = {
@@ -21,26 +22,28 @@ type NavItem = { href: string; label: string; icon: string; permission?: string;
 const nav: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: "⌂", permission: "dashboard.view" },
   { href: "/admin/projects", label: "Projects", icon: "▣", permission: "projects.view" },
-  { href: "/projectmanagement", label: "Project Management", icon: "◈", permission: "projects.view" },
-  { href: "/admin/estimate", label: "Estimates", icon: "▤", permission: "projects.view" },
+  { href: "/projectmanagement", label: "Project Management", icon: "◈", permission: "project_management.view" },
+  { href: "/admin/estimate", label: "Estimates", icon: "▤", permission: "estimates.view" },
   { href: "/admin/workflow", label: "Workflow", icon: "↗", permission: "workflow.view" },
   { href: "/admin/site-visits", label: "Site Visits", icon: "⌖", permission: "site.view" },
   { href: "/admin/registers", label: "Document Registry", icon: "▧", permission: "documents.view" },
   { href: "/admin/employees", label: "Employees", icon: "♙", permission: "employees.view" },
   { href: "/admin/certificates", label: "Certificates", icon: "⌑", permission: "certificates.view" },
   { href: "/admin/finance", label: "Billing", icon: "৳", permission: "finance.view" },
-  { href: "/admin/access", label: "Access Control", icon: "⚿", adminOnly: true },
-  { href: "/admin/accounts/entry", label: "Accounts", icon: "▥", permission: "accounts.view" },
+  { href: "/admin/expenses", label: "Expenses", icon: "◫", permission: "expenses.view_all" },
+  { href: "/admin/accounts/entry", label: "Main Accounts", icon: "▥", adminOnly: true },
   { href: "/admin/accounts", label: "Ledger", icon: "≡", permission: "ledger.view" },
   { href: "/admin/proposals", label: "Proposals", icon: "✎", permission: "proposals.view" },
-  { href: "/admin/website-analytics", label: "Website Analytics", icon: "⌁", adminOnly: true },
+  { href: "/admin/website-leads", label: "Website Enquiries", icon: "✦", permission: "public.view" },
+  { href: "/admin/website-analytics", label: "Website Analytics", icon: "⌁", permission: "analytics.view" },
+  { href: "/admin/access", label: "Access Control", icon: "⚿", adminOnly: true },
 ];
 
 const navOrder = [
   "/admin/projects", "/projectmanagement", "/admin/estimate", "/admin/workflow", "/admin/site-visits", "/admin/proposals",
   "/admin/registers", "/admin/certificates",
-  "/admin/finance", "/admin/accounts/entry", "/admin/accounts",
-  "/admin/employees", "/admin/access", "/admin/website-analytics",
+  "/admin/finance", "/admin/expenses", "/admin/accounts/entry", "/admin/accounts",
+  "/admin/employees", "/admin/website-leads", "/admin/website-analytics", "/admin/access",
 ];
 const SESSION_WATCHDOG_MS = 8000;
 
@@ -109,7 +112,8 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
     if (effectiveUser && isWorkspaceRole(effectiveRole)) {
       setUser(effectiveUser);
       saveSessionCache({ authenticated: true, user: effectiveUser });
-      if (effectiveRole === "admin" || effectiveRole === "manager") setAccess({ all: true });
+      if (effectiveRole === "admin") setAccess({ all: true });
+      else if (effectiveRole === "manager") setAccess({ all: false, permissions: roleDefaultPermissions("manager") });
       setReady(true);
       setError("");
 
@@ -173,7 +177,7 @@ export default function ManagementShellV2({ children, initialUser = null }: { ch
   const role = roleOf(user);
   const isAdmin = role === "admin";
   const isManager = role === "manager";
-  const all = Boolean(access?.all || isAdmin || isManager);
+  const all = Boolean(access?.all || isAdmin);
   const permissions = access?.permissions || {};
 
   const visibleNav = useMemo(() => nav.filter((item) => {

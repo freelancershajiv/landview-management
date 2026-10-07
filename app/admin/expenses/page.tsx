@@ -14,7 +14,7 @@ export default function ExpensesPage(){
  async function load(){setLoading(true);setError("");try{const [e,s,p]=await Promise.all([landViewApi.getErpRecords("expenses"),landViewApi.getSession(),landViewApi.getPermissions().catch(()=>[])]);setRows(e||[]);setSession(s);setPerms(p||[])}catch(e:any){setError(e?.message||"Could not load expenses.")}finally{setLoading(false)}}
  useEffect(()=>{void load()},[])
  const role=t(session?.user?.role||session?.user?.Role).toLowerCase(); const userId=t(session?.user?.userId||session?.user?.User_ID);
- const canApprove=role==="admin" || latest(perms,userId,"expenses.approve");
+ const canApprove=role==="admin" || role==="manager" || latest(perms,userId,"expenses.approve");
  const pending=useMemo(()=>rows.filter(r=>status(r).toLowerCase()==="pending"),[rows]);
  const approved=useMemo(()=>rows.filter(r=>status(r).toLowerCase()==="approved"),[rows]);
  const totals={pending:pending.reduce((s,r)=>s+Number(r.Amount||0),0),approved:approved.reduce((s,r)=>s+Number(r.Amount||0),0)};

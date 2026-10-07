@@ -22,7 +22,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <ManagementRolePolicyEnforcer role={role} />
     <style>{`
       a[href="/admin/projects/new"],a[href="/admin/public-projects"]{display:none!important}
-      .primary-nav a[href="/admin/accounts/entry"]{display:none!important}
     `}</style>
     <ManagementShellV2 initialUser={session.user}>{children}</ManagementShellV2>
   </>;

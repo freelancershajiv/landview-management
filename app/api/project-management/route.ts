@@ -46,6 +46,7 @@ const num = (v: unknown) => { const n = Number(String(v ?? "").replace(/,/g, "")
 const roleOf = (u: Row | null) => clean(u?.role || u?.Role, 30).toLowerCase();
 const userIdOf = (u: Row | null) => clean(u?.userId || u?.User_ID || u?.username || u?.Username, 120);
 const isAdmin = (u: Row) => roleOf(u) === "admin";
+const isManagement = (u: Row) => roleOf(u) === "admin" || roleOf(u) === "manager";
 function projectIdsOf(user: Row) {
   const raw = clean(user.projectIds || user.Project_IDs || user.project_ids, 3000);
   return Array.from(new Set(raw.split(/[;,\s]+/).map(normalizeProjectCode).filter(Boolean)));
@@ -66,18 +67,18 @@ async function requireUser(request: NextRequest) {
   const user = await requireLocalSession(request) as Row | null;
   if (!user) throw new Error("Session expired.");
   const role = roleOf(user);
-  if (role !== "admin" && role !== "client") throw new Error("Project Management access is restricted to admin and client accounts.");
+  if (role !== "admin" && role !== "manager" && role !== "client") throw new Error("Project Management access is restricted to management and client accounts.");
   return user;
 }
 async function projectsFor(user: Row) {
-  if (isAdmin(user)) return selectRows("projects", { filters: { record_type: "project" }, order: "project_code:asc", limit: 5000 });
+  if (isManagement(user)) return selectRows("projects", { filters: { record_type: "project" }, order: "project_code:asc", limit: 5000 });
   const ids = projectIdsOf(user);
   return ids.length ? selectRows("projects", { inFilters: { project_code: ids }, limit: 5000 }) : [];
 }
 async function projectFor(user: Row, value: unknown) {
   const code = normalizeProjectCode(value);
   if (!code) throw new Error("Project is required.");
-  if (!isAdmin(user) && !projectIdsOf(user).includes(code)) throw new Error("Access denied for this project.");
+  if (!isManagement(user) && !projectIdsOf(user).includes(code)) throw new Error("Access denied for this project.");
   const rows = await selectRows("projects", { filters: { project_code: code, record_type: "project" }, limit: 1 });
   if (!rows.length) throw new Error("Project not found.");
   return rows[0];
@@ -279,7 +280,7 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
 }
 
 async function masterLedgerFor(user: Row, project: Row) {
-  if (!isAdmin(user)) return [];
+  if (!isManagement(user)) return [];
   const [transactions, expenses] = await Promise.all([
     selectRows("transactions", { filters: { project_id: project.id }, order: "transaction_date:asc", limit: 5000 }),
     selectRows("expenses", { filters: { project_id: project.id }, order: "expense_date:asc", limit: 5000 })
@@ -301,10 +302,10 @@ async function masterLedgerFor(user: Row, project: Row) {
 
 async function workspace(user: Row, requested?: string) {
   const allProjects = await projectsFor(user);
-  if (!allProjects.length) return { projects: [], selectedProject: null, entries: [], totals: { debit: 0, credit: 0, balance: 0 }, readOnly: !isAdmin(user) };
+  if (!allProjects.length) return { projects: [], selectedProject: null, entries: [], totals: { debit: 0, credit: 0, balance: 0 }, readOnly: !isManagement(user) };
 
   let projects = allProjects;
-  if (isAdmin(user)) {
+  if (isManagement(user)) {
     const pmRows = await selectRows("project_management_ledger", { limit: 20000 });
     const configuredIds = new Set(pmRows.map((r:any) => String(r.project_id || "")).filter(Boolean));
     // Project Management is intentionally limited to projects that have
@@ -315,7 +316,7 @@ async function workspace(user: Row, requested?: string) {
 
   const selected = requested
     ? projects.find(p => normalizeProjectCode(p.project_code) === normalizeProjectCode(requested))
-    : (isAdmin(user) ? null : projects[0]);
+    : (isManagement(user) ? null : projects[0]);
 
   if (requested && !selected) throw new Error("The selected project is not available for Project Management.");
   const projectList = projects.map(p => ({ id:p.id, projectCode:p.project_code, projectName:p.project_name || p.project_code, clientName:p.client_name_snapshot || "", location:p.location || "", status:p.status || "" }));
@@ -329,7 +330,7 @@ async function workspace(user: Row, requested?: string) {
       summary: { supplierAdvance: 0, chequeOnHold: 0, engShajivBalance: 0, notes: "" },
       categories: [],
       masterLedger: [],
-      readOnly: !isAdmin(user),
+      readOnly: !isManagement(user),
     };
   }
 
@@ -371,7 +372,7 @@ async function workspace(user: Row, requested?: string) {
     categories,
     masterLedger,
     contractorBills,
-    readOnly: !isAdmin(user),
+    readOnly: !isManagement(user),
   };
 }
 function errorStatus(message: string) {
@@ -416,7 +417,7 @@ export async function POST(request: NextRequest) {
   try {
     if (!sameOrigin(request)) return fail("Invalid request origin.",403);
     const user = await requireUser(request);
-    if (!isAdmin(user)) return fail("Admin permission required.",403);
+    if (!isManagement(user)) return fail("Management permission required.",403);
     const body = await request.json() as Row;
     const project = await projectFor(user, body.projectId || body.Project_ID);
     if (body.action === "saveSattapurDelivery") {
@@ -578,7 +579,7 @@ export async function PUT(request: NextRequest) {
   try {
     if (!sameOrigin(request)) return fail("Invalid request origin.",403);
     const user = await requireUser(request);
-    if (!isAdmin(user)) return fail("Admin permission required.",403);
+    if (!isManagement(user)) return fail("Management permission required.",403);
     const body = await request.json() as Row;
     const id = clean(body.id,100);
     if (!id) return fail("Ledger entry ID is required.",400);

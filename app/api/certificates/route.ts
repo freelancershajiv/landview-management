@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { CertificateType, signCertificate, verifyCertificate } from "@/lib/certificate-verification";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
+import { roleDefaultPermissions } from "@/lib/role-permissions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,7 +17,7 @@ function dateKey(date: string) { return date.replace(/\D/g, "").slice(0, 8); }
 function inferCategory(type: CertificateType, subject: string, explicit: unknown) { const value = clean(explicit,40).toLowerCase(); if(value)return value; if(type==="employee")return "employee"; if(type==="building")return "building"; const s=subject.toLowerCase(); if(s.includes("structural"))return "structural_design"; if(s.includes("supervision"))return "supervision"; return "project"; }
 function validateType(value:unknown){const type=clean(value,20).toLowerCase() as CertificateType;if(!["project","employee","building"].includes(type))throw new Error("Invalid certificate type.");return type;}
 async function requireUser(request:NextRequest){const user=await requireLocalSession(request) as Row|null;if(!user)throw new Error("Session expired.");return user;}
-async function can(user:Row,permission:string){const role=roleOf(user);if(role==="admin"||role==="manager")return true;const rows=await selectRows("app_permissions",{filters:{user_key:userIdOf(user),permission},order:"created_at:desc",limit:1});return Boolean(rows[0]&&clean(rows[0].status,30).toLowerCase()==="active");}
+async function can(user:Row,permission:string){const role=roleOf(user);if(role==="admin")return true;if(role==="manager")return roleDefaultPermissions("manager")[permission]===true;const rows=await selectRows("app_permissions",{filters:{user_key:userIdOf(user),permission},order:"created_at:desc",limit:1});return Boolean(rows[0]&&clean(rows[0].status,30).toLowerCase()==="active");}
 async function requirePermission(user:Row,permission:string){if(!await can(user,permission))throw new Error(`Permission required: ${permission}`);}
 
 function certificateUrls(request:NextRequest,token:string){
