@@ -99,11 +99,14 @@ Deno.serve(withSupabase({ auth: "user" }, async (req, ctx) => {
       .single();
 
     if (profileError) {
-      await ctx.supabaseAdmin.auth.admin.updateUserById(target.auth_user_id, { app_metadata: oldMetadata }).catch(() => null);
+      const { error: rollbackError } = await ctx.supabaseAdmin.auth.admin.updateUserById(target.auth_user_id, {
+        app_metadata: oldMetadata,
+      });
+      if (rollbackError) console.error("Role metadata rollback failed", rollbackError);
       throw profileError;
     }
 
-    await ctx.supabaseAdmin.from("app_audit_log").insert({
+    const { error: auditError } = await ctx.supabaseAdmin.from("app_audit_log").insert({
       id: crypto.randomUUID(),
       actor_user_key: actor.user_key,
       action: "user.role_changed",
@@ -117,7 +120,8 @@ Deno.serve(withSupabase({ auth: "user" }, async (req, ctx) => {
         changed_at: changedAt,
       },
       created_at: changedAt,
-    }).catch(() => null);
+    });
+    if (auditError) console.error("Role change audit log insert failed", auditError);
 
     return Response.json({
       success: true,
