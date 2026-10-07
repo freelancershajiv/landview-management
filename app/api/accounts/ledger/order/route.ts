@@ -101,7 +101,7 @@ function toLedgerRow(row: DbRow): LedgerRow {
     category: text(row.category, 300),
     projectCode: text(row.project_code_snapshot, 160),
     transactionType: text(row.transaction_type, 100),
-    status: text(row.status, 100),
+    status: text(row.status, 100) || "Posted",
   };
 }
 
