@@ -11,6 +11,8 @@ type LedgerOrderRow = {
   balance: number;
 };
 
+type DropPlacement = "before" | "after";
+
 const money = new Intl.NumberFormat("en-BD", {
   style: "currency",
   currency: "BDT",
@@ -36,20 +38,31 @@ function installStyles() {
   const style = document.createElement("style");
   style.id = "ledger-order-enhancer-style";
   style.textContent = `
-    .ledger-order-head{width:72px;text-align:center!important}
-    .ledger-order-cell{width:72px;white-space:nowrap;text-align:center!important}
-    .ledger-order-controls{display:inline-flex;align-items:center;gap:4px}
-    .ledger-order-btn{width:27px;height:27px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--theme-line-_4b5963,#4b5963);border-radius:7px;background:var(--theme-bg-_17222b,#17222b);color:var(--theme-ink-_edf2f5,#edf2f5);font-size:14px;font-weight:900;line-height:1;cursor:pointer}
-    .ledger-order-btn:hover:not(:disabled){border-color:var(--theme-line-_77858f,#77858f);background:var(--theme-bg-_1d2b35,#1d2b35)}
-    .ledger-order-btn:disabled{opacity:.62;cursor:not-allowed;border-style:dashed}
-    .ledger-order-btn.busy{opacity:.5;cursor:wait}
-    .ledger-order-cell.unavailable .ledger-order-btn{opacity:.62}
+    .ledger-order-head{width:64px;text-align:center!important}
+    .ledger-order-cell{width:64px;white-space:nowrap;text-align:center!important}
+    .ledger-drag-handle{width:34px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--theme-line-_4b5963,#4b5963);border-radius:8px;background:var(--theme-bg-_17222b,#17222b);color:var(--theme-ink-_edf2f5,#edf2f5);font-size:20px;font-weight:900;line-height:1;cursor:grab;user-select:none;touch-action:none}
+    .ledger-drag-handle:hover{border-color:var(--theme-line-_77858f,#77858f);background:var(--theme-bg-_1d2b35,#1d2b35)}
+    .ledger-drag-handle:active{cursor:grabbing}
+    .ledger-drag-handle.disabled{opacity:.45;cursor:not-allowed;border-style:dashed}
+    .ledger-drag-handle.busy{opacity:.5;cursor:wait}
+    tr.transaction-row.ledger-dragging{opacity:.45}
+    tr.transaction-row.ledger-drop-before td{box-shadow:inset 0 3px 0 #c83d3f}
+    tr.transaction-row.ledger-drop-after td{box-shadow:inset 0 -3px 0 #c83d3f}
   `;
   document.head.appendChild(style);
 }
 
 function removeOrderControls(table: HTMLTableElement) {
   table.querySelectorAll("[data-ledger-order-added='true']").forEach((element) => element.remove());
+  table.querySelectorAll("tr.transaction-row").forEach((row) => {
+    row.classList.remove("ledger-dragging", "ledger-drop-before", "ledger-drop-after");
+  });
+}
+
+function clearDropClasses(table: HTMLTableElement) {
+  table.querySelectorAll("tr.transaction-row").forEach((row) => {
+    row.classList.remove("ledger-drop-before", "ledger-drop-after");
+  });
 }
 
 function reorderVisibleRows(table: HTMLTableElement, stateById: Map<string, LedgerOrderRow>) {
@@ -99,12 +112,14 @@ export default function LedgerOrderEnhancer() {
     let disposed = false;
     let scheduled = false;
     let busyId = "";
+    let draggingId = "";
+    let draggingDate = "";
     let stateRows: LedgerOrderRow[] = [];
 
     const stateById = () => new Map(stateRows.map((row) => [row.id, row]));
 
-    async function move(transactionIdValue: string, direction: "up" | "down") {
-      if (!transactionIdValue || busyId) return;
+    async function moveTo(transactionIdValue: string, targetTransactionId: string, placement: DropPlacement) {
+      if (!transactionIdValue || !targetTransactionId || transactionIdValue === targetTransactionId || busyId) return;
       busyId = transactionIdValue;
       apply();
       try {
@@ -113,7 +128,7 @@ export default function LedgerOrderEnhancer() {
           credentials: "same-origin",
           cache: "no-store",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transactionId: transactionIdValue, direction }),
+          body: JSON.stringify({ transactionId: transactionIdValue, targetTransactionId, placement }),
         });
         const json = await response.json().catch(() => null);
         if (!response.ok || !json?.success || !Array.isArray(json.rows)) {
@@ -121,10 +136,12 @@ export default function LedgerOrderEnhancer() {
         }
         stateRows = json.rows as LedgerOrderRow[];
       } catch (error) {
-        console.error("Ledger reorder failed", error);
+        console.error("Ledger drag reorder failed", error);
         window.alert(error instanceof Error ? error.message : "Could not reorder ledger entry.");
       } finally {
         busyId = "";
+        draggingId = "";
+        draggingDate = "";
         apply();
       }
     }
@@ -136,6 +153,7 @@ export default function LedgerOrderEnhancer() {
         th.className = "ledger-order-head";
         th.dataset.ledgerOrderAdded = "true";
         th.textContent = "Order";
+        th.title = "Click and hold the handle, then drag within the same date";
         header.insertBefore(th, header.firstElementChild);
       }
 
@@ -151,54 +169,75 @@ export default function LedgerOrderEnhancer() {
           cell.dataset.ledgerOrderAdded = "true";
           row.insertBefore(cell, row.firstElementChild);
         }
-        cell.classList.toggle("unavailable", !state);
 
-        if (!cell.querySelector(".ledger-order-controls")) {
-          const controls = document.createElement("span");
-          controls.className = "ledger-order-controls";
-          const up = document.createElement("button");
-          up.type = "button";
-          up.className = "ledger-order-btn ledger-order-up";
-          up.setAttribute("aria-label", `Move ${id} up`);
-          up.textContent = "↑";
-          const down = document.createElement("button");
-          down.type = "button";
-          down.className = "ledger-order-btn ledger-order-down";
-          down.setAttribute("aria-label", `Move ${id} down`);
-          down.textContent = "↓";
-          controls.append(up, down);
-          cell.appendChild(controls);
+        let handle = cell.querySelector<HTMLSpanElement>(".ledger-drag-handle");
+        if (!handle) {
+          handle = document.createElement("span");
+          handle.className = "ledger-drag-handle";
+          handle.setAttribute("role", "button");
+          handle.setAttribute("tabindex", "0");
+          handle.textContent = "⠿";
+          cell.replaceChildren(handle);
         }
 
-        const up = cell.querySelector<HTMLButtonElement>(".ledger-order-up");
-        const down = cell.querySelector<HTMLButtonElement>(".ledger-order-down");
-        const unavailable = !state;
-        const onlyEntryForDate = Boolean(state && state.dayCount <= 1);
+        const canDrag = Boolean(state && state.dayCount > 1 && !busyId);
+        handle.draggable = canDrag;
+        handle.classList.toggle("disabled", !state || Boolean(state && state.dayCount <= 1));
+        handle.classList.toggle("busy", busyId === id);
+        handle.title = !state
+          ? "Ordering is unavailable for this ledger entry"
+          : state.dayCount <= 1
+            ? "This is the only entry on this date"
+            : "Click and hold, then drag this entry within the same date";
+        handle.setAttribute("aria-label", `Drag ${id} to reorder within ${state?.date || "this date"}`);
 
-        if (up) {
-          up.disabled = unavailable || !state || state.position <= 1 || Boolean(busyId);
-          up.classList.toggle("busy", busyId === id);
-          up.title = unavailable
-            ? "Ordering is unavailable for this ledger entry"
-            : onlyEntryForDate
-              ? "This is the only ledger entry on this date"
-              : state.position <= 1
-                ? "Already first for this date"
-                : "Move entry up within this date";
-          up.onclick = state ? () => void move(id, "up") : null;
-        }
-        if (down) {
-          down.disabled = unavailable || !state || state.position >= state.dayCount || Boolean(busyId);
-          down.classList.toggle("busy", busyId === id);
-          down.title = unavailable
-            ? "Ordering is unavailable for this ledger entry"
-            : onlyEntryForDate
-              ? "This is the only ledger entry on this date"
-              : state.position >= state.dayCount
-                ? "Already last for this date"
-                : "Move entry down within this date";
-          down.onclick = state ? () => void move(id, "down") : null;
-        }
+        handle.ondragstart = (event) => {
+          if (!state || state.dayCount <= 1 || busyId) {
+            event.preventDefault();
+            return;
+          }
+          draggingId = id;
+          draggingDate = state.date;
+          row.classList.add("ledger-dragging");
+          if (event.dataTransfer) {
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData("text/plain", id);
+          }
+        };
+
+        handle.ondragend = () => {
+          draggingId = "";
+          draggingDate = "";
+          row.classList.remove("ledger-dragging");
+          clearDropClasses(table);
+        };
+
+        row.ondragover = (event) => {
+          if (!draggingId || draggingId === id || !state || state.date !== draggingDate || busyId) return;
+          event.preventDefault();
+          if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
+          clearDropClasses(table);
+          const rect = row.getBoundingClientRect();
+          const placement: DropPlacement = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+          row.classList.add(placement === "before" ? "ledger-drop-before" : "ledger-drop-after");
+        };
+
+        row.ondragleave = (event) => {
+          const related = event.relatedTarget as Node | null;
+          if (related && row.contains(related)) return;
+          row.classList.remove("ledger-drop-before", "ledger-drop-after");
+        };
+
+        row.ondrop = (event) => {
+          if (!draggingId || draggingId === id || !state || state.date !== draggingDate || busyId) return;
+          event.preventDefault();
+          const rect = row.getBoundingClientRect();
+          const placement: DropPlacement = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+          const sourceId = draggingId;
+          clearDropClasses(table);
+          row.classList.remove("ledger-dragging");
+          void moveTo(sourceId, id, placement);
+        };
       });
     }
 
