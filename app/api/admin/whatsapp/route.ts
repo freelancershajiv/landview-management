@@ -64,6 +64,18 @@ async function pairingState() {
 export async function GET(request: NextRequest) {
   try {
     await requireAdminOrManager(request);
+    const mode = String(request.nextUrl.searchParams.get("mode") || "status").trim().toLowerCase();
+    if (mode === "groups") {
+      const { base, token } = botConfig();
+      const response = await fetch(`${base}/groups`, {
+        headers: { "x-land-view-bot-token": token },
+        cache: "no-store",
+        signal: AbortSignal.timeout(15_000),
+      });
+      const json = await response.json().catch(() => null) as any;
+      if (!response.ok || !json?.ok) throw new Error(String(json?.error || `WhatsApp bot returned HTTP ${response.status}.`));
+      return NextResponse.json({ success: true, data: Array.isArray(json.groups) ? json.groups : [] }, { headers: { "Cache-Control": "no-store" } });
+    }
     const state = await pairingState();
     return NextResponse.json(
       { success: true, data: state },

@@ -45,6 +45,20 @@ async function storeRequest(action: string, input: Row = {}) {
   if (!response.ok || !json?.success) throw new Error(clean(json?.error || `WhatsApp store returned HTTP ${response.status}.`, 800));
   return json.data;
 }
+async function projectQueueRequest(input: Row = {}) {
+  const { token } = config();
+  const queueUrl = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-project-queue";
+  const response = await fetch(queueUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-land-view-bot-token": token },
+    body: JSON.stringify({ action: "projectQueue", ...input }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(15_000),
+  });
+  const json = await response.json().catch(() => null) as any;
+  if (!response.ok || !json?.success) throw new Error(clean(json?.error || `WhatsApp project queue returned HTTP ${response.status}.`, 800));
+  return json.data;
+}
 async function clientPairingState() {
   const { base, token } = config();
   const response = await fetch(`${base}/client/pair?key=${encodeURIComponent(token)}`, {
@@ -76,6 +90,19 @@ async function wakeClientBot() {
     });
   } catch {
     // Queue is durable; a sleeping free Render instance can wake after this request times out.
+  }
+}
+async function wakeGroupBot() {
+  const { base, token } = config();
+  try {
+    await fetch(`${base}/wake`, {
+      method: "POST",
+      headers: { "x-land-view-bot-token": token },
+      cache: "no-store",
+      signal: AbortSignal.timeout(4_000),
+    });
+  } catch {
+    // Group queue is durable; Render can drain it after the wake request returns.
   }
 }
 
@@ -153,18 +180,50 @@ export async function POST(request: NextRequest) {
       }
       const project = projects[0];
       if (!project) return deny("Project was not found for the WhatsApp update.", 404);
-      if (project.whatsapp_updates_enabled !== true) {
+
+      const directEnabled = project.whatsapp_updates_enabled === true;
+      const groupTarget = clean(project.whatsapp_group_target, 200);
+      const groupEnabled = project.whatsapp_group_updates_enabled === true && Boolean(groupTarget);
+      if (!directEnabled && !groupEnabled) {
         return NextResponse.json({ success: true, data: { skipped: true, reason: "whatsapp-updates-disabled" } });
       }
-      const checkedPhone = clean(project.whatsapp_checked_phone, 100).replace(/\D/g, "");
-      const currentPhone = clean(project.phone_number_snapshot, 100).replace(/\D/g, "");
-      if (project.whatsapp_number_status === "inactive" && checkedPhone && checkedPhone === currentPhone) {
-        return NextResponse.json({ success: true, data: { skipped: true, reason: "whatsapp-number-inactive" } });
+
+      const source = clean(body.source, 80) || "project-update";
+      const result: Row = {};
+
+      if (directEnabled) {
+        const checkedPhone = clean(project.whatsapp_checked_phone, 100).replace(/\D/g, "");
+        const currentPhone = clean(project.phone_number_snapshot, 100).replace(/\D/g, "");
+        if (project.whatsapp_number_status === "inactive" && checkedPhone && checkedPhone === currentPhone) {
+          result.direct = { skipped: true, reason: "whatsapp-number-inactive" };
+        } else {
+          try {
+            result.direct = await projectQueueRequest({ projectId, projectCode: project.project_code || projectCode, message, dedupeKey, source });
+            await wakeClientBot();
+          } catch (error: any) {
+            result.direct = { queued: false, error: clean(error?.message || "Direct WhatsApp update could not be queued.", 800) };
+          }
+        }
+      } else {
+        result.direct = { skipped: true, reason: "direct-updates-disabled" };
       }
 
-      const queued = await storeRequest("clientProjectQueue", { projectId, projectCode: project.project_code || projectCode, message, dedupeKey, source: clean(body.source, 80) || "project-update" });
-      await wakeClientBot();
-      return NextResponse.json({ success: true, data: queued });
+      if (groupEnabled) {
+        try {
+          result.group = await storeRequest("enqueue", {
+            message,
+            groupInviteCode: groupTarget,
+            dedupeKey: `${dedupeKey || `${project.project_code || projectCode}:${source}:${Date.now()}`}:group`,
+          });
+          await wakeGroupBot();
+        } catch (error: any) {
+          result.group = { queued: false, error: clean(error?.message || "Project-group WhatsApp update could not be queued.", 800) };
+        }
+      } else {
+        result.group = { skipped: true, reason: project.whatsapp_group_updates_enabled === true ? "group-target-missing" : "group-updates-disabled" };
+      }
+
+      return NextResponse.json({ success: true, data: result });
     }
 
     if (action === "reset") {
