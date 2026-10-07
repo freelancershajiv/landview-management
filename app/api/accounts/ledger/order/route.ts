@@ -42,6 +42,11 @@ function normalizeStatus(value: unknown) {
   return text(value, 100).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 }
 
+function validMonthKey(value: unknown) {
+  const month = text(value, 7);
+  return /^\d{4}-(0[1-9]|1[0-2])$/.test(month) ? month : "";
+}
+
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
   if (!origin) return process.env.NODE_ENV !== "production" || request.headers.get("sec-fetch-site") === "same-origin";
@@ -112,7 +117,7 @@ async function loadLedgerRows() {
     .filter((row) => row.id && row.date && (row.debit > 0 || row.credit > 0) && isLedgerTransaction(row));
 }
 
-function buildState(rows: LedgerRow[]) {
+function buildState(rows: LedgerRow[], openingBalance = 0) {
   const chronological = [...rows].sort((a, b) => {
     const dateOrder = a.date.localeCompare(b.date);
     if (dateOrder) return dateOrder;
@@ -126,7 +131,7 @@ function buildState(rows: LedgerRow[]) {
     dayGroups.set(row.date, group);
   }
 
-  let balance = 0;
+  let balance = openingBalance;
   return chronological.map((row) => {
     balance += row.credit - row.debit;
     const group = dayGroups.get(row.date) || [];
@@ -140,6 +145,20 @@ function buildState(rows: LedgerRow[]) {
       balance,
     };
   });
+}
+
+function buildMonthState(rows: LedgerRow[], monthKey: string) {
+  const monthStart = `${monthKey}-01`;
+  const openingBalance = rows.reduce((sum, row) => {
+    if (row.date >= monthStart) return sum;
+    return sum + row.credit - row.debit;
+  }, 0);
+  const monthRows = rows.filter((row) => row.date.slice(0, 7) === monthKey);
+  return buildState(monthRows, openingBalance);
+}
+
+function stateFor(rows: LedgerRow[], monthKey: string) {
+  return monthKey ? buildMonthState(rows, monthKey) : buildState(rows);
 }
 
 async function stabilizeDayOrder(dayRows: LedgerRow[]) {
@@ -175,9 +194,16 @@ export async function GET(request: NextRequest) {
   try {
     const access = await requireLedgerUser(request);
     if (access.error) return access.error;
+
+    const requestedMonth = request.nextUrl.searchParams.get("month");
+    const monthKey = requestedMonth ? validMonthKey(requestedMonth) : "";
+    if (requestedMonth && !monthKey) {
+      return NextResponse.json({ success: false, error: "Month must use YYYY-MM format." }, { status: 400 });
+    }
+
     const rows = await loadLedgerRows();
     return NextResponse.json(
-      { success: true, rows: buildState(rows) },
+      { success: true, rows: stateFor(rows, monthKey), month: monthKey || null },
       { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
     );
   } catch (error) {
@@ -200,8 +226,13 @@ export async function PATCH(request: NextRequest) {
     const direction = text(body.direction, 20).toLowerCase();
     const targetTransactionId = text(body.targetTransactionId, 160);
     const placement = text(body.placement, 20).toLowerCase();
+    const requestedMonth = text(body.month, 20);
+    const monthKey = requestedMonth ? validMonthKey(requestedMonth) : "";
     const dragRequest = Boolean(targetTransactionId);
 
+    if (requestedMonth && !monthKey) {
+      return NextResponse.json({ success: false, error: "Month must use YYYY-MM format." }, { status: 400 });
+    }
     if (!transactionId) {
       return NextResponse.json({ success: false, error: "Transaction ID is required." }, { status: 400 });
     }
@@ -217,6 +248,9 @@ export async function PATCH(request: NextRequest) {
     const current = allRows.find((row) => row.id === transactionId);
     if (!current) {
       return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
+    }
+    if (monthKey && current.date.slice(0, 7) !== monthKey) {
+      return NextResponse.json({ success: false, error: "Only entries from the current month can be reordered here." }, { status: 400 });
     }
 
     const dayRows = allRows.filter((row) => row.date === current.date).sort(compareWithinDate);
@@ -238,7 +272,7 @@ export async function PATCH(request: NextRequest) {
     if (dragRequest) {
       if (targetTransactionId === transactionId) {
         return NextResponse.json(
-          { success: true, rows: buildState(await loadLedgerRows()) },
+          { success: true, rows: stateFor(await loadLedgerRows(), monthKey), month: monthKey || null },
           { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
         );
       }
@@ -270,6 +304,7 @@ export async function PATCH(request: NextRequest) {
           outcome: "success",
           details: {
             transaction_date: current.date,
+            month: monthKey || null,
             moved_relative_to: targetTransactionId,
             placement,
             from_order: fromOrder,
@@ -298,6 +333,7 @@ export async function PATCH(request: NextRequest) {
           outcome: "success",
           details: {
             transaction_date: current.date,
+            month: monthKey || null,
             direction,
             swapped_with: second.id,
             from_order: firstOrder,
@@ -309,7 +345,7 @@ export async function PATCH(request: NextRequest) {
 
     const refreshed = await loadLedgerRows();
     return NextResponse.json(
-      { success: true, rows: buildState(refreshed) },
+      { success: true, rows: stateFor(refreshed, monthKey), month: monthKey || null },
       { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
     );
   } catch (error) {
