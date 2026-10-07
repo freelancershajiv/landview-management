@@ -1,34 +1,29 @@
 /* Final LAND VIEW admin alignment overrides. Loaded after admin-brand-theme.css. */
 @media screen and (min-width: 901px) {
-  .portal-admin .admin-main,
-  .portal-admin .tmg-admin-main {
+  /* Desktop shell is split into two independent viewport regions:
+     1) fixed left sidebar
+     2) independently scrollable right workspace */
+  .portal-admin {
+    position: relative !important;
     width: 100% !important;
-    margin: var(--lv-topbar-height) 0 0 !important;
-    padding-left: var(--lv-sidebar-width) !important;
-    box-sizing: border-box !important;
-    min-height: calc(100vh - var(--lv-topbar-height)) !important;
+    height: 100vh !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
   }
 
-  .portal-admin .content-wrap,
-  .portal-admin .tmg-content-wrap {
-    width: calc(100% - 56px) !important;
-    max-width: 1500px !important;
-    margin: 0 28px !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
-    box-sizing: border-box !important;
-  }
-
-  /* The desktop sidebar is a fixed viewport rail, not a scroll container.
-     overflow:clip is intentional: unlike overflow:hidden it cannot retain or
-     accept a scrollTop value, so the menu can never drift upward independently. */
+  /* Sidebar never participates in page/workspace scrolling. */
   .portal-admin .primary-nav {
     position: fixed !important;
-    inset: 0 auto 0 0 !important;
+    z-index: 110 !important;
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
     width: var(--lv-sidebar-width) !important;
     height: 100vh !important;
     height: 100dvh !important;
     max-height: 100dvh !important;
+    margin: 0 !important;
     transform: none !important;
     overflow: clip !important;
     overscroll-behavior: none !important;
@@ -46,24 +41,75 @@
     flex-shrink: 0 !important;
   }
 
-  /* Compact the menu on shorter desktop viewports instead of allowing any
-     independent sidebar scrolling. */
+  /* Keep every sidebar item visible by compacting vertically rather than
+     allowing the sidebar to become its own scrollable area. */
   .portal-admin .primary-nav a,
   .portal-admin .estimate-nav-trigger {
-    min-height: clamp(28px, 4.05dvh, 42px) !important;
+    min-height: clamp(27px, 3.9dvh, 42px) !important;
   }
 
   .portal-admin .primary-nav-inner {
-    gap: clamp(0px, .28dvh, 4px) !important;
+    gap: clamp(0px, .24dvh, 4px) !important;
+  }
+
+  /* Top utility bar belongs only to the right workspace. */
+  .portal-admin .utility-bar {
+    position: fixed !important;
+    z-index: 100 !important;
+    top: 0 !important;
+    left: var(--lv-sidebar-width) !important;
+    right: 0 !important;
+    height: var(--lv-topbar-height) !important;
+  }
+
+  /* Right side is a completely separate scroll container. The browser page
+     itself does not scroll on desktop; only this workspace moves. */
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main {
+    position: fixed !important;
+    top: var(--lv-topbar-height) !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: var(--lv-sidebar-width) !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-sizing: border-box !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    scrollbar-gutter: stable !important;
+  }
+
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    width: calc(100% - 56px) !important;
+    max-width: 1500px !important;
+    min-height: 100% !important;
+    margin: 0 28px !important;
+    padding: 28px 0 48px !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
   }
 }
 
 @media screen and (max-width: 900px) {
+  .portal-admin {
+    height: auto !important;
+    min-height: 100vh !important;
+    overflow: visible !important;
+  }
+
   .portal-admin .admin-main,
   .portal-admin .tmg-admin-main {
+    position: static !important;
     width: 100% !important;
+    height: auto !important;
     margin: 0 !important;
     padding-left: 0 !important;
+    overflow: visible !important;
     box-sizing: border-box !important;
   }
 
