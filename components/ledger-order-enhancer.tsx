@@ -20,9 +20,22 @@ const money = new Intl.NumberFormat("en-BD", {
   maximumFractionDigits: 2,
 });
 
-function activeLedgerTab() {
+const DHAKA_MONTH_KEY = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Dhaka",
+  year: "numeric",
+  month: "2-digit",
+});
+
+function currentMonthKey() {
+  const parts = DHAKA_MONTH_KEY.formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value || "";
+  const month = parts.find((part) => part.type === "month")?.value || "";
+  return year && month ? `${year}-${month}` : "";
+}
+
+function activeCurrentMonthTab() {
   return Array.from(document.querySelectorAll<HTMLButtonElement>(".bank-tabs button.active"))
-    .some((button) => button.textContent?.trim().toLowerCase().includes("ledger"));
+    .some((button) => button.textContent?.trim().toLowerCase() === "current month");
 }
 
 function transactionId(row: HTMLTableRowElement) {
@@ -115,6 +128,7 @@ export default function LedgerOrderEnhancer() {
     let draggingId = "";
     let draggingDate = "";
     let stateRows: LedgerOrderRow[] = [];
+    const monthKey = currentMonthKey();
 
     const stateById = () => new Map(stateRows.map((row) => [row.id, row]));
 
@@ -128,7 +142,7 @@ export default function LedgerOrderEnhancer() {
           credentials: "same-origin",
           cache: "no-store",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ transactionId: transactionIdValue, targetTransactionId, placement }),
+          body: JSON.stringify({ transactionId: transactionIdValue, targetTransactionId, placement, month: monthKey }),
         });
         const json = await response.json().catch(() => null);
         if (!response.ok || !json?.success || !Array.isArray(json.rows)) {
@@ -136,7 +150,7 @@ export default function LedgerOrderEnhancer() {
         }
         stateRows = json.rows as LedgerOrderRow[];
       } catch (error) {
-        console.error("Ledger drag reorder failed", error);
+        console.error("Current month ledger drag reorder failed", error);
         window.alert(error instanceof Error ? error.message : "Could not reorder ledger entry.");
       } finally {
         busyId = "";
@@ -245,9 +259,9 @@ export default function LedgerOrderEnhancer() {
       if (disposed) return;
       installStyles();
       const map = stateById();
-      const ledgerActive = activeLedgerTab();
+      const currentMonthActive = activeCurrentMonthTab();
       document.querySelectorAll<HTMLTableElement>("table.bank-table").forEach((table) => {
-        if (ledgerActive) {
+        if (currentMonthActive) {
           reorderVisibleRows(table, map);
           updateBalances(table, map);
           addOrderControls(table, map);
@@ -269,16 +283,20 @@ export default function LedgerOrderEnhancer() {
     const observer = new MutationObserver(scheduleApply);
     observer.observe(document.body, { childList: true, subtree: true });
 
-    fetch("/api/accounts/ledger/order", { credentials: "same-origin", cache: "no-store" })
+    const orderUrl = monthKey
+      ? `/api/accounts/ledger/order?month=${encodeURIComponent(monthKey)}`
+      : "/api/accounts/ledger/order";
+
+    fetch(orderUrl, { credentials: "same-origin", cache: "no-store" })
       .then(async (response) => {
         const json = await response.json().catch(() => null);
         if (!response.ok || !json?.success || !Array.isArray(json.rows)) {
-          throw new Error(String(json?.error || "Could not load ledger order."));
+          throw new Error(String(json?.error || "Could not load current month ledger order."));
         }
         stateRows = json.rows as LedgerOrderRow[];
         apply();
       })
-      .catch((error) => console.error("Ledger order load failed", error));
+      .catch((error) => console.error("Current month ledger order load failed", error));
 
     return () => {
       disposed = true;
