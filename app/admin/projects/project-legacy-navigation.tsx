@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
@@ -97,5 +98,14 @@ export default function ProjectLegacyNavigation() {
     return () => { cancelled = true; };
   }, [pathname]);
 
-  return null;
+  const detailMatch = decodeURIComponent(pathname).match(/^\/admin\/projects\/(LV[\s_-]*0*\d+)$/i);
+  const detailProjectId = detailMatch ? normalizeProjectId(detailMatch[1]) : "";
+  if (!detailProjectId) return null;
+
+  return <div style={{display:"flex",justifyContent:"flex-end",margin:"0 0 10px"}}>
+    <Link
+      href={`/admin/projects/payment-routing?projectId=${encodeURIComponent(detailProjectId)}`}
+      style={{height:36,padding:"0 12px",border:"1px solid rgba(82,112,90,.7)",borderRadius:8,background:"#18281f",color:"#a9deb8",textDecoration:"none",fontSize:10,fontWeight:900,display:"inline-flex",alignItems:"center"}}
+    >Edit {detailProjectId} Payments / Municipality Routing</Link>
+  </div>;
 }
