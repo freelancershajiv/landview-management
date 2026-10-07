@@ -100,6 +100,10 @@ function projectLegacy(row: Row, billed?: number) {
     Supervision_Stage_Status: stageStatus(row.supervision_stage_status, "Completed"),
     Current_Stage: currentProjectStage(row),
     Site_Visit_Eligible: stageStatus(row.supervision_stage_status, "Completed") !== "Completed",
+    WhatsApp_Updates_Enabled: Boolean(row.whatsapp_updates_enabled),
+    WhatsApp_Number_Status: row.whatsapp_number_status || "unknown",
+    WhatsApp_Number_Checked_At: row.whatsapp_number_checked_at || "",
+    WhatsApp_Checked_Phone: row.whatsapp_checked_phone || "",
     Created_Date: row.created_at || "", Updated_At: row.updated_at || ""
   };
 }
@@ -203,13 +207,15 @@ function projectFromInput(input: Row, existing: Row = {}) {
     ["client_user_id",["Client_User_ID","client_user_id"]],["client_username",["Client_Username","client_username"]],["public_project_title",["Public_Project_Title","public_project_title"]],["public_description",["Public_Description","public_description"]],
     ["project_category",["Project_Category","project_category"]],["project_area_text",["Project_Area","project_area_text"]],["number_of_stories_text",["Number_of_Stories","number_of_stories_text"]],["cover_image_url",["Cover_Image_URL","cover_image_url"]],
     ["gallery_images",["Gallery_Images","gallery_images"]],["public_services",["Public_Services","public_services"]],["completion_year",["Completion_Year","completion_year"]],["site_latitude",["Site_Latitude","siteLatitude","site_latitude"]],["site_longitude",["Site_Longitude","siteLongitude","site_longitude"]],["site_geofence_radius_m",["Site_Geofence_Radius_M","siteGeofenceRadiusM","site_geofence_radius_m"]],
-    ["design_stage_status",["Design_Stage_Status","design_stage_status"]],["approval_stage_status",["Approval_Stage_Status","approval_stage_status"]],["supervision_stage_status",["Supervision_Stage_Status","supervision_stage_status"]]
+    ["design_stage_status",["Design_Stage_Status","design_stage_status"]],["approval_stage_status",["Approval_Stage_Status","approval_stage_status"]],["supervision_stage_status",["Supervision_Stage_Status","supervision_stage_status"]],
+    ["whatsapp_number_status",["WhatsApp_Number_Status","whatsapp_number_status"]],["whatsapp_number_checked_at",["WhatsApp_Number_Checked_At","whatsapp_number_checked_at"]],["whatsapp_checked_phone",["WhatsApp_Checked_Phone","whatsapp_checked_phone"]]
   ];
   for (const [dest, keys] of mappings) { const value = pick(input,...keys); if (text(value)) result[dest] = value; }
   const plot = pick(input,"Plot_Area","plotArea","plot_area"); if (text(plot)) result.plot_area = num(plot);
   const floors = pick(input,"Floors","floors"); if (text(floors)) result.floors = Math.trunc(num(floors));
   const design = pick(input,"Design_Bill","designBill","design_bill"); if (text(design)) result.design_bill = num(design);
   const display = pick(input,"Public_Display","public_display"); if (text(display) || typeof display === "boolean") result.public_display = bool(display);
+  const whatsappUpdates = pick(input,"WhatsApp_Updates_Enabled","whatsapp_updates_enabled"); if (text(whatsappUpdates) || typeof whatsappUpdates === "boolean") result.whatsapp_updates_enabled = bool(whatsappUpdates);
   const order = pick(input,"Public_Display_Order","public_display_order"); if (text(order)) result.public_display_order = Math.trunc(num(order));
   return result;
 }
