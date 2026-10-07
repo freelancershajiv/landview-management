@@ -142,6 +142,26 @@ function buildState(rows: LedgerRow[]) {
   });
 }
 
+async function stabilizeDayOrder(dayRows: LedgerRow[]) {
+  for (let index = 0; index < dayRows.length; index += 1) {
+    const expected = index + 1;
+    if (dayRows[index].order !== expected) {
+      await updateRows("transactions", { transaction_code: dayRows[index].id }, { ledger_order: expected });
+      dayRows[index].order = expected;
+    }
+  }
+}
+
+async function saveDayOrder(dayRows: LedgerRow[]) {
+  for (let index = 0; index < dayRows.length; index += 1) {
+    const expected = index + 1;
+    if (dayRows[index].order !== expected) {
+      await updateRows("transactions", { transaction_code: dayRows[index].id }, { ledger_order: expected });
+      dayRows[index].order = expected;
+    }
+  }
+}
+
 async function requireLedgerUser(request: NextRequest) {
   const user = await requireLocalSession(request);
   if (!user) return { error: NextResponse.json({ success: false, error: "Session expired." }, { status: 401 }) };
@@ -178,62 +198,113 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json() as Record<string, unknown>;
     const transactionId = text(body.transactionId || body.Transaction_ID, 160);
     const direction = text(body.direction, 20).toLowerCase();
-    if (!transactionId) return NextResponse.json({ success: false, error: "Transaction ID is required." }, { status: 400 });
-    if (direction !== "up" && direction !== "down") {
+    const targetTransactionId = text(body.targetTransactionId, 160);
+    const placement = text(body.placement, 20).toLowerCase();
+    const dragRequest = Boolean(targetTransactionId);
+
+    if (!transactionId) {
+      return NextResponse.json({ success: false, error: "Transaction ID is required." }, { status: 400 });
+    }
+    if (dragRequest) {
+      if (placement !== "before" && placement !== "after") {
+        return NextResponse.json({ success: false, error: "Placement must be before or after." }, { status: 400 });
+      }
+    } else if (direction !== "up" && direction !== "down") {
       return NextResponse.json({ success: false, error: "Direction must be up or down." }, { status: 400 });
     }
 
     const allRows = await loadLedgerRows();
     const current = allRows.find((row) => row.id === transactionId);
-    if (!current) return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
+    if (!current) {
+      return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
+    }
 
     const dayRows = allRows.filter((row) => row.date === current.date).sort(compareWithinDate);
     const currentIndex = dayRows.findIndex((row) => row.id === transactionId);
-    if (currentIndex < 0) return NextResponse.json({ success: false, error: "Ledger transaction was not found for its date." }, { status: 404 });
-
-    // Give the whole date a stable 1..N order before swapping. This also makes
-    // old entries compatible without requiring a one-time bulk data migration.
-    for (let index = 0; index < dayRows.length; index += 1) {
-      const expected = index + 1;
-      if (dayRows[index].order !== expected) {
-        await updateRows("transactions", { transaction_code: dayRows[index].id }, { ledger_order: expected });
-        dayRows[index].order = expected;
-      }
+    if (currentIndex < 0) {
+      return NextResponse.json({ success: false, error: "Ledger transaction was not found for its date." }, { status: 404 });
     }
 
-    const neighborIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-    if (neighborIndex >= 0 && neighborIndex < dayRows.length) {
-      const first = dayRows[currentIndex];
-      const second = dayRows[neighborIndex];
-      const firstOrder = first.order || currentIndex + 1;
-      const secondOrder = second.order || neighborIndex + 1;
+    await stabilizeDayOrder(dayRows);
 
-      await updateRows("transactions", { transaction_code: first.id }, { ledger_order: secondOrder });
-      await updateRows("transactions", { transaction_code: second.id }, { ledger_order: firstOrder });
+    const actor = text(
+      (access.user as Record<string, unknown>).User_ID ||
+      (access.user as Record<string, unknown>).userId ||
+      (access.user as Record<string, unknown>).username ||
+      "LAND VIEW",
+      160,
+    );
 
-      first.order = secondOrder;
-      second.order = firstOrder;
+    if (dragRequest) {
+      if (targetTransactionId === transactionId) {
+        return NextResponse.json(
+          { success: true, rows: buildState(await loadLedgerRows()) },
+          { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
+        );
+      }
 
-      const actor = text(
-        (access.user as Record<string, unknown>).User_ID ||
-        (access.user as Record<string, unknown>).userId ||
-        (access.user as Record<string, unknown>).username ||
-        "LAND VIEW",
-        160,
-      );
-      await insertRows("app_audit_log", {
-        actor_user_key: actor,
-        action: "ledger_reorder",
-        target: transactionId,
-        outcome: "success",
-        details: {
-          transaction_date: current.date,
-          direction,
-          swapped_with: second.id,
-          from_order: firstOrder,
-          to_order: secondOrder,
-        },
-      });
+      const target = dayRows.find((row) => row.id === targetTransactionId);
+      if (!target) {
+        const targetAnywhere = allRows.find((row) => row.id === targetTransactionId);
+        const error = targetAnywhere
+          ? "Ledger entries can only be dragged within the same date."
+          : "Drop target was not found.";
+        return NextResponse.json({ success: false, error }, { status: 400 });
+      }
+
+      const fromOrder = current.order || currentIndex + 1;
+      const withoutCurrent = dayRows.filter((row) => row.id !== transactionId);
+      const targetIndex = withoutCurrent.findIndex((row) => row.id === targetTransactionId);
+      let insertIndex = placement === "after" ? targetIndex + 1 : targetIndex;
+      insertIndex = Math.max(0, Math.min(insertIndex, withoutCurrent.length));
+      withoutCurrent.splice(insertIndex, 0, current);
+
+      await saveDayOrder(withoutCurrent);
+      const toOrder = withoutCurrent.findIndex((row) => row.id === transactionId) + 1;
+
+      if (toOrder !== fromOrder) {
+        await insertRows("app_audit_log", {
+          actor_user_key: actor,
+          action: "ledger_reorder_drag",
+          target: transactionId,
+          outcome: "success",
+          details: {
+            transaction_date: current.date,
+            moved_relative_to: targetTransactionId,
+            placement,
+            from_order: fromOrder,
+            to_order: toOrder,
+          },
+        });
+      }
+    } else {
+      const neighborIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
+      if (neighborIndex >= 0 && neighborIndex < dayRows.length) {
+        const first = dayRows[currentIndex];
+        const second = dayRows[neighborIndex];
+        const firstOrder = first.order || currentIndex + 1;
+        const secondOrder = second.order || neighborIndex + 1;
+
+        await updateRows("transactions", { transaction_code: first.id }, { ledger_order: secondOrder });
+        await updateRows("transactions", { transaction_code: second.id }, { ledger_order: firstOrder });
+
+        first.order = secondOrder;
+        second.order = firstOrder;
+
+        await insertRows("app_audit_log", {
+          actor_user_key: actor,
+          action: "ledger_reorder",
+          target: transactionId,
+          outcome: "success",
+          details: {
+            transaction_date: current.date,
+            direction,
+            swapped_with: second.id,
+            from_order: firstOrder,
+            to_order: secondOrder,
+          },
+        });
+      }
     }
 
     const refreshed = await loadLedgerRows();
