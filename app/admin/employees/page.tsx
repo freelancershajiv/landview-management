@@ -13,12 +13,23 @@ const DEPARTMENTS = [
 ];
 const PUBLIC_POSITION_PREFIX = "__POSITION__:";
 
+type StaffRole = "employee" | "manager";
+
 function normalizeDesignation(value: unknown) {
   const raw = String(value || "").trim();
   if (raw === "Dr." || raw === "Dr") return "Dr.";
   if (raw === "Engr." || raw === "Engineer" || raw === "Engr") return "Engr.";
   if (raw === "Arch." || raw === "Architect" || raw === "Arch") return "Arch.";
   return "";
+}
+
+function normalizeStaffRole(value: unknown): StaffRole | "" {
+  const role = String(value || "").trim().toLowerCase();
+  return role === "employee" || role === "manager" ? role : "";
+}
+
+function employeeKey(value: unknown) {
+  return String(value || "").trim().toLowerCase();
 }
 
 function stripPublicPositionMarker(value: unknown) {
@@ -55,9 +66,12 @@ const blank = {
 
 export default function EmployeesPage() {
   const [rows, setRows] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [roleSaving, setRoleSaving] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"Active" | "Former" | "All">("Active");
   const [open, setOpen] = useState(false);
@@ -69,7 +83,12 @@ export default function EmployeesPage() {
     setLoading(true);
     setError("");
     try {
-      setRows(await landViewApi.getEmployees());
+      const [employeeRows, userRows] = await Promise.all([
+        landViewApi.getEmployees(),
+        landViewApi.getUsers(),
+      ]);
+      setRows(employeeRows || []);
+      setUsers(userRows || []);
     } catch (e: any) {
       setError(e?.message || "Could not load employees.");
     } finally {
@@ -78,6 +97,19 @@ export default function EmployeesPage() {
   }
 
   useEffect(() => { load(); }, []);
+
+  const accountsByEmployee = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const user of users) {
+      const role = normalizeStaffRole(pick(user, ["Role", "role"], ""));
+      if (!role) continue;
+      const employeeId = pick(user, ["Employee_ID", "employeeId", "Employee ID"], "")
+        || pick(user, ["User_ID", "userId", "Username", "username"], "");
+      const key = employeeKey(employeeId);
+      if (key) map.set(key, user);
+    }
+    return map;
+  }, [users]);
 
   const filtered = useMemo(() => rows.filter((r) => {
     const status = String(pick(r, ["Status", "status"], "Active")).trim().toLowerCase();
@@ -169,6 +201,7 @@ export default function EmployeesPage() {
 
     setSaving(true);
     setError("");
+    setNotice("");
 
     try {
       if (editingId) {
@@ -215,8 +248,53 @@ export default function EmployeesPage() {
     }
   }
 
+  async function changeRole(employeeId: string, nextRole: StaffRole) {
+    const account = accountsByEmployee.get(employeeKey(employeeId));
+    const userId = String(pick(account || {}, ["User_ID", "userId"], "")).trim();
+    const name = String(pick(account || {}, ["Name", "name"], employeeId)).trim() || employeeId;
+    const currentRole = normalizeStaffRole(pick(account || {}, ["Role", "role"], ""));
+
+    if (!userId || !currentRole) {
+      setError(`No Employee/Manager login account is linked to ${employeeId}.`);
+      return;
+    }
+    if (currentRole === nextRole) return;
+
+    const action = nextRole === "manager" ? "promote" : "demote";
+    const targetLabel = nextRole === "manager" ? "Manager" : "Employee";
+    if (!window.confirm(`${action === "promote" ? "Promote" : "Demote"} ${name} (${employeeId}) to ${targetLabel}?`)) return;
+
+    setRoleSaving(userId);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/user-role", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+        body: JSON.stringify({ userId, role: nextRole }),
+      });
+      const result = await response.json().catch(() => null) as { success?: boolean; error?: string } | null;
+      if (!response.ok || !result?.success) {
+        throw new Error(String(result?.error || `Role update failed with HTTP ${response.status}.`));
+      }
+
+      setNotice(
+        nextRole === "manager"
+          ? `${name} is now a Manager. The new authority applies on the employee's next session refresh or sign-in.`
+          : `${name} is now an Employee. Manager authority is removed on the employee's next session refresh or sign-in.`
+      );
+      await load();
+    } catch (e: any) {
+      setError(e?.message || "Could not update employee role.");
+    } finally {
+      setRoleSaving("");
+    }
+  }
+
   async function remove(id: string) {
     if (!confirm(`Delete employee ${id}?`)) return;
+    setNotice("");
     try {
       await landViewApi.deleteEmployee(id);
       await load();
@@ -229,7 +307,7 @@ export default function EmployeesPage() {
     <PageHeader
       eyebrow="TEAM"
       title="Employees"
-      description="Create and manage LAND VIEW employee records."
+      description="Create and manage LAND VIEW employee records and staff authority."
       action={<button className="btn btn-dark" onClick={() => { setForm(blank); setEditing(""); setOpen(true); }}>+ Add employee</button>}
     />
 
@@ -244,21 +322,36 @@ export default function EmployeesPage() {
     </div>
 
     {error && <div className="notice error"><strong>Notice</strong><span>{error}</span></div>}
+    {notice && <div className="notice"><strong>Role updated</strong><span>{notice}</span></div>}
 
     {loading ? <LoadingState label="Loading employees..." /> : !rows.length ?
       <EmptyState title="No employees" text="Add the first team member to LAND VIEW." /> :
       <div className="employee-grid">{filtered.map((r: any) => {
-        const id = pick(r, ["Employee_ID", "Employee ID", "EmployeeId"]);
+        const id = String(pick(r, ["Employee_ID", "Employee ID", "EmployeeId"]));
         const designation = normalizeDesignation(
           pick(r, ["Public_Title", "Public Title", "Designation", "designation"], "")
         );
-        const name = pick(r, ["Employee_Name", "Employee Name", "Name"], id);
+        const name = String(pick(r, ["Employee_Name", "Employee Name", "Name"], id));
+        const account = accountsByEmployee.get(employeeKey(id));
+        const accountRole = normalizeStaffRole(pick(account || {}, ["Role", "role"], ""));
+        const accountUserId = String(pick(account || {}, ["User_ID", "userId"], ""));
+        const changingRole = roleSaving === accountUserId;
         return <div className="employee-card" key={id}>
           <div className="employee-avatar">{name.slice(0, 2).toUpperCase()}</div>
           <div className="employee-main">
             <div className="employee-top"><div><h3>{designation ? `${designation} ${name}` : name}</h3><p>{pick(r, ["Position"], pick(r, ["Department"], "Team member"))}</p></div><StatusBadge value={pick(r, ["Status", "status"], "Active")} /></div>
-            <div className="employee-lines"><span>{id}</span><span>{pick(r, ["Phone", "Phone_Number"], "No phone")}</span><span>{pick(r, ["Email"], "No email")}</span></div>
-            <div className="employee-actions"><button onClick={() => startEdit(r)}>Edit</button><button onClick={() => remove(id)}>Delete</button></div>
+            <div className="employee-lines">
+              <span>{id}</span>
+              <span>{pick(r, ["Phone", "Phone_Number"], "No phone")}</span>
+              <span>{pick(r, ["Email"], "No email")}</span>
+              <span>{accountRole === "manager" ? "Role: Manager" : accountRole === "employee" ? "Role: Employee" : "No staff login linked"}</span>
+            </div>
+            <div className="employee-actions">
+              {accountRole === "employee" && <button disabled={changingRole} onClick={() => void changeRole(id, "manager")}>{changingRole ? "Updating role..." : "Promote to Manager"}</button>}
+              {accountRole === "manager" && <button disabled={changingRole} onClick={() => void changeRole(id, "employee")}>{changingRole ? "Updating role..." : "Demote to Employee"}</button>}
+              <button onClick={() => startEdit(r)}>Edit</button>
+              <button onClick={() => remove(id)}>Delete</button>
+            </div>
           </div>
         </div>;
       })}</div>
