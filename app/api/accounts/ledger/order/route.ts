@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireLocalSession } from "@/lib/local-session";
+import {
+  QUICK_USER_COOKIE,
+  readSignedWorkspaceUser,
+  requireLocalSession,
+} from "@/lib/local-session";
 import { insertRows, roleOf, selectRows, updateRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -182,8 +186,25 @@ async function saveDayOrder(dayRows: LedgerRow[]) {
 }
 
 async function requireLedgerUser(request: NextRequest) {
-  const user = await requireLocalSession(request);
-  if (!user) return { error: NextResponse.json({ success: false, error: "Session expired." }, { status: 401 }) };
+  let user = await requireLocalSession(request);
+
+  // The main workspace also carries an HMAC-signed quick-user cookie. Use it as
+  // a safe fallback when Supabase access-token validation is temporarily stale
+  // or awaiting refresh, so this helper does not falsely report an active
+  // browser session as expired.
+  if (!user) {
+    user = readSignedWorkspaceUser(request.cookies.get(QUICK_USER_COOKIE)?.value);
+  }
+
+  if (!user) {
+    return {
+      error: NextResponse.json(
+        { success: false, error: "Session could not be validated. Refresh the page and try again." },
+        { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } },
+      ),
+    };
+  }
+
   if (!EDIT_ROLES.has(roleOf(user))) {
     return { error: NextResponse.json({ success: false, error: "Admin, manager or accounts access is required." }, { status: 403 }) };
   }
