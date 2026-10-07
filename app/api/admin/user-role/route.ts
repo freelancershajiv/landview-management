@@ -1,4 +1,3 @@
-import { getVercelOidcToken } from "@vercel/oidc";
 import { NextRequest, NextResponse } from "next/server";
 import {
   SESSION_COOKIE,
@@ -10,7 +9,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ROLE_ADMIN_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-role-admin";
-const AUDIENCE = "https://supabase.landview.internal";
 
 type RoleResult = {
   updated: boolean;
@@ -70,21 +68,13 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const oidc = await getVercelOidcToken({ audience: AUDIENCE });
-    if (!oidc) throw new Error("Vercel OIDC token is unavailable.");
-
     const response = await fetch(ROLE_ADMIN_URL, {
       method: "POST",
       headers: {
-        authorization: `Bearer ${oidc}`,
+        authorization: `Bearer ${accessToken}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        action: "updateEmployeeRole",
-        accessToken,
-        userId,
-        role,
-      }),
+      body: JSON.stringify({ userId, role }),
       cache: "no-store",
       signal: AbortSignal.timeout(12_000),
     });
