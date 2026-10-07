@@ -24,6 +24,10 @@ type ProjectRow = Record<string, unknown> & {
   Public_Display?: unknown;
   Drive_Folder_URL?: string;
   Drive_Folder_Name?: string;
+  WhatsApp_Updates_Enabled?: unknown;
+  WhatsApp_Number_Status?: string;
+  WhatsApp_Number_Checked_At?: string;
+  WhatsApp_Checked_Phone?: string;
 };
 type TaskRow = Record<string, unknown> & {
   Task_ID?: string;
@@ -35,7 +39,7 @@ type EmployeeRow = Record<string, unknown> & { Employee_ID?: string };
 type DriveIndexResponse = { projects?: Record<string, any> };
 
 const css = `
-.projects-register{display:grid;gap:18px}.projects-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.projects-toolbar-left{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.projects-search{min-width:min(100%,360px);height:42px;padding:0 13px;border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:8px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_f4f6f8, #f4f6f8)}.projects-search::placeholder{color:var(--theme-ink-_75818c, #75818c)}.filter-btn{height:38px;padding:0 13px;border:1px solid var(--theme-line-rgba_255_255_255__12_, rgba(255,255,255,.12));border-radius:999px;background:var(--theme-bg-_121c25, #121c25);color:var(--theme-ink-_9ba7b1, #9ba7b1);font-size:12px;font-weight:700;cursor:pointer}.filter-btn.active{border-color:var(--theme-line-_d61f26, #d61f26);background:#d61f26;color:#fff}.refresh-btn{height:40px;padding:0 14px;border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:8px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_fff, #fff);font-size:12px;font-weight:800;cursor:pointer}.register-shell{overflow:hidden;border:1px solid var(--theme-line-rgba_255_255_255__11_, rgba(255,255,255,.11));border-radius:12px;background:var(--theme-bg-_0e1720, #0e1720)}.register-scroll{overflow-x:auto}.project-table{width:100%;min-width:1450px;border-collapse:collapse}.project-table th{padding:13px 14px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));background:var(--theme-bg-_141e28, #141e28);color:var(--theme-ink-_8996a1, #8996a1);text-align:left;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.project-table td{padding:14px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__075_, rgba(255,255,255,.075));background:var(--theme-bg-_0f1821, #0f1821);color:var(--theme-ink-_dce2e7, #dce2e7);font-size:12px;vertical-align:middle}.project-table tbody tr:hover>td{background:var(--theme-bg-_121e28, #121e28)}.project-table tbody tr:last-child td{border-bottom:0}.project-main{display:flex;align-items:center;gap:11px;min-width:230px}.project-id{display:grid;place-items:center;min-width:68px;height:32px;padding:0 8px;border:1px solid var(--theme-line-rgba_214_31_38__35_, rgba(214,31,38,.35));border-radius:6px;background:var(--theme-bg-rgba_214_31_38__08_, rgba(214,31,38,.08));color:var(--theme-ink-_ff736c, #ff736c);font-size:11px;font-weight:900}.project-main strong,.project-main small{display:block}.project-main strong{color:var(--theme-ink-_f5f7f8, #f5f7f8);font-size:13px}.project-main small{margin-top:3px;color:var(--theme-ink-_77838d, #77838d);font-size:11px}.muted{color:var(--theme-ink-_8c98a2, #8c98a2)}.service-summary{display:flex;align-items:center;gap:8px;min-width:170px}.service-summary b{color:var(--theme-ink-_fff, #fff)}.team-button{border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:7px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_e8edf0, #e8edf0);padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer}.team-button:hover{border-color:var(--theme-line-_d61f26, #d61f26);color:var(--theme-ink-_ff8179, #ff8179)}.drive-link{color:var(--theme-ink-_f07a72, #f07a72);font-weight:800;text-decoration:none}.drive-link:hover{text-decoration:underline}.public-cell{position:sticky;right:0;z-index:2;min-width:150px;background:var(--theme-bg-_111b24, #111b24)!important;box-shadow:-10px 0 18px var(--theme-shadow-rgba_0_0_0__16_, rgba(0,0,0,.16))}.project-table th.public-cell{z-index:4;background:var(--theme-bg-_17212b, #17212b)!important}.public-wrap{display:flex;align-items:center;justify-content:space-between;gap:9px}.public-wrap span{font-size:11px;color:var(--theme-ink-_94a0aa, #94a0aa)}.toggle{position:relative;width:42px;height:23px;border:0;border-radius:999px;background:var(--theme-bg-_39434c, #39434c);cursor:pointer;transition:.18s}.toggle::after{content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:var(--theme-bg-_fff, #fff);transition:.18s}.toggle.on{background:#d61f26}.toggle.on::after{transform:translateX(19px)}.toggle:disabled{cursor:not-allowed;opacity:.45}.team-row td{padding:0!important;background:var(--theme-bg-_0b141c, #0b141c)!important}.team-panel{padding:16px 18px 18px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08))}.team-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}.team-panel-head strong{display:block;color:var(--theme-ink-_fff, #fff);font-size:13px}.team-panel-head small{display:block;margin-top:4px;color:var(--theme-ink-_7e8b95, #7e8b95);font-size:11px}.service-assignments{display:grid;gap:7px}.service-assignment{display:grid;grid-template-columns:minmax(180px,1fr) minmax(240px,1.2fr) auto;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));border-radius:8px;background:var(--theme-bg-_111b24, #111b24)}.service-assignment strong{color:var(--theme-ink-_edf1f4, #edf1f4);font-size:12px}.service-assignment select{height:36px;border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));border-radius:7px;background:var(--theme-bg-_0d161e, #0d161e);color:var(--theme-ink-_e8edf0, #e8edf0);padding:0 10px;font-size:12px}.service-assignment small{color:var(--theme-ink-_71808b, #71808b);font-size:10px}.team-empty{padding:18px;border:1px dashed var(--theme-line-rgba_255_255_255__12_, rgba(255,255,255,.12));border-radius:8px;color:var(--theme-ink-_7e8b95, #7e8b95);text-align:center;font-size:12px}.stage-select{height:34px;min-width:125px;border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));border-radius:7px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_eef2f5, #eef2f5);padding:0 9px;font-size:11px;font-weight:800}.stage-select:focus{outline:none;border-color:var(--theme-line-_d61f26, #d61f26)}.stage-select:disabled{opacity:.55;cursor:not-allowed}.stage-cell{display:grid;gap:5px;min-width:145px}.stage-cell small{color:var(--theme-ink-_74818c, #74818c);font-size:9px}.current-stage-badge{display:inline-flex;width:max-content;padding:5px 8px;border-radius:6px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_cdd5da, #cdd5da);font-size:9px;font-weight:900}.register-note{padding:12px 14px;border-top:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));background:var(--theme-bg-_0b141c, #0b141c);color:var(--theme-ink-_76838d, #76838d);font-size:11px;line-height:1.6}.error-inline{padding:11px 14px;border:1px solid var(--theme-line-rgba_214_31_38__35_, rgba(214,31,38,.35));border-radius:8px;background:var(--theme-bg-rgba_214_31_38__08_, rgba(214,31,38,.08));color:var(--theme-ink-_ff9c96, #ff9c96);font-size:12px}@media(max-width:760px){.projects-toolbar{align-items:stretch}.projects-search{width:100%;min-width:0}.service-assignment{grid-template-columns:1fr}.team-panel-head{flex-direction:column}.public-cell{position:static;box-shadow:none}}
+.projects-register{display:grid;gap:18px}.projects-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.projects-toolbar-left{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.projects-search{min-width:min(100%,360px);height:42px;padding:0 13px;border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:8px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_f4f6f8, #f4f6f8)}.projects-search::placeholder{color:var(--theme-ink-_75818c, #75818c)}.filter-btn{height:38px;padding:0 13px;border:1px solid var(--theme-line-rgba_255_255_255__12_, rgba(255,255,255,.12));border-radius:999px;background:var(--theme-bg-_121c25, #121c25);color:var(--theme-ink-_9ba7b1, #9ba7b1);font-size:12px;font-weight:700;cursor:pointer}.filter-btn.active{border-color:var(--theme-line-_d61f26, #d61f26);background:#d61f26;color:#fff}.refresh-btn{height:40px;padding:0 14px;border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:8px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_fff, #fff);font-size:12px;font-weight:800;cursor:pointer}.wa-cell{min-width:168px}.wa-controls{display:grid;gap:7px;min-width:150px}.wa-toggle,.wa-check{height:30px;border-radius:7px;font-size:10px;font-weight:900;letter-spacing:.02em;cursor:pointer}.wa-toggle{border:1px solid rgba(255,255,255,.14);background:#17222c;color:#9ba7b1}.wa-toggle.on{border-color:rgba(69,200,132,.55);background:rgba(69,200,132,.13);color:#70dfa4}.wa-toggle.off{border-color:rgba(214,31,38,.35);background:rgba(214,31,38,.08);color:#ef8b8f}.wa-check{border:1px solid rgba(255,255,255,.14);background:#111b24;color:#dce2e7}.wa-toggle:disabled,.wa-check:disabled{opacity:.55;cursor:not-allowed}.wa-status{display:flex;align-items:center;gap:6px;font-size:10px;font-weight:800;color:#8996a1}.wa-dot{width:7px;height:7px;border-radius:50%;background:#75818c}.wa-status.active{color:#70dfa4}.wa-status.active .wa-dot{background:#45c884;box-shadow:0 0 0 3px rgba(69,200,132,.12)}.wa-status.inactive{color:#ef8b8f}.wa-status.inactive .wa-dot,.wa-status.error .wa-dot{background:#d61f26}.wa-status.error{color:#ef8b8f}.register-shell{overflow:hidden;border:1px solid var(--theme-line-rgba_255_255_255__11_, rgba(255,255,255,.11));border-radius:12px;background:var(--theme-bg-_0e1720, #0e1720)}.register-scroll{overflow-x:auto}.project-table{width:100%;min-width:1640px;border-collapse:collapse}.project-table th{padding:13px 14px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));background:var(--theme-bg-_141e28, #141e28);color:var(--theme-ink-_8996a1, #8996a1);text-align:left;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.project-table td{padding:14px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__075_, rgba(255,255,255,.075));background:var(--theme-bg-_0f1821, #0f1821);color:var(--theme-ink-_dce2e7, #dce2e7);font-size:12px;vertical-align:middle}.project-table tbody tr:hover>td{background:var(--theme-bg-_121e28, #121e28)}.project-table tbody tr:last-child td{border-bottom:0}.project-main{display:flex;align-items:center;gap:11px;min-width:230px}.project-id{display:grid;place-items:center;min-width:68px;height:32px;padding:0 8px;border:1px solid var(--theme-line-rgba_214_31_38__35_, rgba(214,31,38,.35));border-radius:6px;background:var(--theme-bg-rgba_214_31_38__08_, rgba(214,31,38,.08));color:var(--theme-ink-_ff736c, #ff736c);font-size:11px;font-weight:900}.project-main strong,.project-main small{display:block}.project-main strong{color:var(--theme-ink-_f5f7f8, #f5f7f8);font-size:13px}.project-main small{margin-top:3px;color:var(--theme-ink-_77838d, #77838d);font-size:11px}.muted{color:var(--theme-ink-_8c98a2, #8c98a2)}.service-summary{display:flex;align-items:center;gap:8px;min-width:170px}.service-summary b{color:var(--theme-ink-_fff, #fff)}.team-button{border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:7px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_e8edf0, #e8edf0);padding:7px 10px;font-size:11px;font-weight:800;cursor:pointer}.team-button:hover{border-color:var(--theme-line-_d61f26, #d61f26);color:var(--theme-ink-_ff8179, #ff8179)}.drive-link{color:var(--theme-ink-_f07a72, #f07a72);font-weight:800;text-decoration:none}.drive-link:hover{text-decoration:underline}.public-cell{position:sticky;right:0;z-index:2;min-width:150px;background:var(--theme-bg-_111b24, #111b24)!important;box-shadow:-10px 0 18px var(--theme-shadow-rgba_0_0_0__16_, rgba(0,0,0,.16))}.project-table th.public-cell{z-index:4;background:var(--theme-bg-_17212b, #17212b)!important}.public-wrap{display:flex;align-items:center;justify-content:space-between;gap:9px}.public-wrap span{font-size:11px;color:var(--theme-ink-_94a0aa, #94a0aa)}.toggle{position:relative;width:42px;height:23px;border:0;border-radius:999px;background:var(--theme-bg-_39434c, #39434c);cursor:pointer;transition:.18s}.toggle::after{content:"";position:absolute;top:3px;left:3px;width:17px;height:17px;border-radius:50%;background:var(--theme-bg-_fff, #fff);transition:.18s}.toggle.on{background:#d61f26}.toggle.on::after{transform:translateX(19px)}.toggle:disabled{cursor:not-allowed;opacity:.45}.team-row td{padding:0!important;background:var(--theme-bg-_0b141c, #0b141c)!important}.team-panel{padding:16px 18px 18px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08))}.team-panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px}.team-panel-head strong{display:block;color:var(--theme-ink-_fff, #fff);font-size:13px}.team-panel-head small{display:block;margin-top:4px;color:var(--theme-ink-_7e8b95, #7e8b95);font-size:11px}.service-assignments{display:grid;gap:7px}.service-assignment{display:grid;grid-template-columns:minmax(180px,1fr) minmax(240px,1.2fr) auto;align-items:center;gap:12px;padding:10px 12px;border:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));border-radius:8px;background:var(--theme-bg-_111b24, #111b24)}.service-assignment strong{color:var(--theme-ink-_edf1f4, #edf1f4);font-size:12px}.service-assignment select{height:36px;border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));border-radius:7px;background:var(--theme-bg-_0d161e, #0d161e);color:var(--theme-ink-_e8edf0, #e8edf0);padding:0 10px;font-size:12px}.service-assignment small{color:var(--theme-ink-_71808b, #71808b);font-size:10px}.team-empty{padding:18px;border:1px dashed var(--theme-line-rgba_255_255_255__12_, rgba(255,255,255,.12));border-radius:8px;color:var(--theme-ink-_7e8b95, #7e8b95);text-align:center;font-size:12px}.stage-select{height:34px;min-width:125px;border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));border-radius:7px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_eef2f5, #eef2f5);padding:0 9px;font-size:11px;font-weight:800}.stage-select:focus{outline:none;border-color:var(--theme-line-_d61f26, #d61f26)}.stage-select:disabled{opacity:.55;cursor:not-allowed}.stage-cell{display:grid;gap:5px;min-width:145px}.stage-cell small{color:var(--theme-ink-_74818c, #74818c);font-size:9px}.current-stage-badge{display:inline-flex;width:max-content;padding:5px 8px;border-radius:6px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_cdd5da, #cdd5da);font-size:9px;font-weight:900}.register-note{padding:12px 14px;border-top:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));background:var(--theme-bg-_0b141c, #0b141c);color:var(--theme-ink-_76838d, #76838d);font-size:11px;line-height:1.6}.error-inline{padding:11px 14px;border:1px solid var(--theme-line-rgba_214_31_38__35_, rgba(214,31,38,.35));border-radius:8px;background:var(--theme-bg-rgba_214_31_38__08_, rgba(214,31,38,.08));color:var(--theme-ink-_ff9c96, #ff9c96);font-size:12px}@media(max-width:760px){.projects-toolbar{align-items:stretch}.projects-search{width:100%;min-width:0}.service-assignment{grid-template-columns:1fr}.team-panel-head{flex-direction:column}.public-cell{position:static;box-shadow:none}}
 `;
 
 function normalizeProjectId(value: unknown) {
@@ -48,6 +52,14 @@ function normalizeProjectId(value: unknown) {
 }
 function truthy(value: unknown) {
   return value === true || ["true", "yes", "1", "on"].includes(String(value || "").trim().toLowerCase());
+}
+function phoneDigits(value: unknown) { return String(value ?? "").replace(/\D/g, ""); }
+function whatsappStatus(project: ProjectRow) {
+  const current = phoneDigits(project.Phone_Number);
+  const checked = phoneDigits(project.WhatsApp_Checked_Phone);
+  if (!current || !checked || current !== checked) return "unknown";
+  const status = String(project.WhatsApp_Number_Status || "unknown").toLowerCase();
+  return ["active", "inactive", "error"].includes(status) ? status : "unknown";
 }
 function currentStageForProject(project: ProjectRow) {
   const design = String(project.Design_Stage_Status || "Pending");
@@ -106,6 +118,8 @@ export default function ProjectsPage() {
   const [savingPublic, setSavingPublic] = useState("");
   const [savingTask, setSavingTask] = useState("");
   const [savingStage, setSavingStage] = useState("");
+  const [savingWhatsApp, setSavingWhatsApp] = useState("");
+  const [checkingWhatsApp, setCheckingWhatsApp] = useState("");
   const canManage = role === "admin" || role === "manager";
 
   async function load() {
@@ -152,6 +166,10 @@ export default function ProjectsPage() {
           Approval_Stage_Status: String(pick(existing, ["Approval_Stage_Status", "Approval Stage Status"], "")),
           Supervision_Stage_Status: String(pick(existing, ["Supervision_Stage_Status", "Supervision Stage Status"], "")),
           Current_Stage: String(pick(existing, ["Current_Stage", "Current Stage"], "")),
+          WhatsApp_Updates_Enabled: existing.WhatsApp_Updates_Enabled ?? existing["WhatsApp Updates Enabled"] ?? false,
+          WhatsApp_Number_Status: String(pick(existing, ["WhatsApp_Number_Status", "WhatsApp Number Status"], "unknown") || "unknown"),
+          WhatsApp_Number_Checked_At: String(pick(existing, ["WhatsApp_Number_Checked_At", "WhatsApp Number Checked At"], "")),
+          WhatsApp_Checked_Phone: String(pick(existing, ["WhatsApp_Checked_Phone", "WhatsApp Checked Phone"], "")),
         });
       });
 
@@ -190,6 +208,10 @@ export default function ProjectsPage() {
             Approval_Stage_Status: String(pick(existingDb, ["Approval_Stage_Status", "Approval Stage Status"], "")),
             Supervision_Stage_Status: String(pick(existingDb, ["Supervision_Stage_Status", "Supervision Stage Status"], "")),
             Current_Stage: String(pick(existingDb, ["Current_Stage", "Current Stage"], "")),
+            WhatsApp_Updates_Enabled: existingDb.WhatsApp_Updates_Enabled ?? existingDb["WhatsApp Updates Enabled"] ?? false,
+            WhatsApp_Number_Status: String(pick(existingDb, ["WhatsApp_Number_Status", "WhatsApp Number Status"], "unknown") || "unknown"),
+            WhatsApp_Number_Checked_At: String(pick(existingDb, ["WhatsApp_Number_Checked_At", "WhatsApp Number Checked At"], "")),
+            WhatsApp_Checked_Phone: String(pick(existingDb, ["WhatsApp_Checked_Phone", "WhatsApp Checked Phone"], "")),
             Drive_Folder_Name: folderName,
             Drive_Folder_URL: String(item?.projectFolderUrl || pick(existingDb, ["Drive_Folder_URL", "Drive Folder URL"], "")),
           });
@@ -287,6 +309,53 @@ export default function ProjectsPage() {
     }
   }
 
+  async function toggleWhatsAppUpdates(project: ProjectRow) {
+    if (!canManage) return;
+    const id = normalizeProjectId(project.Project_ID);
+    if (!id || savingWhatsApp) return;
+    const next = !truthy(project.WhatsApp_Updates_Enabled);
+    setSavingWhatsApp(id);
+    setError("");
+    try {
+      const updated = await landViewApi.updateProject(id, { WhatsApp_Updates_Enabled: next });
+      setProjects((rows) => rows.map((row) => normalizeProjectId(row.Project_ID) === id ? { ...row, ...(updated as Record<string, unknown>), WhatsApp_Updates_Enabled: next } : row));
+    } catch (e: any) {
+      setError(e?.message || `Could not update WhatsApp preference for ${id}.`);
+    } finally {
+      setSavingWhatsApp("");
+    }
+  }
+
+  async function checkProjectWhatsApp(project: ProjectRow) {
+    if (!canManage) return;
+    const id = normalizeProjectId(project.Project_ID);
+    const phoneNumber = String(project.Phone_Number || "").trim();
+    if (!id || !phoneNumber || checkingWhatsApp) return;
+    setCheckingWhatsApp(id);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/whatsapp/client", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "check-number", projectCode: id, phoneNumber }),
+      });
+      const json = await response.json().catch(() => null) as any;
+      if (!response.ok || !json?.success) throw new Error(String(json?.error || "WhatsApp check failed."));
+      const checkedAt = new Date().toISOString();
+      setProjects((rows) => rows.map((row) => normalizeProjectId(row.Project_ID) === id ? {
+        ...row,
+        WhatsApp_Number_Status: json.data?.registered ? "active" : "inactive",
+        WhatsApp_Number_Checked_At: checkedAt,
+        WhatsApp_Checked_Phone: phoneNumber,
+      } : row));
+    } catch (e: any) {
+      setError(e?.message || `Could not check WhatsApp for ${id}.`);
+    } finally {
+      setCheckingWhatsApp("");
+    }
+  }
+
   async function updateProjectStage(project: ProjectRow, field: "Design_Stage_Status" | "Approval_Stage_Status" | "Supervision_Stage_Status", value: string) {
     if (!canManage) return;
     const id = normalizeProjectId(project.Project_ID);
@@ -346,7 +415,7 @@ export default function ProjectsPage() {
       <section className="register-shell">
         <div className="register-scroll">
           <table className="project-table">
-            <thead><tr><th>Project</th><th>Type</th><th>Location / Area</th><th>Design Stage</th><th>Approval Stage</th><th>Supervision / Construction</th><th>Current Stage</th><th>Service team</th><th>Drive</th><th className="public-cell">Public website</th></tr></thead>
+            <thead><tr><th>Project</th><th>Type</th><th>Location / Area</th><th className="wa-cell">WhatsApp</th><th>Design Stage</th><th>Approval Stage</th><th>Supervision / Construction</th><th>Current Stage</th><th>Service team</th><th>Drive</th><th className="public-cell">Public website</th></tr></thead>
             <tbody>
               {filtered.map((project) => {
                 const id = normalizeProjectId(project.Project_ID);
@@ -354,6 +423,8 @@ export default function ProjectsPage() {
                 const assignedCount = projectTasks.filter((task) => String(pick(task,["Assigned_Employee_ID","Assigned Employee ID"],"")).trim()).length;
                 const isExpanded = expanded === id;
                 const publicOn = truthy(project.Public_Display);
+                const whatsappOn = truthy(project.WhatsApp_Updates_Enabled);
+                const waStatus = whatsappStatus(project);
                 const driveUrl = String(project.Drive_Folder_URL || "").trim();
                 const projectName = String(project.Project_Name || "").trim();
       const clientName = String(project.Client_Name || projectName || id).trim();
@@ -364,6 +435,11 @@ export default function ProjectsPage() {
                     <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{clientName}</strong>{secondaryProjectName && <small>{secondaryProjectName}</small>}{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}</div></div></td>
                     <td>{String(project.Project_Type || "—")}</td>
                     <td><div>{String(project.Location || "—")}</div>{details && <div className="muted" style={{marginTop:4}}>{details}</div>}</td>
+                    <td className="wa-cell"><div className="wa-controls">
+                      <button type="button" className={`wa-toggle ${whatsappOn ? "on" : "off"}`} disabled={!canManage || savingWhatsApp===id} onClick={()=>void toggleWhatsAppUpdates(project)} aria-pressed={whatsappOn}>{savingWhatsApp===id ? "Saving…" : whatsappOn ? "Updates ON" : "Updates OFF"}</button>
+                      <div className={`wa-status ${waStatus}`}><span className="wa-dot" />{waStatus === "active" ? "WhatsApp Active" : waStatus === "inactive" ? "Not on WhatsApp" : waStatus === "error" ? "Check failed" : "Not checked"}</div>
+                      <button type="button" className="wa-check" disabled={!canManage || !project.Phone_Number || checkingWhatsApp===id} onClick={()=>void checkProjectWhatsApp(project)}>{checkingWhatsApp===id ? "Checking…" : "Check WhatsApp"}</button>
+                    </div></td>
                     <td><div className="stage-cell"><select className="stage-select" aria-label={"Design stage for " + id} value={String(project.Design_Stage_Status || "Pending")} disabled={!canManage || savingStage===id+":Design_Stage_Status"} onChange={(e)=>void updateProjectStage(project,"Design_Stage_Status",e.target.value)}><option>Pending</option><option>In Progress</option><option>Completed</option></select><small>{savingStage===id+":Design_Stage_Status"?"Saving…":"Project lifecycle"}</small></div></td>
                     <td><div className="stage-cell"><select className="stage-select" aria-label={"Approval stage for " + id} value={String(project.Approval_Stage_Status || "Pending")} disabled={!canManage || savingStage===id+":Approval_Stage_Status"} onChange={(e)=>void updateProjectStage(project,"Approval_Stage_Status",e.target.value)}><option>Pending</option><option>In Progress</option><option>Completed</option></select><small>{savingStage===id+":Approval_Stage_Status"?"Saving…":"Project lifecycle"}</small></div></td>
                     <td><div className="stage-cell"><select className="stage-select" aria-label={"Supervision / Construction stage for " + id} value={String(project.Supervision_Stage_Status || "Completed")} disabled={!canManage || savingStage===id+":Supervision_Stage_Status"} onChange={(e)=>void updateProjectStage(project,"Supervision_Stage_Status",e.target.value)}><option>Pending</option><option>In Progress</option><option>Completed</option></select><small>{savingStage===id+":Supervision_Stage_Status"?"Saving…":"Completed = no Site Visits"}</small></div></td>
@@ -372,7 +448,7 @@ export default function ProjectsPage() {
                     <td>{driveUrl ? <a className="drive-link" href={driveUrl} target="_blank" rel="noreferrer">Open Drive ↗</a> : <span className="muted">—</span>}</td>
                     <td className="public-cell"><div className="public-wrap"><span>{publicOn?"Shown":"Hidden"}</span><button type="button" className={`toggle ${publicOn?"on":""}`} role="switch" aria-checked={publicOn} aria-label={`${publicOn?"Hide":"Show"} ${id} on the public website`} disabled={!canManage || savingPublic===id} onClick={() => void togglePublic(project)} /></div></td>
                   </tr>
-                  {isExpanded && <tr className="team-row"><td colSpan={10}><div className="team-panel">
+                  {isExpanded && <tr className="team-row"><td colSpan={11}><div className="team-panel">
                     <div className="team-panel-head"><div><strong>Service responsibility · {id}</strong><small>Services are generated from billing records in LV - Auto Invoice. Assign the responsible team member here.</small></div>{!canManage && <small>Accounts access is view-only for assignments.</small>}</div>
                     {projectTasks.length ? <div className="service-assignments">{projectTasks.map((task) => {
                       const taskId = String(pick(task,["Task_ID","Task ID","TaskId"],""));

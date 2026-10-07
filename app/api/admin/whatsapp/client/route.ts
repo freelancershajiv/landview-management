@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
+import { normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -112,6 +113,7 @@ export async function POST(request: NextRequest) {
 
     if (action === "check-number") {
       const phoneNumber = clean(body.phoneNumber, 100);
+      const projectCode = normalizeProjectCode(clean(body.projectCode, 100));
       if (!phoneNumber) return deny("Phone number is required.", 400);
       const { base, token } = config();
       const response = await fetch(`${base}/client/check-number`, {
@@ -123,6 +125,14 @@ export async function POST(request: NextRequest) {
       });
       const json = await response.json().catch(() => null) as any;
       if (!response.ok || !json?.ok) throw new Error(clean(json?.error || `WhatsApp bot returned HTTP ${response.status}.`, 800));
+      if (projectCode) {
+        await updateRows("projects", { project_code: projectCode }, {
+          whatsapp_number_status: json.registered ? "active" : "inactive",
+          whatsapp_number_checked_at: new Date().toISOString(),
+          whatsapp_checked_phone: phoneNumber,
+          updated_at: new Date().toISOString(),
+        });
+      }
       return NextResponse.json({ success: true, data: json });
     }
 
@@ -132,7 +142,27 @@ export async function POST(request: NextRequest) {
       const message = clean(body.message, 4000);
       const dedupeKey = clean(body.dedupeKey, 240);
       if ((!projectId && !projectCode) || !message) return deny("Project and update message are required.", 400);
-      const queued = await storeRequest("clientProjectQueue", { projectId, projectCode, message, dedupeKey, source: clean(body.source, 80) || "project-update" });
+
+      let projects: Row[] = [];
+      if (projectCode) {
+        projects = await selectRows("projects", { filters: { project_code: normalizeProjectCode(projectCode) }, limit: 1 });
+      } else if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(projectId)) {
+        projects = await selectRows("projects", { filters: { id: projectId }, limit: 1 });
+      } else {
+        projects = await selectRows("projects", { filters: { project_code: normalizeProjectCode(projectId) }, limit: 1 });
+      }
+      const project = projects[0];
+      if (!project) return deny("Project was not found for the WhatsApp update.", 404);
+      if (project.whatsapp_updates_enabled !== true) {
+        return NextResponse.json({ success: true, data: { skipped: true, reason: "whatsapp-updates-disabled" } });
+      }
+      const checkedPhone = clean(project.whatsapp_checked_phone, 100).replace(/\D/g, "");
+      const currentPhone = clean(project.phone_number_snapshot, 100).replace(/\D/g, "");
+      if (project.whatsapp_number_status === "inactive" && checkedPhone && checkedPhone === currentPhone) {
+        return NextResponse.json({ success: true, data: { skipped: true, reason: "whatsapp-number-inactive" } });
+      }
+
+      const queued = await storeRequest("clientProjectQueue", { projectId, projectCode: project.project_code || projectCode, message, dedupeKey, source: clean(body.source, 80) || "project-update" });
       await wakeClientBot();
       return NextResponse.json({ success: true, data: queued });
     }
