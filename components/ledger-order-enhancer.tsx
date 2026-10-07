@@ -41,8 +41,9 @@ function installStyles() {
     .ledger-order-controls{display:inline-flex;align-items:center;gap:4px}
     .ledger-order-btn{width:27px;height:27px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--theme-line-_4b5963,#4b5963);border-radius:7px;background:var(--theme-bg-_17222b,#17222b);color:var(--theme-ink-_edf2f5,#edf2f5);font-size:14px;font-weight:900;line-height:1;cursor:pointer}
     .ledger-order-btn:hover:not(:disabled){border-color:var(--theme-line-_77858f,#77858f);background:var(--theme-bg-_1d2b35,#1d2b35)}
-    .ledger-order-btn:disabled{opacity:.24;cursor:not-allowed}
+    .ledger-order-btn:disabled{opacity:.62;cursor:not-allowed;border-style:dashed}
     .ledger-order-btn.busy{opacity:.5;cursor:wait}
+    .ledger-order-cell.unavailable .ledger-order-btn{opacity:.62}
   `;
   document.head.appendChild(style);
 }
@@ -140,8 +141,8 @@ export default function LedgerOrderEnhancer() {
 
       table.querySelectorAll<HTMLTableRowElement>("tr.transaction-row").forEach((row) => {
         const id = transactionId(row);
+        if (!id) return;
         const state = map.get(id);
-        if (!id || !state) return;
 
         let cell = row.querySelector<HTMLTableCellElement>("td[data-ledger-order-added='true']");
         if (!cell) {
@@ -150,6 +151,7 @@ export default function LedgerOrderEnhancer() {
           cell.dataset.ledgerOrderAdded = "true";
           row.insertBefore(cell, row.firstElementChild);
         }
+        cell.classList.toggle("unavailable", !state);
 
         if (!cell.querySelector(".ledger-order-controls")) {
           const controls = document.createElement("span");
@@ -157,13 +159,11 @@ export default function LedgerOrderEnhancer() {
           const up = document.createElement("button");
           up.type = "button";
           up.className = "ledger-order-btn ledger-order-up";
-          up.title = "Move entry up";
           up.setAttribute("aria-label", `Move ${id} up`);
           up.textContent = "↑";
           const down = document.createElement("button");
           down.type = "button";
           down.className = "ledger-order-btn ledger-order-down";
-          down.title = "Move entry down";
           down.setAttribute("aria-label", `Move ${id} down`);
           down.textContent = "↓";
           controls.append(up, down);
@@ -172,15 +172,32 @@ export default function LedgerOrderEnhancer() {
 
         const up = cell.querySelector<HTMLButtonElement>(".ledger-order-up");
         const down = cell.querySelector<HTMLButtonElement>(".ledger-order-down");
+        const unavailable = !state;
+        const onlyEntryForDate = Boolean(state && state.dayCount <= 1);
+
         if (up) {
-          up.disabled = state.position <= 1 || Boolean(busyId);
+          up.disabled = unavailable || !state || state.position <= 1 || Boolean(busyId);
           up.classList.toggle("busy", busyId === id);
-          up.onclick = () => void move(id, "up");
+          up.title = unavailable
+            ? "Ordering is unavailable for this ledger entry"
+            : onlyEntryForDate
+              ? "This is the only ledger entry on this date"
+              : state.position <= 1
+                ? "Already first for this date"
+                : "Move entry up within this date";
+          up.onclick = state ? () => void move(id, "up") : null;
         }
         if (down) {
-          down.disabled = state.position >= state.dayCount || Boolean(busyId);
+          down.disabled = unavailable || !state || state.position >= state.dayCount || Boolean(busyId);
           down.classList.toggle("busy", busyId === id);
-          down.onclick = () => void move(id, "down");
+          down.title = unavailable
+            ? "Ordering is unavailable for this ledger entry"
+            : onlyEntryForDate
+              ? "This is the only ledger entry on this date"
+              : state.position >= state.dayCount
+                ? "Already last for this date"
+                : "Move entry down within this date";
+          down.onclick = state ? () => void move(id, "down") : null;
         }
       });
     }
@@ -189,11 +206,15 @@ export default function LedgerOrderEnhancer() {
       if (disposed) return;
       installStyles();
       const map = stateById();
+      const ledgerActive = activeLedgerTab();
       document.querySelectorAll<HTMLTableElement>("table.bank-table").forEach((table) => {
-        reorderVisibleRows(table, map);
-        updateBalances(table, map);
-        if (activeLedgerTab()) addOrderControls(table, map);
-        else removeOrderControls(table);
+        if (ledgerActive) {
+          reorderVisibleRows(table, map);
+          updateBalances(table, map);
+          addOrderControls(table, map);
+        } else {
+          removeOrderControls(table);
+        }
       });
     }
 
