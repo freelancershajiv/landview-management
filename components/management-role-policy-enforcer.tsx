@@ -19,6 +19,22 @@ function hideButtonByText(root: ParentNode, labels: string[]) {
   });
 }
 
+function ensureManagementAnalyticsLink(pathname: string) {
+  const nav = document.querySelector<HTMLElement>(".primary-nav-inner");
+  if (!nav || nav.querySelector('a[href="/admin/management-analytics"]')) return;
+  const link = document.createElement("a");
+  link.href = "/admin/management-analytics";
+  if (pathname === "/admin/management-analytics" || pathname.startsWith("/admin/management-analytics/")) link.className = "active";
+  const icon = document.createElement("span");
+  icon.className = "nav-icon";
+  icon.setAttribute("aria-hidden", "true");
+  icon.textContent = "⌁";
+  const label = document.createElement("span");
+  label.textContent = "Website Analytics";
+  link.append(icon, label);
+  nav.appendChild(link);
+}
+
 export default function ManagementRolePolicyEnforcer({ role: roleValue }: { role?: string }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -35,6 +51,8 @@ export default function ManagementRolePolicyEnforcer({ role: roleValue }: { role
     }
 
     const apply = () => {
+      ensureManagementAnalyticsLink(pathname);
+
       if (pathname === "/admin/accounts" || pathname.startsWith("/admin/accounts/")) {
         document.querySelectorAll<HTMLElement>(".ledger-edit-btn,.ledger-drag-handle,[data-ledger-order-added='true']").forEach((element) => {
           element.style.setProperty("display", "none", "important");
