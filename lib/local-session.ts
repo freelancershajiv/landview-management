@@ -135,6 +135,12 @@ export async function requireLocalSession(request: NextRequest): Promise<Workspa
   const original = await requireOriginalLocalSession(request);
   if (!original) return null;
   if (roleOf(original) !== "admin") return original;
+
+  // Admin API routes must always authenticate with the original Admin identity.
+  // The acting EMP-0002 cookie is only for viewing/using employee-side pages and
+  // must never make Admin APIs reject the same signed-in Admin as an employee.
+  if (request.nextUrl.pathname.startsWith("/api/admin/")) return original;
+
   const acting = readSignedActingWorkspaceUser(request.cookies.get(ACTING_USER_COOKIE)?.value);
   return acting || original;
 }
