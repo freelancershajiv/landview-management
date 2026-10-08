@@ -82,7 +82,7 @@ async function storeSiteVisitPhoto(input: {
   } catch (error: any) {
     const driveError = String(error?.message || "Google Drive upload failed.");
     const extension = input.file.mime === "image/png" ? "png" : input.file.mime === "image/webp" ? "webp" : "jpg";
-    const path = `${input.projectCode}/${input.visitCode}/${input.kind}-${crypto.randomUUID()}.${extension}`;
+    const path = `site-visits/${input.projectCode}/${input.visitCode}/${input.kind}-${crypto.randomUUID()}.${extension}`;
     await uploadSiteVisitMedia({ path, contentType: input.file.mime, base64: input.file.base64 });
     console.warn("Site Visit photo stored in Supabase fallback", { visitCode: input.visitCode, kind: input.kind, driveError });
     return { drive: null, path, storage: "supabase-fallback" as const, driveError };
