@@ -1,0 +1,227 @@
+import { NextRequest, NextResponse } from "next/server";
+import { requireLocalSession, roleOf } from "@/lib/local-session";
+import { insertRows, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
+import { publishSiteVisitToWhatsApp } from "@/lib/whatsapp-site-visits";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+type Row = Record<string, any>;
+
+function clean(value: unknown, max = 2000) {
+  return String(value ?? "").trim().slice(0, max);
+}
+
+function sameOrigin(request: NextRequest) {
+  const origin = request.headers.get("origin");
+  if (!origin) return process.env.NODE_ENV !== "production" || request.headers.get("sec-fetch-site") === "same-origin";
+  try { return new URL(origin).host === request.nextUrl.host; } catch { return false; }
+}
+
+function deny(message: string, status = 403) {
+  return NextResponse.json({ success: false, error: message }, { status, headers: { "Cache-Control": "no-store" } });
+}
+
+function ok(data: unknown) {
+  return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } });
+}
+
+function supervisionActive(project: Row) {
+  return String(project?.supervision_stage_status || "Completed").trim() !== "Completed";
+}
+
+function validImage(file: FormDataEntryValue | null): file is File {
+  return !!file && typeof file === "object" && typeof (file as File).arrayBuffer === "function";
+}
+
+async function fileToBase64(file: File) {
+  if (file.size > 4 * 1024 * 1024) throw new Error("Each processed Site Visit photo must be 4 MB or smaller.");
+  const mime = String(file.type || "").toLowerCase();
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) {
+    throw new Error("Only JPG, PNG and WebP site visit photos are allowed.");
+  }
+  return { mime, base64: Buffer.from(await file.arrayBuffer()).toString("base64") };
+}
+
+async function callDriveBackend(payload: Record<string, unknown>) {
+  const url = String(process.env.LAND_VIEW_API_URL || "").trim();
+  const secret = String(process.env.LAND_VIEW_PROXY_SECRET || "").trim();
+  if (!url || !secret) throw new Error("Google Drive backend is not configured.");
+
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({ action: "uploadSiteVisitMedia", proxySecret: secret, ...payload }),
+    signal: AbortSignal.timeout(30_000),
+  });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || !json?.success) {
+    throw new Error(String(json?.error || "Google Drive backend request failed."));
+  }
+  return json.data || {};
+}
+
+async function requireAdmin(request: NextRequest) {
+  const user = await requireLocalSession(request) as Row | null;
+  if (!user) throw new Error("SESSION_EXPIRED");
+  if (roleOf(user) !== "admin") throw new Error("ADMIN_REQUIRED");
+  return user;
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    await requireAdmin(request);
+    const projects = (await selectRows("projects", { order: "project_code:asc", limit: 5000 })).filter(supervisionActive);
+    return ok(projects.map((project) => ({
+      Project_ID: project.project_code || "",
+      Project_Name: project.project_name || "",
+      Client_Name: project.client_name_snapshot || "",
+      Location: project.location || "",
+      Status: project.status || "",
+    })));
+  } catch (error: any) {
+    const code = clean(error?.message, 100);
+    if (code === "SESSION_EXPIRED") return deny("Session expired.", 401);
+    if (code === "ADMIN_REQUIRED") return deny("Admin access is required.", 403);
+    return deny(clean(error?.message || "Could not load Site Visit projects.", 1000), 500);
+  }
+}
+
+export async function POST(request: NextRequest) {
+  if (!sameOrigin(request)) return deny("Invalid request origin.", 403);
+
+  try {
+    const user = await requireAdmin(request);
+    const form = await request.formData();
+    const projectCode = normalizeProjectCode(clean(form.get("projectId"), 80));
+    if (!projectCode) return deny("Select a project.", 400);
+
+    const projects = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
+    const project = projects[0] as Row | undefined;
+    if (!project) return deny("Project not found.", 404);
+    if (!supervisionActive(project)) {
+      return deny("Site Visits are only available while the project is in the Supervision / Construction stage.", 409);
+    }
+
+    const visitDate = clean(form.get("visitDate"), 20) || new Date().toISOString().slice(0, 10);
+    const purpose = clean(form.get("purpose"), 300);
+    const problemDetails = clean(form.get("problemDetails"), 4000);
+    const actionRequired = clean(form.get("actionRequired"), 4000);
+    const notes = clean(form.get("notes"), 4000);
+    if (!purpose) return deny("Enter the visit purpose.", 400);
+
+    const visitFile = validImage(form.get("visitPhoto")) ? form.get("visitPhoto") as File : null;
+    const problemFile = validImage(form.get("problemPhoto")) ? form.get("problemPhoto") as File : null;
+
+    const visitCode = `SV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
+    let visitPhotoDrive: any = null;
+    let problemPhotoDrive: any = null;
+
+    if (visitFile) {
+      const file = await fileToBase64(visitFile);
+      visitPhotoDrive = await callDriveBackend({
+        projectId: projectCode,
+        projectName: String(project.project_name || project.client_name_snapshot || projectCode),
+        visitId: visitCode,
+        kind: "visit",
+        fileName: file.mime === "image/png" ? "visit-photo.png" : file.mime === "image/webp" ? "visit-photo.webp" : "visit-photo.jpg",
+        mimeType: file.mime,
+        base64: file.base64,
+      });
+    }
+
+    if (problemFile) {
+      const file = await fileToBase64(problemFile);
+      problemPhotoDrive = await callDriveBackend({
+        projectId: projectCode,
+        projectName: String(project.project_name || project.client_name_snapshot || projectCode),
+        visitId: visitCode,
+        kind: "problem",
+        fileName: file.mime === "image/png" ? "problem-photo.png" : file.mime === "image/webp" ? "problem-photo.webp" : "problem-photo.jpg",
+        mimeType: file.mime,
+        base64: file.base64,
+      });
+    }
+
+    const adminName = clean(user?.name || user?.Name || user?.username || user?.Username || "Admin", 200) || "Admin";
+    const createdBy = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(user?.id || ""))
+      ? String(user.id)
+      : null;
+    const now = new Date().toISOString();
+
+    await insertRows("site_visits", {
+      visit_code: visitCode,
+      project_id: project.id,
+      employee_id: null,
+      visit_date: visitDate,
+      purpose: purpose || null,
+      visit_purpose: purpose || null,
+      visited_by: `Admin · ${adminName}`,
+      observations: problemDetails || null,
+      action_required: actionRequired || null,
+      status: "Completed",
+      notes: notes || null,
+      visit_photo_path: null,
+      problem_photo_path: null,
+      location_latitude: null,
+      location_longitude: null,
+      location_accuracy_m: null,
+      location_captured_at: null,
+      location_verification_status: "ADMIN_NOT_REQUIRED",
+      location_distance_m: null,
+      location_source: "admin_manual",
+      visit_photo_drive_file_id: String(visitPhotoDrive?.fileId || "") || null,
+      visit_photo_drive_url: String(visitPhotoDrive?.fileUrl || "") || null,
+      problem_photo_drive_file_id: String(problemPhotoDrive?.fileId || "") || null,
+      problem_photo_drive_url: String(problemPhotoDrive?.fileUrl || "") || null,
+      created_by: createdBy,
+      source_created_at: now,
+      updated_at: now,
+    });
+
+    const whatsAppPublish = await publishSiteVisitToWhatsApp({
+      visitId: visitCode,
+      projectId: projectCode,
+      projectName: String(project.project_name || project.client_name_snapshot || ""),
+      projectLocation: String(project.location || ""),
+      employeeId: "EMP-0002",
+      employeeName: `Admin · ${adminName}`,
+      visitDate,
+      purpose,
+      problemDetails,
+      actionRequired,
+      notes,
+      locationLatitude: null,
+      locationLongitude: null,
+      locationAccuracyM: null,
+      locationDistanceM: null,
+      locationVerificationStatus: "ADMIN_NOT_REQUIRED",
+      visitPhotoUrl: String(visitPhotoDrive?.fileUrl || ""),
+      problemPhotoUrl: String(problemPhotoDrive?.fileUrl || ""),
+    });
+
+    return ok({
+      Visit_ID: visitCode,
+      Project_ID: projectCode,
+      Project_Name: project.project_name || "",
+      Visit_Date: visitDate,
+      Employee_ID: "",
+      Employee_Name: `Admin · ${adminName}`,
+      Purpose: purpose,
+      Problem_Details: problemDetails,
+      Action_Required: actionRequired,
+      Status: "Completed",
+      Visit_Photo_Available: Boolean(visitPhotoDrive?.fileId),
+      Problem_Photo_Available: Boolean(problemPhotoDrive?.fileId),
+      Location_Verification_Status: "ADMIN_NOT_REQUIRED",
+      WhatsApp_Publish_Status: whatsAppPublish.status,
+      WhatsApp_Publish_Reason: whatsAppPublish.reason || "",
+    });
+  } catch (error: any) {
+    const code = clean(error?.message, 100);
+    if (code === "SESSION_EXPIRED") return deny("Session expired.", 401);
+    if (code === "ADMIN_REQUIRED") return deny("Admin access is required.", 403);
+    return deny(clean(error?.message || "Could not create Site Visit.", 1000), 500);
+  }
+}
