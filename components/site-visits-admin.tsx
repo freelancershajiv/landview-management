@@ -5,13 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 type Row = Record<string, any>;
 function dateText(v:any){const d=new Date(String(v||""));return Number.isNaN(d.getTime())?"—":d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});}
 
-export default function SiteVisitsAdmin(){
+export default function SiteVisitsAdmin({canDelete=false}:{canDelete?:boolean}){
   const [visits,setVisits]=useState<Row[]>([]);
   const [loading,setLoading]=useState(true);
   const [error,setError]=useState("");
+  const [notice,setNotice]=useState("");
   const [query,setQuery]=useState("");
   const [projectFilter,setProjectFilter]=useState("all");
   const [selected,setSelected]=useState<Row|null>(null);
+  const [deletingId,setDeletingId]=useState("");
 
   async function load(){
     setLoading(true);setError("");
@@ -25,6 +27,30 @@ export default function SiteVisitsAdmin(){
   }
   useEffect(()=>{void load();},[]);
 
+  async function deleteVisit(visit:Row){
+    const visitId=String(visit?.Visit_ID||"").trim();
+    if(!canDelete||!visitId||deletingId)return;
+    const confirmed=window.confirm(`Delete Site Visit ${visitId}?\n\nThis removes the Site Visit record from LAND VIEW. This action cannot be undone.`);
+    if(!confirmed)return;
+
+    setDeletingId(visitId);setError("");setNotice("");
+    try{
+      const r=await fetch("/api/admin/site-visits/remove",{
+        method:"POST",
+        credentials:"same-origin",
+        cache:"no-store",
+        headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({visitId,confirmation:"DELETE_SITE_VISIT"}),
+      });
+      const j=await r.json().catch(()=>null);
+      if(!r.ok||!j?.success)throw new Error(j?.error||"Could not delete Site Visit.");
+      setVisits(current=>current.filter(item=>String(item.Visit_ID)!==visitId));
+      setSelected(null);
+      setNotice(`${visitId} deleted successfully.`);
+    }catch(e:any){setError(e?.message||"Could not delete Site Visit.");}
+    finally{setDeletingId("");}
+  }
+
   const projects=useMemo(()=>Array.from(new Set(visits.map(v=>String(v.Project_ID||"")).filter(Boolean))).sort(),[visits]);
   const filtered=useMemo(()=>{
     const q=query.trim().toLowerCase();
@@ -37,11 +63,12 @@ export default function SiteVisitsAdmin(){
 
   return <section className="site-visits-admin">
     <style>{`
-      .site-visits-admin{color:var(--theme-ink-_eef2f5, #eef2f5);display:grid;gap:16px}.sva-hero{padding:24px 26px;border:1px solid var(--theme-line-_303a44, #303a44);border-radius:18px;background:radial-gradient(circle at 90% 0%,var(--theme-bg-rgba_214_31_38__16_, rgba(214,31,38,.16)),transparent 28%),linear-gradient(135deg,var(--theme-bg-_171e25, #171e25),var(--theme-bg-_0c1116, #0c1116));position:relative;overflow:hidden}.sva-hero:after{content:"SITE";position:absolute;right:18px;bottom:8px;color:var(--theme-ink-rgba_255_255_255__035_, rgba(255,255,255,.035));font-size:76px;font-weight:900;letter-spacing:-.08em}.sva-hero small{color:#ff666c;font-size:8px;font-weight:900;letter-spacing:.2em}.sva-hero h1{margin:7px 0 0;font-size:30px}.sva-hero p{margin:8px 0 0;color:var(--theme-ink-_89959f, #89959f);font-size:10px;line-height:1.55;max-width:680px}.sva-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.sva-search,.sva-select{height:40px;border:1px solid var(--theme-line-_34404a, #34404a);border-radius:8px;background:var(--theme-bg-_0b1116, #0b1116);color:var(--theme-ink-_fff, #fff);padding:0 12px;font-size:10px;outline:none}.sva-search{flex:1;min-width:220px}.sva-select{min-width:170px}.sva-toolbar button{height:40px;border:1px solid var(--theme-line-_34404a, #34404a);border-radius:8px;background:var(--theme-bg-_151c23, #151c23);color:var(--theme-ink-_fff, #fff);padding:0 12px;font-size:9px;font-weight:900;cursor:pointer}.sva-list{display:grid;gap:10px}.sva-row{border:1px solid var(--theme-line-_2d3740, #2d3740);border-radius:13px;background:linear-gradient(160deg,var(--theme-bg-_11171d, #11171d),var(--theme-bg-_0d1217, #0d1217));overflow:hidden}.sva-row-main{padding:16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:15px;cursor:pointer}.sva-row:hover{border-color:var(--theme-line-_414c56, #414c56)}.sva-row h3{margin:0;font-size:13px}.sva-row-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}.sva-pill{padding:5px 7px;border-radius:999px;background:var(--theme-bg-_19222a, #19222a);color:var(--theme-ink-_98a5af, #98a5af);font-size:7px;font-weight:900}.sva-pill.red{background:var(--theme-bg-_32171a, #32171a);color:var(--theme-ink-_ff9d9f, #ff9d9f)}.sva-row-purpose{margin-top:10px;color:var(--theme-ink-_b5bfc7, #b5bfc7);font-size:9px;line-height:1.5}.sva-status{align-self:start;padding:5px 8px;border-radius:999px;background:var(--theme-bg-_173827, #173827);color:var(--theme-ink-_a8dfbb, #a8dfbb);font-size:7px;font-weight:900}.sva-details{border-top:1px solid var(--theme-line-_29333c, #29333c);padding:15px 16px;background:var(--theme-bg-_0e141a, #0e141a)}.sva-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sva-detail-grid>div{border:1px solid var(--theme-line-_2a343d, #2a343d);border-radius:8px;background:var(--theme-bg-_11181f, #11181f);padding:11px}.sva-detail-grid span{display:block;color:var(--theme-ink-_7d8994, #7d8994);font-size:7px;text-transform:uppercase;letter-spacing:.08em}.sva-detail-grid strong{display:block;margin-top:5px;font-size:10px;color:var(--theme-ink-_eef2f5, #eef2f5);white-space:pre-wrap}.sva-photos{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}.sva-photo{width:180px;height:130px;border:1px solid var(--theme-line-_33414c, #33414c);border-radius:9px;overflow:hidden;background:var(--theme-bg-_080d11, #080d11);display:block}.sva-photo img{width:100%;height:100%;object-fit:cover}@media(max-width:700px){.sva-detail-grid{grid-template-columns:1fr}.sva-photo{width:100%;max-width:280px}}
+      .site-visits-admin{color:var(--theme-ink-_eef2f5, #eef2f5);display:grid;gap:16px}.sva-hero{padding:24px 26px;border:1px solid var(--theme-line-_303a44, #303a44);border-radius:18px;background:radial-gradient(circle at 90% 0%,var(--theme-bg-rgba_214_31_38__16_, rgba(214,31,38,.16)),transparent 28%),linear-gradient(135deg,var(--theme-bg-_171e25, #171e25),var(--theme-bg-_0c1116, #0c1116));position:relative;overflow:hidden}.sva-hero:after{content:"SITE";position:absolute;right:18px;bottom:8px;color:var(--theme-ink-rgba_255_255_255__035_, rgba(255,255,255,.035));font-size:76px;font-weight:900;letter-spacing:-.08em}.sva-hero small{color:#ff666c;font-size:8px;font-weight:900;letter-spacing:.2em}.sva-hero h1{margin:7px 0 0;font-size:30px}.sva-hero p{margin:8px 0 0;color:var(--theme-ink-_89959f, #89959f);font-size:10px;line-height:1.55;max-width:680px}.sva-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.sva-search,.sva-select{height:40px;border:1px solid var(--theme-line-_34404a, #34404a);border-radius:8px;background:var(--theme-bg-_0b1116, #0b1116);color:var(--theme-ink-_fff, #fff);padding:0 12px;font-size:10px;outline:none}.sva-search{flex:1;min-width:220px}.sva-select{min-width:170px}.sva-toolbar button{height:40px;border:1px solid var(--theme-line-_34404a, #34404a);border-radius:8px;background:var(--theme-bg-_151c23, #151c23);color:var(--theme-ink-_fff, #fff);padding:0 12px;font-size:9px;font-weight:900;cursor:pointer}.sva-list{display:grid;gap:10px}.sva-row{border:1px solid var(--theme-line-_2d3740, #2d3740);border-radius:13px;background:linear-gradient(160deg,var(--theme-bg-_11171d, #11171d),var(--theme-bg-_0d1217, #0d1217));overflow:hidden}.sva-row-main{padding:16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:15px;cursor:pointer}.sva-row:hover{border-color:var(--theme-line-_414c56, #414c56)}.sva-row h3{margin:0;font-size:13px}.sva-row-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:7px}.sva-pill{padding:5px 7px;border-radius:999px;background:var(--theme-bg-_19222a, #19222a);color:var(--theme-ink-_98a5af, #98a5af);font-size:7px;font-weight:900}.sva-pill.red{background:var(--theme-bg-_32171a, #32171a);color:var(--theme-ink-_ff9d9f, #ff9d9f)}.sva-row-purpose{margin-top:10px;color:var(--theme-ink-_b5bfc7, #b5bfc7);font-size:9px;line-height:1.5}.sva-status{align-self:start;padding:5px 8px;border-radius:999px;background:var(--theme-bg-_173827, #173827);color:var(--theme-ink-_a8dfbb, #a8dfbb);font-size:7px;font-weight:900}.sva-details{border-top:1px solid var(--theme-line-_29333c, #29333c);padding:15px 16px;background:var(--theme-bg-_0e141a, #0e141a)}.sva-detail-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.sva-detail-grid>div{border:1px solid var(--theme-line-_2a343d, #2a343d);border-radius:8px;background:var(--theme-bg-_11181f, #11181f);padding:11px}.sva-detail-grid span{display:block;color:var(--theme-ink-_7d8994, #7d8994);font-size:7px;text-transform:uppercase;letter-spacing:.08em}.sva-detail-grid strong{display:block;margin-top:5px;font-size:10px;color:var(--theme-ink-_eef2f5, #eef2f5);white-space:pre-wrap}.sva-photos{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}.sva-photo{width:180px;height:130px;border:1px solid var(--theme-line-_33414c, #33414c);border-radius:9px;overflow:hidden;background:var(--theme-bg-_080d11, #080d11);display:block}.sva-photo img{width:100%;height:100%;object-fit:cover}.sva-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;padding-top:14px;border-top:1px solid var(--theme-line-_29333c, #29333c)}.sva-delete{height:38px;border:1px solid #7e2b31;border-radius:8px;background:#35171a;color:#ffb2b5;padding:0 13px;font-size:8px;font-weight:900;letter-spacing:.04em;cursor:pointer}.sva-delete:hover{background:#4a1d21}.sva-delete:disabled{opacity:.55;cursor:not-allowed}@media(max-width:700px){.sva-detail-grid{grid-template-columns:1fr}.sva-photo{width:100%;max-width:280px}.sva-actions{justify-content:stretch}.sva-delete{width:100%}}
     `}</style>
 
     <div className="sva-hero"><small>SITE SUPERVISION</small><h1>Site Visits</h1><p>Review field reports submitted by Employees. Each record is linked to its project and can be viewed by Admin, Manager and the relevant Client.</p></div>
     {error&&<div className="sva-details" style={{border:"1px solid var(--theme-line-_6c292e, #6c292e)",borderRadius:9,color:"var(--theme-ink-_ffaaa5, #ffaaa5)"}}>{error}</div>}
+    {notice&&<div className="sva-details" style={{border:"1px solid #28553a",borderRadius:9,color:"#a8dfbb"}}>{notice}</div>}
     <div className="sva-toolbar">
       <input className="sva-search" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search visit, project, client, employee, problem…"/>
       <select className="sva-select" value={projectFilter} onChange={e=>setProjectFilter(e.target.value)}><option value="all">All projects</option>{projects.map(p=><option key={p} value={p}>{p}</option>)}</select>
@@ -61,6 +88,7 @@ export default function SiteVisitsAdmin(){
           {open&&<div className="sva-details">
             <div className="sva-detail-grid"><div><span>Purpose</span><strong>{visit.Purpose||"—"}</strong></div><div><span>Employee</span><strong>{visit.Employee_Name||visit.Employee_ID||"—"}</strong></div><div><span>Problem / Observation</span><strong>{visit.Problem_Details||"—"}</strong></div><div><span>Action Required</span><strong>{visit.Action_Required||"—"}</strong></div><div><span>Notes</span><strong>{visit.Notes||"—"}</strong></div><div><span>Created</span><strong>{dateText(visit.Created_At)}</strong></div></div>
             {(visit.Visit_Photo_Available||visit.Problem_Photo_Available)&&<div className="sva-photos">{visit.Visit_Photo_Available&&<a className="sva-photo" href={visitUrl} target="_blank" rel="noreferrer"><img src={visitUrl} alt="Site visit"/></a>}{visit.Problem_Photo_Available&&<a className="sva-photo" href={problemUrl} target="_blank" rel="noreferrer"><img src={problemUrl} alt="Problem evidence"/></a>}</div>}
+            {canDelete&&<div className="sva-actions"><button className="sva-delete" type="button" disabled={deletingId===String(visit.Visit_ID)} onClick={()=>void deleteVisit(visit)}>{deletingId===String(visit.Visit_ID)?"DELETING…":"DELETE SITE VISIT"}</button></div>}
           </div>}
         </article>;
       })}
