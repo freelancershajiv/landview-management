@@ -126,11 +126,16 @@ export default function AdminSiteVisitEntry() {
       const visitId = String(json?.data?.Visit_ID || "");
       const employeeName = String(json?.data?.Employee_Name || "Admin");
       const wa = String(json?.data?.WhatsApp_Publish_Status || "");
-      setNotice(`Site Visit ${visitId} submitted for ${employeeName}${wa ? ` · WhatsApp: ${wa}` : ""}.`);
+      const waReason = String(json?.data?.WhatsApp_Publish_Reason || "");
+      const waSender = String(json?.data?.WhatsApp_Sender_Employee_ID || "EMP-0002");
+      const whatsappDetail = wa
+        ? ` · WhatsApp (${waSender}): ${wa}${wa !== "sent" && waReason ? ` — ${waReason}` : ""}`
+        : "";
+      setNotice(`Site Visit ${visitId} submitted for ${employeeName}${whatsappDetail}.`);
       setVisitPhoto(null);
       setProblemPhoto(null);
       setForm((current) => ({ ...current, purpose: "", problemDetails: "", actionRequired: "", notes: "" }));
-      window.setTimeout(() => window.location.reload(), 900);
+      if (wa === "sent") window.setTimeout(() => window.location.reload(), 1200);
     } catch (e: any) {
       setError(e?.message || "Could not submit Site Visit.");
     } finally {
@@ -152,7 +157,7 @@ export default function AdminSiteVisitEntry() {
     {notice && <div className="ase-ok">{notice}</div>}
 
     {open && <form className="ase-form" onSubmit={submit}>
-      <div className="ase-info"><strong>ADMIN ENTRY · GPS NOT REQUIRED</strong><br/>Choose an employee below to record the visit in that employee&apos;s name. The Site Visit record and WhatsApp message will show that employee, while the message itself is sent through the central Admin/EMP-0002 WhatsApp connection.</div>
+      <div className="ase-info"><strong>ADMIN ENTRY · GPS NOT REQUIRED</strong><br/>Choose an employee below to record the visit in that employee&apos;s name. If an employee is selected, the Site Visit group update is sent from that employee&apos;s linked WhatsApp. Admin direct entries use the central Admin/EMP-0002 WhatsApp session. If the selected employee&apos;s WhatsApp is disconnected, the Site Visit is still saved and the send failure is shown here.</div>
       <label className="ase-field"><span>PROJECT</span><select value={form.projectId} onChange={(event) => setForm((value) => ({ ...value, projectId: event.target.value }))} disabled={loading}><option value="">{loading ? "Loading projects…" : "Select active supervision project"}</option>{projects.map((project) => <option key={project.Project_ID} value={project.Project_ID}>{project.Project_ID} · {project.Project_Name || project.Client_Name || "Project"}{project.Location ? ` · ${project.Location}` : ""}</option>)}</select></label>
       <label className="ase-field"><span>VISIT DATE</span><input type="date" value={form.visitDate} onChange={(event) => setForm((value) => ({ ...value, visitDate: event.target.value }))}/></label>
       <label className="ase-field wide"><span>VISITED BY / ISSUE AS</span><select value={form.employeeId} onChange={(event) => setForm((value) => ({ ...value, employeeId: event.target.value }))} disabled={loading}><option value="">Admin direct entry</option>{employees.map((employee) => <option key={employee.Employee_ID} value={employee.Employee_ID}>{employee.Employee_ID} · {employee.Employee_Name || "Employee"}{employee.Designation ? ` · ${employee.Designation}` : ""}</option>)}</select></label>
