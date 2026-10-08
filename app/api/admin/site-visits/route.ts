@@ -170,6 +170,7 @@ export async function POST(request: NextRequest) {
     const adminName = clean(user?.name || user?.Name || user?.username || user?.Username || "Admin", 200) || "Admin";
     const attributedEmployeeCode = clean(issueEmployee?.employee_code, 120);
     const attributedEmployeeName = clean(issueEmployee?.name, 200) || `Admin · ${adminName}`;
+    const senderEmployeeCode = attributedEmployeeCode || "EMP-0002";
     const createdBy = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(user?.id || ""))
       ? String(user.id)
       : null;
@@ -212,7 +213,7 @@ export async function POST(request: NextRequest) {
       projectLocation: String(project.location || ""),
       employeeId: attributedEmployeeCode,
       employeeName: attributedEmployeeName,
-      senderEmployeeId: "EMP-0002",
+      senderEmployeeId: senderEmployeeCode,
       visitDate,
       purpose,
       problemDetails,
@@ -234,6 +235,7 @@ export async function POST(request: NextRequest) {
       Visit_Date: visitDate,
       Employee_ID: attributedEmployeeCode,
       Employee_Name: attributedEmployeeName,
+      WhatsApp_Sender_Employee_ID: senderEmployeeCode,
       Purpose: purpose,
       Problem_Details: problemDetails,
       Action_Required: actionRequired,
