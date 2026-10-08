@@ -7,6 +7,7 @@ const runtimeDir = join(serviceDir, '.runtime')
 const sourcePath = join(serviceDir, 'server.mjs')
 const runtimeServerPath = join(runtimeDir, 'server.mjs')
 const parserMarker = "app.use(express.json({ limit: '64kb' }))"
+const clientAutoReplyMarker = "if (inbound?.conversation?.humanHandoff) continue"
 
 const documentRoute = String.raw`
 app.post('/client/send-document', express.raw({ type: 'application/pdf', limit: '3mb' }), async (req, res) => {
@@ -62,9 +63,14 @@ app.post('/client/send-document', express.raw({ type: 'application/pdf', limit: 
 await mkdir(runtimeDir, { recursive: true })
 const source = await readFile(sourcePath, 'utf8')
 if (!source.includes(parserMarker)) throw new Error('Could not prepare the WhatsApp invoice document endpoint: server parser marker was not found.')
-const patched = source.includes("app.post('/client/send-document'")
+if (!source.includes(clientAutoReplyMarker)) throw new Error('Could not disable client WhatsApp auto replies: inbound handler marker was not found.')
+const withDocumentRoute = source.includes("app.post('/client/send-document'")
   ? source
   : source.replace(parserMarker, `${documentRoute}\n\n${parserMarker}`)
+const patched = withDocumentRoute.replace(
+  clientAutoReplyMarker,
+  `${clientAutoReplyMarker}\n    if (String(process.env.WHATSAPP_CLIENT_AUTO_REPLY_ENABLED || 'false').trim().toLowerCase() !== 'true') continue`,
+)
 await writeFile(runtimeServerPath, patched, 'utf8')
 process.chdir(runtimeDir)
 await import(pathToFileURL(join(serviceDir, 'gateway.mjs')).href)
