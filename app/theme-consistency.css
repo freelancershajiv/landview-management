@@ -1,0 +1,116 @@
+/* LAND VIEW screen-theme consistency layer.
+   Loaded last: keep brand identity, but use a calmer action red in both themes.
+   Print/PDF palettes are intentionally untouched. */
+@media screen {
+  :root,
+  html:not([data-theme="dark"]) {
+    --lv-action-primary: #96383e;
+    --lv-action-primary-hover: #812f34;
+    --lv-action-primary-soft: rgba(150,56,62,.10);
+    --lv-action-primary-soft-strong: rgba(150,56,62,.16);
+    --lv-action-primary-border: rgba(150,56,62,.34);
+    --lv-action-primary-ring: rgba(150,56,62,.18);
+    --lv-action-text: #842f35;
+    --lv-danger-primary: #a92c33;
+    --lv-danger-soft: rgba(169,44,51,.10);
+    --lv-danger-border: rgba(169,44,51,.32);
+    --lv-on-action: #fff;
+    --app-gold: var(--lv-action-primary);
+    --app-gold-light: var(--lv-action-text);
+  }
+
+  html[data-theme="dark"] {
+    --lv-action-primary: #a14a4e;
+    --lv-action-primary-hover: #b25358;
+    --lv-action-primary-soft: rgba(177,78,83,.11);
+    --lv-action-primary-soft-strong: rgba(177,78,83,.17);
+    --lv-action-primary-border: rgba(190,91,96,.34);
+    --lv-action-primary-ring: rgba(190,91,96,.17);
+    --lv-action-text: #d7868a;
+    --lv-danger-primary: #b94a50;
+    --lv-danger-soft: rgba(185,74,80,.12);
+    --lv-danger-border: rgba(201,91,97,.34);
+    --lv-on-action: #fff;
+    --app-gold: var(--lv-action-primary);
+    --app-gold-light: var(--lv-action-text);
+  }
+
+  /* Global theme control */
+  .lv-theme-switch:hover { border-color: var(--lv-action-primary) !important; }
+  .lv-theme-switch:focus-visible { outline-color: var(--lv-action-primary) !important; }
+
+  /* Shared normal/primary actions across public, login, employee and client surfaces. */
+  :is(
+    .btn-accent,
+    .btn-primary,
+    .btn-dark,
+    .login-submit,
+    .public-btn-accent,
+    .public-employee-link,
+    .public-header-cta,
+    .lv-btn-gold,
+    .cp-primary
+  ) {
+    background: var(--lv-action-primary) !important;
+    border-color: var(--lv-action-primary-border) !important;
+    color: var(--lv-on-action) !important;
+    box-shadow: 0 7px 18px var(--lv-action-primary-ring) !important;
+  }
+
+  :is(
+    .btn-accent,
+    .btn-primary,
+    .btn-dark,
+    .login-submit,
+    .public-btn-accent,
+    .public-employee-link,
+    .public-header-cta,
+    .lv-btn-gold,
+    .cp-primary
+  ):hover:not(:disabled) {
+    background: var(--lv-action-primary-hover) !important;
+    border-color: var(--lv-action-primary-hover) !important;
+    box-shadow: 0 9px 22px var(--lv-action-primary-ring) !important;
+  }
+
+  :is(
+    .btn-accent,
+    .btn-primary,
+    .btn-dark,
+    .login-submit,
+    .public-btn-accent,
+    .public-employee-link,
+    .public-header-cta,
+    .lv-btn-gold,
+    .cp-primary
+  ):focus-visible {
+    outline: 3px solid var(--lv-action-primary-ring) !important;
+    outline-offset: 2px;
+  }
+
+  /* Keep non-destructive accent text quieter than the old bright coral. */
+  :is(.brand-eyebrow,.brand-content h1 span,.sidebar-caption,.eyebrow,.card-kicker,.public-team-label) {
+    color: var(--lv-action-text) !important;
+  }
+
+  /* Status/danger remains distinct, but no fluorescent red surfaces. */
+  :is(.btn-danger,.danger-button,.delete-button,[data-variant="danger"]) {
+    border-color: var(--lv-danger-border) !important;
+    background: var(--lv-danger-soft) !important;
+    color: var(--lv-danger-primary) !important;
+    box-shadow: none !important;
+  }
+
+  html[data-theme="dark"] :is(.btn-danger,.danger-button,.delete-button,[data-variant="danger"]) {
+    color: #e19a9e !important;
+  }
+
+  /* Inputs/focus should follow the same theme-aware action palette. */
+  :is(.portal-admin,.portal-employee,.portal-client,.login-page) :is(input,select,textarea):focus {
+    border-color: var(--lv-action-primary) !important;
+    box-shadow: 0 0 0 3px var(--lv-action-primary-ring) !important;
+  }
+
+  /* Prevent the removed standalone Accounts entry from surviving as a visible nav tab. */
+  .portal-admin a[href="/admin/accounts/entry"] { display: none !important; }
+}
