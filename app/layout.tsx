@@ -23,8 +23,10 @@ import "./portal-experiences.css";
 import "./brand-logo-overrides.css";
 import "./top-portal-navigation.css";
 import "./portal-sidebar-lock.css";
-// Keep typography last so it can normalize legacy component font sizes.
+// Keep typography near the end so it can normalize legacy component font sizes.
 import "./typography-system.css";
+// Final screen-only palette normalization for light/dark consistency.
+import "./theme-consistency.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
