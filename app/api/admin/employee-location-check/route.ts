@@ -44,7 +44,7 @@ async function requireManager(request: NextRequest) {
   if (!MANAGE_ROLES.has(roleOf(user))) throw new Error("MANAGER_REQUIRED");
   return user;
 }
-async function expireIfNeeded(row: Row | undefined) {
+async function expireIfNeeded(row: Row | undefined): Promise<Row | undefined> {
   if (!row || row.status !== "PENDING" || !row.expires_at) return row;
   if (new Date(row.expires_at).getTime() > Date.now()) return row;
   const saved = await updateRows("employee_location_checks", { id: row.id }, {
@@ -71,7 +71,9 @@ export async function GET(request: NextRequest) {
     const latest = new Map<string, Row>();
     for (const row of rows) {
       const code = text(row.employee_code, 120).toUpperCase();
-      if (code && !latest.has(code)) latest.set(code, await expireIfNeeded(row));
+      if (!code || latest.has(code)) continue;
+      const resolved = await expireIfNeeded(row);
+      if (resolved) latest.set(code, resolved);
     }
     return ok({
       employees: employees.map((row) => ({ employeeCode: row.employee_code || "", employeeName: row.name || row.employee_code || "", designation: row.designation || "", status: row.status || "" })),
