@@ -72,6 +72,18 @@ async function requireAdmin(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     await requireAdmin(request);
+    const mode = clean(request.nextUrl.searchParams.get("mode"), 40).toLowerCase();
+
+    if (mode === "employees") {
+      const employees = await selectRows("employees", { filters: { status: "Active" }, order: "employee_code:asc", limit: 1000 });
+      return ok(employees.map((employee) => ({
+        Employee_ID: employee.employee_code || "",
+        Employee_Name: employee.name || "",
+        Designation: employee.designation || "",
+        Status: employee.status || "",
+      })));
+    }
+
     const projects = (await selectRows("projects", { order: "project_code:asc", limit: 5000 })).filter(supervisionActive);
     return ok(projects.map((project) => ({
       Project_ID: project.project_code || "",
@@ -84,7 +96,7 @@ export async function GET(request: NextRequest) {
     const code = clean(error?.message, 100);
     if (code === "SESSION_EXPIRED") return deny("Session expired.", 401);
     if (code === "ADMIN_REQUIRED") return deny("Admin access is required.", 403);
-    return deny(clean(error?.message || "Could not load Site Visit projects.", 1000), 500);
+    return deny(clean(error?.message || "Could not load Site Visit data.", 1000), 500);
   }
 }
 
@@ -102,6 +114,17 @@ export async function POST(request: NextRequest) {
     if (!project) return deny("Project not found.", 404);
     if (!supervisionActive(project)) {
       return deny("Site Visits are only available while the project is in the Supervision / Construction stage.", 409);
+    }
+
+    const issueEmployeeCode = clean(form.get("employeeId"), 120).toUpperCase();
+    let issueEmployee: Row | null = null;
+    if (issueEmployeeCode) {
+      const employees = await selectRows("employees", {
+        filters: { employee_code: issueEmployeeCode, status: "Active" },
+        limit: 1,
+      });
+      issueEmployee = (employees[0] as Row | undefined) || null;
+      if (!issueEmployee) return deny("Selected employee is not active or could not be found.", 400);
     }
 
     const visitDate = clean(form.get("visitDate"), 20) || new Date().toISOString().slice(0, 10);
@@ -145,6 +168,8 @@ export async function POST(request: NextRequest) {
     }
 
     const adminName = clean(user?.name || user?.Name || user?.username || user?.Username || "Admin", 200) || "Admin";
+    const attributedEmployeeCode = clean(issueEmployee?.employee_code, 120);
+    const attributedEmployeeName = clean(issueEmployee?.name, 200) || `Admin · ${adminName}`;
     const createdBy = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(user?.id || ""))
       ? String(user.id)
       : null;
@@ -153,11 +178,11 @@ export async function POST(request: NextRequest) {
     await insertRows("site_visits", {
       visit_code: visitCode,
       project_id: project.id,
-      employee_id: null,
+      employee_id: issueEmployee?.id || null,
       visit_date: visitDate,
       purpose: purpose || null,
       visit_purpose: purpose || null,
-      visited_by: `Admin · ${adminName}`,
+      visited_by: attributedEmployeeName,
       observations: problemDetails || null,
       action_required: actionRequired || null,
       status: "Completed",
@@ -185,8 +210,9 @@ export async function POST(request: NextRequest) {
       projectId: projectCode,
       projectName: String(project.project_name || project.client_name_snapshot || ""),
       projectLocation: String(project.location || ""),
-      employeeId: "EMP-0002",
-      employeeName: `Admin · ${adminName}`,
+      employeeId: attributedEmployeeCode,
+      employeeName: attributedEmployeeName,
+      senderEmployeeId: "EMP-0002",
       visitDate,
       purpose,
       problemDetails,
@@ -206,8 +232,8 @@ export async function POST(request: NextRequest) {
       Project_ID: projectCode,
       Project_Name: project.project_name || "",
       Visit_Date: visitDate,
-      Employee_ID: "",
-      Employee_Name: `Admin · ${adminName}`,
+      Employee_ID: attributedEmployeeCode,
+      Employee_Name: attributedEmployeeName,
       Purpose: purpose,
       Problem_Details: problemDetails,
       Action_Required: actionRequired,
