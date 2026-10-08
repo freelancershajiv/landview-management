@@ -15,6 +15,14 @@
     --lv-danger-soft: rgba(169,44,51,.10);
     --lv-danger-border: rgba(169,44,51,.32);
     --lv-on-action: #fff;
+
+    /* Normalize legacy aliases used by older public and portal styles. */
+    --brand-red: var(--lv-action-primary);
+    --brand-red-hover: var(--lv-action-primary-hover);
+    --lv-accent: var(--lv-action-primary);
+    --lv-accent-dark: var(--lv-action-primary-hover);
+    --premium-gold: var(--lv-action-primary);
+    --premium-gold-2: var(--lv-action-text);
     --app-gold: var(--lv-action-primary);
     --app-gold-light: var(--lv-action-text);
   }
@@ -31,8 +39,25 @@
     --lv-danger-soft: rgba(185,74,80,.12);
     --lv-danger-border: rgba(201,91,97,.34);
     --lv-on-action: #fff;
+
+    --brand-red: var(--lv-action-primary);
+    --brand-red-hover: var(--lv-action-primary-hover);
+    --lv-accent: var(--lv-action-primary);
+    --lv-accent-dark: var(--lv-action-primary-hover);
+    --premium-gold: var(--lv-action-primary);
+    --premium-gold-2: var(--lv-action-text);
     --app-gold: var(--lv-action-primary);
     --app-gold-light: var(--lv-action-text);
+  }
+
+  /* Local variables declared by legacy layers must also inherit the semantic palette. */
+  .public-site {
+    --public-accent: var(--lv-action-primary) !important;
+    --public-accent-dark: var(--lv-action-primary-hover) !important;
+  }
+  :is(.portal-admin,.portal-employee,.portal-client) {
+    --portal-accent: var(--lv-action-primary) !important;
+    --portal-accent-text: var(--lv-action-text) !important;
   }
 
   /* Global theme control */
@@ -88,8 +113,31 @@
     outline-offset: 2px;
   }
 
+  /* Active portal navigation uses a subtle tint rather than a full red block. */
+  :is(.portal-employee,.portal-client) .portal-navigation a[aria-current="location"] {
+    border-color: var(--lv-action-primary-border) !important;
+    background: var(--lv-action-primary-soft-strong) !important;
+    color: var(--lv-action-text) !important;
+  }
+  html[data-theme="dark"] :is(.portal-employee,.portal-client) .portal-navigation a[aria-current="location"] {
+    color: #efd7d9 !important;
+  }
+
   /* Keep non-destructive accent text quieter than the old bright coral. */
-  :is(.brand-eyebrow,.brand-content h1 span,.sidebar-caption,.eyebrow,.card-kicker,.public-team-label) {
+  :is(
+    .brand-eyebrow,
+    .brand-content h1 span,
+    .sidebar-caption,
+    .eyebrow,
+    .card-kicker,
+    .public-team-label,
+    .public-section-kicker,
+    .public-team-designation,
+    .public-service-card>a,
+    .public-project-link,
+    .public-text-link,
+    .public-panel-kicker
+  ) {
     color: var(--lv-action-text) !important;
   }
 
@@ -109,6 +157,9 @@
   :is(.portal-admin,.portal-employee,.portal-client,.login-page) :is(input,select,textarea):focus {
     border-color: var(--lv-action-primary) !important;
     box-shadow: 0 0 0 3px var(--lv-action-primary-ring) !important;
+  }
+  :is(.portal-admin,.portal-employee,.portal-client) :focus-visible {
+    outline-color: var(--lv-action-primary) !important;
   }
 
   /* Prevent the removed standalone Accounts entry from surviving as a visible nav tab. */
