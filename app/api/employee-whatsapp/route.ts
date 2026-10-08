@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireLocalSession, roleOf } from "@/lib/local-session";
+import {
+  ACTING_USER_COOKIE,
+  QUICK_USER_COOKIE,
+  readSignedActingWorkspaceUser,
+  readSignedWorkspaceUser,
+  requireLocalSession,
+  roleOf,
+} from "@/lib/local-session";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +18,16 @@ function clean(value: unknown, max = 500) {
 }
 
 function employeeCodeOf(user: Row) {
-  return clean(user?.employeeId || user?.Employee_ID || user?.userId || user?.User_ID, 120).toUpperCase();
+  return clean(
+    user?.employeeId ||
+      user?.Employee_ID ||
+      user?.employeeCode ||
+      user?.employee_code ||
+      user?.Employee_Code ||
+      user?.userId ||
+      user?.User_ID,
+    120,
+  ).toUpperCase();
 }
 
 function sameOrigin(request: NextRequest) {
@@ -25,12 +41,26 @@ function response(data: unknown, status = 200) {
 }
 
 async function currentEmployee(request: NextRequest) {
-  const user = await requireLocalSession(request) as Row | null;
+  // Role switching already creates HMAC-signed identity cookies. Prefer those
+  // locally so the employee WhatsApp card does not depend on a second remote
+  // auth lookup immediately after switching from Admin to EMP-0002.
+  const signedBase = readSignedWorkspaceUser(request.cookies.get(QUICK_USER_COOKIE)?.value) as Row | null;
+  let user: Row | null = signedBase;
+  if (user && roleOf(user) === "admin") {
+    const acting = readSignedActingWorkspaceUser(request.cookies.get(ACTING_USER_COOKIE)?.value) as Row | null;
+    if (acting) user = acting;
+  }
+  if (!user) user = await requireLocalSession(request) as Row | null;
+
   if (!user) throw new Error("SESSION_EXPIRED");
   if (roleOf(user) !== "employee") throw new Error("EMPLOYEE_REQUIRED");
   const employeeId = employeeCodeOf(user);
   if (!employeeId) throw new Error("EMPLOYEE_ID_MISSING");
   return { user, employeeId };
+}
+
+function retriableBotStatus(status: number) {
+  return status === 408 || status === 425 || status === 429 || status === 502 || status === 503 || status === 504;
 }
 
 async function botRequest(path: string, init?: RequestInit) {
@@ -42,19 +72,43 @@ async function botRequest(path: string, init?: RequestInit) {
   requestHeaders.set("x-land-view-bot-token", token);
   if (init?.body && !requestHeaders.has("content-type")) requestHeaders.set("content-type", "application/json");
 
-  const result = await fetch(`${base}${path}`, {
-    ...init,
-    headers: requestHeaders,
-    cache: "no-store",
-    signal: AbortSignal.timeout(15_000),
-  });
-  const json = await result.json().catch(() => null);
-  if (!result.ok || !json?.ok) {
-    const error = new Error(clean(json?.error || `WhatsApp service returned HTTP ${result.status}.`, 1000));
-    (error as Error & { status?: number }).status = result.status;
-    throw error;
+  const method = String(init?.method || "GET").toUpperCase();
+  const attempts = method === "GET" ? 2 : 1;
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      const result = await fetch(`${base}${path}`, {
+        ...init,
+        headers: requestHeaders,
+        cache: "no-store",
+        signal: AbortSignal.timeout(12_000),
+      });
+      const json = await result.json().catch(() => null);
+      if (!result.ok || !json?.ok) {
+        const error = new Error(clean(json?.error || `WhatsApp service returned HTTP ${result.status}.`, 1000));
+        (error as Error & { status?: number }).status = result.status;
+        if (attempt + 1 < attempts && retriableBotStatus(result.status)) {
+          lastError = error;
+          await new Promise((resolve) => setTimeout(resolve, 450));
+          continue;
+        }
+        throw error;
+      }
+      return json;
+    } catch (error: any) {
+      lastError = error;
+      const status = Number(error?.status) || 0;
+      const mayRetry = !status || retriableBotStatus(status);
+      if (attempt + 1 < attempts && mayRetry) {
+        await new Promise((resolve) => setTimeout(resolve, 450));
+        continue;
+      }
+      throw error;
+    }
   }
-  return json;
+
+  throw lastError instanceof Error ? lastError : new Error("Could not reach LAND VIEW WhatsApp service.");
 }
 
 export async function GET(request: NextRequest) {
