@@ -24,4 +24,15 @@ export const officeLocations: OfficeLocation[] = [
     engineeringPhone: business.telephone,
     architecturePhone: business.architecturePhone,
   },
+  {
+    id: "dhaka-office",
+    name: "LAND VIEW Engineers & Architects",
+    shortName: "Dhaka Office",
+    address: "60/2, Purana Paltan, Dhaka-1000, Bangladesh",
+    latitude: 23.732246,
+    longitude: 90.410751,
+    mapUrl: "https://maps.app.goo.gl/GJYKCP6E931j3JfJ7?g_st=awb",
+    engineeringPhone: business.telephone,
+    architecturePhone: business.architecturePhone,
+  },
 ];
