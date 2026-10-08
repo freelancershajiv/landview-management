@@ -10,6 +10,13 @@ type ProjectRow = {
   Status?: string;
 };
 
+type EmployeeRow = {
+  Employee_ID?: string;
+  Employee_Name?: string;
+  Designation?: string;
+  Status?: string;
+};
+
 function compressImage(file: File, maxDimension = 1400, quality = 0.78): Promise<File> {
   return new Promise((resolve, reject) => {
     if (!file.type.startsWith("image/")) return reject(new Error("Please select an image file."));
@@ -40,6 +47,7 @@ function compressImage(file: File, maxDimension = 1400, quality = 0.78): Promise
 
 export default function AdminSiteVisitEntry() {
   const [projects, setProjects] = useState<ProjectRow[]>([]);
+  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [open, setOpen] = useState(false);
@@ -49,6 +57,7 @@ export default function AdminSiteVisitEntry() {
   const [problemPhoto, setProblemPhoto] = useState<File | null>(null);
   const [form, setForm] = useState({
     projectId: "",
+    employeeId: "",
     visitDate: new Date().toISOString().slice(0, 10),
     purpose: "",
     problemDetails: "",
@@ -56,29 +65,40 @@ export default function AdminSiteVisitEntry() {
     notes: "",
   });
 
-  async function loadProjects() {
+  async function loadEntryData() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/admin/site-visits", {
-        cache: "no-store",
-        credentials: "same-origin",
-      });
-      const json = await response.json().catch(() => null);
-      if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not load Site Visit projects."));
-      const rows = Array.isArray(json.data) ? json.data : [];
-      setProjects(rows);
-      setForm((current) => current.projectId || !rows[0]?.Project_ID
+      const [projectsResponse, employeesResponse] = await Promise.all([
+        fetch("/api/admin/site-visits", { cache: "no-store", credentials: "same-origin" }),
+        fetch("/api/admin/site-visits?mode=employees", { cache: "no-store", credentials: "same-origin" }),
+      ]);
+      const [projectsJson, employeesJson] = await Promise.all([
+        projectsResponse.json().catch(() => null),
+        employeesResponse.json().catch(() => null),
+      ]);
+      if (!projectsResponse.ok || !projectsJson?.success) {
+        throw new Error(String(projectsJson?.error || "Could not load Site Visit projects."));
+      }
+      if (!employeesResponse.ok || !employeesJson?.success) {
+        throw new Error(String(employeesJson?.error || "Could not load active employees."));
+      }
+
+      const projectRows = Array.isArray(projectsJson.data) ? projectsJson.data : [];
+      const employeeRows = Array.isArray(employeesJson.data) ? employeesJson.data : [];
+      setProjects(projectRows);
+      setEmployees(employeeRows);
+      setForm((current) => current.projectId || !projectRows[0]?.Project_ID
         ? current
-        : { ...current, projectId: String(rows[0].Project_ID) });
+        : { ...current, projectId: String(projectRows[0].Project_ID) });
     } catch (e: any) {
-      setError(e?.message || "Could not load Site Visit projects.");
+      setError(e?.message || "Could not load Site Visit entry data.");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { void loadProjects(); }, []);
+  useEffect(() => { void loadEntryData(); }, []);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -104,8 +124,9 @@ export default function AdminSiteVisitEntry() {
       if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not submit Site Visit."));
 
       const visitId = String(json?.data?.Visit_ID || "");
+      const employeeName = String(json?.data?.Employee_Name || "Admin");
       const wa = String(json?.data?.WhatsApp_Publish_Status || "");
-      setNotice(`Site Visit ${visitId} submitted successfully${wa ? ` · WhatsApp: ${wa}` : ""}.`);
+      setNotice(`Site Visit ${visitId} submitted for ${employeeName}${wa ? ` · WhatsApp: ${wa}` : ""}.`);
       setVisitPhoto(null);
       setProblemPhoto(null);
       setForm((current) => ({ ...current, purpose: "", problemDetails: "", actionRequired: "", notes: "" }));
@@ -123,7 +144,7 @@ export default function AdminSiteVisitEntry() {
     `}</style>
 
     <div className="ase-bar">
-      <div><strong>Admin Site Visit Entry</strong><small>Create a Site Visit directly from Admin. GPS verification is not required for Admin entries; employee GPS rules remain unchanged.</small></div>
+      <div><strong>Admin Site Visit Entry</strong><small>Create a Site Visit directly or issue it in the name of an active employee. GPS verification is not required for Admin-issued entries; employee GPS rules remain unchanged.</small></div>
       <button type="button" className="ase-toggle" onClick={() => setOpen((value) => !value)}>{open ? "CLOSE ENTRY" : "+ ADD SITE VISIT"}</button>
     </div>
 
@@ -131,11 +152,12 @@ export default function AdminSiteVisitEntry() {
     {notice && <div className="ase-ok">{notice}</div>}
 
     {open && <form className="ase-form" onSubmit={submit}>
-      <div className="ase-info"><strong>ADMIN ENTRY · GPS NOT REQUIRED</strong><br/>This record will be marked as an Admin-created Site Visit. Photos still upload to the dedicated Site Visit Google Drive folder and the normal WhatsApp update flow is preserved.</div>
+      <div className="ase-info"><strong>ADMIN ENTRY · GPS NOT REQUIRED</strong><br/>Choose an employee below to record the visit in that employee&apos;s name. The Site Visit record and WhatsApp message will show that employee, while the message itself is sent through the central Admin/EMP-0002 WhatsApp connection.</div>
       <label className="ase-field"><span>PROJECT</span><select value={form.projectId} onChange={(event) => setForm((value) => ({ ...value, projectId: event.target.value }))} disabled={loading}><option value="">{loading ? "Loading projects…" : "Select active supervision project"}</option>{projects.map((project) => <option key={project.Project_ID} value={project.Project_ID}>{project.Project_ID} · {project.Project_Name || project.Client_Name || "Project"}{project.Location ? ` · ${project.Location}` : ""}</option>)}</select></label>
       <label className="ase-field"><span>VISIT DATE</span><input type="date" value={form.visitDate} onChange={(event) => setForm((value) => ({ ...value, visitDate: event.target.value }))}/></label>
+      <label className="ase-field wide"><span>VISITED BY / ISSUE AS</span><select value={form.employeeId} onChange={(event) => setForm((value) => ({ ...value, employeeId: event.target.value }))} disabled={loading}><option value="">Admin direct entry</option>{employees.map((employee) => <option key={employee.Employee_ID} value={employee.Employee_ID}>{employee.Employee_ID} · {employee.Employee_Name || "Employee"}{employee.Designation ? ` · ${employee.Designation}` : ""}</option>)}</select></label>
       <label className="ase-field wide"><span>VISIT PURPOSE</span><input value={form.purpose} onChange={(event) => setForm((value) => ({ ...value, purpose: event.target.value }))} placeholder="e.g. Foundation inspection / site measurement"/></label>
-      <label className="ase-field wide"><span>PROBLEM / OBSERVATION DETAILS</span><textarea value={form.problemDetails} onChange={(event) => setForm((value) => ({ ...value, problemDetails: event.target.value }))} placeholder="Describe what you observed at site."/></label>
+      <label className="ase-field wide"><span>PROBLEM / OBSERVATION DETAILS</span><textarea value={form.problemDetails} onChange={(event) => setForm((value) => ({ ...value, problemDetails: event.target.value }))} placeholder="Describe what was observed at site."/></label>
       <label className="ase-field wide"><span>ACTION REQUIRED</span><textarea value={form.actionRequired} onChange={(event) => setForm((value) => ({ ...value, actionRequired: event.target.value }))} placeholder="What needs to be corrected, approved or followed up?"/></label>
       <div className="ase-upload">
         <label><strong>VISIT PHOTO</strong><small>{visitPhoto ? visitPhoto.name : "Upload a general site photo"}</small><input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setVisitPhoto(event.target.files?.[0] || null)}/></label>
