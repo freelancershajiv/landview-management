@@ -26,6 +26,14 @@ function numberValue(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function pick(row: Row, keys: string[]) {
+  for (const key of keys) {
+    const value = row?.[key];
+    if (value !== undefined && value !== null && text(value)) return value;
+  }
+  return undefined;
+}
+
 function isEffectiveBill(row: Row) {
   return !["void", "voided", "cancelled", "canceled", "rejected"].includes(text(row.status).toLowerCase());
 }
@@ -69,7 +77,24 @@ function leadSummary(rows: Row[]) {
     if (dueDay === today) dueToday += 1;
   }
 
-  return { total: rows.length, newCount, overdueFollowUps, dueToday, qualified, converted };
+  const total = rows.length;
+  const conversionRate = total > 0 ? Math.round((converted / total) * 100) : 0;
+  return { total, newCount, overdueFollowUps, dueToday, qualified, converted, conversionRate };
+}
+
+function projectStage(row: Row) {
+  return text(pick(row, ["Stage", "Project_Stage", "Project Stage", "stage", "Status"])) || "Unspecified";
+}
+
+function updatedAt(row: Row) {
+  const value = pick(row, ["Updated_At", "Updated At", "updated_at", "Modified_At", "Created_Date", "created_at"]);
+  const date = value ? new Date(value) : null;
+  return date && !Number.isNaN(date.getTime()) ? date : null;
+}
+
+function isActiveEmployee(row: Row) {
+  const status = text(pick(row, ["status", "Status", "Employment_Status", "Employment Status"])).toLowerCase();
+  return !["inactive", "former", "resigned", "terminated", "left", "disabled"].includes(status);
 }
 
 async function permissionsFor(user: Row) {
@@ -77,19 +102,24 @@ async function permissionsFor(user: Row) {
   if (role === "admin") return roleDefaultPermissions("admin");
   const userKey = userIdOf(user);
   const overrides: Record<string, boolean> = {};
-  if (userKey) { const rows = await selectRows("app_permissions", { filters: { user_key: userKey }, order: "created_at:asc", limit: 5000 }); for (const row of rows) { const key = text(row.permission); if (key) overrides[key] = text(row.status).toLowerCase() === "active"; } }
+  if (userKey) {
+    const rows = await selectRows("app_permissions", { filters: { user_key: userKey }, order: "created_at:asc", limit: 5000 });
+    for (const row of rows) {
+      const key = text(row.permission);
+      if (key) overrides[key] = text(row.status).toLowerCase() === "active";
+    }
+  }
   if (role === "manager" || role === "employee" || role === "client") return mergeRolePermissions(role, overrides);
   const permissions: Record<string, boolean> = Object.fromEntries(PERMISSION_KEYS.map((key) => [key, false]));
   if (role === "accounts") for (const key of ACCOUNTS_DEFAULTS) permissions[key] = true;
-  for (const [key, enabled] of Object.entries(overrides)) permissions[key] = enabled; return permissions;
+  for (const [key, enabled] of Object.entries(overrides)) permissions[key] = enabled;
+  return permissions;
 }
 
 export async function GET(request: NextRequest) {
   try {
     const user = (await requireLocalSession(request)) as Row | null;
-    if (!user) {
-      return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
-    }
+    if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
 
     const role = roleOf(user);
     const permissions = await permissionsFor(user);
@@ -115,7 +145,7 @@ export async function GET(request: NextRequest) {
         ? selectRows("documents", { inFilters: { project_id: projectUuids }, limit: 5000 })
         : Promise.resolve([] as Row[]);
 
-    const employeesPromise = permissions["employees.view"]
+    const employeesPromise = permissions["employees.view"] || management
       ? selectRows("employees", { limit: 1000 })
       : Promise.resolve([] as Row[]);
 
@@ -150,12 +180,70 @@ export async function GET(request: NextRequest) {
       0,
     );
     const totalPaid = effectivePayments.reduce((sum, payment) => sum + numberValue(payment.amount), 0);
+    const billingGap = totalBill - totalPaid;
+    const collectionRate = totalBill > 0 ? Math.max(0, Math.min(100, Math.round((totalPaid / totalBill) * 100))) : 100;
+
     const activeProjects = scopedProjects.filter((project) =>
       !["completed", "closed", "cancelled", "canceled"].includes(text(project.Status).toLowerCase()),
     );
+    const completedProjects = scopedProjects.length - activeProjects.length;
     const recentProjects = [...scopedProjects]
       .sort((a, b) => text(b.Updated_At || b.Created_Date).localeCompare(text(a.Updated_At || a.Created_Date)))
       .slice(0, 10);
+
+    const now = Date.now();
+    const staleThreshold = 30 * 24 * 60 * 60 * 1000;
+    const staleProjects = activeProjects.filter((project) => {
+      const date = updatedAt(project);
+      return Boolean(date && now - date.getTime() > staleThreshold);
+    });
+
+    const stageCounts: Record<string, number> = {};
+    for (const project of activeProjects) {
+      const stage = projectStage(project);
+      stageCounts[stage] = (stageCounts[stage] || 0) + 1;
+    }
+
+    const activeEmployees = employees.filter(isActiveEmployee);
+    const inactiveEmployees = employees.length - activeEmployees.length;
+    const leads = management ? leadSummary(websiteLeads) : null;
+
+    const financeScore = financeVisible
+      ? Math.max(35, Math.round(100 - Math.min(65, Math.abs(billingGap) / Math.max(totalBill, 1) * 100)))
+      : 100;
+    const deliveryScore = activeProjects.length
+      ? Math.max(35, Math.round(100 - (staleProjects.length / activeProjects.length) * 65))
+      : 100;
+    const clientScore = leads
+      ? Math.max(35, 100 - Math.min(65, leads.overdueFollowUps * 8 + leads.dueToday * 2))
+      : 100;
+    const workforceScore = employees.length
+      ? Math.max(50, Math.round((activeEmployees.length / employees.length) * 100))
+      : 100;
+    const dataScore = 100;
+    const overallScore = Math.round(
+      financeScore * 0.3 + deliveryScore * 0.3 + clientScore * 0.2 + workforceScore * 0.1 + dataScore * 0.1,
+    );
+
+    const health = {
+      overallScore,
+      label: overallScore >= 85 ? "Healthy" : overallScore >= 70 ? "Watch" : "Needs Attention",
+      domains: {
+        finance: { score: financeScore, label: financeScore >= 85 ? "Healthy" : financeScore >= 70 ? "Watch" : "Attention" },
+        delivery: { score: deliveryScore, label: deliveryScore >= 85 ? "Healthy" : deliveryScore >= 70 ? "Watch" : "Attention" },
+        clients: { score: clientScore, label: clientScore >= 85 ? "Healthy" : clientScore >= 70 ? "Watch" : "Attention" },
+        workforce: { score: workforceScore, label: workforceScore >= 85 ? "Healthy" : workforceScore >= 70 ? "Watch" : "Attention" },
+        data: { score: dataScore, label: "Online" },
+      },
+    };
+
+    const attention = [
+      ...(leads && leads.overdueFollowUps > 0 ? [{ severity: "critical", type: "leads", count: leads.overdueFollowUps, title: "Overdue client follow-ups", detail: `${leads.overdueFollowUps} website lead follow-up${leads.overdueFollowUps === 1 ? " is" : "s are"} overdue.`, href: "/admin/website-leads?follow=Overdue" }] : []),
+      ...(staleProjects.length > 0 ? [{ severity: "warning", type: "projects", count: staleProjects.length, title: "Projects need progress review", detail: `${staleProjects.length} active project${staleProjects.length === 1 ? " has" : "s have"} no recorded update for more than 30 days.`, href: "/admin/projects" }] : []),
+      ...(financeVisible && Math.abs(billingGap) > 0.01 ? [{ severity: "warning", type: "finance", count: 1, title: "Billing reconciliation gap", detail: `Recorded bills and effective payments differ by BDT ${Math.abs(billingGap).toLocaleString("en-BD", { maximumFractionDigits: 2 })}.`, href: "/admin/finance" }] : []),
+      ...(leads && leads.dueToday > 0 ? [{ severity: "info", type: "leads", count: leads.dueToday, title: "Client follow-ups due today", detail: `${leads.dueToday} follow-up${leads.dueToday === 1 ? " is" : "s are"} scheduled today.`, href: "/admin/website-leads?follow=Due%20Today" }] : []),
+      ...(leads && leads.newCount > 0 ? [{ severity: "info", type: "leads", count: leads.newCount, title: "New website enquiries", detail: `${leads.newCount} new enquir${leads.newCount === 1 ? "y is" : "ies are"} waiting for qualification.`, href: "/admin/website-leads?status=New" }] : []),
+    ];
 
     const data = {
       user: {
@@ -169,15 +257,24 @@ export async function GET(request: NextRequest) {
       stats: {
         projectCount: scopedProjects.length,
         activeProjectCount: activeProjects.length,
+        completedProjectCount: completedProjects,
+        staleProjectCount: staleProjects.length,
         employeeCount: employees.length,
+        activeEmployeeCount: activeEmployees.length,
+        inactiveEmployeeCount: inactiveEmployees,
         documentCount: documents.length,
         totalBill,
         totalPaid,
-        pendingPayments: totalBill - totalPaid,
+        pendingPayments: billingGap,
+        collectionRate,
       },
-      websiteLeadSummary: management ? leadSummary(websiteLeads) : null,
+      health,
+      attention,
+      projectStages: stageCounts,
+      websiteLeadSummary: leads,
       recentProjects,
       backend: "supabase-postgresql",
+      generatedAt: new Date().toISOString(),
     };
 
     return NextResponse.json(
