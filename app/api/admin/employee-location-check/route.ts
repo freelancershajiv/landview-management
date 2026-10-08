@@ -64,13 +64,19 @@ export async function GET(request: NextRequest) {
       return ok(publicCheck(await expireIfNeeded(rows[0])));
     }
 
-    const rows = await selectRows("employee_location_checks", { order: "requested_at:desc", limit: 1000 });
+    const [rows, employees] = await Promise.all([
+      selectRows("employee_location_checks", { order: "requested_at:desc", limit: 1000 }),
+      selectRows("employees", { filters: { status: "Active" }, order: "employee_code:asc", limit: 1000 }),
+    ]);
     const latest = new Map<string, Row>();
     for (const row of rows) {
       const code = text(row.employee_code, 120).toUpperCase();
       if (code && !latest.has(code)) latest.set(code, await expireIfNeeded(row));
     }
-    return ok(Array.from(latest.values()).map(publicCheck));
+    return ok({
+      employees: employees.map((row) => ({ employeeCode: row.employee_code || "", employeeName: row.name || row.employee_code || "", designation: row.designation || "", status: row.status || "" })),
+      checks: Array.from(latest.values()).map(publicCheck),
+    });
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
     if (code === "SESSION_EXPIRED") return fail("Session expired.", 401);
