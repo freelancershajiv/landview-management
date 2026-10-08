@@ -59,9 +59,18 @@ export async function GET(request: NextRequest) {
   try {
     await requireManager(request);
     const employeeCode = text(request.nextUrl.searchParams.get("employeeCode"), 120).toUpperCase();
-    if (!employeeCode) return fail("Employee ID is required.", 400);
-    const rows = await selectRows("employee_location_checks", { filters: { employee_code: employeeCode }, order: "requested_at:desc", limit: 1 });
-    return ok(publicCheck(await expireIfNeeded(rows[0])));
+    if (employeeCode) {
+      const rows = await selectRows("employee_location_checks", { filters: { employee_code: employeeCode }, order: "requested_at:desc", limit: 1 });
+      return ok(publicCheck(await expireIfNeeded(rows[0])));
+    }
+
+    const rows = await selectRows("employee_location_checks", { order: "requested_at:desc", limit: 1000 });
+    const latest = new Map<string, Row>();
+    for (const row of rows) {
+      const code = text(row.employee_code, 120).toUpperCase();
+      if (code && !latest.has(code)) latest.set(code, await expireIfNeeded(row));
+    }
+    return ok(Array.from(latest.values()).map(publicCheck));
   } catch (error) {
     const code = error instanceof Error ? error.message : "";
     if (code === "SESSION_EXPIRED") return fail("Session expired.", 401);
