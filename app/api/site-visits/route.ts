@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
-import { getSiteVisitMediaUrl, insertRows, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
+import { getSiteVisitMediaUrl, insertRows, normalizeProjectCode, selectRows, uploadSiteVisitMedia } from "@/lib/supabase-data";
 import { publishSiteVisitToWhatsApp } from "@/lib/whatsapp-site-visits";
 
 export const runtime = "nodejs";
@@ -51,6 +51,44 @@ async function callDriveBackend(action: "uploadSiteVisitMedia" | "getSiteVisitMe
   return json.data || {};
 }
 
+async function storeSiteVisitPhoto(input: {
+  projectCode: string;
+  projectName: string;
+  visitCode: string;
+  kind: "visit" | "problem";
+  file: { mime: string; base64: string };
+  latitude: number;
+  longitude: number;
+  accuracyM: number;
+}) {
+  const fileName = input.kind === "visit"
+    ? (input.file.mime === "image/png" ? "visit-photo.png" : input.file.mime === "image/webp" ? "visit-photo.webp" : "visit-photo.jpg")
+    : (input.file.mime === "image/png" ? "problem-photo.png" : input.file.mime === "image/webp" ? "problem-photo.webp" : "problem-photo.jpg");
+
+  try {
+    const drive = await callDriveBackend("uploadSiteVisitMedia", {
+      projectId: input.projectCode,
+      projectName: input.projectName,
+      visitId: input.visitCode,
+      kind: input.kind,
+      fileName,
+      mimeType: input.file.mime,
+      base64: input.file.base64,
+      locationLatitude: input.latitude,
+      locationLongitude: input.longitude,
+      locationAccuracyM: input.accuracyM,
+    });
+    return { drive, path: "", storage: "google-drive" as const, driveError: "" };
+  } catch (error: any) {
+    const driveError = String(error?.message || "Google Drive upload failed.");
+    const extension = input.file.mime === "image/png" ? "png" : input.file.mime === "image/webp" ? "webp" : "jpg";
+    const path = `${input.projectCode}/${input.visitCode}/${input.kind}-${crypto.randomUUID()}.${extension}`;
+    await uploadSiteVisitMedia({ path, contentType: input.file.mime, base64: input.file.base64 });
+    console.warn("Site Visit photo stored in Supabase fallback", { visitCode: input.visitCode, kind: input.kind, driveError });
+    return { drive: null, path, storage: "supabase-fallback" as const, driveError };
+  }
+}
+
 function numberValue(value: unknown) {
   const n = Number(String(value ?? "").trim());
   return Number.isFinite(n) ? n : null;
@@ -74,7 +112,6 @@ async function accessibleProjects(user: Row) {
   if (role === "employee") {
     const employees = await selectRows("employees", { filters: { employee_code: employeeCodeOf(user) }, limit: 1 });
     if (!employees.length) throw new Error("Employee record not found.");
-    // Site visits are field operations: an employee may visit any LAND VIEW project.
     const rows = await selectRows("projects", { order: "project_code:asc", limit: 5000 });
     return { all: false, anyProject: true, employee: employees[0], ids: rows.map(row => String(row.id)), rows };
   }
@@ -253,36 +290,43 @@ export async function POST(request: NextRequest) {
     let problemPhotoPath = "";
     let visitPhotoDrive: any = null;
     let problemPhotoDrive: any = null;
+    let visitPhotoStorage = "none";
+    let problemPhotoStorage = "none";
+    const storageWarnings: string[] = [];
 
     if (visitFile) {
       const file = await fileToBase64(visitFile);
-      visitPhotoDrive = await callDriveBackend("uploadSiteVisitMedia", {
-        projectId: projectCode,
+      const stored = await storeSiteVisitPhoto({
+        projectCode,
         projectName: String(project.project_name || project.client_name_snapshot || projectCode),
-        visitId: visitCode,
+        visitCode,
         kind: "visit",
-        fileName: file.mime === "image/png" ? "visit-photo.png" : file.mime === "image/webp" ? "visit-photo.webp" : "visit-photo.jpg",
-        mimeType: file.mime,
-        base64: file.base64,
-        locationLatitude,
-        locationLongitude,
-        locationAccuracyM,
+        file,
+        latitude: locationLatitude,
+        longitude: locationLongitude,
+        accuracyM: locationAccuracyM,
       });
+      visitPhotoDrive = stored.drive;
+      visitPhotoPath = stored.path;
+      visitPhotoStorage = stored.storage;
+      if (stored.driveError) storageWarnings.push(`Visit photo: ${stored.driveError}`);
     }
     if (problemFile) {
       const file = await fileToBase64(problemFile);
-      problemPhotoDrive = await callDriveBackend("uploadSiteVisitMedia", {
-        projectId: projectCode,
+      const stored = await storeSiteVisitPhoto({
+        projectCode,
         projectName: String(project.project_name || project.client_name_snapshot || projectCode),
-        visitId: visitCode,
+        visitCode,
         kind: "problem",
-        fileName: file.mime === "image/png" ? "problem-photo.png" : file.mime === "image/webp" ? "problem-photo.webp" : "problem-photo.jpg",
-        mimeType: file.mime,
-        base64: file.base64,
-        locationLatitude,
-        locationLongitude,
-        locationAccuracyM,
+        file,
+        latitude: locationLatitude,
+        longitude: locationLongitude,
+        accuracyM: locationAccuracyM,
       });
+      problemPhotoDrive = stored.drive;
+      problemPhotoPath = stored.path;
+      problemPhotoStorage = stored.storage;
+      if (stored.driveError) storageWarnings.push(`Problem photo: ${stored.driveError}`);
     }
 
     const createdBy = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(user?.id || "")) ? String(user.id) : null;
@@ -316,9 +360,6 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     });
 
-    // WhatsApp publishing happens only after the database insert succeeds. A
-    // WhatsApp/Meta failure is reported in the response but never rolls back or
-    // rejects the employee's Site Visit submission.
     const whatsAppPublish = await publishSiteVisitToWhatsApp({
       visitId: visitCode,
       projectId: projectCode,
@@ -351,8 +392,11 @@ export async function POST(request: NextRequest) {
       Problem_Details: problemDetails,
       Action_Required: actionRequired,
       Status: "Completed",
-      Visit_Photo_Available: Boolean(visitPhotoDrive?.fileId),
-      Problem_Photo_Available: Boolean(problemPhotoDrive?.fileId),
+      Visit_Photo_Available: Boolean(visitPhotoDrive?.fileId || visitPhotoPath),
+      Problem_Photo_Available: Boolean(problemPhotoDrive?.fileId || problemPhotoPath),
+      Visit_Photo_Storage: visitPhotoStorage,
+      Problem_Photo_Storage: problemPhotoStorage,
+      Storage_Warnings: storageWarnings,
       Location_Verification_Status: locationVerificationStatus,
       Location_Distance_M: locationDistanceM,
       Location_Accuracy_M: locationAccuracyM,
