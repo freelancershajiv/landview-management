@@ -11,6 +11,8 @@ type WhatsAppStatus = {
   qrDataUrl?: string | null;
   phoneNumber?: string | null;
   lastError?: string | null;
+  sharedWithAdmin?: boolean;
+  senderType?: string | null;
 };
 
 function phoneText(value: unknown) {
@@ -77,8 +79,13 @@ export default function EmployeeWhatsAppConnect() {
 
   const connection = String(status?.connection || "").toLowerCase();
   const connected = Boolean(status?.paired);
+  const sharedWithAdmin = Boolean(status?.sharedWithAdmin || status?.senderType === "admin-shared");
   const qr = String(status?.qrDataUrl || "");
   const phone = phoneText(status?.phoneNumber);
+  // A shared Admin session can retain a previous send/outbox error even while
+  // the WhatsApp socket is healthy. Do not present that historical send error
+  // as a connection failure when EMP-0002 is currently paired.
+  const visibleError = error || (!connected ? String(status?.lastError || "") : "");
 
   return <section className="employee-wa-card" aria-label="Employee WhatsApp connection">
     <style>{`
@@ -91,24 +98,26 @@ export default function EmployeeWhatsAppConnect() {
       <span className="employee-wa-kicker">WHATSAPP · SITE VISITS</span>
       <div className="employee-wa-title">
         <span className={`employee-wa-dot${connected ? " on" : ""}`} />
-        <h2>{connected ? "Your WhatsApp is connected" : "Connect your WhatsApp"}</h2>
+        <h2>{sharedWithAdmin ? (connected ? "Admin WhatsApp is connected" : "Admin WhatsApp is not connected") : (connected ? "Your WhatsApp is connected" : "Connect your WhatsApp")}</h2>
       </div>
-      <p className="employee-wa-copy">Link the WhatsApp account you use on your phone. After it is connected, Site Visit updates you submit will be posted to the LAND VIEW WhatsApp group from this WhatsApp number.</p>
-      {loading ? <span className="employee-wa-loading">Checking WhatsApp connection…</span> : <span className="employee-wa-state">{connected ? <>Connected {phone ? <>as <strong>{phone}</strong></> : null}</> : connection === "pairing" ? "Waiting for QR scan" : connection === "connecting" || connection === "resetting" ? "Preparing secure connection…" : connection === "logged_out" ? "WhatsApp was disconnected" : "Not connected"}</span>}
-      {(error || status?.lastError) && <div className="employee-wa-error">{error || status?.lastError}</div>}
+      <p className="employee-wa-copy">{sharedWithAdmin
+        ? "EMP-0002 uses the central LAND VIEW Admin WhatsApp connection. Site Visit updates are sent through the Admin WhatsApp number, so no separate employee QR or reconnection is required here."
+        : "Link the WhatsApp account you use on your phone. After it is connected, Site Visit updates you submit will be posted to the LAND VIEW WhatsApp group from this WhatsApp number."}</p>
+      {loading ? <span className="employee-wa-loading">Checking WhatsApp connection…</span> : <span className="employee-wa-state">{connected ? <>{sharedWithAdmin ? "Central connection active" : "Connected"} {phone ? <>as <strong>{phone}</strong></> : null}</> : sharedWithAdmin ? "Switch back to Admin → WhatsApp to reconnect the central session" : connection === "pairing" ? "Waiting for QR scan" : connection === "connecting" || connection === "resetting" ? "Preparing secure connection…" : connection === "logged_out" ? "WhatsApp was disconnected" : "Not connected"}</span>}
+      {visibleError && <div className="employee-wa-error">{visibleError}</div>}
     </div>
 
     <div className="employee-wa-actions">
-      <button type="button" className="employee-wa-btn primary" disabled={loading} onClick={() => void load()}>{connected ? "CHECK CONNECTION" : "CONNECT WHATSAPP"}</button>
-      <button type="button" className="employee-wa-btn" disabled={resetting} onClick={() => void reset()}>{resetting ? "RESETTING…" : connected ? "RECONNECT" : "NEW QR"}</button>
+      <button type="button" className="employee-wa-btn primary" disabled={loading} onClick={() => void load()}>{connected ? "CHECK CONNECTION" : sharedWithAdmin ? "CHECK ADMIN WHATSAPP" : "CONNECT WHATSAPP"}</button>
+      {!sharedWithAdmin && <button type="button" className="employee-wa-btn" disabled={resetting} onClick={() => void reset()}>{resetting ? "RESETTING…" : connected ? "RECONNECT" : "NEW QR"}</button>}
     </div>
 
-    {!connected && qr && <div className="employee-wa-qr">
+    {!sharedWithAdmin && !connected && qr && <div className="employee-wa-qr">
       <div className="employee-wa-qr-box"><Image src={qr} alt="WhatsApp linked device QR code" width={220} height={220} unoptimized priority /></div>
       <div className="employee-wa-qr-copy">
         <strong>Scan this QR with the employee&apos;s WhatsApp</strong>
         <p>On the phone open <b>WhatsApp → Linked devices → Link a device</b>, then scan this QR. The employee keeps using WhatsApp normally on the phone.</p>
-        <p>Each employee has a separate LAND VIEW linked-device session. Another employee cannot use or replace this connection from their login.</p>
+        <p>This employee has a separate LAND VIEW linked-device session. Another employee cannot use or replace this connection from their login.</p>
       </div>
     </div>}
   </section>;
