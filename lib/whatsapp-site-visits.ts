@@ -7,6 +7,7 @@ type SiteVisitWhatsAppPayload = {
   projectLocation?: string;
   employeeId?: string;
   employeeName?: string;
+  senderEmployeeId?: string;
   visitDate?: string;
   purpose?: string;
   problemDetails?: string;
@@ -74,7 +75,7 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
   const problemPhotoUrl = text(payload.problemPhotoUrl, 1000);
   if (problemPhotoUrl) lines.push(`⚠️ *Problem Photo:* ${problemPhotoUrl}`);
 
-  lines.push("_Sent from the employee's linked WhatsApp via the LAND VIEW Employee Portal._");
+  lines.push("_Sent via the LAND VIEW Site Visit system._");
   return lines.join("\n").slice(0, 4000);
 }
 
@@ -166,7 +167,7 @@ async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhats
     });
     await wakeBot(token, "/client/wake");
   } catch (error: any) {
-    // A missing/invalid client phone must never block the employee's Site Visit.
+    // A missing/invalid client phone must never block the Site Visit.
     console.warn("[site-visit-client-whatsapp] queue skipped", {
       message: text(error?.message || "Client WhatsApp update could not be queued.", 500),
     });
@@ -227,9 +228,9 @@ async function sendFromEmployeeWhatsApp(
   payload: SiteVisitWhatsAppPayload,
 ): Promise<SiteVisitWhatsAppResult> {
   const base = String(process.env.WHATSAPP_BOT_URL || "").trim().replace(/\/+$/, "");
-  const employeeId = text(payload.employeeId, 120);
+  const employeeId = text(payload.senderEmployeeId || payload.employeeId, 120);
   if (!base) return { status: "skipped", reason: "LAND VIEW WhatsApp service URL is not configured." };
-  if (!employeeId) return { status: "skipped", reason: "Employee ID is missing, so the employee WhatsApp sender cannot be selected." };
+  if (!employeeId) return { status: "skipped", reason: "Employee ID is missing, so the WhatsApp sender cannot be selected." };
 
   const readiness = await waitForEmployeeWhatsApp(base, token, employeeId);
   if (!readiness.ready) {
