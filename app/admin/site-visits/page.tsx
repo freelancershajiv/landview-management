@@ -6,6 +6,6 @@ export default async function SiteVisitsPage(){
   const session = await requirePortalSession(["admin","manager"]);
   return <>
     {session.role === "admin" ? <AdminSiteVisitEntry /> : null}
-    <SiteVisitsAdmin />
+    <SiteVisitsAdmin canDelete={session.role === "admin"} />
   </>;
 }
