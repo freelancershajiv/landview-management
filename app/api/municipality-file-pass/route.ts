@@ -66,11 +66,12 @@ export async function GET(request: NextRequest) {
     const projectMap = new Map(projects.map((row) => [row.id, row.project_code]));
     const accountMap = new Map(accounts.map((row) => [row.id, row.account_name || row.account_code]));
     const expenseMap = new Map(expenses.map((row) => [row.expense_code, row]));
+    const canWorkExpenses = ACCESS_ROLES.has(currentRole);
     return NextResponse.json({
       success: true,
       data: {
-        canAddExpense: currentRole === "admin" || currentRole === "manager" || currentRole === "accounts",
-        canEditExpenses: currentRole === "admin",
+        canAddExpense: canWorkExpenses,
+        canEditExpenses: canWorkExpenses,
         canSendToMainLedger: currentRole === "admin",
         transactions: transactions.map((row) => {
           const sourceType = text(row.source_type, 120);
@@ -122,7 +123,6 @@ export async function POST(request: NextRequest) {
     const actor = actorOf(user);
 
     if (action === "updateExpense") {
-      if (roleOf(user) !== "admin") return NextResponse.json({ success: false, error: "Admin access is required to edit Municipality expenses." }, { status: 403 });
       const sourceId = text(body.Source_ID || body.sourceId, 160);
       if (!sourceId) return NextResponse.json({ success: false, error: "Municipality expense source ID is required." }, { status: 400 });
       const existingRows = await selectRows("expenses", { filters: { expense_code: sourceId }, limit: 1 });
