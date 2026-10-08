@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { SheetInvoices } from "@/lib/sheet-invoices";
 import { billingIssueDate } from "./project-billing-document";
-import { createBillingPdf } from "@/lib/create-billing-pdf";
+import { createBillingPdf } from "@/lib/create-billing-pdf-parity";
 
 type Props = {
   result: SheetInvoices;
