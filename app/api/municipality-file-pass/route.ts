@@ -4,7 +4,7 @@ import {
   readSignedWorkspaceUser,
   requireLocalSession,
 } from "@/lib/local-session";
-import { normalizeProjectCode, roleOf, selectRows, insertRows, updateRows } from "@/lib/supabase-data";
+import { normalizeProjectCode, roleOf, selectRows, insertRows, updateRows, deleteRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +48,7 @@ async function requireFinanceUser(request: NextRequest) {
 }
 function responseStatus(message: string) {
   if (/session/i.test(message)) return 401;
-  if (/access/i.test(message)) return 403;
+  if (/access|admin/i.test(message)) return 403;
   if (/choose|valid|required|no municipality balance|not found/i.test(message)) return 400;
   return 502;
 }
@@ -72,6 +72,7 @@ export async function GET(request: NextRequest) {
       data: {
         canAddExpense: canWorkExpenses,
         canEditExpenses: canWorkExpenses,
+        canDeleteExpenses: currentRole === "admin",
         canSendToMainLedger: currentRole === "admin",
         transactions: transactions.map((row) => {
           const sourceType = text(row.source_type, 120);
@@ -115,12 +116,37 @@ export async function POST(request: NextRequest) {
     const user = await requireFinanceUser(request);
     const body = await request.json() as Record<string, unknown>;
     const action = text(body.action, 60) || "addExpense";
+    const actor = actorOf(user);
+
+    if (action === "deleteExpense") {
+      if (roleOf(user) !== "admin") return NextResponse.json({ success: false, error: "Admin access is required to delete Municipality expenses." }, { status: 403 });
+      const sourceId = text(body.Source_ID || body.sourceId, 160);
+      if (!sourceId) return NextResponse.json({ success: false, error: "Municipality expense source ID is required." }, { status: 400 });
+      const existingRows = await selectRows("expenses", { filters: { expense_code: sourceId }, limit: 1 });
+      const existing = existingRows[0];
+      if (!existing || text(existing.finance_scope) !== MUNICIPALITY_SCOPE) return NextResponse.json({ success: false, error: "Municipality expense was not found." }, { status: 404 });
+      const linkedTransactions = await selectRows("transactions", { filters: { source_id: sourceId, source_type: "EXPENSE", finance_scope: MUNICIPALITY_SCOPE }, limit: 100 });
+      for (const tx of linkedTransactions) {
+        if (tx.transaction_code) await deleteRows("transactions", { transaction_code: tx.transaction_code });
+      }
+      await deleteRows("expenses", { expense_code: sourceId });
+      return NextResponse.json({
+        success: true,
+        data: {
+          deleted: true,
+          sourceId,
+          amount: num(existing.amount),
+          projectId: existing.file_id || "",
+          deletedBy: actor,
+          linkedTransactions: linkedTransactions.length,
+        },
+      }, { headers: { "Cache-Control": "no-store", "X-Landview-Data": "supabase" } });
+    }
+
     const projectCode = normalizeProjectCode(body.Project_ID || body.projectId || "");
     if (!projectCode) return NextResponse.json({ success: false, error: "Choose a project." }, { status: 400 });
     const projects = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
     if (!projects.length) return NextResponse.json({ success: false, error: `Project ${projectCode} was not found.` }, { status: 400 });
-
-    const actor = actorOf(user);
 
     if (action === "updateExpense") {
       const sourceId = text(body.Source_ID || body.sourceId, 160);
