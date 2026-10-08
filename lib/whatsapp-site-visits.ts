@@ -20,11 +20,16 @@ type SiteVisitWhatsAppPayload = {
   locationVerificationStatus?: string;
   visitPhotoUrl?: string;
   problemPhotoUrl?: string;
+  visitPhotoBase64?: string;
+  visitPhotoMimeType?: string;
+  problemPhotoBase64?: string;
+  problemPhotoMimeType?: string;
 };
 
 export type SiteVisitWhatsAppResult = {
   status: "sent" | "queued" | "skipped" | "failed";
   messageId?: string;
+  mediaCount?: number;
   reason?: string;
 };
 
@@ -39,6 +44,27 @@ function addLine(lines: string[], label: string, value: unknown, max = 600) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function directMedia(payload: SiteVisitWhatsAppPayload) {
+  const media: Array<{ mimeType: string; base64: string; caption: string }> = [];
+  const visitBase64 = String(payload.visitPhotoBase64 || "").trim();
+  if (visitBase64) {
+    media.push({
+      mimeType: text(payload.visitPhotoMimeType || "image/jpeg", 80).toLowerCase(),
+      base64: visitBase64,
+      caption: `📷 LAND VIEW Site Visit Photo · ${text(payload.projectId, 80)} · ${text(payload.visitId, 120)}`.slice(0, 700),
+    });
+  }
+  const problemBase64 = String(payload.problemPhotoBase64 || "").trim();
+  if (problemBase64) {
+    media.push({
+      mimeType: text(payload.problemPhotoMimeType || "image/jpeg", 80).toLowerCase(),
+      base64: problemBase64,
+      caption: `⚠️ LAND VIEW Site Problem Photo · ${text(payload.projectId, 80)} · ${text(payload.visitId, 120)}`.slice(0, 700),
+    });
+  }
+  return media.slice(0, 2);
 }
 
 export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload) {
@@ -70,10 +96,14 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
     lines.push(`📍 https://maps.google.com/?q=${lat},${lon}`);
   }
 
-  const visitPhotoUrl = text(payload.visitPhotoUrl, 1000);
-  if (visitPhotoUrl) lines.push(`📷 *Site Photo:* ${visitPhotoUrl}`);
-  const problemPhotoUrl = text(payload.problemPhotoUrl, 1000);
-  if (problemPhotoUrl) lines.push(`⚠️ *Problem Photo:* ${problemPhotoUrl}`);
+  if (!payload.visitPhotoBase64) {
+    const visitPhotoUrl = text(payload.visitPhotoUrl, 1000);
+    if (visitPhotoUrl) lines.push(`📷 *Site Photo:* ${visitPhotoUrl}`);
+  }
+  if (!payload.problemPhotoBase64) {
+    const problemPhotoUrl = text(payload.problemPhotoUrl, 1000);
+    if (problemPhotoUrl) lines.push(`⚠️ *Problem Photo:* ${problemPhotoUrl}`);
+  }
 
   lines.push("_Sent via the LAND VIEW Site Visit system._");
   return lines.join("\n").slice(0, 4000);
@@ -238,6 +268,7 @@ async function sendFromEmployeeWhatsApp(
   }
 
   const message = formatSiteVisitWhatsAppMessage(payload);
+  const media = directMedia(payload);
   let lastReason = "Employee WhatsApp send request failed.";
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -252,9 +283,10 @@ async function sendFromEmployeeWhatsApp(
           employeeId,
           groupInviteCode,
           message,
+          media,
         }),
         cache: "no-store",
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(45_000),
       });
       const json = await response.json().catch(() => null) as any;
 
@@ -268,6 +300,7 @@ async function sendFromEmployeeWhatsApp(
         return {
           status: "sent",
           messageId: text(json?.messageId, 240) || undefined,
+          mediaCount: Number.isFinite(Number(json?.mediaCount)) ? Number(json.mediaCount) : media.length,
         };
       }
 
