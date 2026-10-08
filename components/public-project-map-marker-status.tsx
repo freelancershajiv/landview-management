@@ -20,7 +20,22 @@ const COLORS: Record<MarkerState, string> = {
 };
 
 const css = `
-.lv-project-marker-legend{position:absolute;right:16px;top:16px;z-index:500;display:flex;gap:8px;flex-wrap:wrap;max-width:calc(100% - 32px);padding:8px 10px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:rgba(8,13,18,.9);backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.24);pointer-events:none}.lv-project-marker-legend span{display:inline-flex;align-items:center;gap:6px;color:#cbd3d8;font-size:8px;font-weight:900;letter-spacing:.03em;white-space:nowrap}.lv-project-marker-legend i{width:10px;height:10px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.18)}.lv-project-marker-legend .completed{background:#22c55e}.lv-project-marker-legend .active{background:#facc15}.lv-project-marker-legend .hold{background:#ef4444}@media(max-width:620px){.lv-project-marker-legend{right:10px;top:10px;gap:6px;padding:7px 8px}.lv-project-marker-legend span{font-size:7px}}
+.lv-project-marker-legend{position:absolute;right:16px;top:16px;z-index:500;display:flex;gap:8px;flex-wrap:wrap;max-width:calc(100% - 260px);padding:8px 10px;border:1px solid rgba(255,255,255,.14);border-radius:9px;background:rgba(8,13,18,.9);backdrop-filter:blur(10px);box-shadow:0 8px 24px rgba(0,0,0,.24);pointer-events:none}
+.lv-project-marker-legend span{display:inline-flex;align-items:center;gap:6px;color:#cbd3d8;font-size:8px;font-weight:900;letter-spacing:.03em;white-space:nowrap}
+.lv-project-marker-legend i{width:10px;height:10px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 0 1px rgba(0,0,0,.18)}
+.lv-project-marker-legend .completed{background:#22c55e}.lv-project-marker-legend .active{background:#facc15}.lv-project-marker-legend .hold{background:#ef4444}
+.project-map-style-switch{left:52px!important;right:auto!important;top:16px!important}
+.project-map-legend{right:16px!important;top:64px!important}
+@media(max-width:760px){
+  .project-map-style-switch{left:50px!important;right:auto!important;top:10px!important}
+  .lv-project-marker-legend{left:10px;right:10px;top:58px;max-width:none;justify-content:center;gap:6px;padding:7px 8px}
+  .lv-project-marker-legend span{font-size:7px}
+  .project-map-legend{right:10px!important;top:116px!important}
+}
+@media(max-width:420px){
+  .lv-project-marker-legend{top:58px;justify-content:flex-start}
+  .project-map-legend{top:126px!important}
+}
 `;
 
 export default function PublicProjectMapMarkerStatus({ states }: { states: Record<string, MarkerState> }) {
