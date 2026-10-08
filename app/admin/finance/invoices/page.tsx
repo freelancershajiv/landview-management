@@ -15,6 +15,7 @@ import ProjectBillingDocument, {
   printBillingPdf,
 } from "@/components/project-billing-document";
 import EmailInvoiceButton from "@/components/email-invoice-button";
+import WhatsAppInvoiceButton from "@/components/whatsapp-invoice-button";
 import { saveBillingJpg } from "@/lib/save-document-jpg";
 import styles from "./invoice.module.css";
 
@@ -202,13 +203,14 @@ export default function ProjectBillingPage() {
         {result && (
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
             <EmailInvoiceButton result={result} verificationUrl={verificationUrl} className={styles.printButton} />
+            <WhatsAppInvoiceButton result={result} verificationUrl={verificationUrl} className={styles.printButton} />
             {Number(result.totals.due || 0) > 0.009 && (
               <button className={styles.printButton} type="button" onClick={generateDueBill} disabled={dueOnly}>
                 {dueOnly ? "Generating Due Bill…" : "Generate Due Bill"}
               </button>
             )}
             <button className={styles.printButton} type="button" onClick={() => printBillingPdf(result)}>Print / Save PDF</button>
-              <button className={styles.printButton} type="button" onClick={() => void saveBillingJpg(result).catch((error) => window.alert(error instanceof Error ? error.message : "Could not save JPG."))}>Save JPG</button>
+            <button className={styles.printButton} type="button" onClick={() => void saveBillingJpg(result).catch((error) => window.alert(error instanceof Error ? error.message : "Could not save JPG."))}>Save JPG</button>
           </div>
         )}
       </div>
