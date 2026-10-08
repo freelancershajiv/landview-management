@@ -1,5 +1,5 @@
-import Link from "next/link";
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
+import AdminBalanceOverview from "@/components/admin-balance-overview";
 import AdminCommandCenter from "@/components/admin-command-center";
 import { requirePortalSession } from "@/lib/server-auth";
 
@@ -20,8 +20,10 @@ function isEmp0001(user: Record<string, unknown>) {
 export default async function DashboardPage(){
   const { role, user } = await requirePortalSession(["admin", "manager", "accounts", "employee"]);
   const chairman = isEmp0001(user as Record<string, unknown>);
+  const financeRole = ["admin", "manager", "accounts"].includes(String(role || "").toLowerCase());
   return <>
     {chairman && <ChairmanExpenseApproval/>}
+    {financeRole && <AdminBalanceOverview/>}
     <AdminCommandCenter/>
   </>;
 }
