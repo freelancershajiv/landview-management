@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-type EmployeeRow = Record<string, any>;
+type EmployeeRow = { employeeCode?: string; employeeName?: string; designation?: string; status?: string };
 type Check = {
   id?: string;
   employeeCode?: string;
@@ -17,12 +17,7 @@ type Check = {
   responseNote?: string;
 };
 
-type Props = { employees: EmployeeRow[] };
-
 function text(value: unknown) { return String(value ?? "").trim(); }
-function employeeCode(row: EmployeeRow) { return text(row.Employee_ID || row["Employee ID"] || row.EmployeeId); }
-function employeeName(row: EmployeeRow) { return text(row.Employee_Name || row["Employee Name"] || row.Name || employeeCode(row)); }
-function employeeStatus(row: EmployeeRow) { return text(row.Status || row.status || "Active").toLowerCase(); }
 function fmtTime(value: unknown) {
   const raw = text(value);
   if (!raw) return "—";
@@ -56,22 +51,27 @@ function statusClass(status?: string) {
   return "muted";
 }
 
-export default function AdminEmployeeLocationCheck({ employees }: Props) {
-  const active = useMemo(() => employees.filter((row) => employeeCode(row) && employeeStatus(row) === "active"), [employees]);
+export default function AdminEmployeeLocationCheck() {
+  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [checks, setChecks] = useState<Record<string, Check>>({});
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
+  const active = useMemo(() => employees.filter((row) => text(row.employeeCode) && text(row.status || "Active").toLowerCase() === "active"), [employees]);
 
   const load = useCallback(async () => {
     try {
       const data = await requestJson("/api/admin/employee-location-check");
+      const employeeRows = Array.isArray(data?.employees) ? data.employees : [];
+      const checkRows = Array.isArray(data?.checks) ? data.checks : [];
       const map: Record<string, Check> = {};
-      for (const row of Array.isArray(data) ? data : []) {
+      for (const row of checkRows) {
         const code = text(row?.employeeCode).toUpperCase();
         if (code) map[code] = row;
       }
+      setEmployees(employeeRows);
       setChecks(map);
+      setError("");
     } catch (err: any) {
       setError(err?.message || "Could not load employee location checks.");
     }
@@ -115,12 +115,12 @@ export default function AdminEmployeeLocationCheck({ employees }: Props) {
     {error && <div className="aelc-error">{error}</div>}
     {open && <div className="aelc-list">
       {!active.length ? <div className="aelc-empty">No active employees found.</div> : active.map((row) => {
-        const code = employeeCode(row).toUpperCase();
-        const name = employeeName(row);
+        const code = text(row.employeeCode).toUpperCase();
+        const name = text(row.employeeName || code);
         const check = checks[code];
         const matched = check?.matchedProjectCode ? `${check.matchedProjectCode}${check.matchedProjectName ? ` · ${check.matchedProjectName}` : ""}` : "";
         return <div className="aelc-row" key={code}>
-          <div className="aelc-person"><strong>{name}</strong><span>{code}</span></div>
+          <div className="aelc-person"><strong>{name}</strong><span>{code}{row.designation ? ` · ${row.designation}` : ""}</span></div>
           <div><span className={`aelc-state ${statusClass(check?.status)}`}>{statusLabel(check)}</span><small style={{display:"block",marginTop:4,color:"var(--lv-muted,#75808a)",fontSize:9}}>{check?.respondedAt ? `Checked ${fmtTime(check.respondedAt)}` : check?.requestedAt ? `Requested ${fmtTime(check.requestedAt)}` : "No recent check"}</small></div>
           <div className="aelc-detail">{matched ? <><strong>{matched}</strong><small>{check?.distanceM != null ? `${Math.round(Number(check.distanceM))} m from registered point` : ""}{check?.accuracyM != null ? ` · GPS ±${Math.round(Number(check.accuracyM))} m` : ""}</small></> : <><strong>{check?.responseNote || "No site match yet"}</strong>{check?.accuracyM != null && <small>GPS ±{Math.round(Number(check.accuracyM))} m</small>}</>}</div>
           <button type="button" className="aelc-btn" disabled={busy === code || check?.status === "PENDING"} onClick={() => void requestLocation(code, name)}>{busy === code ? "REQUESTING…" : check?.status === "PENDING" ? "WAITING…" : "CHECK LOCATION"}</button>
