@@ -13,7 +13,10 @@ type MapMode = "map" | "satellite";
 
 const DEFAULT_CENTER: [number, number] = [23.0159, 91.3976];
 const STREET_TILE_URL = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-const SATELLITE_TILE_URL = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}";
+const SATELLITE_TILE_URLS = [
+  "https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+];
 
 const css = `
 .project-map-page{min-height:100vh;background:#080d12;color:#f4f6f7}
@@ -121,8 +124,8 @@ function officeIcon(L:any){
     html:`<span class="lv-office-pin" aria-hidden="true"><svg viewBox="0 0 24 24" focusable="false"><path fill="currentColor" d="M7 21V3h10v18h4v-9h-4v9h-3v-4h-4v4H7Zm3-14h4V5h-4v2Zm0 4h4V9h-4v2Zm0 4h4v-2h-4v2ZM3 21h4V9H3v12Zm2-8h2v-2H5v2Zm0 4h2v-2H5v2Zm12 4h4v-7h-4v7Zm0-4h2v-2h-2v2Z"/></svg></span>`,
   });
 }
-function createBaseLayer(L:any,mode:MapMode){
-  if(mode==="satellite")return L.tileLayer(SATELLITE_TILE_URL,{maxZoom:19,attribution:"Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community"});
+function createBaseLayer(L:any,mode:MapMode,satelliteIndex=0){
+  if(mode==="satellite")return L.tileLayer(SATELLITE_TILE_URLS[Math.min(satelliteIndex,SATELLITE_TILE_URLS.length-1)],{maxZoom:19,attribution:"Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community"});
   return L.tileLayer(STREET_TILE_URL,{maxZoom:19,attribution:"&copy; OpenStreetMap contributors"});
 }
 function officePhone(value:string){return value.replace(/\s+/g,"");}
@@ -202,9 +205,63 @@ export default function PublicProjectMap({initialProjects}:{initialProjects:Publ
     if(!mapReady||!mapRef.current||!window.L||tileModeRef.current===mapMode)return;
     const L=window.L;
     const map=mapRef.current;
-    try{if(tileLayerRef.current)map.removeLayer(tileLayerRef.current);}catch{}
-    tileLayerRef.current=createBaseLayer(L,mapMode).addTo(map);
-    tileModeRef.current=mapMode;
+    const previous=tileLayerRef.current;
+    let cancelled=false;
+    let pending:any=null;
+    let timer:ReturnType<typeof setTimeout>|null=null;
+
+    const clearTimer=()=>{if(timer){clearTimeout(timer);timer=null;}};
+    const activate=(layer:any,mode:MapMode)=>{
+      if(cancelled)return;
+      clearTimer();
+      try{if(previous&&previous!==layer&&map.hasLayer(previous))map.removeLayer(previous);}catch{}
+      tileLayerRef.current=layer;
+      tileModeRef.current=mode;
+      setMapError("");
+    };
+
+    if(mapMode==="map"){
+      const layer=createBaseLayer(L,"map");
+      pending=layer;
+      layer.once("tileload",()=>activate(layer,"map"));
+      layer.addTo(map);
+      timer=setTimeout(()=>activate(layer,"map"),1800);
+    }else{
+      let index=0;
+      const trySatellite=()=>{
+        if(cancelled)return;
+        let errors=0;
+        let loaded=false;
+        const layer=createBaseLayer(L,"satellite",index);
+        pending=layer;
+        const success=()=>{
+          if(cancelled||loaded)return;
+          loaded=true;
+          activate(layer,"satellite");
+        };
+        const fallback=()=>{
+          if(cancelled||loaded)return;
+          clearTimer();
+          try{if(map.hasLayer(layer))map.removeLayer(layer);}catch{}
+          index+=1;
+          if(index<SATELLITE_TILE_URLS.length){trySatellite();return;}
+          setMapError("Satellite imagery could not load on this network. Map view has been restored.");
+          tileModeRef.current="map";
+          setMapMode("map");
+        };
+        layer.once("tileload",success);
+        layer.on("tileerror",()=>{errors+=1;if(errors>=4)fallback();});
+        layer.addTo(map);
+        timer=setTimeout(fallback,6000);
+      };
+      trySatellite();
+    }
+
+    return()=>{
+      cancelled=true;
+      clearTimer();
+      try{if(pending&&pending!==tileLayerRef.current&&map.hasLayer(pending))map.removeLayer(pending);}catch{}
+    };
   },[mapMode,mapReady]);
 
   useEffect(()=>{
@@ -287,7 +344,7 @@ export default function PublicProjectMap({initialProjects}:{initialProjects:Publ
       <div ref={mapNode} className="project-map-canvas"/>
       {!mapReady&&!mapError&&<div className="project-map-loading">Loading interactive map…</div>}
       {mapError&&<div className="project-map-error">{mapError}</div>}
-      {mapReady&&<><div className="project-map-style-switch" aria-label="Map view"><button type="button" className={mapMode==="map"?"active":""} onClick={()=>setMapMode("map")}>Map</button><button type="button" className={mapMode==="satellite"?"active":""} onClick={()=>setMapMode("satellite")}>Satellite</button></div><div className="project-map-legend"><span><i className="project-map-legend-project"/>Projects</span><span><i className="project-map-legend-office">⌂</i>LAND VIEW Offices</span></div></>}
+      {mapReady&&<><div className="project-map-style-switch" aria-label="Map view"><button type="button" className={mapMode==="map"?"active":""} onClick={()=>{setMapError("");setMapMode("map");}}>Map</button><button type="button" className={mapMode==="satellite"?"active":""} onClick={()=>{setMapError("");setMapMode("satellite");}}>Satellite</button></div><div className="project-map-legend"><span><i className="project-map-legend-project"/>Projects</span><span><i className="project-map-legend-office">⌂</i>LAND VIEW Offices</span></div></>}
 
       {selected&&<div className="project-map-detail"><div className="project-map-detail-top"><div><small>{text(selected.projectId)}</small><h2>{text(selected.title)||"LAND VIEW Project"}</h2></div><button type="button" className="project-map-detail-close" onClick={()=>setSelectedId("")}>×</button></div><p>{locationLine(selected)}</p><div className="project-map-detail-meta">{selected.category&&<span>{selected.category}</span>}{selected.currentStage&&<span>{selected.currentStage}</span>}{selected.area&&<span>{selected.area}</span>}{selected.stories&&<span>{selected.stories} stories</span>}</div><div className="project-map-detail-actions"><Link href={`/projects/${encodeURIComponent(text(selected.projectId))}`}>View project</Link></div></div>}
 
