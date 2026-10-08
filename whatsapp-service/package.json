@@ -7,8 +7,8 @@
     "node": ">=20"
   },
   "scripts": {
-    "start": "node gateway.mjs",
-    "check": "node --check gateway.mjs && node --check server.mjs"
+    "start": "node bootstrap.mjs",
+    "check": "node --check bootstrap.mjs && node --check gateway.mjs && node --check server.mjs"
   },
   "dependencies": {
     "@whiskeysockets/baileys": "7.0.0-rc14",
