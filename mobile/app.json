@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "LAND VIEW",
+    "slug": "land-view-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "landview",
+    "userInterfaceStyle": "dark",
+    "android": {
+      "package": "bd.com.landview.mobile",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_COARSE_LOCATION"]
+    },
+    "ios": {
+      "bundleIdentifier": "bd.com.landview.mobile",
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "LAND VIEW uses your location only when you verify a site visit or respond to a management site-location check."
+      }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow LAND VIEW to verify whether you are near a registered project site."
+        }
+      ],
+      "expo-secure-store"
+    ],
+    "extra": {
+      "apiBaseUrl": "https://app.landview.com.bd"
+    }
+  }
+}
