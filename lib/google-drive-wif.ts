@@ -25,12 +25,13 @@ function googleStsAudience() {
 async function googleAccessToken() {
   if (tokenCache && tokenCache.expiresAt - Date.now() > 60_000) return tokenCache.token;
 
-  const audience = googleStsAudience();
-  const subjectToken = await getVercelOidcToken({ audience });
+  // The Google provider was created against Vercel's default project/team audience.
+  // STS itself still targets the canonical Google provider resource below.
+  const subjectToken = await getVercelOidcToken();
   if (!subjectToken) throw new Error("Vercel OIDC token is unavailable for Google Drive.");
 
   const exchange = new URLSearchParams({
-    audience,
+    audience: googleStsAudience(),
     grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
     requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
     scope: "https://www.googleapis.com/auth/cloud-platform",
