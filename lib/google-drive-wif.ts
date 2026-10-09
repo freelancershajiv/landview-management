@@ -25,8 +25,6 @@ function googleStsAudience() {
 async function googleAccessToken() {
   if (tokenCache && tokenCache.expiresAt - Date.now() > 60_000) return tokenCache.token;
 
-  // The Google provider was created against Vercel's default project/team audience.
-  // STS itself still targets the canonical Google provider resource below.
   const subjectToken = await getVercelOidcToken();
   if (!subjectToken) throw new Error("Vercel OIDC token is unavailable for Google Drive.");
 
@@ -56,7 +54,10 @@ async function googleAccessToken() {
     {
       method: "POST",
       headers: { authorization: `Bearer ${sts.access_token}`, "content-type": "application/json" },
-      body: JSON.stringify({ scope: ["https://www.googleapis.com/auth/drive"], lifetime: "1800s" }),
+      body: JSON.stringify({
+        scope: ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/cloud-platform"],
+        lifetime: "1800s",
+      }),
       cache: "no-store",
       signal: AbortSignal.timeout(8_000),
     },
@@ -74,6 +75,27 @@ async function googleAccessToken() {
   return tokenCache.token;
 }
 
+async function enableDriveApi(token: string) {
+  const projectNumber = env("GCP_PROJECT_NUMBER");
+  const response = await fetch(
+    `https://serviceusage.googleapis.com/v1/projects/${encodeURIComponent(projectNumber)}/services/drive.googleapis.com:enable`,
+    {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: "{}",
+      cache: "no-store",
+      signal: AbortSignal.timeout(10_000),
+    },
+  );
+  const body = await response.text();
+  let json: any = null;
+  try { json = body ? JSON.parse(body) : null; } catch { json = null; }
+  if (!response.ok) {
+    throw new Error(`Google Drive API activation failed (${response.status}): ${String(json?.error?.message || body || "request failed").slice(0, 700)}`);
+  }
+  return json;
+}
+
 async function driveRequest(path: string, init: RequestInit = {}, timeoutMs = 10_000) {
   const token = await googleAccessToken();
   const headers = new Headers(init.headers || {});
@@ -88,7 +110,12 @@ async function driveRequest(path: string, init: RequestInit = {}, timeoutMs = 10
   let json: any = null;
   try { json = responseText ? JSON.parse(responseText) : null; } catch { json = null; }
   if (!response.ok) {
-    throw new Error(`Google Drive API ${response.status}: ${String(json?.error?.message || responseText || "request failed").slice(0, 700)}`);
+    const message = String(json?.error?.message || responseText || "request failed");
+    if (response.status === 403 && /drive api has not been used|drive api.*disabled|enable it by visiting/i.test(message)) {
+      await enableDriveApi(token);
+      throw new Error("Google Drive API activation was requested successfully. Site Visit media will retry automatically after Google propagates the service change.");
+    }
+    throw new Error(`Google Drive API ${response.status}: ${message.slice(0, 700)}`);
   }
   return json as Row;
 }
@@ -156,7 +183,6 @@ export async function uploadSiteVisitPhotoToDrive(input: {
   const projectFolderId = await ensureFolder(rootId, `${projectCode} - ${projectName}`);
   const visitFolderId = await ensureFolder(projectFolderId, visitCode);
 
-  // A Site Visit has at most one canonical photo of each kind. Reusing a matching file makes worker retries idempotent.
   const existing = await findChild(visitFolderId, fileName);
   if (existing?.id) {
     return {
