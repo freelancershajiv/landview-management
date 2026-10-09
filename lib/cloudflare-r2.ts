@@ -38,6 +38,12 @@ function getConfig(): R2Config {
   if (missing.length) {
     throw new Error(`Cloudflare R2 is not configured (${missing.join(", ")}).`);
   }
+  if (!/^[a-f0-9]{32}$/i.test(config.accountId)) {
+    throw new Error("R2_ACCOUNT_ID format is invalid. Use only the 32-character Cloudflare Account ID, not an endpoint URL.");
+  }
+  if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(config.bucket)) {
+    throw new Error("R2_BUCKET format is invalid. Use only the Cloudflare R2 bucket name.");
+  }
   return config;
 }
 
@@ -90,6 +96,22 @@ function hmac(key: string | Buffer, value: string) {
 function awsTimestamp(now = new Date()) {
   const amzDate = now.toISOString().replace(/[:-]|\.\d{3}/g, "");
   return { amzDate, dateStamp: amzDate.slice(0, 8) };
+}
+
+function r2NetworkError(error: unknown) {
+  const err = error as any;
+  const cause = err?.cause as any;
+  const code = String(cause?.code || cause?.errno || "").trim();
+  if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
+    return new Error("Cloudflare R2 endpoint could not be resolved. Check that R2_ACCOUNT_ID is the 32-character Cloudflare Account ID.");
+  }
+  if (code.includes("TIMEOUT") || /timed? ?out/i.test(String(cause?.message || err?.message || ""))) {
+    return new Error("Cloudflare R2 network request timed out.");
+  }
+  if (/certificate|tls|ssl/i.test(String(cause?.message || ""))) {
+    return new Error("Cloudflare R2 TLS connection failed.");
+  }
+  return new Error(`Cloudflare R2 network request failed${code ? ` (${code})` : ""}.`);
 }
 
 async function signedR2Request(params: {
@@ -150,13 +172,18 @@ async function signedR2Request(params: {
   };
   if (params.contentType) headers["Content-Type"] = params.contentType;
 
-  const response = await fetch(url, {
-    method: params.method,
-    headers,
-    body: params.method === "PUT" ? (payload as unknown as BodyInit) : undefined,
-    cache: "no-store",
-    signal: AbortSignal.timeout(30_000),
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: params.method,
+      headers,
+      body: params.method === "PUT" ? (payload as unknown as BodyInit) : undefined,
+      cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
+    });
+  } catch (error) {
+    throw r2NetworkError(error);
+  }
 
   if (!response.ok) {
     const detail = (await response.text().catch(() => "")).replace(/\s+/g, " ").trim().slice(0, 500);
