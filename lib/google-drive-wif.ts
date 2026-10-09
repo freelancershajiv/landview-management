@@ -75,27 +75,6 @@ async function googleAccessToken() {
   return tokenCache.token;
 }
 
-async function enableDriveApi(token: string) {
-  const projectNumber = env("GCP_PROJECT_NUMBER");
-  const response = await fetch(
-    `https://serviceusage.googleapis.com/v1/projects/${encodeURIComponent(projectNumber)}/services/drive.googleapis.com:enable`,
-    {
-      method: "POST",
-      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
-      body: "{}",
-      cache: "no-store",
-      signal: AbortSignal.timeout(10_000),
-    },
-  );
-  const body = await response.text();
-  let json: any = null;
-  try { json = body ? JSON.parse(body) : null; } catch { json = null; }
-  if (!response.ok) {
-    throw new Error(`Google Drive API activation failed (${response.status}): ${String(json?.error?.message || body || "request failed").slice(0, 700)}`);
-  }
-  return json;
-}
-
 async function driveRequest(path: string, init: RequestInit = {}, timeoutMs = 10_000) {
   const token = await googleAccessToken();
   const headers = new Headers(init.headers || {});
@@ -112,8 +91,9 @@ async function driveRequest(path: string, init: RequestInit = {}, timeoutMs = 10
   if (!response.ok) {
     const message = String(json?.error?.message || responseText || "request failed");
     if (response.status === 403 && /drive api has not been used|drive api.*disabled|enable it by visiting/i.test(message)) {
-      await enableDriveApi(token);
-      throw new Error("Google Drive API activation was requested successfully. Site Visit media will retry automatically after Google propagates the service change.");
+      const projectId = env("GCP_PROJECT_ID");
+      const projectNumber = env("GCP_PROJECT_NUMBER");
+      throw new Error(`Google Drive API is disabled in GCP project ${projectId} (project number ${projectNumber}). Enable drive.googleapis.com in this exact project, then retry Site Visit media.`);
     }
     throw new Error(`Google Drive API ${response.status}: ${message.slice(0, 700)}`);
   }
