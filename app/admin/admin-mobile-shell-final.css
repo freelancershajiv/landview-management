@@ -1,0 +1,61 @@
+/* Final specificity layer for the mobile shell. ManagementShellV2 injects a
+   component style tag after linked stylesheets, so these selectors deliberately
+   outrank its legacy full-width mobile rules. */
+@media screen and (max-width: 900px) {
+  .portal-admin.portal-admin .primary-nav,
+  .portal-admin.portal-admin .primary-nav.open {
+    position: fixed !important;
+    z-index: 420 !important;
+    top: var(--lv-mobile-topbar, 62px) !important;
+    left: 0 !important;
+    right: auto !important;
+    bottom: 0 !important;
+    width: min(88vw, 370px) !important;
+    height: calc(100dvh - var(--lv-mobile-topbar, 62px)) !important;
+    max-height: calc(100dvh - var(--lv-mobile-topbar, 62px)) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    transform: translateX(-104%) !important;
+  }
+
+  .portal-admin.portal-admin .primary-nav.open {
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: translateX(0) !important;
+  }
+
+  .portal-admin.portal-admin .primary-nav:not(.open) {
+    display: flex !important;
+    visibility: visible !important;
+    pointer-events: none !important;
+    transform: translateX(-104%) !important;
+  }
+
+  .portal-admin.portal-admin .primary-nav.open .primary-nav-inner,
+  .portal-admin.portal-admin .primary-nav .primary-nav-inner {
+    display: block !important;
+    grid-template-columns: none !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 12px 12px 18px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .portal-admin.portal-admin .primary-nav.open .primary-nav-inner > .sidebar-nav-section,
+  .portal-admin.portal-admin .primary-nav .primary-nav-inner > .sidebar-nav-section {
+    width: 100% !important;
+  }
+
+  .portal-admin.portal-admin .mobile-nav-overlay {
+    position: fixed !important;
+    z-index: 410 !important;
+    inset: var(--lv-mobile-topbar, 62px) 0 0 0 !important;
+  }
+}
