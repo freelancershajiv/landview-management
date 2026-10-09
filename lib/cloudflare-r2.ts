@@ -27,9 +27,16 @@ function env(name: string) {
   return String(process.env[name] || "").trim();
 }
 
+function normalizeAccountId(value: string) {
+  const raw = String(value || "").trim();
+  if (/^[a-f0-9]{32}$/i.test(raw)) return raw;
+  const endpointMatch = raw.match(/(?:https?:\/\/)?([a-f0-9]{32})\.r2\.cloudflarestorage\.com(?:[/:]|$)/i);
+  return endpointMatch?.[1] || raw;
+}
+
 function getConfig(): R2Config {
   const config = {
-    accountId: env("R2_ACCOUNT_ID"),
+    accountId: normalizeAccountId(env("R2_ACCOUNT_ID")),
     accessKeyId: env("R2_ACCESS_KEY_ID"),
     secretAccessKey: env("R2_SECRET_ACCESS_KEY"),
     bucket: env("R2_BUCKET"),
@@ -39,7 +46,7 @@ function getConfig(): R2Config {
     throw new Error(`Cloudflare R2 is not configured (${missing.join(", ")}).`);
   }
   if (!/^[a-f0-9]{32}$/i.test(config.accountId)) {
-    throw new Error("R2_ACCOUNT_ID format is invalid. Use only the 32-character Cloudflare Account ID, not an endpoint URL.");
+    throw new Error("R2_ACCOUNT_ID format is invalid. Use the 32-character Cloudflare Account ID or its account-specific R2 endpoint URL.");
   }
   if (!/^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/.test(config.bucket)) {
     throw new Error("R2_BUCKET format is invalid. Use only the Cloudflare R2 bucket name.");
@@ -103,7 +110,7 @@ function r2NetworkError(error: unknown) {
   const cause = err?.cause as any;
   const code = String(cause?.code || cause?.errno || "").trim();
   if (code === "ENOTFOUND" || code === "EAI_AGAIN") {
-    return new Error("Cloudflare R2 endpoint could not be resolved. Check that R2_ACCOUNT_ID is the 32-character Cloudflare Account ID.");
+    return new Error("Cloudflare R2 endpoint could not be resolved. Check R2_ACCOUNT_ID.");
   }
   if (code.includes("TIMEOUT") || /timed? ?out/i.test(String(cause?.message || err?.message || ""))) {
     return new Error("Cloudflare R2 network request timed out.");
