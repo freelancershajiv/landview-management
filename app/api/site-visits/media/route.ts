@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { getSiteVisitMediaUrl, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
+import { isR2FileId, readSiteVisitMediaFromR2 } from "@/lib/cloudflare-r2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -46,6 +47,19 @@ export async function GET(request: NextRequest) {
 
     const driveFileId = kind === "visit" ? clean(visit.visit_photo_drive_file_id, 500) : clean(visit.problem_photo_drive_file_id, 500);
     if (driveFileId) {
+      if (isR2FileId(driveFileId)) {
+        const media = await readSiteVisitMediaFromR2(driveFileId);
+        return new NextResponse(media.bytes as unknown as BodyInit, {
+          status: 200,
+          headers: {
+            "Content-Type": media.contentType,
+            "Content-Length": String(media.bytes.length),
+            "Cache-Control": "private, max-age=300",
+            "Content-Disposition": `inline; filename="${media.fileName.replace(/"/g, "")}"`,
+          },
+        });
+      }
+
       const url = String(process.env.LAND_VIEW_API_URL || "").trim();
       const secret = String(process.env.LAND_VIEW_PROXY_SECRET || "").trim();
       if (!url || !secret) return deny("Google Drive backend is not configured.", 500);
@@ -62,7 +76,7 @@ export async function GET(request: NextRequest) {
 
       const data = json.data;
       const bytes = Buffer.from(String(data.base64), "base64");
-      return new NextResponse(bytes, {
+      return new NextResponse(bytes as unknown as BodyInit, {
         status: 200,
         headers: {
           "Content-Type": String(data.mimeType || "image/jpeg"),
