@@ -2,18 +2,32 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { landViewApi } from "@/lib/api";
 import { EmptyState, ErrorState, LoadingState, PageHeader, pick } from "@/components/lv-ui";
 import { notifyClientWorkflowComplete, notifyClientWorkflowService } from "@/lib/client-project-whatsapp";
 
 type Task = Record<string, unknown>;
 type Filter = "All" | "Pending" | "In Progress" | "Blocked" | "Completed";
+type WorkflowData = { tasks:Task[]; projects:Record<string,string>; source?:string; billingServices?:number; savedTasks?:number };
 
 function value(row:Task, keys:string[]){ return String(pick(row, keys, "") || "").trim(); }
 function normalizeId(input:unknown){ const raw=String(input||"").trim().toUpperCase(); const digits=raw.replace(/\D/g,""); return digits?`LV-${Number(digits)}`:raw; }
 function taskId(task:Task){ return value(task,["Task_ID","Task ID","TaskId"]); }
 function taskTitle(task:Task){ return value(task,["Task_Title","Task Title","Title"]); }
 function isAutoTask(task:Task){ const id=taskId(task); return !id || id.startsWith("AUTO::"); }
+
+async function parseWorkflowResponse(response:Response,fallback:string){
+  const text=await response.text();
+  let json:any;
+  try{ json=JSON.parse(text); }
+  catch{ throw new Error(/^\s*</.test(text)?"LAND VIEW returned HTML instead of workflow data.":fallback); }
+  if(!response.ok||!json?.success) throw new Error(String(json?.error||json?.message||fallback));
+  return json.data;
+}
+
+async function getWorkflow():Promise<WorkflowData>{
+  const response=await fetch("/api/workflow",{credentials:"same-origin",cache:"no-store"});
+  return parseWorkflowResponse(response,"Could not load workflow from Supabase.");
+}
 
 async function saveWorkflow(payload:Record<string,unknown>){
   const response=await fetch("/api/workflow",{
@@ -23,16 +37,7 @@ async function saveWorkflow(payload:Record<string,unknown>){
     cache:"no-store",
     body:JSON.stringify(payload),
   });
-  const text=await response.text();
-  let json:any;
-  try{ json=JSON.parse(text); }
-  catch{ throw new Error(/^\s*</.test(text)?"Apps Script returned HTML instead of JSON.":"Workflow save returned an invalid response."); }
-  if(!response.ok||!json?.success) throw new Error(String(json?.error||json?.message||"Could not save workflow status."));
-
-  // FinanceSheet workflow operations can be wrapped twice:
-  // {success:true,data:{success:true,data:record}}
-  const record=(json?.data?.data ?? json?.data ?? {}) as Task;
-  return record;
+  return (await parseWorkflowResponse(response,"Could not save workflow status.")) as Task;
 }
 
 export default function WorkflowPage(){
@@ -45,27 +50,19 @@ export default function WorkflowPage(){
   const [filter,setFilter]=useState<Filter>("All");
   const [saving,setSaving]=useState<Record<string,boolean>>({});
 
+  function applyWorkflowData(data:WorkflowData){
+    setProjects(data?.projects||{});
+    setTasks((data?.tasks||[]).filter(task=>normalizeId(value(task,["Project_ID","Project ID","ProjectId"]))));
+  }
+
   async function fetchWorkflowTasks(){
-    const taskRows=await landViewApi.getErpRecords("tasks");
-    setTasks((taskRows||[]).filter(task=>normalizeId(value(task,["Project_ID","Project ID","ProjectId"]))));
+    applyWorkflowData(await getWorkflow());
   }
 
   async function load(){
     setLoading(true); setError("");
-    try{
-      const [taskRows,fileList]=await Promise.all([
-        landViewApi.getErpRecords("tasks"),
-        landViewApi.getFinanceSheet("File List").catch(()=>null),
-      ]);
-      const projectMap:Record<string,string>={};
-      (fileList?.rows||[]).forEach(row=>{
-        const id=normalizeId(row[0]);
-        const name=String(row[1]||"").trim();
-        if(id&&name) projectMap[id]=name;
-      });
-      setProjects(projectMap);
-      setTasks((taskRows||[]).filter(task=>normalizeId(value(task,["Project_ID","Project ID","ProjectId"]))));
-    }catch(e:any){ setError(e?.message||"Could not load workflow records."); }
+    try{ applyWorkflowData(await getWorkflow()); }
+    catch(e:any){ setError(e?.message||"Could not load workflow records from Supabase."); }
     finally{ setLoading(false); }
   }
 
@@ -148,7 +145,6 @@ export default function WorkflowPage(){
       let whatsappNote = "Client WhatsApp update queued.";
       try { await notifyClientWorkflowService({ projectId, projectName: projects[projectId], serviceTitle: title }); }
       catch(notifyError:any){ whatsappNote = `Client WhatsApp not queued: ${notifyError?.message || "delivery failed."}`; }
-      // Re-read source of truth so a newly created WF-* id replaces AUTO::* immediately.
       await fetchWorkflowTasks();
       setNotice(`${projectId} · ${title} marked completed. ${whatsappNote}`);
     }catch(e:any){
@@ -182,7 +178,6 @@ export default function WorkflowPage(){
       setNotice(`${id} marked 100% complete. ${whatsappNote}`);
     }catch(e:any){
       setError(e?.message||`Could not complete ${id}.`);
-      // Still refresh to show any services that were completed before the failure.
       try{ await fetchWorkflowTasks(); }catch{}
     }finally{
       setSaving(v=>({...v,[key]:false}));
@@ -194,7 +189,7 @@ export default function WorkflowPage(){
       .wf-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:18px}.wf-card{padding:16px;border:1px solid var(--theme-line-rgba_255_255_255__09_, rgba(255,255,255,.09));border-radius:10px;background:var(--theme-bg-_171f27, #171f27)}.wf-card span{display:block;color:var(--theme-ink-_8f9aa3, #8f9aa3);font-size:12px;text-transform:uppercase;letter-spacing:.09em}.wf-card strong{display:block;margin-top:7px;color:var(--theme-ink-_fff, #fff);font-size:20px}.wf-filters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}.wf-filters button{border:1px solid var(--theme-line-rgba_255_255_255__12_, rgba(255,255,255,.12));background:var(--theme-bg-_171f27, #171f27);color:var(--theme-ink-_aeb7be, #aeb7be);border-radius:999px;padding:8px 12px;font-size:12px;font-weight:700;cursor:pointer}.wf-filters button.active{background:var(--brand-red);border-color:var(--brand-red);color:#fff}.wf-filters b{margin-left:6px}.wf-toolbar{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:14px}.wf-toolbar input{width:min(420px,100%);background:var(--theme-bg-_151d24, #151d24);border:1px solid var(--theme-line-rgba_255_255_255__12_, rgba(255,255,255,.12));border-radius:8px;color:var(--theme-ink-_fff, #fff);padding:10px 12px}.wf-message{margin:0 0 12px;padding:10px 12px;border-radius:8px;font-size:12px}.wf-message.ok{background:var(--theme-bg-_21382a, #21382a);color:var(--theme-ink-_a9deb8, #a9deb8);border:1px solid var(--theme-line-_31513d, #31513d)}.wf-message.err{background:var(--theme-bg-_472824, #472824);color:var(--theme-ink-_ffb0a9, #ffb0a9);border:1px solid var(--theme-line-_67352f, #67352f)}.wf-table{overflow:auto;border:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));border-radius:10px}.wf-table table{width:100%;border-collapse:collapse;min-width:1120px}.wf-table th,.wf-table td{padding:11px 12px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__07_, rgba(255,255,255,.07));text-align:left;font-size:12px;color:var(--theme-ink-_ccd2d7, #ccd2d7)}.wf-table th{color:var(--theme-ink-_7f8991, #7f8991);font-size:12px;text-transform:uppercase;letter-spacing:.08em;background:var(--theme-bg-_11181e, #11181e)}.wf-table tr:last-child td{border-bottom:0}.wf-status{display:inline-flex;padding:5px 8px;border-radius:999px;background:var(--theme-bg-_303840, #303840);color:var(--theme-ink-_c7cdd1, #c7cdd1);font-size:12px;font-weight:800}.wf-status.completed{background:var(--theme-bg-_21382a, #21382a);color:var(--theme-ink-_a9deb8, #a9deb8)}.wf-status.blocked{background:var(--theme-bg-_472824, #472824);color:var(--theme-ink-_ff9a91, #ff9a91)}.wf-status.in-progress{background:var(--theme-bg-_453a20, #453a20);color:var(--theme-ink-_f1cc76, #f1cc76)}.wf-progress{min-width:130px}.wf-progress-bar{height:6px;background:var(--theme-bg-_303840, #303840);border-radius:999px;overflow:hidden}.wf-progress-bar i{display:block;height:100%;background:var(--brand-red)}.wf-progress small{display:block;margin-top:4px;color:var(--theme-ink-_7f8991, #7f8991)}.wf-link{color:var(--theme-ink-_f07a70, #f07a70);font-weight:700}.wf-stage{font-weight:700;color:var(--theme-ink-_f2f4f5, #f2f4f5)}.wf-empty-name{color:var(--theme-ink-_727d85, #727d85)}.wf-actions{display:flex;gap:6px;flex-wrap:wrap;min-width:210px}.wf-action{border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));background:var(--theme-bg-_202932, #202932);color:var(--theme-ink-_d9dee2, #d9dee2);border-radius:7px;padding:7px 9px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap}.wf-action:hover{border-color:var(--brand-red);color:var(--theme-ink-_fff, #fff)}.wf-action.complete{background:var(--theme-bg-_21382a, #21382a);border-color:var(--theme-line-_31513d, #31513d);color:var(--theme-ink-_a9deb8, #a9deb8)}.wf-action.project{background:var(--theme-bg-_472824, #472824);border-color:var(--theme-line-_67352f, #67352f);color:var(--theme-ink-_ffb0a9, #ffb0a9)}.wf-action:disabled{opacity:.45;cursor:not-allowed}@media(max-width:900px){.wf-summary{grid-template-columns:repeat(2,1fr)}.wf-toolbar{align-items:stretch;flex-direction:column}.wf-toolbar input{width:100%}}@media(max-width:520px){.wf-summary{grid-template-columns:1fr 1fr}}
     `}</style>
 
-    <PageHeader eyebrow="PROJECT DELIVERY" title="Workflow" description="Manage billed project services from one admin view. Complete an individual service or finish a project's remaining workflow in one action." />
+    <PageHeader eyebrow="PROJECT DELIVERY / SUPABASE" title="Workflow" description="Manage billed project services from one Supabase-backed view. Complete an individual service or finish a project's remaining workflow in one action." />
 
     <section className="wf-summary">
       <div className="wf-card"><span>Workflow records</span><strong>{tasks.length}</strong></div>
@@ -209,6 +204,6 @@ export default function WorkflowPage(){
     {notice&&<div className="wf-message ok">{notice}</div>}
     {error&&<div className="wf-message err">{error}</div>}
 
-    {loading?<LoadingState label="Loading project workflow..."/>:!tasks.length?(error?<ErrorState message={error} onRetry={load}/>:<EmptyState title="No workflow records" text="Workflow services appear automatically from billed project services." href="/admin/projects" action="Open projects"/>):<div className="wf-table"><table><thead><tr><th>Project</th><th>Stage</th><th>Assigned</th><th>Status</th><th>Project Progress</th><th>Quick actions</th><th>Open</th></tr></thead><tbody>{rows.map((task,index)=>{const id=normalizeId(value(task,["Project_ID","Project ID","ProjectId"]));const status=value(task,["Status","status"])||"Pending";const progress=projectProgress[id]||{done:0,total:0};const pct=progress.total?Math.round(progress.done/progress.total*100):0;const serviceKey=`service:${id}:${taskTitle(task)}`;const projectKey=`project:${id}`;const completed=status.toLowerCase()==="completed";return <tr key={`${id}-${taskId(task)||taskTitle(task)}-${index}`}><td><strong>{id}</strong><br/><span className={projects[id]?"":"wf-empty-name"}>{projects[id]||"Project name not found in File List"}</span></td><td className="wf-stage">{taskTitle(task)||"—"}</td><td>{value(task,["Assigned_Employee_ID","Assigned Employee ID"])||"Unassigned"}</td><td><span className={`wf-status ${status.toLowerCase().replace(/\s+/g,"-")}`}>{status}</span></td><td><div className="wf-progress"><div className="wf-progress-bar"><i style={{width:`${pct}%`}}/></div><small>{progress.done}/{progress.total} completed · {pct}%</small></div></td><td><div className="wf-actions"><button type="button" className="wf-action complete" disabled={completed||saving[serviceKey]||saving[projectKey]} onClick={()=>void completeService(task)}>{completed?"Completed":saving[serviceKey]?"Saving…":"✓ Complete service"}</button><button type="button" className="wf-action project" disabled={pct===100||saving[projectKey]} onClick={()=>void completeProject(id)}>{pct===100?"Project complete":saving[projectKey]?"Completing…":"✓ Complete project"}</button></div></td><td><Link className="wf-link" href={`/admin/projects/${encodeURIComponent(id)}`}>Open project →</Link></td></tr>})}</tbody></table></div>}
+    {loading?<LoadingState label="Loading project workflow from Supabase..."/>:!tasks.length?(error?<ErrorState message={error} onRetry={load}/>:<EmptyState title="No workflow records" text="Workflow services appear automatically from billed project services stored in Supabase." href="/admin/projects" action="Open projects"/>):<div className="wf-table"><table><thead><tr><th>Project</th><th>Stage</th><th>Assigned</th><th>Status</th><th>Project Progress</th><th>Quick actions</th><th>Open</th></tr></thead><tbody>{rows.map((task,index)=>{const id=normalizeId(value(task,["Project_ID","Project ID","ProjectId"]));const status=value(task,["Status","status"])||"Pending";const progress=projectProgress[id]||{done:0,total:0};const pct=progress.total?Math.round(progress.done/progress.total*100):0;const serviceKey=`service:${id}:${taskTitle(task)}`;const projectKey=`project:${id}`;const completed=status.toLowerCase()==="completed";return <tr key={`${id}-${taskId(task)||taskTitle(task)}-${index}`}><td><strong>{id}</strong><br/><span className={projects[id]?"":"wf-empty-name"}>{projects[id]||"Project name unavailable"}</span></td><td className="wf-stage">{taskTitle(task)||"—"}</td><td>{value(task,["Assigned_Employee_ID","Assigned Employee ID"])||"Unassigned"}</td><td><span className={`wf-status ${status.toLowerCase().replace(/\s+/g,"-")}`}>{status}</span></td><td><div className="wf-progress"><div className="wf-progress-bar"><i style={{width:`${pct}%`}}/></div><small>{progress.done}/{progress.total} completed · {pct}%</small></div></td><td><div className="wf-actions"><button type="button" className="wf-action complete" disabled={completed||saving[serviceKey]||saving[projectKey]} onClick={()=>void completeService(task)}>{completed?"Completed":saving[serviceKey]?"Saving…":"✓ Complete service"}</button><button type="button" className="wf-action project" disabled={pct===100||saving[projectKey]} onClick={()=>void completeProject(id)}>{pct===100?"Project complete":saving[projectKey]?"Completing…":"✓ Complete project"}</button></div></td><td><Link className="wf-link" href={`/admin/projects/${encodeURIComponent(id)}`}>Open project →</Link></td></tr>})}</tbody></table></div>}
   </>;
 }
