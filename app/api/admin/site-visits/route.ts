@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
-import { insertRows, normalizeProjectCode, selectRows, uploadSiteVisitMedia } from "@/lib/supabase-data";
+import { insertRows, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
 import { publishSiteVisitToWhatsApp } from "@/lib/whatsapp-site-visits";
-import { isR2Configured, uploadSiteVisitMediaToR2 } from "@/lib/cloudflare-r2";
+import { uploadSiteVisitMediaToR2 } from "@/lib/cloudflare-r2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,44 +45,6 @@ async function fileToBase64(file: File): Promise<PreparedImage> {
   return { mime, base64: Buffer.from(await file.arrayBuffer()).toString("base64") };
 }
 
-async function callDriveBackend(payload: Record<string, unknown>) {
-  if (isR2Configured()) {
-    try {
-      const r2 = await uploadSiteVisitMediaToR2({
-        projectCode: String(payload.projectId || "project"),
-        visitCode: String(payload.visitId || "visit"),
-        kind: String(payload.kind || "visit") === "problem" ? "problem" : "visit",
-        mimeType: String(payload.mimeType || "image/jpeg"),
-        base64: String(payload.base64 || ""),
-      });
-      return { ...r2, storageProvider: "cloudflare-r2" };
-    } catch (error) {
-      console.error("Cloudflare R2 Admin Site Visit upload failed; trying Google Drive fallback.", {
-        visitId: String(payload.visitId || ""),
-        kind: String(payload.kind || ""),
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  }
-
-  const url = String(process.env.LAND_VIEW_API_URL || "").trim();
-  const secret = String(process.env.LAND_VIEW_PROXY_SECRET || "").trim();
-  if (!url || !secret) throw new Error("Google Drive backend is not configured.");
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    cache: "no-store",
-    body: JSON.stringify({ action: "uploadSiteVisitMedia", proxySecret: secret, ...payload }),
-    signal: AbortSignal.timeout(30_000),
-  });
-  const json = await response.json().catch(() => null);
-  if (!response.ok || !json?.success) {
-    throw new Error(String(json?.error || "Google Drive backend request failed."));
-  }
-  return { ...(json.data || {}), storageProvider: "google-drive" };
-}
-
 async function storeAdminSiteVisitPhoto(input: {
   projectCode: string;
   projectName: string;
@@ -90,35 +52,29 @@ async function storeAdminSiteVisitPhoto(input: {
   kind: "visit" | "problem";
   file: PreparedImage;
 }) {
-  const fileName = input.kind === "visit"
-    ? (input.file.mime === "image/png" ? "visit-photo.png" : input.file.mime === "image/webp" ? "visit-photo.webp" : "visit-photo.jpg")
-    : (input.file.mime === "image/png" ? "problem-photo.png" : input.file.mime === "image/webp" ? "problem-photo.webp" : "problem-photo.jpg");
-
   try {
-    const drive = await callDriveBackend({
-      projectId: input.projectCode,
-      projectName: input.projectName,
-      visitId: input.visitCode,
+    const media = await uploadSiteVisitMediaToR2({
+      projectCode: input.projectCode,
+      visitCode: input.visitCode,
       kind: input.kind,
-      fileName,
       mimeType: input.file.mime,
       base64: input.file.base64,
     });
-    const storage = drive?.storageProvider === "cloudflare-r2" ? "cloudflare-r2" : "google-drive";
-    return { drive, path: "", storage, driveError: "", storageError: "" };
+    return {
+      drive: { ...media, storageProvider: "cloudflare-r2" },
+      path: "",
+      storage: "cloudflare-r2" as const,
+      driveError: "",
+      storageError: "",
+    };
   } catch (error: any) {
-    const driveError = String(error?.message || "Cloud archive upload failed.");
-    const extension = input.file.mime === "image/png" ? "png" : input.file.mime === "image/webp" ? "webp" : "jpg";
-    const path = `site-visits/${input.projectCode}/${input.visitCode}/${input.kind}-${crypto.randomUUID()}.${extension}`;
-    try {
-      await uploadSiteVisitMedia({ path, contentType: input.file.mime, base64: input.file.base64 });
-      console.warn("Admin Site Visit photo stored in Supabase fallback", { visitCode: input.visitCode, kind: input.kind, driveError });
-      return { drive: null, path, storage: "supabase-fallback" as const, driveError, storageError: "" };
-    } catch (storageError: any) {
-      const storageMessage = String(storageError?.message || "Supabase Site Visit media upload failed.");
-      console.warn("Admin Site Visit photo will be WhatsApp-only", { visitCode: input.visitCode, kind: input.kind, driveError, storageMessage });
-      return { drive: null, path: "", storage: "whatsapp-only" as const, driveError, storageError: storageMessage };
-    }
+    const message = String(error?.message || "Cloudflare R2 upload failed.");
+    console.error("Cloudflare R2 Admin Site Visit upload failed.", {
+      visitId: input.visitCode,
+      kind: input.kind,
+      error: message,
+    });
+    throw new Error(`Cloudflare R2 Site Visit upload failed: ${message}`);
   }
 }
 
@@ -333,6 +289,7 @@ export async function POST(request: NextRequest) {
     const code = clean(error?.message, 100);
     if (code === "SESSION_EXPIRED") return deny("Session expired.", 401);
     if (code === "ADMIN_REQUIRED") return deny("Admin access is required.", 403);
+    if (/Cloudflare R2/i.test(code)) return deny(code, 503);
     return deny(clean(error?.message || "Could not create Site Visit.", 1000), 500);
   }
 }
