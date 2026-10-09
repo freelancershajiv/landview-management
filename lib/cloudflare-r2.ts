@@ -126,10 +126,13 @@ async function signedR2Request(params: {
   key: string;
   body?: Uint8Array | Buffer;
   contentType?: string;
+  bucketRoot?: boolean;
 }) {
   const config = getConfig();
   const host = `${config.accountId}.r2.cloudflarestorage.com`;
-  const canonicalUri = `/${encodeURIComponent(config.bucket)}/${encodePath(params.key)}`;
+  const canonicalUri = params.bucketRoot
+    ? `/${encodeURIComponent(config.bucket)}`
+    : `/${encodeURIComponent(config.bucket)}/${encodePath(params.key)}`;
   const url = `https://${host}${canonicalUri}`;
   const payload = params.body ? Buffer.from(params.body) : Buffer.alloc(0);
   const payloadHash = sha256Hex(payload);
@@ -199,6 +202,16 @@ async function signedR2Request(params: {
   return response;
 }
 
+async function createConfiguredBucket() {
+  try {
+    await signedR2Request({ method: "PUT", key: "", bucketRoot: true });
+  } catch (error) {
+    const message = String((error as any)?.message || error || "");
+    if (/BucketAlreadyExists|BucketAlreadyOwnedByYou/i.test(message)) return;
+    throw error;
+  }
+}
+
 function buildSiteVisitObjectKey(input: UploadSiteVisitMediaInput) {
   const project = safeSegment(input.projectCode, "project");
   const visit = safeSegment(input.visitCode, "visit");
@@ -216,7 +229,14 @@ export async function uploadSiteVisitMediaToR2(input: UploadSiteVisitMediaInput)
 
   const key = buildSiteVisitObjectKey(input);
   const contentType = contentTypeForMime(input.mimeType);
-  await signedR2Request({ method: "PUT", key, body: bytes, contentType });
+  try {
+    await signedR2Request({ method: "PUT", key, body: bytes, contentType });
+  } catch (error) {
+    const message = String((error as any)?.message || error || "");
+    if (!/NoSuchBucket/i.test(message)) throw error;
+    await createConfiguredBucket();
+    await signedR2Request({ method: "PUT", key, body: bytes, contentType });
+  }
 
   return {
     fileId: `${R2_FILE_ID_PREFIX}${key}`,
