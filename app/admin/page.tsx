@@ -1,6 +1,7 @@
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
 import AdminBalanceOverview from "@/components/admin-balance-overview";
 import AdminCommandCenter from "@/components/admin-command-center";
+import NewSiteDashboardCard from "@/components/new-site-dashboard-card";
 import { requirePortalSession } from "@/lib/server-auth";
 
 function isEmp0001(user: Record<string, unknown>) {
@@ -19,9 +20,12 @@ function isEmp0001(user: Record<string, unknown>) {
 
 export default async function DashboardPage(){
   const { role, user } = await requirePortalSession(["admin", "manager", "accounts", "employee"]);
+  const workspaceRole = String(role || "").toLowerCase();
   const chairman = isEmp0001(user as Record<string, unknown>);
-  const financeRole = ["admin", "manager", "accounts"].includes(String(role || "").toLowerCase());
+  const financeRole = ["admin", "manager", "accounts"].includes(workspaceRole);
+  const canSiteEntry = workspaceRole === "admin" || workspaceRole === "manager";
   return <>
+    {canSiteEntry && <NewSiteDashboardCard mode="management"/>}
     {chairman && <ChairmanExpenseApproval/>}
     {financeRole && <AdminBalanceOverview/>}
     <AdminCommandCenter/>
