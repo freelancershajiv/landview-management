@@ -1,7 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { NextRequest, NextResponse } from "next/server";
-import { uploadSiteVisitPhotoToDrive } from "@/lib/google-drive-wif";
 import {
   claimMediaJob,
   completeMediaJob,
@@ -23,6 +22,12 @@ type MediaKind = "visit" | "problem";
 
 function text(value: unknown, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
+}
+
+function requiredEnv(name: string) {
+  const value = text(process.env[name], 8000);
+  if (!value) throw new Error(`Site Visit media gateway is missing ${name}.`);
+  return value;
 }
 
 function secureEqual(left: string, right: string) {
@@ -60,6 +65,54 @@ function fileName(kind: MediaKind, path: string, mime: string) {
   return fromPath || `${kind}-photo.${ext}`;
 }
 
+async function uploadViaAppsScript(input: {
+  projectId: string;
+  projectName: string;
+  visitId: string;
+  kind: MediaKind;
+  fileName: string;
+  mimeType: string;
+  bytes: Buffer;
+  latitude: number | null;
+  longitude: number | null;
+  accuracyM: number | null;
+}) {
+  const apiUrl = requiredEnv("LAND_VIEW_API_URL");
+  const proxySecret = requiredEnv("LAND_VIEW_PROXY_SECRET");
+  const response = await fetch(apiUrl, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      action: "uploadSiteVisitMedia",
+      proxySecret,
+      projectId: input.projectId,
+      projectName: input.projectName,
+      visitId: input.visitId,
+      kind: input.kind,
+      fileName: input.fileName,
+      mimeType: input.mimeType,
+      base64: input.bytes.toString("base64"),
+      latitude: input.latitude,
+      longitude: input.longitude,
+      accuracyM: input.accuracyM,
+    }),
+    redirect: "follow",
+    cache: "no-store",
+    signal: AbortSignal.timeout(25_000),
+  });
+  const raw = await response.text();
+  let json: any = null;
+  try { json = raw ? JSON.parse(raw) : null; } catch { json = null; }
+  if (!response.ok || !json?.success) {
+    throw new Error(text(json?.error || `LAND VIEW Drive gateway returned HTTP ${response.status}.`, 900));
+  }
+  const drive = json?.data || {};
+  const fileId = text(drive.fileId, 500);
+  const fileUrl = text(drive.fileUrl, 2000);
+  if (!fileId) throw new Error("LAND VIEW Drive gateway completed without a file ID.");
+  return { fileId, fileUrl };
+}
+
 async function uploadToDrive(job: Row) {
   const path = text(job.source_path, 1200);
   const kind = text(job.media_kind, 20) as MediaKind;
@@ -79,10 +132,10 @@ async function uploadToDrive(job: Row) {
   const mime = String(imageResponse.headers.get("content-type") || "image/jpeg").split(";")[0].trim().toLowerCase();
   if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) throw new Error(`Unsupported Site Visit media type: ${mime || "unknown"}.`);
 
-  const drive = await uploadSiteVisitPhotoToDrive({
-    projectCode: text(job.project_code, 120),
+  return uploadViaAppsScript({
+    projectId: text(job.project_code, 120),
     projectName: text(job.project_name || job.client_name_snapshot || job.project_code || "LAND VIEW Project", 300),
-    visitCode: text(job.visit_code || job.site_visit_id || "site-visit", 180),
+    visitId: text(job.visit_code || job.site_visit_id || "site-visit", 180),
     kind,
     fileName: fileName(kind, path, mime),
     mimeType: mime,
@@ -91,8 +144,6 @@ async function uploadToDrive(job: Row) {
     longitude: Number.isFinite(Number(job.location_longitude)) ? Number(job.location_longitude) : null,
     accuracyM: Number.isFinite(Number(job.location_accuracy_m)) ? Number(job.location_accuracy_m) : null,
   });
-  if (!text(drive.fileId, 500)) throw new Error("Google Drive upload completed without a file ID.");
-  return { fileId: text(drive.fileId, 500), fileUrl: text(drive.fileUrl, 2000) };
 }
 
 async function recordFailure(job: Row, lockToken: string, error: unknown) {
@@ -136,7 +187,7 @@ export async function POST(request: NextRequest) {
             jobId,
             visitId: text(job.visit_code || job.site_visit_id, 180),
             kind: text(job.media_kind, 20),
-            message: "Photo uploaded directly to Google Drive. Temporary storage cleanup is queued for the next worker run.",
+            message: "Photo uploaded to Google Drive through the LAND VIEW user-owned Drive gateway. Temporary storage cleanup is queued for the next worker run.",
           },
         }, { headers: { "Cache-Control": "no-store" } });
       } catch (error) {
