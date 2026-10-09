@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf, userIdOf, type WorkspaceUser } from "@/lib/local-session";
 import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
+import { publishSiteEntryToWhatsApp } from "@/lib/whatsapp-site-entries";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -154,6 +155,42 @@ function entryView(row: Row) {
   };
 }
 
+function siteEntryWhatsAppPayload(row: Row) {
+  return {
+    proposalId: text(row.proposal_code, 120),
+    clientName: text(row.client_name, 300),
+    phone: text(row.phone, 100),
+    projectTitle: text(row.project_title, 400),
+    projectType: text(row.project_type, 180),
+    projectLocation: text(row.project_location, 600),
+    plotArea: text(row.plot_area, 180),
+    floors: text(row.floors, 120),
+    siteVisitDate: text(row.site_visit_date, 40),
+    latitude: row.site_latitude,
+    longitude: row.site_longitude,
+    locationAccuracyM: row.site_location_accuracy_m,
+    mouza: text(row.mouza, 200),
+    jlNo: text(row.jl_no, 120),
+    dagNo: text(row.dag_no, 240),
+    khatianNo: text(row.khatian_no, 240),
+    submittedRole: text(row.submitted_role, 80),
+    senderEmployeeId: text(row.assigned_to, 120),
+  };
+}
+
+function logWhatsAppResult(context: string, proposalId: string, result: { status?: string; sender?: string; reason?: string }) {
+  if (result.status === "sent") {
+    console.info("[site-entry-whatsapp] sent", { context, proposalId, sender: result.sender || "unknown" });
+    return;
+  }
+  console.warn("[site-entry-whatsapp] not sent", {
+    context,
+    proposalId,
+    status: result.status || "unknown",
+    reason: text(result.reason, 700),
+  });
+}
+
 async function loadEntry(proposalId: string) {
   const rows = await selectRows("proposals", { filters: { proposal_code: proposalId }, limit: 1 });
   const row = rows[0];
@@ -275,7 +312,15 @@ async function createEntry(user: WorkspaceUser, input: Row) {
     reference: proposalCode,
   });
 
-  return entryView(proposal);
+  const whatsApp = await publishSiteEntryToWhatsApp({
+    event: autoApproved ? "created" : "submitted",
+    ...siteEntryWhatsAppPayload(proposal),
+    submittedBy: displayNameOf(user),
+    senderEmployeeId: employeeCode || text(proposal.assigned_to, 120),
+  });
+  logWhatsAppResult(autoApproved ? "created" : "submitted", proposalCode, whatsApp);
+
+  return { ...entryView(proposal), whatsApp };
 }
 
 async function reviewEntry(user: WorkspaceUser, input: Row, approve: boolean) {
@@ -316,7 +361,24 @@ async function reviewEntry(user: WorkspaceUser, input: Row, approve: boolean) {
     reference: proposalId,
   });
 
-  return entryView({ ...current, status: nextStatus, approval_status: nextApproval, approved_by: reviewer, approved_at: now, approval_notes: reviewNotes, updated_at: now });
+  const updated = {
+    ...current,
+    status: nextStatus,
+    approval_status: nextApproval,
+    approved_by: reviewer,
+    approved_at: now,
+    approval_notes: reviewNotes,
+    updated_at: now,
+  };
+  const whatsApp = await publishSiteEntryToWhatsApp({
+    event: approve ? "approved" : "rejected",
+    ...siteEntryWhatsAppPayload(updated),
+    reviewedBy: displayNameOf(user),
+    reviewNotes: reviewNotes || (approve ? "Approved by Management/Admin." : "Rejected by Management/Admin."),
+  });
+  logWhatsAppResult(approve ? "approved" : "rejected", proposalId, whatsApp);
+
+  return { ...entryView(updated), whatsApp };
 }
 
 export async function GET(request: NextRequest) {
