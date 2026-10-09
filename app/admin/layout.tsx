@@ -1,5 +1,4 @@
-import ManagementShellV2 from "@/components/management-shell-v2";
-import AdminMobileDock from "@/components/admin-mobile-dock";
+import AdminShellV3 from "@/components/admin-shell-v3";
 import PortalPreloader from "@/components/portal-preloader";
 import ProjectManagementEnhancements from "@/components/project-management-enhancements";
 import AdminProjectMapDrawer from "@/components/admin-project-map-drawer";
@@ -12,17 +11,17 @@ import "./finance/invoices/invoice-column-alignment-fix.css";
 import "./admin-theme-consistency.css";
 import "./admin-mobile-redesign.css";
 import "./admin-mobile-shell-final.css";
+import "./admin-v3.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
   const role = String(session.user?.role || session.user?.Role || "").trim().toLowerCase();
-  // Navigation is handled by ManagementShellV2; Estimates is intentionally a direct link.
+
   return <>
-    <PortalPreloader portal="admin"/>
+    <PortalPreloader portal="admin" />
     <ProjectManagementEnhancements />
     <AdminProjectMapDrawer />
     <ManagementRolePolicyEnforcer role={role} />
-    <ManagementShellV2 initialUser={session.user}>{children}</ManagementShellV2>
-    <AdminMobileDock />
+    <AdminShellV3 initialUser={session.user}>{children}</AdminShellV3>
   </>;
 }
