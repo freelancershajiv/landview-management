@@ -18,10 +18,6 @@ function googleProviderPath() {
   return `projects/${env("GCP_PROJECT_NUMBER")}/locations/global/workloadIdentityPools/${env("GCP_WORKLOAD_IDENTITY_POOL_ID")}/providers/${env("GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID")}`;
 }
 
-function googleOidcAudience() {
-  return `https://iam.googleapis.com/${googleProviderPath()}`;
-}
-
 function googleStsAudience() {
   return `//iam.googleapis.com/${googleProviderPath()}`;
 }
@@ -29,12 +25,12 @@ function googleStsAudience() {
 async function googleAccessToken() {
   if (tokenCache && tokenCache.expiresAt - Date.now() > 60_000) return tokenCache.token;
 
-  const oidcAudience = googleOidcAudience();
-  const subjectToken = await getVercelOidcToken({ audience: oidcAudience });
+  const audience = googleStsAudience();
+  const subjectToken = await getVercelOidcToken({ audience });
   if (!subjectToken) throw new Error("Vercel OIDC token is unavailable for Google Drive.");
 
   const exchange = new URLSearchParams({
-    audience: googleStsAudience(),
+    audience,
     grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
     requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
     scope: "https://www.googleapis.com/auth/cloud-platform",
