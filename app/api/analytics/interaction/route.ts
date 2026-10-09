@@ -46,6 +46,30 @@ function decodeHeader(value: string | null) {
   catch { return value.slice(0, 160); }
 }
 
+function wait(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function duplicateEvent(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  return /duplicate key|already exists|23505/i.test(message) && /event_id|website_analytics_interactions/i.test(message);
+}
+
+async function writeInteraction(row: Record<string, unknown>) {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      await insertRows("website_analytics_interactions", row);
+      return;
+    } catch (error) {
+      if (duplicateEvent(error)) return;
+      lastError = error;
+      if (attempt < 2) await wait(250 * (attempt + 1));
+    }
+  }
+  throw lastError || new Error("Analytics interaction write failed after retries.");
+}
+
 export async function POST(request: NextRequest) {
   try {
     if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Origin not allowed." }, { status: 403 });
@@ -81,7 +105,7 @@ export async function POST(request: NextRequest) {
       source_host: text(request.nextUrl.hostname, 160) || null,
     };
 
-    await insertRows("website_analytics_interactions", row);
+    await writeInteraction(row);
     return NextResponse.json({ success: true }, { status: 201, headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.error("Website interaction analytics write failed", error);
