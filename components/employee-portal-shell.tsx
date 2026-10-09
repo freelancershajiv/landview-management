@@ -8,13 +8,15 @@ import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
 import EmployeeExpenseCenter from "@/components/employee-expense-center";
 import EmployeeCertificateCenter from "@/components/employee-certificate-center";
 import EmployeeSiteVisitCenter from "@/components/employee-site-visit-center";
+import NewSiteEntryCenter from "@/components/new-site-entry-center";
 
-type TabId = "dashboard" | "projects" | "workflow" | "visits" | "records" | "expenses" | "approvals" | "certificates";
+type TabId = "dashboard" | "projects" | "new-site" | "workflow" | "visits" | "records" | "expenses" | "approvals" | "certificates";
 type Tab = { id: TabId; label: string };
 
 const BASE_TABS: Tab[] = [
   { id: "dashboard", label: "Dashboard" },
   { id: "projects", label: "Projects" },
+  { id: "new-site", label: "New Site" },
   { id: "workflow", label: "Workflow" },
   { id: "records", label: "Field & Files" },
   { id: "expenses", label: "Expenses" },
@@ -25,6 +27,7 @@ function text(value: unknown) { return String(value ?? "").trim(); }
 function tabFromHash(hash: string): TabId {
   const value = String(hash || "").replace(/^#/, "").toLowerCase();
   if (value === "projects") return "projects";
+  if (value === "new-site" || value === "newsite" || value === "site-entry") return "new-site";
   if (value === "workflow") return "workflow";
   if (value === "visits") return "visits";
   if (["records", "documents", "attendance"].includes(value)) return "records";
@@ -60,7 +63,7 @@ export default function EmployeePortalShell() {
 
   const tabs = useMemo(() => {
     const list = [...BASE_TABS];
-    if (isChairman) list.splice(5, 0, { id: "approvals", label: "Approvals" });
+    if (isChairman) list.splice(6, 0, { id: "approvals", label: "Approvals" });
     return list;
   }, [isChairman]);
 
@@ -104,6 +107,7 @@ export default function EmployeePortalShell() {
     <div className="employee-workspace-body">
       {active === "dashboard" && <EmployeeWhatsAppConnect />}
       {commandView && <EmployeeCommandCenter view={commandView} />}
+      {active === "new-site" && <NewSiteEntryCenter />}
       {active === "visits" && <EmployeeSiteVisitCenter />}
       {active === "expenses" && <EmployeeExpenseCenter />}
       {active === "approvals" && isChairman && <ChairmanExpenseApproval />}
