@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { insertRows, normalizeProjectCode, selectRows, uploadSiteVisitMedia } from "@/lib/supabase-data";
 import { publishSiteVisitToWhatsApp } from "@/lib/whatsapp-site-visits";
+import { isR2Configured, uploadSiteVisitMediaToR2 } from "@/lib/cloudflare-r2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,6 +46,25 @@ async function fileToBase64(file: File): Promise<PreparedImage> {
 }
 
 async function callDriveBackend(payload: Record<string, unknown>) {
+  if (isR2Configured()) {
+    try {
+      const r2 = await uploadSiteVisitMediaToR2({
+        projectCode: String(payload.projectId || "project"),
+        visitCode: String(payload.visitId || "visit"),
+        kind: String(payload.kind || "visit") === "problem" ? "problem" : "visit",
+        mimeType: String(payload.mimeType || "image/jpeg"),
+        base64: String(payload.base64 || ""),
+      });
+      return { ...r2, storageProvider: "cloudflare-r2" };
+    } catch (error) {
+      console.error("Cloudflare R2 Admin Site Visit upload failed; trying Google Drive fallback.", {
+        visitId: String(payload.visitId || ""),
+        kind: String(payload.kind || ""),
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
   const url = String(process.env.LAND_VIEW_API_URL || "").trim();
   const secret = String(process.env.LAND_VIEW_PROXY_SECRET || "").trim();
   if (!url || !secret) throw new Error("Google Drive backend is not configured.");
@@ -60,7 +80,7 @@ async function callDriveBackend(payload: Record<string, unknown>) {
   if (!response.ok || !json?.success) {
     throw new Error(String(json?.error || "Google Drive backend request failed."));
   }
-  return json.data || {};
+  return { ...(json.data || {}), storageProvider: "google-drive" };
 }
 
 async function storeAdminSiteVisitPhoto(input: {
@@ -84,9 +104,10 @@ async function storeAdminSiteVisitPhoto(input: {
       mimeType: input.file.mime,
       base64: input.file.base64,
     });
-    return { drive, path: "", storage: "google-drive" as const, driveError: "", storageError: "" };
+    const storage = drive?.storageProvider === "cloudflare-r2" ? "cloudflare-r2" : "google-drive";
+    return { drive, path: "", storage, driveError: "", storageError: "" };
   } catch (error: any) {
-    const driveError = String(error?.message || "Google Drive upload failed.");
+    const driveError = String(error?.message || "Cloud archive upload failed.");
     const extension = input.file.mime === "image/png" ? "png" : input.file.mime === "image/webp" ? "webp" : "jpg";
     const path = `site-visits/${input.projectCode}/${input.visitCode}/${input.kind}-${crypto.randomUUID()}.${extension}`;
     try {
@@ -200,8 +221,8 @@ export async function POST(request: NextRequest) {
       visitPhotoDrive = stored.drive;
       visitPhotoPath = stored.path;
       visitPhotoStorage = stored.storage;
-      if (stored.driveError) storageWarnings.push(`Visit photo Drive: ${stored.driveError}`);
-      if (stored.storageError) storageWarnings.push(`Visit photo archive: ${stored.storageError}`);
+      if (stored.driveError) storageWarnings.push(`Visit photo archive: ${stored.driveError}`);
+      if (stored.storageError) storageWarnings.push(`Visit photo fallback: ${stored.storageError}`);
     }
 
     if (problemFile) {
@@ -217,8 +238,8 @@ export async function POST(request: NextRequest) {
       problemPhotoDrive = stored.drive;
       problemPhotoPath = stored.path;
       problemPhotoStorage = stored.storage;
-      if (stored.driveError) storageWarnings.push(`Problem photo Drive: ${stored.driveError}`);
-      if (stored.storageError) storageWarnings.push(`Problem photo archive: ${stored.storageError}`);
+      if (stored.driveError) storageWarnings.push(`Problem photo archive: ${stored.driveError}`);
+      if (stored.storageError) storageWarnings.push(`Problem photo fallback: ${stored.storageError}`);
     }
 
     const adminName = clean(user?.name || user?.Name || user?.username || user?.Username || "Admin", 200) || "Admin";
