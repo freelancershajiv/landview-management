@@ -9,6 +9,7 @@ import EmployeeExpenseCenter from "@/components/employee-expense-center";
 import EmployeeCertificateCenter from "@/components/employee-certificate-center";
 import EmployeeSiteVisitCenter from "@/components/employee-site-visit-center";
 import NewSiteEntryCenter from "@/components/new-site-entry-center";
+import NewSiteDashboardCard from "@/components/new-site-dashboard-card";
 
 type TabId = "dashboard" | "projects" | "new-site" | "workflow" | "visits" | "records" | "expenses" | "approvals" | "certificates";
 type Tab = { id: TabId; label: string };
@@ -105,6 +106,7 @@ export default function EmployeePortalShell() {
     </div>
 
     <div className="employee-workspace-body">
+      {active === "dashboard" && <NewSiteDashboardCard mode="employee" />}
       {active === "dashboard" && <EmployeeWhatsAppConnect />}
       {commandView && <EmployeeCommandCenter view={commandView} />}
       {active === "new-site" && <NewSiteEntryCenter />}
