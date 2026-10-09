@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { NextRequest, NextResponse } from "next/server";
+import { uploadSiteVisitMediaToR2 } from "@/lib/cloudflare-r2";
 import {
   claimMediaJob,
   completeMediaJob,
@@ -22,12 +23,6 @@ type MediaKind = "visit" | "problem";
 
 function text(value: unknown, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
-}
-
-function requiredEnv(name: string) {
-  const value = text(process.env[name], 8000);
-  if (!value) throw new Error(`Site Visit media gateway is missing ${name}.`);
-  return value;
 }
 
 function secureEqual(left: string, right: string) {
@@ -59,61 +54,7 @@ async function mediaService(action: "sign" | "delete", path: string) {
   return json.data as any;
 }
 
-function fileName(kind: MediaKind, path: string, mime: string) {
-  const ext = mime === "image/png" ? "png" : mime === "image/webp" ? "webp" : "jpg";
-  const fromPath = path.split("/").pop()?.replace(/[^A-Za-z0-9._-]/g, "-");
-  return fromPath || `${kind}-photo.${ext}`;
-}
-
-async function uploadViaAppsScript(input: {
-  projectId: string;
-  projectName: string;
-  visitId: string;
-  kind: MediaKind;
-  fileName: string;
-  mimeType: string;
-  bytes: Buffer;
-  latitude: number | null;
-  longitude: number | null;
-  accuracyM: number | null;
-}) {
-  const apiUrl = requiredEnv("LAND_VIEW_API_URL");
-  const proxySecret = requiredEnv("LAND_VIEW_PROXY_SECRET");
-  const response = await fetch(apiUrl, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      action: "uploadSiteVisitMedia",
-      proxySecret,
-      projectId: input.projectId,
-      projectName: input.projectName,
-      visitId: input.visitId,
-      kind: input.kind,
-      fileName: input.fileName,
-      mimeType: input.mimeType,
-      base64: input.bytes.toString("base64"),
-      latitude: input.latitude,
-      longitude: input.longitude,
-      accuracyM: input.accuracyM,
-    }),
-    redirect: "follow",
-    cache: "no-store",
-    signal: AbortSignal.timeout(25_000),
-  });
-  const raw = await response.text();
-  let json: any = null;
-  try { json = raw ? JSON.parse(raw) : null; } catch { json = null; }
-  if (!response.ok || !json?.success) {
-    throw new Error(text(json?.error || `LAND VIEW Drive gateway returned HTTP ${response.status}.`, 900));
-  }
-  const drive = json?.data || {};
-  const fileId = text(drive.fileId, 500);
-  const fileUrl = text(drive.fileUrl, 2000);
-  if (!fileId) throw new Error("LAND VIEW Drive gateway completed without a file ID.");
-  return { fileId, fileUrl };
-}
-
-async function uploadToDrive(job: Row) {
+async function uploadToR2(job: Row) {
   const path = text(job.source_path, 1200);
   const kind = text(job.media_kind, 20) as MediaKind;
   if (!path || !["visit", "problem"].includes(kind)) throw new Error("Media queue job is invalid.");
@@ -129,20 +70,21 @@ async function uploadToDrive(job: Row) {
   if (!bytes.length) throw new Error("Temporary Supabase photo is empty.");
   if (bytes.length > MAX_BYTES) throw new Error("Temporary Supabase photo exceeds the 4 MB Site Visit limit.");
 
-  const mime = String(imageResponse.headers.get("content-type") || "image/jpeg").split(";")[0].trim().toLowerCase();
-  if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) throw new Error(`Unsupported Site Visit media type: ${mime || "unknown"}.`);
+  const mime = String(imageResponse.headers.get("content-type") || job.content_type || "image/jpeg")
+    .split(";")[0]
+    .trim()
+    .toLowerCase();
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) {
+    throw new Error(`Unsupported Site Visit media type: ${mime || "unknown"}.`);
+  }
 
-  return uploadViaAppsScript({
-    projectId: text(job.project_code, 120),
-    projectName: text(job.project_name || job.client_name_snapshot || job.project_code || "LAND VIEW Project", 300),
-    visitId: text(job.visit_code || job.site_visit_id || "site-visit", 180),
+  return uploadSiteVisitMediaToR2({
+    projectCode: text(job.project_code, 120) || "project",
+    visitCode: text(job.visit_code || job.site_visit_id || "site-visit", 180),
     kind,
-    fileName: fileName(kind, path, mime),
     mimeType: mime,
     bytes,
-    latitude: Number.isFinite(Number(job.location_latitude)) ? Number(job.location_latitude) : null,
-    longitude: Number.isFinite(Number(job.location_longitude)) ? Number(job.location_longitude) : null,
-    accuracyM: Number.isFinite(Number(job.location_accuracy_m)) ? Number(job.location_accuracy_m) : null,
+    uniqueId: text(job.job_id, 160) || crypto.randomUUID(),
   });
 }
 
@@ -171,23 +113,24 @@ export async function POST(request: NextRequest) {
 
     const jobId = String(job.job_id || "");
     const sourcePath = text(job.source_path, 1200);
-    const existingDriveId = text(job.drive_file_id, 500);
-    const existingDriveUrl = text(job.drive_file_url, 2000);
+    const existingMediaId = text(job.drive_file_id, 500);
+    const existingMediaUrl = text(job.drive_file_url, 2000);
 
-    if (!existingDriveId) {
+    if (!existingMediaId) {
       try {
-        const drive = await uploadToDrive(job);
-        await markMediaJobUploaded(jobId, lockToken, drive.fileId, drive.fileUrl);
+        const media = await uploadToR2(job);
+        await markMediaJobUploaded(jobId, lockToken, media.fileId, media.fileUrl);
         await releaseMediaJob(jobId, lockToken);
         return NextResponse.json({
           success: true,
           data: {
             status: "uploaded",
-            phase: "drive-upload",
+            phase: "r2-upload",
             jobId,
             visitId: text(job.visit_code || job.site_visit_id, 180),
             kind: text(job.media_kind, 20),
-            message: "Photo uploaded to Google Drive through the LAND VIEW user-owned Drive gateway. Temporary storage cleanup is queued for the next worker run.",
+            mediaFileId: media.fileId,
+            message: "Photo uploaded to private Cloudflare R2 storage. Temporary Supabase cleanup is queued for the next worker run.",
           },
         }, { headers: { "Cache-Control": "no-store" } });
       } catch (error) {
@@ -196,7 +139,7 @@ export async function POST(request: NextRequest) {
           success: true,
           data: {
             status: "retry-scheduled",
-            phase: "drive-upload",
+            phase: "r2-upload",
             jobId,
             error: text((error as any)?.message || error, 1000),
             retry,
@@ -207,7 +150,7 @@ export async function POST(request: NextRequest) {
 
     try {
       await mediaService("delete", sourcePath);
-      await completeMediaJob(jobId, lockToken, existingDriveId, existingDriveUrl);
+      await completeMediaJob(jobId, lockToken, existingMediaId, existingMediaUrl);
       return NextResponse.json({
         success: true,
         data: {
@@ -216,7 +159,7 @@ export async function POST(request: NextRequest) {
           jobId,
           visitId: text(job.visit_code || job.site_visit_id, 180),
           kind: text(job.media_kind, 20),
-          driveFileId: existingDriveId,
+          mediaFileId: existingMediaId,
         },
       }, { headers: { "Cache-Control": "no-store" } });
     } catch (error) {
