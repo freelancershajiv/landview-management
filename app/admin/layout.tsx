@@ -1,4 +1,5 @@
 import ManagementShellV2 from "@/components/management-shell-v2";
+import AdminMobileDock from "@/components/admin-mobile-dock";
 import PortalPreloader from "@/components/portal-preloader";
 import ProjectManagementEnhancements from "@/components/project-management-enhancements";
 import AdminProjectMapDrawer from "@/components/admin-project-map-drawer";
@@ -9,6 +10,7 @@ import "./admin-layout-polish.css";
 import "./finance/invoices/invoice-revamp-print-fix.css";
 import "./finance/invoices/invoice-column-alignment-fix.css";
 import "./admin-theme-consistency.css";
+import "./admin-mobile-redesign.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
@@ -20,5 +22,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <AdminProjectMapDrawer />
     <ManagementRolePolicyEnforcer role={role} />
     <ManagementShellV2 initialUser={session.user}>{children}</ManagementShellV2>
+    <AdminMobileDock />
   </>;
 }
