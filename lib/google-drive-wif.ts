@@ -14,19 +14,27 @@ function env(name: string) {
   return value;
 }
 
-function googleAudience() {
-  return `https://iam.googleapis.com/projects/${env("GCP_PROJECT_NUMBER")}/locations/global/workloadIdentityPools/${env("GCP_WORKLOAD_IDENTITY_POOL_ID")}/providers/${env("GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID")}`;
+function googleProviderPath() {
+  return `projects/${env("GCP_PROJECT_NUMBER")}/locations/global/workloadIdentityPools/${env("GCP_WORKLOAD_IDENTITY_POOL_ID")}/providers/${env("GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID")}`;
+}
+
+function googleOidcAudience() {
+  return `https://iam.googleapis.com/${googleProviderPath()}`;
+}
+
+function googleStsAudience() {
+  return `//iam.googleapis.com/${googleProviderPath()}`;
 }
 
 async function googleAccessToken() {
   if (tokenCache && tokenCache.expiresAt - Date.now() > 60_000) return tokenCache.token;
 
-  const audience = googleAudience();
-  const subjectToken = await getVercelOidcToken({ audience });
+  const oidcAudience = googleOidcAudience();
+  const subjectToken = await getVercelOidcToken({ audience: oidcAudience });
   if (!subjectToken) throw new Error("Vercel OIDC token is unavailable for Google Drive.");
 
   const exchange = new URLSearchParams({
-    audience,
+    audience: googleStsAudience(),
     grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
     requested_token_type: "urn:ietf:params:oauth:token-type:access_token",
     scope: "https://www.googleapis.com/auth/cloud-platform",
@@ -79,10 +87,11 @@ async function driveRequest(path: string, init: RequestInit = {}, timeoutMs = 10
     cache: "no-store",
     signal: AbortSignal.timeout(timeoutMs),
   });
-  const text = await response.text();
-  const json = text ? JSON.parse(text) : null;
+  const responseText = await response.text();
+  let json: any = null;
+  try { json = responseText ? JSON.parse(responseText) : null; } catch { json = null; }
   if (!response.ok) {
-    throw new Error(`Google Drive API ${response.status}: ${String(json?.error?.message || text || "request failed").slice(0, 700)}`);
+    throw new Error(`Google Drive API ${response.status}: ${String(json?.error?.message || responseText || "request failed").slice(0, 700)}`);
   }
   return json as Row;
 }
