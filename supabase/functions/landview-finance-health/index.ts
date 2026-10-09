@@ -11,22 +11,15 @@ type Row = Record<string, any>;
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-    },
+    headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" },
   });
 }
 
-function text(value: unknown) {
-  return String(value ?? "").trim();
-}
-
+function text(value: unknown) { return String(value ?? "").trim(); }
 function num(value: unknown) {
   const n = Number(text(value).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
-
 function normalized(value: unknown) {
   return text(value).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 }
@@ -35,11 +28,9 @@ async function verifyVercelOidc(req: Request) {
   const raw = req.headers.get("authorization") || "";
   const token = raw.startsWith("Bearer ") ? raw.slice(7).trim() : "";
   if (!token) throw new Error("Missing Vercel OIDC token.");
-
   const decoded = decodeJwt(token);
   const issuer = String(decoded.iss || "");
   if (issuer !== TEAM_ISSUER && issuer !== GLOBAL_ISSUER) throw new Error("Untrusted OIDC issuer.");
-
   let payload: Record<string, unknown> | null = null;
   let lastError: unknown = null;
   for (const jwksUrl of [new URL("/.well-known/jwks", issuer), new URL(`${issuer.replace(/\/$/, "")}/.well-known/jwks`)]) {
@@ -47,12 +38,9 @@ async function verifyVercelOidc(req: Request) {
       const result = await jwtVerify(token, createRemoteJWKSet(jwksUrl), { issuer, audience: AUDIENCE });
       payload = result.payload as Record<string, unknown>;
       break;
-    } catch (error) {
-      lastError = error;
-    }
+    } catch (error) { lastError = error; }
   }
   if (!payload) throw lastError instanceof Error ? lastError : new Error("OIDC verification failed.");
-
   const subject = String(payload.sub || "");
   const prefix = `owner:${TEAM_SLUG}:project:${PROJECT_NAME}:environment:`;
   if (!subject.startsWith(prefix)) throw new Error("OIDC token is not from the LAND VIEW project.");
@@ -63,10 +51,7 @@ async function verifyVercelOidc(req: Request) {
 function secretKey() {
   const modern = Deno.env.get("SUPABASE_SECRET_KEYS");
   if (modern) {
-    try {
-      const keys = JSON.parse(modern);
-      if (keys?.default) return String(keys.default);
-    } catch {}
+    try { const keys = JSON.parse(modern); if (keys?.default) return String(keys.default); } catch {}
   }
   const legacy = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (legacy) return legacy;
@@ -78,16 +63,11 @@ async function dbRows(table: string, select: string, order = "") {
   const key = secretKey();
   const rows: Row[] = [];
   let offset = 0;
-
   while (rows.length < 5000) {
     const params = new URLSearchParams({ select, limit: "1000", offset: String(offset) });
     if (order) params.set("order", order);
     const response = await fetch(`${base}/rest/v1/${table}?${params.toString()}`, {
-      headers: {
-        apikey: key,
-        authorization: `Bearer ${key}`,
-        "content-type": "application/json",
-      },
+      headers: { apikey: key, authorization: `Bearer ${key}`, "content-type": "application/json" },
       cache: "no-store",
     });
     const raw = await response.text();
@@ -98,7 +78,6 @@ async function dbRows(table: string, select: string, order = "") {
     if (batch.length < 1000) break;
     offset += batch.length;
   }
-
   return rows;
 }
 
@@ -131,7 +110,6 @@ function parseWhatsappBalance(message: unknown) {
   const match = text(message).match(/\*Current Balance:\*\s*BDT\s*(-?[\d,]+(?:\.\d+)?)/i);
   return match ? num(match[1]) : null;
 }
-
 function parseWhatsappTransaction(message: unknown) {
   const match = text(message).match(/\*Transaction:\*\s*([^\n]+)/i);
   return match ? text(match[1]) : "";
@@ -139,27 +117,24 @@ function parseWhatsappTransaction(message: unknown) {
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") return json({ success: false, error: "Method not allowed." }, 405);
-
   try {
     await verifyVercelOidc(req);
 
-    const [payments, transactions, projectSummaries, outbox, accountBalances] = await Promise.all([
+    const [payments, transactions, bills, projectSummaries, outbox, accountBalances] = await Promise.all([
       dbRows("payments", "id,payment_code,project_id,invoice_id,payment_date,amount,transaction_type,affects_business_balance,approval_status,status"),
       dbRows("transactions", "id,transaction_code,transaction_date,transaction_type,source_type,source_id,project_code_snapshot,account_code_snapshot,account_snapshot,category,description,debit,credit,direction,amount,reference_no,status", "transaction_date.desc"),
+      dbRows("bills", "id,bill_code,bill_date,amount,discount,net_amount,status,description"),
       dbRows("project_management_summary", "id,project_id,supplier_advance,cheque_on_hold,updated_at"),
       dbRows("whatsapp_finance_outbox", "id,message,status,attempt_count,last_error,created_at,updated_at,sent_at", "created_at.desc"),
       dbRows("account_balances", "account_id,account_code,account_name,calculated_balance,current_balance_snapshot"),
     ]);
 
     const transactionSources = new Set<string>();
-    for (const row of transactions) {
-      if (text(row.source_id)) transactionSources.add(text(row.source_id));
-    }
+    for (const row of transactions) if (text(row.source_id)) transactionSources.add(text(row.source_id));
 
     const unreconciledPayments = payments.filter((row) => {
       if (!effectivePayment(row)) return false;
-      const id = text(row.id);
-      const code = text(row.payment_code);
+      const id = text(row.id), code = text(row.payment_code);
       return !(id && transactionSources.has(id)) && !(code && transactionSources.has(code));
     });
 
@@ -168,7 +143,6 @@ Deno.serve(async (req: Request) => {
       if (/void|cancel|reject/.test(normalized(row.status))) continue;
       if (transactionAmount(row) <= 0) continue;
       const key = duplicateFingerprint(row);
-      if (!key.replace(/\|/g, "")) continue;
       const bucket = duplicateMap.get(key) || [];
       bucket.push(row);
       duplicateMap.set(key, bucket);
@@ -185,6 +159,21 @@ Deno.serve(async (req: Request) => {
         transactionCodes: group.map((item) => text(item.transaction_code)).filter(Boolean).slice(0, 8),
       }));
 
+    const billMismatches = bills.map((row) => {
+      const expected = num(row.amount) - num(row.discount);
+      const stored = num(row.net_amount);
+      return {
+        billCode: text(row.bill_code),
+        date: text(row.bill_date).slice(0, 10),
+        description: text(row.description),
+        gross: num(row.amount),
+        discount: num(row.discount),
+        expected,
+        stored,
+        difference: stored - expected,
+      };
+    }).filter((row) => Math.abs(row.difference) > 0.01);
+
     const accountMismatches = accountBalances
       .filter((row) => row.current_balance_snapshot !== null && row.current_balance_snapshot !== undefined)
       .map((row) => ({
@@ -198,55 +187,49 @@ Deno.serve(async (req: Request) => {
 
     const sentLedgerMessages = outbox.filter((row) => normalized(row.status) === "sent" && /LAND VIEW\s+—\s+FINANCE LEDGER UPDATE/i.test(text(row.message)));
     const latestLedgerMessage = sentLedgerMessages.sort((a, b) => Date.parse(text(b.sent_at || b.updated_at || b.created_at)) - Date.parse(text(a.sent_at || a.updated_at || a.created_at)))[0] || null;
-
     const pendingOutbox = outbox.filter((row) => ["pending", "queued", "retrying", "processing"].includes(normalized(row.status)));
     const failedOutbox = outbox.filter((row) => normalized(row.status) === "failed");
 
     const supplierAdvance = projectSummaries.reduce((sum, row) => sum + num(row.supplier_advance), 0);
     const chequeOnHold = projectSummaries.reduce((sum, row) => sum + num(row.cheque_on_hold), 0);
 
-    return json({
-      success: true,
-      data: {
-        generatedAt: new Date().toISOString(),
-        projectManagement: {
-          supplierAdvance,
-          chequeOnHold,
-          projects: projectSummaries.length,
-        },
-        payments: {
-          total: payments.length,
-          unreconciledCount: unreconciledPayments.length,
-          unreconciledAmount: unreconciledPayments.reduce((sum, row) => sum + Math.abs(num(row.amount)), 0),
-          sample: unreconciledPayments.slice(0, 12).map((row) => ({
-            paymentCode: text(row.payment_code),
-            date: text(row.payment_date).slice(0, 10),
-            amount: num(row.amount),
-          })),
-        },
-        transactions: {
-          total: transactions.length,
-          duplicateGroups: duplicateGroups.length,
-          duplicateExtraRows: duplicateGroups.reduce((sum, group) => sum + Math.max(0, group.count - 1), 0),
-          duplicates: duplicateGroups.slice(0, 10),
-        },
-        accountBalances: {
-          rows: accountBalances.length,
-          mismatchCount: accountMismatches.length,
-          mismatchAmount: accountMismatches.reduce((sum, row) => sum + Math.abs(row.difference), 0),
-          mismatches: accountMismatches.slice(0, 12),
-        },
-        whatsapp: {
-          pending: pendingOutbox.length,
-          failed: failedOutbox.length,
-          lastSentAt: latestLedgerMessage ? text(latestLedgerMessage.sent_at || latestLedgerMessage.updated_at || latestLedgerMessage.created_at) : "",
-          latestLedgerBalance: latestLedgerMessage ? parseWhatsappBalance(latestLedgerMessage.message) : null,
-          latestLedgerTransaction: latestLedgerMessage ? parseWhatsappTransaction(latestLedgerMessage.message) : "",
-          latestLedgerMessageId: latestLedgerMessage ? text(latestLedgerMessage.id) : "",
-          failedSample: failedOutbox.slice(0, 8).map((row) => ({ id: text(row.id), error: text(row.last_error), attempts: num(row.attempt_count) })),
-        },
+    return json({ success: true, data: {
+      generatedAt: new Date().toISOString(),
+      projectManagement: { supplierAdvance, chequeOnHold, projects: projectSummaries.length },
+      payments: {
+        total: payments.length,
+        unreconciledCount: unreconciledPayments.length,
+        unreconciledAmount: unreconciledPayments.reduce((sum, row) => sum + Math.abs(num(row.amount)), 0),
+        sample: unreconciledPayments.slice(0, 12).map((row) => ({ paymentCode: text(row.payment_code), date: text(row.payment_date).slice(0, 10), amount: num(row.amount) })),
       },
-    });
+      transactions: {
+        total: transactions.length,
+        duplicateGroups: duplicateGroups.length,
+        duplicateExtraRows: duplicateGroups.reduce((sum, group) => sum + Math.max(0, group.count - 1), 0),
+        duplicates: duplicateGroups.slice(0, 10),
+      },
+      billingIntegrity: {
+        totalBills: bills.length,
+        mismatchCount: billMismatches.length,
+        mismatchAmount: billMismatches.reduce((sum, row) => sum + Math.abs(row.difference), 0),
+        mismatches: billMismatches.slice(0, 12),
+      },
+      accountBalances: {
+        rows: accountBalances.length,
+        mismatchCount: accountMismatches.length,
+        mismatchAmount: accountMismatches.reduce((sum, row) => sum + Math.abs(row.difference), 0),
+        mismatches: accountMismatches.slice(0, 12),
+      },
+      whatsapp: {
+        pending: pendingOutbox.length,
+        failed: failedOutbox.length,
+        lastSentAt: latestLedgerMessage ? text(latestLedgerMessage.sent_at || latestLedgerMessage.updated_at || latestLedgerMessage.created_at) : "",
+        latestLedgerBalance: latestLedgerMessage ? parseWhatsappBalance(latestLedgerMessage.message) : null,
+        latestLedgerTransaction: latestLedgerMessage ? parseWhatsappTransaction(latestLedgerMessage.message) : "",
+        latestLedgerMessageId: latestLedgerMessage ? text(latestLedgerMessage.id) : "",
+        failedSample: failedOutbox.slice(0, 8).map((row) => ({ id: text(row.id), error: text(row.last_error), attempts: num(row.attempt_count) })),
+      },
+    }});
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const authLike = /OIDC|issuer|token|LAND VIEW project|Vercel environment/i.test(message);
