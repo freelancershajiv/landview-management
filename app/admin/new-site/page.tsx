@@ -1,5 +1,5 @@
-import NewSiteEntryCenter from "@/components/new-site-entry-center";
+import NewSiteEntryCenterV2 from "@/components/new-site-entry-center-v2";
 
 export default function NewSiteEntryPage() {
-  return <NewSiteEntryCenter />;
+  return <NewSiteEntryCenterV2 />;
 }
