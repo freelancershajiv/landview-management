@@ -58,4 +58,92 @@
     z-index: 410 !important;
     inset: var(--lv-mobile-topbar, 62px) 0 0 0 !important;
   }
+
+  /* Light mode must stay light all the way through the mobile admin shell.
+     admin-mobile-redesign.css intentionally uses a dark app-shell palette, so
+     these final overrides remove the remaining hard-coded charcoal surfaces. */
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .masthead,
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .utility-bar,
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .utility-inner {
+    background: rgba(255, 255, 255, .97) !important;
+    border-color: #e2e7ec !important;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .08) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .utility-inner::before {
+    color: #18212b !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .utility-inner::after {
+    color: #6b7785 !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .mobile-menu,
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .tmg-mobile-menu,
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .notification-button {
+    background: #f7f9fc !important;
+    border-color: #d9e0e7 !important;
+    color: #26313d !important;
+    box-shadow: none !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .primary-nav,
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .primary-nav.open {
+    background: linear-gradient(180deg, #ffffff, #f7f9fc 72%) !important;
+    border-right-color: #dce3e9 !important;
+    box-shadow: 18px 0 40px rgba(15, 23, 42, .12) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .sidebar-brand {
+    background: #ffffff !important;
+    border-bottom-color: #e1e6eb !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .sidebar-brand strong {
+    color: #18212b !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .sidebar-brand small,
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .sidebar-section-label {
+    color: #6d7986 !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .primary-nav .sidebar-nav-section a,
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .primary-nav.open .sidebar-nav-section a {
+    color: #44515f !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .primary-nav .sidebar-nav-section a:hover {
+    background: #f2f5f8 !important;
+    border-color: #dce3e9 !important;
+    color: #18212b !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .primary-nav .sidebar-nav-section a.active,
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .primary-nav .sidebar-nav-section a[aria-current="page"] {
+    border-color: var(--lv-action-primary-border) !important;
+    background: var(--lv-action-primary-soft) !important;
+    color: var(--lv-action-text) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .nav-icon {
+    color: #5d6976 !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .sidebar-admin-editing {
+    border-top-color: #e1e6eb !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .admin-mobile-account {
+    background: #ffffff !important;
+    border-top-color: #e1e6eb !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .admin-mobile-account strong {
+    color: #18212b !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin.portal-admin .mobile-nav-overlay {
+    background: rgba(15, 23, 42, .22) !important;
+  }
 }
