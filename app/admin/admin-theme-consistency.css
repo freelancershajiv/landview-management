@@ -108,4 +108,92 @@
     background: var(--lv-action-primary) !important;
     color: #fff !important;
   }
+
+  /* Dashboard CSS module still carried dark-only component surfaces. Force an
+     explicit light dashboard palette while leaving dark mode untouched. */
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__root"] {
+    --dash-line: #d9e0e7 !important;
+    --dash-muted: #66717c !important;
+    color: #17202a !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__metric"],
+    [class*="dashboard_module__collection"],
+    [class*="dashboard_module__launcher"],
+    [class*="dashboard_module__projects"],
+    [class*="dashboard_module__portfolioPanel"],
+    [class*="dashboard_module__attentionPanel"],
+    [class*="dashboard_module__healthPanel"]
+  ) {
+    background: #ffffff !important;
+    border-color: #d9e0e7 !important;
+    color: #17202a !important;
+    box-shadow: 0 8px 24px rgba(22,32,42,.055) !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__dueMetric"] {
+    background: linear-gradient(135deg, #fff7f7, #ffffff) !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__moduleCard"] {
+    background: linear-gradient(145deg, #ffffff, #f7f9fb) !important;
+    border-color: #d9e0e7 !important;
+    color: #17202a !important;
+    box-shadow: 0 5px 16px rgba(22,32,42,.045) !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__moduleCard"]:hover,
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__attentionList"] > a:hover {
+    background: #f7f9fb !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__refresh"],
+    [class*="dashboard_module__attentionList"] > a,
+    [class*="dashboard_module__healthStats"] > div,
+    [class*="dashboard_module__statusGrid"] > div
+  ) {
+    background: #f7f9fb !important;
+    border-color: #d9e0e7 !important;
+    color: #17202a !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__launchIcon"],
+    [class*="dashboard_module__projectHeader"] h2 > span
+  ) {
+    background: #eef1f4 !important;
+    color: #842f35 !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__attentionBadge"],
+    [class*="dashboard_module__attentionIcon"]
+  ) {
+    background: #fff1f1 !important;
+    border-color: #efc9cc !important;
+    color: #96383e !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__ring"] > div {
+    background: #ffffff !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__header"] h1,
+    [class*="dashboard_module__metric"] strong,
+    [class*="dashboard_module__moduleCard"] strong,
+    [class*="dashboard_module__healthStats"] strong,
+    [class*="dashboard_module__statusGrid"] strong,
+    [class*="dashboard_module__attentionList"] strong,
+    [class*="dashboard_module__attentionList"] > a,
+    [class*="dashboard_module__panelTop"] > a,
+    [class*="dashboard_module__projectTools"] > a
+  ) {
+    color: #17202a !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__metricTitle"],
+    [class*="dashboard_module__metric"] small,
+    [class*="dashboard_module__moduleCard"] p,
+    [class*="dashboard_module__moduleCard"] small,
+    [class*="dashboard_module__attentionList"] small,
+    [class*="dashboard_module__healthStats"] span,
+    [class*="dashboard_module__timestamp"],
+    [class*="dashboard_module__portfolioCount"]
+  ) {
+    color: #66717c !important;
+  }
 }
