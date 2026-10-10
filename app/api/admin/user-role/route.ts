@@ -4,6 +4,7 @@ import {
   requireLocalSession,
   roleOf,
 } from "@/lib/local-session";
+import { auditFailure, recordAuditEvent } from "@/lib/audit-log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,7 +49,17 @@ export async function POST(request: NextRequest) {
 
   const actor = await requireLocalSession(request);
   if (!actor) return fail("Session expired.", 401);
-  if (roleOf(actor) !== "admin") return fail("Admin permission required.", 403);
+  if (roleOf(actor) !== "admin") {
+    await recordAuditEvent({
+      user: actor,
+      request,
+      action: "employee.role.change",
+      entityType: "user",
+      outcome: "denied",
+      details: { reason: "Admin permission required." },
+    });
+    return fail("Admin permission required.", 403);
+  }
 
   const accessToken = request.cookies.get(SESSION_COOKIE)?.value || "";
   if (!accessToken) return fail("Session expired.", 401);
@@ -86,14 +97,52 @@ export async function POST(request: NextRequest) {
     } | null;
 
     if (!response.ok || !payload?.success || !payload.data) {
-      return fail(String(payload?.error || `Role service returned HTTP ${response.status}.`), response.status || 500);
+      const message = String(payload?.error || `Role service returned HTTP ${response.status}.`);
+      await auditFailure({
+        user: actor,
+        request,
+        action: "employee.role.change",
+        entityType: "user",
+        entityId: userId,
+        target: userId,
+        before: { role: "unknown" },
+        after: { role },
+        details: { serviceStatus: response.status },
+        error: message,
+      });
+      return fail(message, response.status || 500);
     }
+
+    await recordAuditEvent({
+      user: actor,
+      request,
+      action: "employee.role.change",
+      entityType: "user",
+      entityId: userId,
+      target: userId,
+      before: { role: payload.data.previousRole },
+      after: { role: payload.data.role, user: payload.data.user },
+      details: {
+        updated: payload.data.updated,
+        sessionRefreshRequired: Boolean(payload.data.sessionRefreshRequired),
+      },
+    });
 
     return NextResponse.json(
       { success: true, data: payload.data },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   } catch (error) {
+    await auditFailure({
+      user: actor,
+      request,
+      action: "employee.role.change",
+      entityType: "user",
+      entityId: userId,
+      target: userId,
+      after: { role },
+      error,
+    });
     return fail(error instanceof Error ? error.message : "Could not update employee role.", 500);
   }
 }
