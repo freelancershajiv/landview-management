@@ -110,7 +110,36 @@ export default function SiteVisitMediaQueue({ canRetry = false }: { canRetry?: b
 
   return <section className={`svmq ${state}`}>
     <style>{`
-      .svmq{border:1px solid var(--theme-line-_303a44,#303a44);border-radius:16px;background:linear-gradient(145deg,var(--theme-bg-_121920,#121920),var(--theme-bg-_0d1217,#0d1217));padding:18px;color:var(--theme-ink-_eef2f5,#eef2f5);display:grid;gap:14px}.svmq.warning{border-color:#735d2d}.svmq.critical{border-color:#7e2b31}.svmq-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}.svmq-head h2{margin:0;font-size:15px}.svmq-head p{margin:5px 0 0;color:var(--theme-ink-_89959f,#89959f);font-size:9px;line-height:1.5}.svmq-state{padding:6px 9px;border-radius:999px;background:#173827;color:#a8dfbb;font-size:7px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}.svmq.warning .svmq-state{background:#3c3015;color:#f1cf7a}.svmq.critical .svmq-state{background:#35171a;color:#ffb2b5}.svmq-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.svmq-stat{border:1px solid var(--theme-line-_2d3740,#2d3740);border-radius:10px;padding:11px;background:var(--theme-bg-_0e141a,#0e141a)}.svmq-stat span{display:block;color:var(--theme-ink-_7d8994,#7d8994);font-size:7px;text-transform:uppercase;letter-spacing:.08em}.svmq-stat strong{display:block;margin-top:5px;font-size:18px}.svmq-toolbar{display:flex;justify-content:flex-end;gap:8px}.svmq-toolbar button,.svmq-retry{border:1px solid var(--theme-line-_34404a,#34404a);border-radius:8px;background:var(--theme-bg-_151c23,#151c23);color:var(--theme-ink-_fff,#fff);height:34px;padding:0 11px;font-size:8px;font-weight:900;cursor:pointer}.svmq-toolbar button:disabled,.svmq-retry:disabled{opacity:.55;cursor:wait}.svmq-toolbar .svmq-sync{border-color:#b13d42;background:#96383e;color:#fff}.svmq-jobs{display:grid;gap:8px}.svmq-job{border:1px solid var(--theme-line-_29333c,#29333c);border-radius:10px;padding:11px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;background:var(--theme-bg-_0b1116,#0b1116)}.svmq-job strong{font-size:10px}.svmq-job p{margin:4px 0 0;color:var(--theme-ink-_89959f,#89959f);font-size:8px;line-height:1.45}.svmq-job .err{color:#ffaaa5}.svmq-retry{align-self:center;border-color:#7e2b31;background:#35171a;color:#ffb2b5}.svmq-empty{padding:12px;border:1px dashed var(--theme-line-_34404a,#34404a);border-radius:9px;color:var(--theme-ink-_7d8994,#7d8994);font-size:9px}.svmq-error{padding:10px;border:1px solid #7e2b31;border-radius:8px;color:#ffb2b5;background:#261215;font-size:9px}@media(max-width:800px){.svmq-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.svmq-job{grid-template-columns:1fr}.svmq-retry{width:100%}}
+      .svmq{border:1px solid var(--lv-border-default);border-radius:var(--lv-radius-lg);background:var(--lv-surface-panel);padding:18px;color:var(--lv-text-primary);display:grid;gap:14px;box-shadow:var(--lv-shadow-sm)}
+      .svmq.warning{border-color:var(--lv-warning-border)}
+      .svmq.critical{border-color:var(--lv-danger-border)}
+      .svmq-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap}
+      .svmq-head h2{margin:0;font-size:15px;color:var(--lv-text-strong)}
+      .svmq-head p{margin:5px 0 0;color:var(--lv-text-muted);font-size:9px;line-height:1.5}
+      .svmq-state{padding:6px 9px;border-radius:var(--lv-radius-pill);background:var(--lv-success-soft);border:1px solid var(--lv-success-border);color:var(--lv-success);font-size:7px;font-weight:900;text-transform:uppercase;letter-spacing:.08em}
+      .svmq.warning .svmq-state{background:var(--lv-warning-soft);border-color:var(--lv-warning-border);color:var(--lv-warning)}
+      .svmq.critical .svmq-state{background:var(--lv-danger-soft);border-color:var(--lv-danger-border);color:var(--lv-danger)}
+      .svmq.working .svmq-state{background:var(--lv-info-soft);border-color:var(--lv-info-border);color:var(--lv-info)}
+      .svmq-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}
+      .svmq-stat{border:1px solid var(--lv-border-default);border-radius:var(--lv-radius-md);padding:11px;background:var(--lv-surface-muted)}
+      .svmq-stat span{display:block;color:var(--lv-text-muted);font-size:7px;text-transform:uppercase;letter-spacing:.08em}
+      .svmq-stat strong{display:block;margin-top:5px;font-size:18px;color:var(--lv-text-strong)}
+      .svmq-toolbar{display:flex;justify-content:flex-end;gap:8px}
+      .svmq-toolbar button,.svmq-retry{border:1px solid var(--lv-control-border);border-radius:var(--lv-radius-sm);background:var(--lv-control-bg);color:var(--lv-text-primary);height:34px;padding:0 11px;font-size:8px;font-weight:900;cursor:pointer;transition:background var(--lv-motion-fast),border-color var(--lv-motion-fast),color var(--lv-motion-fast)}
+      .svmq-toolbar button:hover:not(:disabled){background:var(--lv-control-bg-hover);border-color:var(--lv-border-strong)}
+      .svmq-toolbar button:disabled,.svmq-retry:disabled{opacity:.55;cursor:wait}
+      .svmq-toolbar .svmq-sync{border-color:var(--lv-brand-border);background:var(--lv-brand-primary);color:var(--lv-text-inverse)}
+      .svmq-toolbar .svmq-sync:hover:not(:disabled){background:var(--lv-brand-primary-hover);border-color:var(--lv-brand-primary-hover)}
+      .svmq-jobs{display:grid;gap:8px}
+      .svmq-job{border:1px solid var(--lv-border-default);border-radius:var(--lv-radius-md);padding:11px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;background:var(--lv-surface-muted)}
+      .svmq-job strong{font-size:10px;color:var(--lv-text-strong)}
+      .svmq-job p{margin:4px 0 0;color:var(--lv-text-muted);font-size:8px;line-height:1.45}
+      .svmq-job .err{color:var(--lv-danger)}
+      .svmq-retry{align-self:center;border-color:var(--lv-danger-border);background:var(--lv-danger-soft);color:var(--lv-danger)}
+      .svmq-retry:hover:not(:disabled){border-color:var(--lv-danger)}
+      .svmq-empty{padding:12px;border:1px dashed var(--lv-border-default);border-radius:var(--lv-radius-sm);background:var(--lv-surface-muted);color:var(--lv-text-muted);font-size:9px}
+      .svmq-error{padding:10px;border:1px solid var(--lv-danger-border);border-radius:var(--lv-radius-sm);color:var(--lv-danger);background:var(--lv-danger-soft);font-size:9px}
+      @media(max-width:800px){.svmq-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.svmq-job{grid-template-columns:1fr}.svmq-retry{width:100%}}
     `}</style>
     <div className="svmq-head">
       <div><h2>Site Visit Media Queue</h2><p>Fallback photos move safely from temporary Supabase storage to private Cloudflare R2 through a retryable background queue.</p></div>
