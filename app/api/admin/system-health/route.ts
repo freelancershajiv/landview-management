@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireLocalSession, roleOf } from "@/lib/local-session";
+import { requireApiCapability, permissionStatus } from "@/lib/permission-guard";
 import { selectRows } from "@/lib/supabase-data";
+import { getMediaQueueStats } from "@/lib/site-visit-media-queue";
+import { isR2Configured } from "@/lib/cloudflare-r2";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -28,12 +30,10 @@ function ageMinutes(value: unknown) {
   return Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
 }
 
-async function requireManagement(request: NextRequest) {
-  const user = (await requireLocalSession(request)) as Row | null;
-  if (!user) throw new Error("Session expired.");
-  const role = roleOf(user);
-  if (role !== "admin" && role !== "manager") throw new Error("Admin or Manager access is required.");
-  return user;
+function ageText(minutes: number) {
+  if (minutes >= 1440) return `${Math.floor(minutes / 1440)}d ${Math.floor((minutes % 1440) / 60)}h`;
+  if (minutes >= 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return `${minutes}m`;
 }
 
 async function databaseCheck(): Promise<HealthCheck> {
@@ -44,7 +44,7 @@ async function databaseCheck(): Promise<HealthCheck> {
       label: "Database Gateway",
       status: "healthy",
       score: 100,
-      weight: 25,
+      weight: 20,
       detail: "LAND VIEW can read the production project database through the Supabase gateway.",
       metric: "Online",
       href: "/admin/projects",
@@ -55,7 +55,7 @@ async function databaseCheck(): Promise<HealthCheck> {
       label: "Database Gateway",
       status: "critical",
       score: 0,
-      weight: 25,
+      weight: 20,
       detail: clean(error?.message || "Production database gateway is unavailable.", 500),
       metric: "Unavailable",
       href: "/admin/projects",
@@ -72,7 +72,7 @@ async function analyticsCheck(): Promise<HealthCheck> {
       label: "Website Analytics",
       status: "healthy",
       score: 100,
-      weight: 20,
+      weight: 15,
       detail: last
         ? `Analytics storage is readable. Latest tracked interaction: ${new Date(last).toLocaleString("en-BD", { timeZone: "Asia/Dhaka" })}.`
         : "Analytics storage is available and ready for website events.",
@@ -85,7 +85,7 @@ async function analyticsCheck(): Promise<HealthCheck> {
       label: "Website Analytics",
       status: "critical",
       score: 0,
-      weight: 20,
+      weight: 15,
       detail: clean(error?.message || "Analytics storage cannot be reached through the LAND VIEW data gateway.", 500),
       metric: "Write/read path broken",
       href: "/admin/website-analytics",
@@ -102,7 +102,7 @@ function whatsappConfig() {
 async function whatsappCheck(kind: "admin" | "client"): Promise<HealthCheck> {
   const { base, token } = whatsappConfig();
   const label = kind === "admin" ? "Admin WhatsApp" : "Client WhatsApp";
-  const weight = kind === "admin" ? 15 : 15;
+  const weight = kind === "admin" ? 15 : 10;
   if (!base || !token) {
     return {
       id: kind === "admin" ? "whatsapp-admin" : "whatsapp-client",
@@ -177,47 +177,90 @@ async function whatsappCheck(kind: "admin" | "client"): Promise<HealthCheck> {
   }
 }
 
+function r2ConfigCheck(): HealthCheck {
+  const configured = isR2Configured();
+  return configured ? {
+    id: "r2-storage",
+    label: "R2 Media Storage",
+    status: "healthy",
+    score: 100,
+    weight: 10,
+    detail: "Cloudflare R2 credentials and bucket configuration are present for new Site Visit media.",
+    metric: "Configured",
+    href: "/admin/site-visits",
+  } : {
+    id: "r2-storage",
+    label: "R2 Media Storage",
+    status: "critical",
+    score: 0,
+    weight: 10,
+    detail: "Cloudflare R2 configuration is incomplete. New Site Visit photo uploads may fail.",
+    metric: "Not configured",
+    href: "/admin/site-visits",
+  };
+}
+
 async function mediaQueueCheck(): Promise<HealthCheck> {
   try {
-    const rows = await selectRows("site_visits", { order: "created_at:asc", limit: 5000 });
-    const pending = rows.filter((row) => clean(row.visit_photo_path) || clean(row.problem_photo_path));
-    const pendingMedia = pending.reduce((count, row) => count + (clean(row.visit_photo_path) ? 1 : 0) + (clean(row.problem_photo_path) ? 1 : 0), 0);
-    const oldestMinutes = pending.reduce((max, row) => Math.max(max, ageMinutes(row.created_at || row.source_created_at)), 0);
+    const data = await getMediaQueueStats();
+    const totals = data?.totals || { pending: 0, processing: 0, failed: 0, terminalFailed: 0, completed24h: 0 };
+    const jobs: Row[] = Array.isArray(data?.jobs) ? data.jobs : [];
+    const active = jobs.filter((job) => ["pending", "processing", "failed"].includes(clean(job.status, 30).toLowerCase()));
+    const oldestMinutes = active.reduce((max, job) => Math.max(max, ageMinutes(job.created_at || job.source_created_at || job.updated_at || job.next_retry_at)), 0);
+    const staleProcessing = active.filter((job) => clean(job.status, 30).toLowerCase() === "processing" && ageMinutes(job.updated_at || job.locked_at || job.created_at) >= 15).length;
+    const activeCount = Number(totals.pending || 0) + Number(totals.processing || 0) + Number(totals.failed || 0);
+    const terminal = Number(totals.terminalFailed || 0);
+    const retrying = Number(totals.failed || 0);
 
-    if (!pendingMedia) {
+    if (!activeCount && !terminal) {
       return {
         id: "site-media",
-        label: "Site Visit Media",
+        label: "Site Visit Media Queue",
         status: "healthy",
         score: 100,
-        weight: 25,
-        detail: "No Site Visit photos are waiting to move from temporary storage to Google Drive.",
+        weight: 30,
+        detail: `R2 migration queue is clear. ${Number(totals.completed24h || 0)} job${Number(totals.completed24h || 0) === 1 ? "" : "s"} completed in the last 24 hours.`,
         metric: "Queue clear",
         href: "/admin/site-visits",
       };
     }
 
-    const status: HealthStatus = oldestMinutes >= 240 ? "critical" : oldestMinutes >= 90 ? "warning" : "healthy";
-    const score = status === "critical" ? 20 : status === "warning" ? 60 : 90;
-    const ageText = oldestMinutes >= 60 ? `${Math.floor(oldestMinutes / 60)}h ${oldestMinutes % 60}m` : `${oldestMinutes}m`;
+    let status: HealthStatus = "healthy";
+    let score = 90;
+    if (terminal > 0 || staleProcessing > 0 || oldestMinutes >= 240) {
+      status = "critical";
+      score = 20;
+    } else if (retrying > 0 || oldestMinutes >= 60) {
+      status = "warning";
+      score = 60;
+    }
+
+    const parts = [
+      `${Number(totals.pending || 0)} pending`,
+      `${Number(totals.processing || 0)} processing`,
+      `${retrying} retrying/failed`,
+    ];
+    if (terminal) parts.push(`${terminal} manual retry required`);
+    if (staleProcessing) parts.push(`${staleProcessing} processing job stale`);
+
     return {
       id: "site-media",
-      label: "Site Visit Media",
+      label: "Site Visit Media Queue",
       status,
       score,
-      weight: 25,
-      detail: `${pendingMedia} photo${pendingMedia === 1 ? " is" : "s are"} waiting for Google Drive sync. Oldest queued item: ${ageText}.`,
-      metric: `${pendingMedia} pending`,
+      weight: 30,
+      detail: `${parts.join(" · ")}. Oldest active job: ${ageText(oldestMinutes)}.`,
+      metric: terminal ? `${terminal} needs action` : `${activeCount} active`,
       href: "/admin/site-visits",
     };
   } catch (error: any) {
     return {
       id: "site-media",
-      label: "Site Visit Media",
+      label: "Site Visit Media Queue",
       status: "unknown",
       score: 50,
-      weight: 25,
-      detail: clean(error?.message || "Could not inspect Site Visit media queue.", 500),
+      weight: 30,
+      detail: clean(error?.message || "Could not inspect the Site Visit media queue.", 500),
       metric: "Unknown",
       href: "/admin/site-visits",
     };
@@ -226,12 +269,13 @@ async function mediaQueueCheck(): Promise<HealthCheck> {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireManagement(request);
+    await requireApiCapability(request, "systemHealth.view");
     const checks = await Promise.all([
       databaseCheck(),
       analyticsCheck(),
       whatsappCheck("admin"),
       whatsappCheck("client"),
+      Promise.resolve(r2ConfigCheck()),
       mediaQueueCheck(),
     ]);
 
@@ -254,7 +298,6 @@ export async function GET(request: NextRequest) {
     }, { headers: { "Cache-Control": "private, no-store, max-age=0" } });
   } catch (error: any) {
     const message = clean(error?.message || "Could not calculate LAND VIEW system health.", 1000);
-    const status = /session expired/i.test(message) ? 401 : /Admin or Manager/i.test(message) ? 403 : 500;
-    return NextResponse.json({ success: false, error: message }, { status, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ success: false, error: message }, { status: permissionStatus(error), headers: { "Cache-Control": "no-store" } });
   }
 }
