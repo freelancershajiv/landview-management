@@ -1,0 +1,255 @@
+/* Light-mode normalization for the CURRENT /admin dashboard components.
+   These components inject dark-first <style> tags at render time, so every
+   override below is intentionally !important. Dark mode is untouched. */
+@media screen {
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command,
+    .lv-system-health,
+    .lv-balance-overview,
+    .nsdc-card,
+    .lv-ack
+  ) {
+    color: #17202a !important;
+  }
+
+  /* Main dashboard surfaces */
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command-hero,
+    .lv-score,
+    .lv-health-card,
+    .lv-kpi,
+    .lv-panel,
+    .lv-alert,
+    .lv-project,
+    .lv-action,
+    .lv-admin-edit-center,
+    .lv-admin-edit-link,
+    .lv-balance-card,
+    .lv-balance-loading,
+    .lv-sh-shell,
+    .lv-sh-refresh,
+    .lv-ack,
+    .lv-ack-refresh
+  ) {
+    background: #ffffff !important;
+    border-color: #d9e0e7 !important;
+    color: #17202a !important;
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .055) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-panel-head,
+    .lv-admin-edit-toggle,
+    .lv-sh-head,
+    .lv-ack-head
+  ) {
+    background: #f7f9fb !important;
+    border-color: #d9e0e7 !important;
+    color: #17202a !important;
+  }
+
+  /* New Site Entry is branded, but must not become a charcoal card in light mode. */
+  html:not([data-theme="dark"]) .portal-admin .nsdc-card {
+    background: linear-gradient(135deg, #fff1f2 0%, #ffffff 42%, #f8fafc 100%) !important;
+    border-color: #e8b9bd !important;
+    color: #17202a !important;
+    box-shadow: 0 10px 26px rgba(15, 23, 42, .06) !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .nsdc-card::after {
+    color: rgba(23, 32, 42, .045) !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .nsdc-flow span {
+    background: #ffffff !important;
+    border-color: #dfe5ea !important;
+    color: #4b5865 !important;
+  }
+
+  /* Inputs and neutral controls */
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-search,
+    .lv-command-btn:not(.primary)
+  ) {
+    background: #ffffff !important;
+    border-color: #cfd8e1 !important;
+    color: #17202a !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .lv-search::placeholder {
+    color: #87929e !important;
+  }
+
+  /* Ring centers and progress-track bases must also flip; these were easy-to-miss dark circles/bars. */
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-score-ring::after,
+    .lv-sh-ring::after
+  ) {
+    background: #ffffff !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-health-track,
+    .lv-stage-track
+  ) {
+    background: #e4e9ee !important;
+  }
+
+  /* System Health internals */
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-score {
+    border-color: #d9e0e7 !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-card {
+    background: #ffffff !important;
+    border-color: #d9e0e7 !important;
+    color: #17202a !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-card:hover {
+    background: #f7f9fb !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-pill {
+    background: #edf8f1 !important;
+    color: #2d7a4c !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-card.watch .lv-sh-pill {
+    background: #fff6df !important;
+    color: #936b16 !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-card.bad .lv-sh-pill {
+    background: #fff0f1 !important;
+    color: #a33e44 !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-actions > span {
+    color: #66717c !important;
+  }
+
+  /* Finance acknowledgement: keep semantic green/red without dark panels. */
+  html:not([data-theme="dark"]) .portal-admin .lv-ack-btn {
+    background: #edf8f1 !important;
+    border-color: #b9ddc6 !important;
+    color: #276641 !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .lv-ack-btn:hover {
+    background: #e3f3e9 !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin :is(.lv-error,.lv-sh-error,.lv-ack-error,.lv-balance-error) {
+    background: #fff3f3 !important;
+    border-color: #ebc2c5 !important;
+    color: #91373d !important;
+  }
+
+  /* Strong/headline text that was hard-coded white in component-local styles. */
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command h1,
+    .lv-command h2,
+    .lv-score-ring strong,
+    .lv-score-copy b,
+    .lv-health-card > strong,
+    .lv-kpi strong,
+    .lv-panel-head h2,
+    .lv-alert strong,
+    .lv-stage-row b,
+    .lv-project strong,
+    .lv-admin-edit-toggle,
+    .lv-admin-edit-link strong,
+    .lv-balance-card strong:not(.negative),
+    .lv-sh-head h2,
+    .lv-sh-ring strong,
+    .lv-sh-score b,
+    .lv-sh-card strong,
+    .nsdc-copy h2,
+    .lv-ack h2,
+    .lv-ack-cell strong
+  ) {
+    color: #17202a !important;
+  }
+
+  /* Secondary text that was tuned for dark backgrounds. */
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command-hero p,
+    .lv-command-date,
+    .lv-score-copy small,
+    .lv-score-copy span,
+    .lv-health-card-top span,
+    .lv-health-card > strong small,
+    .lv-health-card p,
+    .lv-kpi small,
+    .lv-kpi span,
+    .lv-alert small,
+    .lv-alert > span,
+    .lv-empty,
+    .lv-stage-row span,
+    .lv-project small,
+    .lv-status,
+    .lv-admin-edit-link small,
+    .lv-command-loading,
+    .lv-balance-card small,
+    .lv-balance-card p,
+    .lv-balance-card span,
+    .lv-balance-loading,
+    .lv-sh-head p,
+    .lv-sh-score small,
+    .lv-sh-card-top span,
+    .lv-sh-card p,
+    .lv-sh-loading,
+    .nsdc-copy p,
+    .nsdc-note,
+    .lv-ack-head p,
+    .lv-ack-cell small,
+    .lv-ack-meta,
+    .lv-ack-msg
+  ) {
+    color: #66717c !important;
+  }
+
+  /* Light neutral hover states instead of falling back to dark component colors. */
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-health-card,
+    .lv-project,
+    .lv-action,
+    .lv-admin-edit-link,
+    .lv-balance-card,
+    .lv-sh-refresh,
+    .lv-ack-refresh
+  ):hover {
+    background: #f7f9fb !important;
+    border-color: #bcc7d1 !important;
+  }
+
+  /* Keep branded/semantic colors intentional in Light Mode. */
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-eyebrow,
+    .lv-panel-head a,
+    .lv-panel-head span,
+    .lv-project-id,
+    .lv-admin-edit-toggle span,
+    .lv-sh-eyebrow,
+    .lv-sh-open,
+    .nsdc-kicker,
+    .nsdc-flow b,
+    .lv-ack-kicker
+  ) {
+    color: var(--lv-action-primary) !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command-btn.primary,
+    .nsdc-button,
+    .nsdc-icon,
+    .lv-ack-count
+  ) {
+    color: #ffffff !important;
+  }
+
+  /* Explicitly remove the remaining dark shadows from the light dashboard. */
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command-hero,
+    .lv-score,
+    .lv-health-card,
+    .lv-kpi,
+    .lv-panel,
+    .lv-project,
+    .lv-admin-edit-center,
+    .lv-sh-shell,
+    .lv-balance-card,
+    .nsdc-card,
+    .lv-ack
+  ) {
+    box-shadow: 0 8px 24px rgba(15, 23, 42, .055) !important;
+  }
+}
