@@ -7,7 +7,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
-function clean(value: unknown, max = 4000) { return String(value ?? "").trim().replace(/\r\n?/g, "\n").slice(0, max); }
+function clean(value: unknown, max = 3000) { return String(value ?? "").trim().replace(/\r\n?/g, "\n").slice(0, max); }
 function sameOrigin(request: NextRequest) { const origin = request.headers.get("origin"); if (!origin) return process.env.NODE_ENV !== "production" || request.headers.get("sec-fetch-site") === "same-origin"; try { return new URL(origin).host === request.nextUrl.host; } catch { return false; } }
 async function requireUser(request:NextRequest){const user=await requireLocalSession(request) as Row|null;if(!user)throw new Error("Session expired.");return user;}
 async function can(user:Row,permission:string){const role=roleOf(user);if(role==="admin")return true;if(role==="manager")return roleDefaultPermissions("manager")[permission]===true;const rows=await selectRows("app_permissions",{filters:{user_key:userIdOf(user),permission},order:"created_at:desc",limit:1});return Boolean(rows[0]&&String(rows[0].status||"").toLowerCase()==="active");}
@@ -25,7 +25,8 @@ export async function PATCH(request:NextRequest){
     const user=await requireUser(request);await requirePermission(user,"certificates.process");
     const input=await request.json();const key=clean(input?.key,80).toLowerCase();if(!key)return NextResponse.json({success:false,error:"Template key is required."},{status:400});
     const current=(await selectRows("certificate_templates",{filters:{template_key:key},limit:1}))[0];if(!current)return NextResponse.json({success:false,error:"Certificate template not found."},{status:404});
-    const label=clean(input?.label,120),subject=clean(input?.subject,160),position=clean(input?.position,140),statement=clean(input?.statement,4000);if(!label||!subject)return NextResponse.json({success:false,error:"Template label and subject are required."},{status:400});
+    const label=clean(input?.label,120),subject=clean(input?.subject,160),position=clean(input?.position,140);const rawStatement=String(input?.statement??"").trim().replace(/\r\n?/g,"\n");if(rawStatement.length>3000)return NextResponse.json({success:false,error:"Template statement must be 3,000 characters or fewer."},{status:400});const statement=rawStatement;
+    if(!label||!subject)return NextResponse.json({success:false,error:"Template label and subject are required."},{status:400});
     const now=new Date().toISOString();const rows=await updateRows("certificate_templates",{template_key:key},{label,subject,default_position:position,statement,active:input?.active!==false,updated_at:now,updated_by:userIdOf(user)});
     await insertRows("certificate_audit",{certificate_code:`TEMPLATE:${key}`,action:"template_updated",actor:userIdOf(user),details:{label,subject},created_at:now});
     return NextResponse.json({success:true,data:map(rows[0]||{...current,label,subject,default_position:position,statement,updated_at:now,updated_by:userIdOf(user)})},{headers:{"Cache-Control":"no-store, max-age=0"}});
