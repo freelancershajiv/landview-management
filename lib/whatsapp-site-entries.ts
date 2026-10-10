@@ -164,19 +164,9 @@ export async function publishSiteEntryToWhatsApp(payload: SiteEntryWhatsAppPaylo
   const employeeSubmission = payload.event === "submitted" && employeeId;
 
   if (employeeSubmission) {
-    const employeeResult = await sendFromEmployee(employeeId, message, groupInviteCode);
-    if (employeeResult.status === "sent") return employeeResult;
-
-    // A site entry must still reach the operations group when the employee session is
-    // temporarily disconnected. Fall back to the shared Admin Bot and keep the submitter
-    // identity inside the message body.
-    const adminResult = await sendFromAdmin(message, groupInviteCode);
-    if (adminResult.status === "sent") return adminResult;
-    return {
-      status: "failed",
-      sender: "admin",
-      reason: [employeeResult.reason, adminResult.reason].filter(Boolean).join(" · ").slice(0, 700),
-    };
+    // Employee-originated new-site entries must be sent only from that employee's
+    // connected WhatsApp account. Never silently fall back to the Admin/shared sender.
+    return sendFromEmployee(employeeId, message, groupInviteCode);
   }
 
   return sendFromAdmin(message, groupInviteCode);
