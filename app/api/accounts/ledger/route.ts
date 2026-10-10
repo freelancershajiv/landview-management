@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
-import { insertRows, normalizeProjectCode, roleOf, selectRows, updateRows } from "@/lib/supabase-data";
+import { normalizeProjectCode, roleOf, selectRows, updateRows } from "@/lib/supabase-data";
+import { auditFailure, recordAuditEvent } from "@/lib/audit-log";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,19 +35,34 @@ function isEditableTransactionCode(code: string) {
 }
 
 export async function PATCH(request: NextRequest) {
+  let auditUser: Record<string, unknown> | null = null;
+  let auditTransactionCode = "";
+  let auditBefore: Record<string, unknown> | undefined;
+  let auditAfter: Record<string, unknown> | undefined;
+
   try {
     if (!sameOrigin(request)) {
       return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
     }
 
     const user = await requireLocalSession(request);
+    auditUser = user as Record<string, unknown> | null;
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     if (roleOf(user) !== "admin") {
+      await recordAuditEvent({
+        user: auditUser,
+        request,
+        action: "accounts.ledger.edit",
+        entityType: "transaction",
+        outcome: "denied",
+        details: { reason: "Admin access is required to edit ledger history." },
+      });
       return NextResponse.json({ success: false, error: "Admin access is required to edit ledger history." }, { status: 403 });
     }
 
     const body = await request.json() as Record<string, unknown>;
     const transactionCode = text(body.Transaction_ID || body.transactionId, 140);
+    auditTransactionCode = transactionCode;
     if (!transactionCode || !isEditableTransactionCode(transactionCode)) {
       return NextResponse.json({ success: false, error: "A valid ledger transaction ID is required." }, { status: 400 });
     }
@@ -54,6 +70,7 @@ export async function PATCH(request: NextRequest) {
     const found = await selectRows("transactions", { filters: { transaction_code: transactionCode }, limit: 1 });
     if (!found.length) return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
     const current = found[0];
+    auditBefore = current;
 
     const transactionDate = validDate(body.Transaction_Date || body.date);
     if (!transactionDate) return NextResponse.json({ success: false, error: "Enter a valid transaction date." }, { status: 400 });
@@ -103,28 +120,22 @@ export async function PATCH(request: NextRequest) {
       reference_no: reference || null,
       source_created_by: actor,
     };
+    auditAfter = updates;
 
     const updated = await updateRows("transactions", { transaction_code: transactionCode }, updates);
-    await insertRows("app_audit_log", {
-      actor_user_key: actor,
-      action: "historical_ledger_edit",
+
+    await recordAuditEvent({
+      user: auditUser,
+      request,
+      action: "accounts.ledger.edit",
+      entityType: "transaction",
+      entityId: transactionCode,
       target: transactionCode,
-      outcome: "success",
+      before: current,
+      after: updated[0] || updates,
       details: {
-        before: {
-          transaction_date: current.transaction_date,
-          transaction_type: current.transaction_type,
-          project_code_snapshot: current.project_code_snapshot,
-          account_snapshot: current.account_snapshot,
-          category: current.category,
-          description: current.description,
-          debit: current.debit,
-          credit: current.credit,
-          amount: current.amount,
-          payment_method: current.payment_method,
-          reference_no: current.reference_no,
-        },
-        after: updates,
+        historical: true,
+        previousActionName: "historical_ledger_edit",
       },
     });
 
@@ -133,6 +144,17 @@ export async function PATCH(request: NextRequest) {
       { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
     );
   } catch (error) {
+    await auditFailure({
+      user: auditUser,
+      request,
+      action: "accounts.ledger.edit",
+      entityType: "transaction",
+      entityId: auditTransactionCode,
+      target: auditTransactionCode,
+      before: auditBefore,
+      after: auditAfter,
+      error,
+    });
     const message = error instanceof Error ? error.message : "Could not update the historical ledger entry.";
     return NextResponse.json({ success: false, error: message }, { status: /session/i.test(message) ? 401 : 502, headers: { "Cache-Control": "no-store" } });
   }
