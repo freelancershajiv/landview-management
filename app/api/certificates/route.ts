@@ -51,8 +51,14 @@ async function audit(certificateId:string,action:string,actor:string,details:Row
 export async function GET(request:NextRequest){
   try{
     const user=await requireUser(request);await requirePermission(user,"certificates.view");
-    const rows=await selectRows("certificates",{order:"created_at:desc",limit:5000});
-    return NextResponse.json({success:true,data:{certificates:rows.map(row=>mapCertificate(request,row)),source:"supabase"}},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase"}});
+    const [rows,employees,projects]=await Promise.all([
+      selectRows("certificates",{order:"created_at:desc",limit:5000}),
+      selectRows("employees",{order:"name:asc",limit:2000}),
+      selectRows("projects",{order:"project_code:desc",limit:5000}),
+    ]);
+    const employeeLookups=employees.map((row:Row)=>({employeeCode:row.employee_code||"",name:row.name||"",designation:row.designation||"",department:row.department||"",joiningDate:row.joining_date||"",status:row.status||""}));
+    const projectLookups=projects.map((row:Row)=>({projectCode:row.project_code||"",projectName:row.project_name||"",clientName:row.client_name_snapshot||"",address:row.client_address_snapshot||row.location||"",projectType:row.project_type||row.project_category||"",location:row.location||"",plotArea:row.plot_area??"",floors:row.floors??"",storiesText:row.number_of_stories_text||"",district:row.district||"",thana:row.upazila_thana||"",mouza:row.mouza||"",jlNo:row.jl_no||"",dagNo:row.dag_no||""}));
+    return NextResponse.json({success:true,data:{certificates:rows.map(row=>mapCertificate(request,row)),employees:employeeLookups,projects:projectLookups,source:"supabase"}},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase"}});
   }catch(error:any){const message=error?.message||"Could not load certificate registry.";return NextResponse.json({success:false,error:message},{status:/session/i.test(message)?401:/permission/i.test(message)?403:500});}
 }
 
