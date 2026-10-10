@@ -9,16 +9,20 @@ export const dynamic = "force-dynamic";
 type MarkerState = "completed" | "active" | "hold";
 
 function markerState(row: Record<string, any>): MarkerState {
+  const lifecycle = String(row.lifecycle_phase || "").trim().toLowerCase();
   const statusText = [
     row.project_status,
     row.status,
     row.project_state,
+    row.lifecycle_phase,
     row.design_stage_status,
     row.approval_stage_status,
     row.supervision_stage_status,
   ].map((value) => String(value ?? "").trim().toLowerCase()).join(" ");
 
   if (/on\s*hold|hold|paused|pause/.test(statusText)) return "hold";
+  if (lifecycle === "completed") return "completed";
+  if (["design stage", "approval stage", "supervision / construction stage"].includes(lifecycle)) return "active";
 
   const design = String(row.design_stage_status || "Pending");
   const approval = String(row.approval_stage_status || "Pending");
