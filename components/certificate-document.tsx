@@ -10,13 +10,13 @@ type Certificate = {
 export const certificateStyles = `
 @font-face{font-family:"Certificate Bengali";src:url("/fonts/noto-sans-bengali-400.woff2") format("woff2");font-style:normal;font-weight:400;font-display:block}
 .lv-cert-scroll{overflow-x:auto;width:100%}
-.lv-cert{box-sizing:border-box!important;position:relative;isolation:isolate;width:794px;min-height:1123px;margin:0 auto;background:var(--theme-bg-_fff, #fff)!important;color:#171717!important;border:3px solid var(--theme-line-_d71920, #d71920);padding:186px 48px 118px;font:14px/1.5 Arial,Helvetica,"Certificate Bengali",sans-serif!important;box-shadow:0 18px 60px var(--theme-shadow-_0004, #0004);overflow:hidden;color-scheme:light}
+.lv-cert{box-sizing:border-box!important;position:relative;isolation:isolate;width:794px;min-height:1123px;margin:0 auto;background:var(--theme-bg-_fff, #fff)!important;color:#171717!important;border:3px solid var(--theme-line-_d71920, #d71920);padding:172px 48px 100px;font:14px/1.5 Arial,Helvetica,"Certificate Bengali",sans-serif!important;box-shadow:0 18px 60px var(--theme-shadow-_0004, #0004);overflow:hidden;color-scheme:light}
 .lv-cert *{box-sizing:border-box;color:inherit!important;font-family:inherit;letter-spacing:normal;text-shadow:none!important}
 .lv-cert p{font-size:14.2px!important;line-height:1.55!important;margin:0 0 14px;text-align:justify;text-justify:inter-word;font-weight:400}
 .lv-cert strong{font-weight:700!important}
-.lv-cert .lv-cert-corner{position:absolute;z-index:-1;top:0;right:0;width:440px;height:217px;background:#df1920;clip-path:polygon(0 0,100% 0,100% 100%)}
-.lv-cert .lv-cert-corner:before{content:"";position:absolute;inset:0 0 8px;background:linear-gradient(125deg,var(--theme-bg-_191919e6, #191919e6),var(--theme-bg-_090909ec, #090909ec)),repeating-linear-gradient(90deg,transparent 0 27px,var(--theme-bg-_777, #777) 28px 30px),repeating-linear-gradient(0deg,var(--theme-bg-_333, #333) 0 24px,var(--theme-bg-_888, #888) 25px 27px);clip-path:polygon(0 0,100% 0,100% 100%)}
-.lv-cert .lv-cert-brand{position:absolute;top:30px;left:42px;width:330px}
+.lv-cert .lv-cert-corner{position:absolute;z-index:-1;top:0;right:0;width:330px;height:165px;background:#df1920;clip-path:polygon(0 0,100% 0,100% 100%)}
+.lv-cert .lv-cert-corner:before{content:"";position:absolute;inset:0 0 6px;background:linear-gradient(125deg,var(--theme-bg-_191919e6, #191919e6),var(--theme-bg-_090909ec, #090909ec)),repeating-linear-gradient(90deg,transparent 0 27px,var(--theme-bg-_777, #777) 28px 30px),repeating-linear-gradient(0deg,var(--theme-bg-_333, #333) 0 24px,var(--theme-bg-_888, #888) 25px 27px);clip-path:polygon(0 0,100% 0,100% 100%)}
+.lv-cert .lv-cert-brand{position:absolute;top:28px;left:42px;width:330px}
 .lv-cert .lv-cert-lockup{display:flex;align-items:center;gap:11px}
 .lv-cert .lv-cert-logo{display:block;width:58px;height:58px;object-fit:contain;flex:none}
 .lv-cert .lv-cert-brandwords{display:flex;flex-direction:column;gap:4px}
@@ -26,7 +26,7 @@ export const certificateStyles = `
 .lv-cert .lv-cert-slogan{text-align:center;margin-top:9px;font-size:10.5px;line-height:1.45;max-width:305px}
 .lv-cert .lv-cert-slogan small{display:flex;align-items:center;gap:9px;white-space:nowrap;font-size:7.7px;letter-spacing:1.7px;margin-top:2px}
 .lv-cert .lv-cert-slogan small:before,.lv-cert .lv-cert-slogan small:after{content:"";height:2px;background:#d71920;flex:1}
-.lv-cert .lv-cert-manifesto{position:absolute;right:28px;top:28px;border-left:1px solid var(--theme-line-_888, #888);padding-left:10px;color:var(--theme-ink-_eee, #eee)!important;font-size:10px;line-height:1.45;letter-spacing:1.8px}
+.lv-cert .lv-cert-manifesto{position:absolute;right:20px;top:22px;border-left:1px solid var(--theme-line-_888, #888);padding-left:8px;color:var(--theme-ink-_eee, #eee)!important;font-size:9px;line-height:1.4;letter-spacing:1.45px}
 .lv-cert .lv-cert-ref{display:flex;justify-content:space-between;gap:20px;position:relative;font-size:14px;margin-bottom:24px}
 .lv-cert .lv-cert-ref span{background:var(--theme-bg-_fff, #fff);max-width:55%;overflow-wrap:anywhere}
 .lv-cert .lv-cert-title{font-size:34px!important;font-weight:800!important;text-align:center;line-height:1.08!important;margin:0 0 15px!important;letter-spacing:-1px;text-transform:uppercase}
@@ -48,15 +48,14 @@ export const certificateStyles = `
 .lv-cert .lv-cert-verify{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-size:10px;min-width:180px}
 .lv-cert .lv-cert-verify img{display:block;width:124px;height:124px;padding:6px;background:var(--theme-bg-_fff, #fff);object-fit:contain;margin:0 auto 8px;image-rendering:auto}
 .lv-cert .lv-cert-verify strong{display:block;font-size:11px;font-weight:800}.lv-cert .lv-cert-verify span{display:block;color:var(--theme-ink-_555, #555)!important;line-height:1.25;margin-top:2px;font-size:9px}
-.lv-cert .lv-cert-watermark{position:absolute;z-index:-1;right:-8px;bottom:100px;width:175px;height:500px;opacity:.04;transform:skewY(-17deg);border:7px solid var(--theme-line-_111, #111);background:repeating-linear-gradient(90deg,var(--theme-bg-_111, #111) 0 2px,transparent 2px 27px),repeating-linear-gradient(0deg,var(--theme-bg-_111, #111) 0 2px,transparent 2px 36px)}
-.lv-cert .lv-cert-footer{position:absolute;bottom:0;left:0;right:0;height:94px;display:grid;grid-template-columns:1fr 1.15fr 1.15fr 1.25fr;align-items:center;padding:24px 26px 10px;background:var(--theme-bg-_101010, #101010);color:var(--theme-ink-_fff, #fff)!important;border-top:2px solid var(--theme-line-_d71920, #d71920);font-size:10px;font-weight:700;overflow:visible}
-.lv-cert .lv-cert-footer:before{content:"";position:absolute;left:-2px;top:-31px;width:235px;height:34px;background:#d71920;clip-path:polygon(0 0,100% 62%,0 100%)}
-.lv-cert .lv-cert-footer div{min-width:0;line-height:1.3;text-align:center;padding:0 10px;border-right:1px solid var(--theme-line-_ffffff2b, #ffffff2b)}
+.lv-cert .lv-cert-footer{position:absolute;bottom:0;left:0;right:0;height:78px;display:grid;grid-template-columns:1fr 1.15fr 1.15fr 1.25fr;align-items:center;padding:18px 22px 8px;background:var(--theme-bg-_101010, #101010);color:var(--theme-ink-_fff, #fff)!important;border-top:2px solid var(--theme-line-_d71920, #d71920);font-size:9.5px;font-weight:700;overflow:visible}
+.lv-cert .lv-cert-footer:before{content:"";position:absolute;left:-2px;top:-24px;width:190px;height:27px;background:#d71920;clip-path:polygon(0 0,100% 62%,0 100%)}
+.lv-cert .lv-cert-footer div{min-width:0;line-height:1.25;text-align:center;padding:0 8px;border-right:1px solid var(--theme-line-_ffffff2b, #ffffff2b)}
 .lv-cert .lv-cert-footer div:last-child{border-right:0}
-.lv-cert .lv-cert-footer strong{display:block;color:var(--theme-ink-_fff, #fff)!important;font-size:10px!important;line-height:1.3;white-space:nowrap}
-.lv-cert .lv-cert-footer small{display:block;font-size:6.6px;line-height:1.3;letter-spacing:.32px;color:var(--theme-ink-_d6d6d6, #d6d6d6)!important;margin-top:4px;font-weight:500;white-space:nowrap}
+.lv-cert .lv-cert-footer strong{display:block;color:var(--theme-ink-_fff, #fff)!important;font-size:9.5px!important;line-height:1.25;white-space:nowrap}
+.lv-cert .lv-cert-footer small{display:block;font-size:6.2px;line-height:1.25;letter-spacing:.3px;color:var(--theme-ink-_d6d6d6, #d6d6d6)!important;margin-top:3px;font-weight:500;white-space:nowrap}
 .lv-cert .lv-cert-footer .lv-cert-phone strong,.lv-cert .lv-cert-footer .lv-cert-phone small{white-space:nowrap}
-@media print{@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important}.lv-cert-scroll{overflow:visible}.lv-cert{width:210mm!important;min-height:297mm!important;margin:0!important;box-shadow:none!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.lv-cert .lv-cert-verify img{width:32mm!important;height:32mm!important;padding:1.5mm!important}.lv-cert .lv-cert-footer{height:94px!important;padding:24px 24px 10px!important;font-size:10px!important}.lv-cert .lv-cert-footer strong{font-size:10px!important}.lv-cert .lv-cert-footer small{font-size:6.5px!important}}
+@media print{@page{size:A4 portrait;margin:0}html,body{margin:0!important;padding:0!important;background:#fff!important}.lv-cert-scroll{overflow:visible}.lv-cert{width:210mm!important;min-height:297mm!important;margin:0!important;box-shadow:none!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}.lv-cert .lv-cert-verify img{width:32mm!important;height:32mm!important;padding:1.5mm!important}.lv-cert .lv-cert-footer{height:78px!important;padding:18px 22px 8px!important;font-size:9.5px!important}.lv-cert .lv-cert-footer strong{font-size:9.5px!important}.lv-cert .lv-cert-footer small{font-size:6.2px!important}}
 `;
 
 function EmphasizedText({ value, issued }: { value: string; issued: Certificate }) {
@@ -82,7 +81,7 @@ export function CertificateDocument({ issued }: { issued: Certificate }) {
   const title = certificateTitle(issued);
   return <div className="lv-cert-scroll"><article className="lv-cert" id="landview-certificate-document">
     <style>{certificateStyles}</style>
-    <div className="lv-cert-corner"/><div className="lv-cert-watermark"/>
+    <div className="lv-cert-corner"/>
     <div className="lv-cert-brand">
       <div className="lv-cert-lockup"><img className="lv-cert-logo" src="/land-view-logo.svg" alt="LAND VIEW logo"/><div className="lv-cert-brandwords"><strong>LAND <span>VIEW</span></strong><small>ENGINEERS AND ARCHITECTS</small></div></div>
       <div className="lv-cert-slogan">স্থাপত্য নির্মাণ হোক নিরাপদ<small>BUILD A SAFER TOMORROW</small></div>
