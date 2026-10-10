@@ -52,7 +52,19 @@ export default function AdminBalanceOverview() {
   return (
     <section className="lv-balance-overview" aria-label="Account balance overview">
       <style>{`
-        .lv-balance-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 14px}.lv-balance-card{position:relative;display:block;min-height:112px;padding:16px 18px;border:1px solid var(--theme-line-_2e3942,#2e3942);border-radius:13px;background:linear-gradient(145deg,var(--theme-bg-_151c22,#151c22),var(--theme-bg-_0e1419,#0e1419));overflow:hidden;text-decoration:none}.lv-balance-card:before{content:"";position:absolute;left:0;top:0;width:54px;height:3px;background:#d61f26}.lv-balance-card.municipality:before{background:#4c78a8}.lv-balance-card:hover{border-color:var(--theme-line-_4b5661,#4b5661)}.lv-balance-card small{display:block;color:#89959f;font-size:9px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.lv-balance-card strong{display:block;margin-top:9px;color:#fff;font-size:27px;line-height:1}.lv-balance-card strong.negative{color:#ff7176}.lv-balance-card p{margin:8px 0 0;color:#74818b;font-size:9px;line-height:1.4}.lv-balance-card span{position:absolute;right:16px;top:16px;color:#6f7b85;font-size:9px;font-weight:800}.lv-balance-error{grid-column:1/-1;padding:10px 12px;border:1px solid rgba(226,31,39,.35);border-radius:9px;background:rgba(226,31,39,.08);color:#ff8a8f;font-size:10px}.lv-balance-loading{grid-column:1/-1;padding:13px;border:1px solid var(--theme-line-_2e3942,#2e3942);border-radius:10px;color:#85919b;font-size:10px;background:var(--theme-bg-_10161c,#10161c)}@media(max-width:680px){.lv-balance-overview{grid-template-columns:1fr}.lv-balance-card{min-height:100px}.lv-balance-card strong{font-size:23px}}
+        .lv-balance-overview{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 14px}
+        .lv-balance-card{position:relative;display:block;min-height:112px;padding:16px 18px;border:1px solid var(--lv-border-default);border-radius:var(--lv-radius-lg);background:var(--lv-surface-panel);color:var(--lv-text-primary);overflow:hidden;text-decoration:none;box-shadow:var(--lv-shadow-sm);transition:background var(--lv-motion-fast),border-color var(--lv-motion-fast),box-shadow var(--lv-motion-fast)}
+        .lv-balance-card:before{content:"";position:absolute;left:0;top:0;width:54px;height:3px;background:var(--lv-brand-primary)}
+        .lv-balance-card.municipality:before{background:var(--lv-info)}
+        .lv-balance-card:hover{background:var(--lv-surface-muted);border-color:var(--lv-border-strong);box-shadow:var(--lv-shadow-md)}
+        .lv-balance-card small{display:block;color:var(--lv-text-muted);font-size:9px;font-weight:900;letter-spacing:.1em;text-transform:uppercase}
+        .lv-balance-card strong{display:block;margin-top:9px;color:var(--lv-text-strong);font-size:27px;line-height:1}
+        .lv-balance-card strong.negative{color:var(--lv-danger)}
+        .lv-balance-card p{margin:8px 0 0;color:var(--lv-text-secondary);font-size:9px;line-height:1.4}
+        .lv-balance-card span{position:absolute;right:16px;top:16px;color:var(--lv-text-muted);font-size:9px;font-weight:800}
+        .lv-balance-error{grid-column:1/-1;padding:10px 12px;border:1px solid var(--lv-danger-border);border-radius:var(--lv-radius-sm);background:var(--lv-danger-soft);color:var(--lv-danger);font-size:10px}
+        .lv-balance-loading{grid-column:1/-1;padding:13px;border:1px solid var(--lv-border-default);border-radius:var(--lv-radius-md);color:var(--lv-text-muted);font-size:10px;background:var(--lv-surface-muted)}
+        @media(max-width:680px){.lv-balance-overview{grid-template-columns:1fr}.lv-balance-card{min-height:100px}.lv-balance-card strong{font-size:23px}}
       `}</style>
 
       {loading && !data ? <div className="lv-balance-loading">Loading live account balances…</div> : null}
