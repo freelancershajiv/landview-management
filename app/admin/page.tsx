@@ -5,6 +5,7 @@ import AdminCommandCenter from "@/components/admin-command-center";
 import AdminControlLinks from "@/components/admin-control-links";
 import AdminDailyBrief from "@/components/admin-daily-brief";
 import AdminSystemHealth from "@/components/admin-system-health";
+import AdminWorkloadIntelligence from "@/components/admin-workload-intelligence";
 import NewSiteDashboardCard from "@/components/new-site-dashboard-card";
 import { requirePortalSession } from "@/lib/server-auth";
 
@@ -32,6 +33,7 @@ export default async function DashboardPage(){
     {canSiteEntry && <AdminControlLinks/>}
     {canSiteEntry && <AdminActionCenter compact/>}
     {canSiteEntry && <AdminDailyBrief/>}
+    {canSiteEntry && <AdminWorkloadIntelligence/>}
     {canSiteEntry && <NewSiteDashboardCard mode="management"/>}
     {chairman && <ChairmanExpenseApproval/>}
     {financeRole && <AdminBalanceOverview/>}
