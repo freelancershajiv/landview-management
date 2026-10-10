@@ -10,8 +10,8 @@ export default function NewSiteDashboardCard({ mode }: Props) {
   const management = mode === "management";
   const title = management ? "New Site Entry" : "Enter a New Site";
   const description = management
-    ? "Register a newly visited site with client details, land information and GPS. Management/Admin entries become Draft proposals immediately; employee entries appear here for approval."
-    : "Visited a new client site? Record the owner, project details, land information and GPS now. Your entry will go to Management/Admin for approval and then become a proposal.";
+    ? "Register a newly visited site with client details, land information and GPS. Management/Admin entries become Draft proposals immediately; employee entries wait for approval before entering the proposal workflow."
+    : "Visited a new client site? Record the owner, project details, land information and GPS now. Your entry will go to Management/Admin for approval and then continue through LAND VIEW's full project lifecycle.";
 
   const action = management
     ? <Link className="nsdc-button" href="/admin/new-site">⌖ Enter / Review Sites</Link>
@@ -33,7 +33,7 @@ export default function NewSiteDashboardCard({ mode }: Props) {
       <h2>{title}</h2>
       <p>{description}</p>
       <div className="nsdc-flow" aria-label="Workflow">
-        <span>Site Entry</span><b>→</b><span>{management ? "Approval / Draft Proposal" : "Management Approval"}</span><b>→</b><span>Proposal</span><b>→</b><span>Project</span>
+        <span>Site Entry</span><b>→</b><span>Approval</span><b>→</b><span>Proposal</span><b>→</b><span>Project Registration</span><b>→</b><span>Design</span><b>→</b><span>Approval</span><b>→</b><span>Supervision / Construction</span><b>→</b><span>Completed</span>
       </div>
     </div>
     <div className="nsdc-actions">
