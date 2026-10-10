@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { ReactNode } from "react";
+import CertificateRegistryPrintBridge from "@/components/certificate-registry-print-bridge";
 
 export default function CertificateLayout({ children }: { children: ReactNode }) {
   return <>
+    <CertificateRegistryPrintBridge />
     <style>{`
       .previewWrap {
         container-type: inline-size;
@@ -21,30 +23,14 @@ export default function CertificateLayout({ children }: { children: ReactNode })
         margin-left: auto !important;
         margin-right: auto !important;
       }
-      @container (max-width: 760px) {
-        .previewWrap .lv-cert { zoom: .88; }
-      }
-      @container (max-width: 720px) {
-        .previewWrap .lv-cert { zoom: .84; }
-      }
-      @container (max-width: 680px) {
-        .previewWrap .lv-cert { zoom: .79; }
-      }
-      @container (max-width: 620px) {
-        .previewWrap .lv-cert { zoom: .71; }
-      }
-      @container (max-width: 560px) {
-        .previewWrap .lv-cert { zoom: .63; }
-      }
-      @container (max-width: 500px) {
-        .previewWrap .lv-cert { zoom: .55; }
-      }
-      @container (max-width: 430px) {
-        .previewWrap .lv-cert { zoom: .47; }
-      }
-      @container (max-width: 370px) {
-        .previewWrap .lv-cert { zoom: .40; }
-      }
+      @container (max-width: 760px) { .previewWrap .lv-cert { zoom: .88; } }
+      @container (max-width: 720px) { .previewWrap .lv-cert { zoom: .84; } }
+      @container (max-width: 680px) { .previewWrap .lv-cert { zoom: .79; } }
+      @container (max-width: 620px) { .previewWrap .lv-cert { zoom: .71; } }
+      @container (max-width: 560px) { .previewWrap .lv-cert { zoom: .63; } }
+      @container (max-width: 500px) { .previewWrap .lv-cert { zoom: .55; } }
+      @container (max-width: 430px) { .previewWrap .lv-cert { zoom: .47; } }
+      @container (max-width: 370px) { .previewWrap .lv-cert { zoom: .40; } }
     `}</style>
     <nav style={{maxWidth:1500,margin:"0 auto",padding:"14px 22px 0",display:"flex",gap:8,flexWrap:"wrap"}}>
       <Link href="/admin/certificates" style={linkStyle}>Certificates</Link>
