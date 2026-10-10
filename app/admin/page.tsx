@@ -1,6 +1,7 @@
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
 import AdminBalanceOverview from "@/components/admin-balance-overview";
 import AdminCommandCenter from "@/components/admin-command-center";
+import AdminControlLinks from "@/components/admin-control-links";
 import AdminSystemHealth from "@/components/admin-system-health";
 import NewSiteDashboardCard from "@/components/new-site-dashboard-card";
 import { requirePortalSession } from "@/lib/server-auth";
@@ -26,6 +27,7 @@ export default async function DashboardPage(){
   const financeRole = ["admin", "manager", "accounts"].includes(workspaceRole);
   const canSiteEntry = workspaceRole === "admin" || workspaceRole === "manager";
   return <>
+    {canSiteEntry && <AdminControlLinks/>}
     {canSiteEntry && <NewSiteDashboardCard mode="management"/>}
     {chairman && <ChairmanExpenseApproval/>}
     {financeRole && <AdminBalanceOverview/>}
