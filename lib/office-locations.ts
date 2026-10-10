@@ -35,4 +35,15 @@ export const officeLocations: OfficeLocation[] = [
     engineeringPhone: business.telephone,
     architecturePhone: business.architecturePhone,
   },
+  {
+    id: "chattagram-office",
+    name: "LAND VIEW Engineers & Architects",
+    shortName: "Chattagram Office",
+    address: "4th Floor (Lift-3), Yes Bazar LTD. (Ctg Office), House No. 231, Road No. 04, Port Colon, Chattogram, Bangladesh",
+    latitude: 22.3228423,
+    longitude: 91.8003714,
+    mapUrl: "https://maps.app.goo.gl/ECKDc73Rb8dae384A?g_st=ac",
+    engineeringPhone: business.telephone,
+    architecturePhone: business.architecturePhone,
+  },
 ];
