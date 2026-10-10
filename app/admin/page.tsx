@@ -1,4 +1,5 @@
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
+import AdminActionCenter from "@/components/admin-action-center";
 import AdminBalanceOverview from "@/components/admin-balance-overview";
 import AdminCommandCenter from "@/components/admin-command-center";
 import AdminControlLinks from "@/components/admin-control-links";
@@ -28,6 +29,7 @@ export default async function DashboardPage(){
   const canSiteEntry = workspaceRole === "admin" || workspaceRole === "manager";
   return <>
     {canSiteEntry && <AdminControlLinks/>}
+    {canSiteEntry && <AdminActionCenter compact/>}
     {canSiteEntry && <NewSiteDashboardCard mode="management"/>}
     {chairman && <ChairmanExpenseApproval/>}
     {financeRole && <AdminBalanceOverview/>}
