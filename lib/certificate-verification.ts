@@ -1,7 +1,7 @@
 import { deflateRawSync, inflateRawSync } from "node:zlib";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-export type CertificateType = "project" | "employee" | "building";
+export type CertificateType = "project" | "employee" | "intern" | "building";
 
 export type CertificatePayload = {
   v: 1;
@@ -16,6 +16,13 @@ export type CertificatePayload = {
   f?: string;
   m?: string;
   nid?: string;
+  institution?: string;
+  department?: string;
+  studentId?: string;
+  supervisor?: string;
+  trainingArea?: string;
+  serviceFrom?: string;
+  serviceTo?: string;
   i: string;
   x?: string;
 };
@@ -54,13 +61,20 @@ export function signCertificate(input: Omit<CertificatePayload, "v">) {
     ...(input.f ? { f: clean(input.f, 120) } : {}),
     ...(input.m ? { m: clean(input.m, 120) } : {}),
     ...(input.nid ? { nid: clean(input.nid, 40) } : {}),
+    ...(input.institution ? { institution: clean(input.institution, 180) } : {}),
+    ...(input.department ? { department: clean(input.department, 160) } : {}),
+    ...(input.studentId ? { studentId: clean(input.studentId, 80) } : {}),
+    ...(input.supervisor ? { supervisor: clean(input.supervisor, 140) } : {}),
+    ...(input.trainingArea ? { trainingArea: clean(input.trainingArea, 300) } : {}),
+    ...(input.serviceFrom ? { serviceFrom: clean(input.serviceFrom, 20) } : {}),
+    ...(input.serviceTo ? { serviceTo: clean(input.serviceTo, 20) } : {}),
     i: clean(input.i, 40),
     ...(input.x ? { x: clean(input.x, 40) } : {}),
   };
 
   if (payload.d.length > 3000) throw new Error("Certificate statement exceeds 3,000 characters.");
   if (!/^LVC-[A-Z]{3}-\d{8}-[A-Z0-9]{6}$/.test(payload.id)) throw new Error("Invalid certificate ID.");
-  if (!["project", "employee", "building"].includes(payload.t)) throw new Error("Invalid certificate type.");
+  if (!["project", "employee", "intern", "building"].includes(payload.t)) throw new Error("Invalid certificate type.");
   if (!payload.n) throw new Error("Certificate name is required.");
   if (!payload.i) throw new Error("Issue date is required.");
 
@@ -82,7 +96,7 @@ export function verifyCertificate(token: string): CertificatePayload | null {
     const payload = JSON.parse(decode(body)) as CertificatePayload;
     if (payload?.v !== 1) return null;
     if (!/^LVC-[A-Z]{3}-\d{8}-[A-Z0-9]{6}$/.test(String(payload.id || ""))) return null;
-    if (!["project", "employee", "building"].includes(String(payload.t || ""))) return null;
+    if (!["project", "employee", "intern", "building"].includes(String(payload.t || ""))) return null;
     if (!String(payload.n || "").trim() || !String(payload.i || "").trim()) return null;
     return payload;
   } catch {
