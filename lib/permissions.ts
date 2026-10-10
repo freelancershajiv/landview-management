@@ -8,6 +8,7 @@ export type WorkspaceRole = "admin" | "manager" | "accounts" | "employee" | "cli
 
 export type Capability =
   | "dashboard.view"
+  | "systemHealth.view"
   | "projects.view"
   | "projects.create"
   | "projects.edit"
@@ -52,6 +53,7 @@ export type Capability =
 
 const ALL_CAPABILITIES: readonly Capability[] = [
   "dashboard.view",
+  "systemHealth.view",
   "projects.view",
   "projects.create",
   "projects.edit",
@@ -103,6 +105,7 @@ const ROLE_CAPABILITIES: Record<WorkspaceRole, ReadonlySet<Capability>> = {
   // issuance, access/security/WhatsApp settings and website curation.
   manager: new Set<Capability>([
     "dashboard.view",
+    "systemHealth.view",
     "projects.view",
     "projects.create",
     "projects.edit",
