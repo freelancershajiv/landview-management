@@ -158,9 +158,16 @@ async function locationTagCoordinates(row: any) {
 async function publicMap(row: any) {
   const locationTag = String(row.location_tag || "").trim();
   if (!locationTag) return {};
-  const fromTag = await locationTagCoordinates(row);
-  const fromSite = validCoordinates(row.site_latitude, row.site_longitude);
-  const source = fromTag || fromSite;
+
+  // Fast path: use coordinates embedded in the Maps URL, then the project's
+  // already-verified stored coordinates. Only resolve an external Maps URL when
+  // neither local source is available.
+  const directTag = parseGoogleMapsCoordinates(locationTag);
+  const storedSite = validCoordinates(row.site_latitude, row.site_longitude);
+  const source = directTag
+    ? { latitude: directTag.latitude, longitude: directTag.longitude }
+    : storedSite || await locationTagCoordinates(row);
+
   if (!source) return {};
   return {
     mapEnabled: true,
@@ -212,12 +219,14 @@ export const getPublicProjectsForSeo = cache(async function getPublicProjectsFor
         villageArea: cleanPublicValue(row.village_area),
         roadHolding: cleanPublicValue(row.road_holding),
         currentStage: (() => {
+          const lifecycle = cleanPublicValue(row.lifecycle_phase);
+          if (["Design Stage", "Approval Stage", "Supervision / Construction Stage", "Completed"].includes(lifecycle)) return lifecycle;
           const design = String(row.design_stage_status || "Pending");
           const approval = String(row.approval_stage_status || "Pending");
           const supervision = String(row.supervision_stage_status || "Completed");
           if (design !== "Completed") return "Design Stage";
           if (approval !== "Completed") return "Approval Stage";
-          if (supervision !== "Completed") return "Supervision / Construction";
+          if (supervision !== "Completed") return "Supervision / Construction Stage";
           return "Completed";
         })(),
         area: cleanArea(row.project_area_text || row.plot_area),
