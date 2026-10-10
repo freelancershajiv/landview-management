@@ -19,6 +19,7 @@ const BASE_TABS: Tab[] = [
   { id: "projects", label: "Projects" },
   { id: "new-site", label: "New Site" },
   { id: "workflow", label: "Workflow" },
+  { id: "visits", label: "Site Visits" },
   { id: "records", label: "Field & Files" },
   { id: "expenses", label: "Expenses" },
   { id: "certificates", label: "Certificates" },
@@ -30,7 +31,7 @@ function tabFromHash(hash: string): TabId {
   if (value === "projects") return "projects";
   if (value === "new-site" || value === "newsite" || value === "site-entry") return "new-site";
   if (value === "workflow") return "workflow";
-  if (value === "visits") return "visits";
+  if (value === "visits" || value === "site-visits" || value === "sitevisits") return "visits";
   if (["records", "documents", "attendance"].includes(value)) return "records";
   if (value === "expenses") return "expenses";
   if (value === "approvals") return "approvals";
@@ -64,7 +65,7 @@ export default function EmployeePortalShell() {
 
   const tabs = useMemo(() => {
     const list = [...BASE_TABS];
-    if (isChairman) list.splice(6, 0, { id: "approvals", label: "Approvals" });
+    if (isChairman) list.splice(list.findIndex((tab) => tab.id === "certificates"), 0, { id: "approvals", label: "Approvals" });
     return list;
   }, [isChairman]);
 
@@ -83,20 +84,20 @@ export default function EmployeePortalShell() {
       .portal-employee>.portal-navigation{display:none!important}
       .portal-employee .tmg-admin-main{width:100%!important;max-width:none!important;margin:0!important}
       .portal-employee .tmg-content-wrap{width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
-      .employee-workspace-root{width:100%;max-width:none;margin:0;padding:0 0 48px;color:var(--theme-ink-_f5f5f5, #f5f5f5);background:var(--theme-bg-_10151b, #10151b);min-height:calc(100vh - 82px)}
-      .employee-workspace-nav-wrap{position:sticky;top:0;z-index:25;width:100%;border-bottom:1px solid var(--theme-line-_2b3540, #2b3540);background:var(--theme-bg-rgba_16_21_27__97_, rgba(16,21,27,.97));backdrop-filter:blur(14px);box-shadow:0 8px 22px var(--theme-shadow-rgba_0_0_0__16_, rgba(0,0,0,.16))}
-      .employee-workspace-nav{display:flex;gap:2px;width:100%;padding:0 28px;overflow-x:auto;scrollbar-width:none}
+      .employee-workspace-root{width:100%;max-width:none;margin:0;padding:0 0 48px;color:var(--lv-text-primary);background:var(--lv-surface-page);min-height:calc(100vh - 82px)}
+      .employee-workspace-nav-wrap{position:sticky;top:0;z-index:25;width:100%;border-bottom:1px solid var(--lv-border-default);background:color-mix(in srgb,var(--lv-surface-panel) 96%,transparent);backdrop-filter:blur(14px);box-shadow:var(--lv-shadow-sm)}
+      .employee-workspace-nav{display:flex;gap:2px;width:100%;padding:0 28px;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
       .employee-workspace-nav::-webkit-scrollbar{display:none}
-      .employee-workspace-tab{position:relative;flex:0 0 auto;border:0;background:transparent;color:var(--theme-ink-_aeb7c1, #aeb7c1);padding:17px 16px 15px;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;transition:.18s ease}
-      .employee-workspace-tab:hover{color:var(--theme-ink-_fff, #fff);background:var(--theme-bg-_171f28, #171f28)}
-      .employee-workspace-tab.active{color:var(--theme-ink-_fff, #fff)}
-      .employee-workspace-tab.active:after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:#ef493b}
+      .employee-workspace-tab{position:relative;flex:0 0 auto;border:0;background:transparent;color:var(--lv-text-secondary);padding:17px 16px 15px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;transition:background var(--lv-motion-fast),color var(--lv-motion-fast)}
+      .employee-workspace-tab:hover{color:var(--lv-text-strong);background:var(--lv-surface-muted)}
+      .employee-workspace-tab.active{color:var(--lv-text-strong);background:var(--lv-brand-soft)}
+      .employee-workspace-tab.active:after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--lv-brand-primary)}
       .employee-workspace-body{width:100%;max-width:none;padding:28px 32px 0}
       .employee-workspace-body>section,.employee-workspace-body>div{width:100%;max-width:none}
       .employee-workspace-body .ec-section{scroll-margin-top:100px}
       .employee-workspace-body table{width:100%}
       @media(max-width:1100px){.employee-workspace-nav{padding:0 18px}.employee-workspace-body{padding:22px 20px 0}.employee-workspace-tab{padding:15px 13px 13px}}
-      @media(max-width:700px){.employee-workspace-nav{padding:0 8px}.employee-workspace-body{padding:16px 12px 0}.employee-workspace-tab{padding:13px 11px 12px;font-size:11px}}
+      @media(max-width:700px){.employee-workspace-nav-wrap{top:0}.employee-workspace-nav{padding:0 8px}.employee-workspace-body{padding:14px 10px 0}.employee-workspace-tab{min-height:46px;padding:13px 11px 12px;font-size:11px}.employee-workspace-root{padding-bottom:28px}}
     `}</style>
 
     <div className="employee-workspace-nav-wrap">
