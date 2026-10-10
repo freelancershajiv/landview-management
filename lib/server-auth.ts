@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { ACTING_USER_COOKIE, QUICK_USER_COOKIE, SESSION_COOKIE, readSignedActingWorkspaceUser } from "@/lib/local-session";
+import { hasCapability, type Capability } from "@/lib/permissions";
 
 export type PortalRole = "admin" | "manager" | "accounts" | "employee" | "client";
 
@@ -194,4 +195,14 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
 
   if (!allowedRoles.includes(role)) redirectForRole(role);
   return { user: effectiveUser, role };
+}
+
+/**
+ * Server-component authorization by product capability. Prefer this for new
+ * protected pages instead of checking role names directly in page code.
+ */
+export async function requirePortalCapability(capability: Capability) {
+  const session = await requirePortalSession(["admin", "manager", "accounts", "employee", "client"]);
+  if (!hasCapability(session.user, capability)) redirectForRole(session.role);
+  return session;
 }
