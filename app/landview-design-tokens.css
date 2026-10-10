@@ -1,0 +1,176 @@
+/* LAND VIEW semantic design tokens
+   ------------------------------------------------------------
+   This is the single source of truth for screen UI colors, spacing,
+   radii and shadows. New components should use these variables instead
+   of hard-coded light/dark colors. Legacy styles can be migrated onto
+   these tokens incrementally without changing print/PDF output. */
+
+@media screen {
+  :root,
+  html:not([data-theme="dark"]) {
+    color-scheme: light;
+
+    /* Surfaces */
+    --lv-surface-page: #f5f7f9;
+    --lv-surface-panel: #ffffff;
+    --lv-surface-elevated: #ffffff;
+    --lv-surface-muted: #f7f9fb;
+    --lv-surface-subtle: #eef2f5;
+    --lv-surface-inset: #f1f4f7;
+    --lv-surface-overlay: rgba(15, 23, 42, .22);
+
+    /* Text */
+    --lv-text-strong: #17202a;
+    --lv-text-primary: #26313d;
+    --lv-text-secondary: #536170;
+    --lv-text-muted: #6d7986;
+    --lv-text-faint: #89939e;
+    --lv-text-inverse: #ffffff;
+
+    /* Borders and separators */
+    --lv-border-soft: #e5e9ed;
+    --lv-border-default: #d9e0e7;
+    --lv-border-strong: #c6d0d9;
+    --lv-divider: #e6eaee;
+
+    /* Controls */
+    --lv-control-bg: #ffffff;
+    --lv-control-bg-hover: #f7f9fb;
+    --lv-control-border: #d5dde5;
+    --lv-control-placeholder: #8a95a0;
+    --lv-control-disabled-bg: #eef2f5;
+    --lv-control-disabled-text: #98a2ad;
+
+    /* Brand / action */
+    --lv-brand-primary: #96383e;
+    --lv-brand-primary-hover: #812f34;
+    --lv-brand-soft: rgba(150, 56, 62, .10);
+    --lv-brand-soft-strong: rgba(150, 56, 62, .16);
+    --lv-brand-border: rgba(150, 56, 62, .34);
+    --lv-brand-ring: rgba(150, 56, 62, .18);
+    --lv-brand-text: #842f35;
+
+    /* Semantic status */
+    --lv-success: #247247;
+    --lv-success-soft: #edf7f1;
+    --lv-success-border: #b9ddc8;
+    --lv-warning: #8a651d;
+    --lv-warning-soft: #fff7df;
+    --lv-warning-border: #ead79c;
+    --lv-danger: #a92c33;
+    --lv-danger-soft: #fff0f1;
+    --lv-danger-border: #e8bec1;
+    --lv-info: #315f88;
+    --lv-info-soft: #eef5fb;
+    --lv-info-border: #bfd4e6;
+
+    /* Elevation */
+    --lv-shadow-xs: 0 1px 2px rgba(15, 23, 42, .04);
+    --lv-shadow-sm: 0 4px 12px rgba(15, 23, 42, .055);
+    --lv-shadow-md: 0 8px 24px rgba(15, 23, 42, .075);
+    --lv-shadow-lg: 0 18px 44px rgba(15, 23, 42, .12);
+
+    /* Shape */
+    --lv-radius-xs: 6px;
+    --lv-radius-sm: 8px;
+    --lv-radius-md: 10px;
+    --lv-radius-lg: 14px;
+    --lv-radius-xl: 18px;
+    --lv-radius-pill: 999px;
+
+    /* Spacing */
+    --lv-space-1: 4px;
+    --lv-space-2: 8px;
+    --lv-space-3: 12px;
+    --lv-space-4: 16px;
+    --lv-space-5: 20px;
+    --lv-space-6: 24px;
+    --lv-space-8: 32px;
+    --lv-space-10: 40px;
+
+    /* Motion */
+    --lv-motion-fast: 140ms ease;
+    --lv-motion-base: 200ms ease;
+  }
+
+  html[data-theme="dark"] {
+    color-scheme: dark;
+
+    --lv-surface-page: #090d11;
+    --lv-surface-panel: #10161c;
+    --lv-surface-elevated: #141b22;
+    --lv-surface-muted: #0d1318;
+    --lv-surface-subtle: #182028;
+    --lv-surface-inset: #0b1116;
+    --lv-surface-overlay: rgba(0, 0, 0, .58);
+
+    --lv-text-strong: #f2f5f7;
+    --lv-text-primary: #dce3e8;
+    --lv-text-secondary: #a9b4bd;
+    --lv-text-muted: #89959f;
+    --lv-text-faint: #6f7b85;
+    --lv-text-inverse: #ffffff;
+
+    --lv-border-soft: #222b33;
+    --lv-border-default: #2d3740;
+    --lv-border-strong: #3a4651;
+    --lv-divider: #222b33;
+
+    --lv-control-bg: #0e141a;
+    --lv-control-bg-hover: #151c23;
+    --lv-control-border: #34404a;
+    --lv-control-placeholder: #73808b;
+    --lv-control-disabled-bg: #151b21;
+    --lv-control-disabled-text: #65717b;
+
+    --lv-brand-primary: #a14a4e;
+    --lv-brand-primary-hover: #b25358;
+    --lv-brand-soft: rgba(177, 78, 83, .11);
+    --lv-brand-soft-strong: rgba(177, 78, 83, .17);
+    --lv-brand-border: rgba(190, 91, 96, .34);
+    --lv-brand-ring: rgba(190, 91, 96, .17);
+    --lv-brand-text: #d7868a;
+
+    --lv-success: #8fd1aa;
+    --lv-success-soft: #173827;
+    --lv-success-border: #28583d;
+    --lv-warning: #f1cf7a;
+    --lv-warning-soft: #3c3015;
+    --lv-warning-border: #735d2d;
+    --lv-danger: #ffb2b5;
+    --lv-danger-soft: #35171a;
+    --lv-danger-border: #7e2b31;
+    --lv-info: #a9c9e6;
+    --lv-info-soft: #14283a;
+    --lv-info-border: #2d5678;
+
+    --lv-shadow-xs: 0 1px 2px rgba(0, 0, 0, .18);
+    --lv-shadow-sm: 0 4px 12px rgba(0, 0, 0, .20);
+    --lv-shadow-md: 0 8px 24px rgba(0, 0, 0, .26);
+    --lv-shadow-lg: 0 18px 44px rgba(0, 0, 0, .34);
+  }
+
+  /* Shared semantic primitives for progressively-migrated components. */
+  .lv-surface-panel {
+    background: var(--lv-surface-panel);
+    border: 1px solid var(--lv-border-default);
+    color: var(--lv-text-primary);
+    box-shadow: var(--lv-shadow-sm);
+  }
+
+  .lv-surface-muted {
+    background: var(--lv-surface-muted);
+    border-color: var(--lv-border-default);
+    color: var(--lv-text-primary);
+  }
+
+  .lv-text-muted { color: var(--lv-text-muted); }
+
+  .lv-control {
+    background: var(--lv-control-bg);
+    border: 1px solid var(--lv-control-border);
+    color: var(--lv-text-primary);
+  }
+
+  .lv-control::placeholder { color: var(--lv-control-placeholder); }
+}
