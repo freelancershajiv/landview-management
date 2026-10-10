@@ -12,6 +12,7 @@ import "./finance/invoices/invoice-column-alignment-fix.css";
 import "./admin-theme-consistency.css";
 import "./admin-mobile-redesign.css";
 import "./admin-mobile-shell-final.css";
+import "./admin-dashboard-light.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
