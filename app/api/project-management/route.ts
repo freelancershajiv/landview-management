@@ -618,7 +618,7 @@ export async function DELETE(request: NextRequest) {
     }
     if (type === "contractor-contract") {
       const deleted = await deleteRows("project_contractor_contracts",{id});
-      if (!deleted.length) return fail("Supplier / contractor not found.",404);
+      if (!deleted.length) return fail("Contractor contract not found.",404);
       return ok({deleted:true,id,type});
     }
     const deleted = await deleteRows("project_management_ledger", { id });
