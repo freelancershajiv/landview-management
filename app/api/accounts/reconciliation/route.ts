@@ -33,6 +33,15 @@ const TABLES: Record<RecordType, { table: string; codeField: string }> = {
   transaction: { table: "transactions", codeField: "transaction_code" },
 };
 
+// Reconciliation used to request SELECT * from four tables. Some LAND VIEW rows
+// contain many fields that are irrelevant to this screen, so projecting only the
+// columns used below materially reduces gateway + JSON transfer time without
+// dropping any finance records from reconciliation.
+const PROJECT_SELECT = "id,project_code,project_name,client_name_snapshot,phone_number_snapshot";
+const BILL_SELECT = "bill_code,project_id,bill_date,billing_category,category,description,amount,net_amount,status,created_at";
+const PAYMENT_SELECT = "payment_code,project_id,payment_date,amount,reference_no,notes,created_at,payment_for,income_category,transaction_type,affects_business_balance,received_from,approval_status,status,ledger_transaction_id,ledger_transaction_code";
+const TRANSACTION_SELECT = "id,transaction_code,transaction_date,transaction_type,source_type,source_id,project_id,category,description,debit,credit,reference_no,status,direction,amount,created_at,project_code_snapshot";
+
 function text(value: unknown, max = 1500) {
   return String(value ?? "").trim().slice(0, max);
 }
@@ -284,6 +293,7 @@ function buildRows(
 }
 
 export async function GET(request: NextRequest) {
+  const startedAt = Date.now();
   try {
     const user = await requireLocalSession(request);
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
@@ -294,10 +304,10 @@ export async function GET(request: NextRequest) {
     }
 
     const [projectRows, bills, payments, transactions] = await Promise.all([
-      selectRows("projects", { order: "project_code:asc", limit: 5000 }),
-      selectRows("bills", { order: "bill_date:desc", limit: 5000 }),
-      selectRows("payments", { order: "payment_date:desc", limit: 5000 }),
-      selectRows("transactions", { order: "transaction_date:desc", limit: 5000 }),
+      selectRows("projects", { select: PROJECT_SELECT, order: "project_code:asc", limit: 5000 }),
+      selectRows("bills", { select: BILL_SELECT, order: "bill_date:desc", limit: 5000 }),
+      selectRows("payments", { select: PAYMENT_SELECT, order: "payment_date:desc", limit: 5000 }),
+      selectRows("transactions", { select: TRANSACTION_SELECT, order: "transaction_date:desc", limit: 5000 }),
     ]);
 
     const projects = projectRows
@@ -350,7 +360,13 @@ export async function GET(request: NextRequest) {
           canEdit: role === "admin" || role === "manager",
         },
       },
-      { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
+      {
+        headers: {
+          "Cache-Control": "no-store, max-age=0",
+          "X-Landview-Data": "supabase",
+          "X-Landview-Reconciliation-Ms": String(Date.now() - startedAt),
+        },
+      },
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load reconciliation data.";
