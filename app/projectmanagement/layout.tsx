@@ -23,6 +23,7 @@ export default function ProjectManagementLayout({ children }: { children: React.
           <div className="pm-suite-links">
             <a className={active("/projectmanagement/control") ? "active" : ""} href={href("/projectmanagement/control")}>Control Center</a>
             <a className={path === "/projectmanagement" ? "active" : ""} href={href("/projectmanagement")}>Finance</a>
+            <a className={active("/projectmanagement/suppliers") ? "active" : ""} href={href("/projectmanagement/suppliers")}>Supplier Accounts</a>
             <a className={active("/projectmanagement/contractors") ? "active" : ""} href={href("/projectmanagement/contractors")}>Billing & Bills</a>
             <a className={active("/projectmanagement/report") ? "active" : ""} href={href("/projectmanagement/report")}>Reports</a>
           </div>
