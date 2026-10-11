@@ -2,6 +2,7 @@
 
 // @ts-nocheck
 import { useEffect, useState } from "react";
+import "./phase3-contractor.css";
 
 export default function ProjectManagementLayout({ children }: { children: React.ReactNode }) {
   const [projectId, setProjectId] = useState("");
