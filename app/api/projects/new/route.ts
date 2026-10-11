@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getVercelOidcToken } from "@vercel/oidc";
 import { requireLocalSession } from "@/lib/local-session";
-import { insertRows, roleOf, selectRows } from "@/lib/supabase-data";
+import { deleteRows, insertRows, roleOf, selectRows } from "@/lib/supabase-data";
 import { looksLikeGoogleMapsLocation, resolveGoogleMapsLocation } from "@/lib/google-maps-location";
 
 export const runtime = "nodejs";
@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 const MANAGE_ROLES = new Set(["admin", "manager"]);
 const LEGACY_IMPORT_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-legacy-import";
 const OIDC_AUDIENCE = "https://supabase.landview.internal";
+const BILL_CATEGORIES = new Set(["Engineering Bill", "Supervision Bill", "Other Services Bill"]);
 
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -17,6 +18,10 @@ function sameOrigin(request: NextRequest) {
   try { return new URL(origin).host === request.nextUrl.host; } catch { return false; }
 }
 function text(value: unknown, max = 1000) { return String(value ?? "").trim().slice(0, max); }
+function decimal(value: unknown) {
+  const n = Number(text(value, 80).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
 function normalizeProjectCode(value: unknown) {
   const raw = text(value, 60).toUpperCase();
   if (!raw) return "";
@@ -57,6 +62,48 @@ function arrayOfRecords(value: unknown, max = 300) {
 }
 function actorOf(user: Record<string, unknown>) {
   return text(user.Employee_ID || user.employeeId || user.User_ID || user.userId || user.Username || user.username || "LAND VIEW", 160);
+}
+function normalizeBillingCategory(value: unknown) {
+  const raw = text(value, 80);
+  if (raw === "Design Books") return "Engineering Bill";
+  if (!BILL_CATEGORIES.has(raw)) throw new Error(`Invalid billing category: ${raw || "blank"}.`);
+  return raw;
+}
+function currentBillRows(rows: Record<string, unknown>[], projectId: string, createdBy: string, fallbackDate: unknown) {
+  const now = new Date().toISOString();
+  const today = now.slice(0, 10);
+  return rows.flatMap((row, index) => {
+    const amount = decimal(row.amount ?? row.Amount);
+    if (!(amount > 0)) return [];
+    const discount = decimal(row.discount ?? row.Discount ?? 0);
+    if (discount < 0 || discount > amount) throw new Error("Discount must be between zero and the gross bill amount.");
+    const billingCategory = normalizeBillingCategory(row.billing_category || row.Billing_Category || row.category || row.Category);
+    const description = text(row.description || row.Description || row.service || row.Service, 1000).replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim();
+    if (!description) throw new Error("Service / description is required for every active bill row.");
+    const unitPriceRaw = text(row.unit_price ?? row.Unit_Price, 80);
+    const quantityRaw = text(row.quantity ?? row.Quantity, 80);
+    const unitPrice = unitPriceRaw ? decimal(unitPriceRaw) : amount;
+    const quantity = quantityRaw ? decimal(quantityRaw) : 1;
+    return [{
+      bill_code: `BILL-REG-${crypto.randomUUID().replace(/-/g, "").slice(0, 14).toUpperCase()}-${index + 1}`,
+      project_id: projectId,
+      bill_date: cleanDate(row.bill_date || row.Bill_Date || row.Date) || cleanDate(fallbackDate) || today,
+      billing_category: billingCategory,
+      category: text(row.category, 160) || null,
+      description,
+      amount,
+      discount,
+      unit_price: unitPrice > 0 ? unitPrice : amount,
+      quantity: quantity > 0 ? quantity : 1,
+      status: text(row.status || row.Status, 80) || "Issued",
+      notes: text(row.notes || row.Notes, 2000) || null,
+      created_via: "new_project_registration",
+      source_created_by: createdBy,
+      source_created_at: now,
+      source_updated_at: now,
+      updated_at: now,
+    }];
+  });
 }
 
 async function createLegacyProjectFull(project: Record<string, unknown>, bills: Record<string, unknown>[], payments: Record<string, unknown>[], createdBy: string) {
@@ -107,7 +154,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as Record<string, unknown>;
     const mode = text(body.idMode || body.mode, 20).toLowerCase() === "manual" ? "manual" : "automatic";
     const legacyImport = body.legacyImport === true || text(body.entryMode, 20).toLowerCase() === "legacy";
-    const legacyBills = legacyImport ? arrayOfRecords(body.bills) : [];
+    const submittedBills = arrayOfRecords(body.bills);
     const legacyPayments = legacyImport ? arrayOfRecords(body.payments) : [];
     const projectName = text(body.Project_Name || body.projectName, 240);
     const clientName = text(body.Client_Name || body.clientName, 240) || projectName;
@@ -160,7 +207,7 @@ export async function POST(request: NextRequest) {
 
     async function saveWithCode(code: string) {
       if (legacyImport) {
-        const result = await createLegacyProjectFull({ ...baseRow, project_code: code }, legacyBills, legacyPayments, createdBy);
+        const result = await createLegacyProjectFull({ ...baseRow, project_code: code }, submittedBills, legacyPayments, createdBy);
         return NextResponse.json({
           success: true,
           data: {
@@ -176,8 +223,18 @@ export async function POST(request: NextRequest) {
           },
         }, { status: 201, headers: { "Cache-Control": "no-store, max-age=0" } });
       }
+
       const saved = await insertRows("projects", { ...baseRow, project_code: code });
-      return NextResponse.json({ success: true, data: { Project_ID: code, project: saved[0] || null, idMode: mode, legacyImport: false } }, { status: 201, headers: { "Cache-Control": "no-store, max-age=0" } });
+      const project = saved[0] || null;
+      if (!project?.id) throw new Error("Project was created without a canonical project ID.");
+      const bills = currentBillRows(submittedBills, String(project.id), createdBy, baseRow.start_date);
+      try {
+        if (bills.length) await insertRows("bills", bills);
+      } catch (error) {
+        await deleteRows("projects", { id: project.id }).catch(() => null);
+        throw error;
+      }
+      return NextResponse.json({ success: true, data: { Project_ID: code, project, idMode: mode, legacyImport: false, billCount: bills.length } }, { status: 201, headers: { "Cache-Control": "no-store, max-age=0" } });
     }
 
     if (mode === "manual") {
