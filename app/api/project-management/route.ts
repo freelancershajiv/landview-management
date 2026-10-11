@@ -84,19 +84,22 @@ async function projectFor(user: Row, value: unknown) {
   return rows[0];
 }
 function isSattapur(row: Row) {
-  // These two historical ledger entries must remain ordinary debit/credit
-  // entries and must never be reclassified as Sattapur Bricks accounting.
   const date = String(row.entry_date || "").slice(0, 10);
   if (date === "2025-11-20" || date === "2025-11-23") return false;
   const party = clean(row.paid_to || row.supplier || "", 160).toLowerCase();
   const text = clean(row.details || "", 500).toLowerCase();
   return party.includes("sattapur") || text.includes("sattapur brick");
 }
+function isChequeOnHold(row: Row) {
+  return clean(row.category,120).toLowerCase() === "cheque"
+    && num(row.debit) > 0
+    && /^CHEQUE_STATUS:ON_HOLD/i.test(String(row.memo || ""));
+}
 function isSattapurDelivery(row: Row) {
   return isSattapur(row) && num(row.credit) > 0 && clean(row.category, 120).toLowerCase() === "bricks";
 }
 function isSattapurDeposit(row: Row) {
-  return isSattapur(row) && num(row.debit) > 0;
+  return isSattapur(row) && num(row.debit) > 0 && !isChequeOnHold(row);
 }
 function sattapurSnapshot(rows: Row[]) {
   const deposits = rows.filter(isSattapurDeposit);
@@ -127,8 +130,6 @@ function sattapurSnapshot(rows: Row[]) {
   };
 }
 function accountingRows(rows: Row[]) {
-  // Sattapur delivery rows are material-delivery records, not new cash expenses.
-  // Sattapur deposits are cash expenses even when the historical row was entered as Debit.
   return rows.filter((row:any) => !isSattapurDelivery(row)).map((row:any) => {
     if (isSattapurDeposit(row)) {
       return {
@@ -152,8 +153,9 @@ function calculate(rows: Row[]) {
     return String(a.id || "").localeCompare(String(b.id || ""));
   }).map(row => {
     const debit = num(row.debit), credit = num(row.credit);
-    balance += debit - credit;
-    return { ...row, debit, credit, sft: num(row.sft), rate: num(row.rate), balance };
+    const effectiveDebit = isChequeOnHold(row) ? 0 : debit;
+    balance += effectiveDebit - credit;
+    return { ...row, debit, credit, effective_debit: effectiveDebit, sft: num(row.sft), rate: num(row.rate), balance };
   });
 }
 async function projectSummaryFor(project: Row) {
@@ -166,7 +168,6 @@ async function projectSummaryFor(project: Row) {
   };
 }
 
-
 function contractorCategoryKey(value: unknown) {
   return clean(value,120).toLowerCase().replace(/&/g,"and").replace(/[_-]+/g," ").replace(/\s+/g," ").trim();
 }
@@ -176,8 +177,6 @@ function ledgerCategoriesForContract(contract:any) {
   return [key];
 }
 function contractorPaymentNameKey(value: unknown) {
-  // Normalize contractor/supplier naming variants so the ledger and billing
-  // stay connected even when one side uses a business suffix.
   return contractorCategoryKey(value)
     .replace(/\bcontactor\b/g,"contractor")
     .replace(/\b(contractor|supplier|brick\s*field|brickfield|bf)\b/g," ")
@@ -226,6 +225,7 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
       .reduce((acc:any[],e:any)=>{
         const prev=acc.length ? num(acc[acc.length-1].balance) : 0;
         const debit=num(e.debit), credit=num(e.credit);
+        const effectiveDebit=isChequeOnHold(e)?0:debit;
         acc.push({
           id:e.id,
           date:e.entry_date,
@@ -233,7 +233,7 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
           category:e.category,
           debit,
           credit,
-          balance:prev+debit-credit,
+          balance:prev+effectiveDebit-credit,
           memo:e.memo||""
         });
         return acc;
@@ -302,15 +302,12 @@ async function masterLedgerFor(user: Row, project: Row) {
 
 async function workspace(user: Row, requested?: string) {
   const allProjects = await projectsFor(user);
-  if (!allProjects.length) return { projects: [], selectedProject: null, entries: [], totals: { debit: 0, credit: 0, balance: 0 }, readOnly: !isManagement(user) };
+  if (!allProjects.length) return { projects: [], selectedProject: null, entries: [], totals: { debit: 0, cashIncome: 0, credit: 0, balance: 0 }, readOnly: !isManagement(user) };
 
   let projects = allProjects;
   if (isManagement(user)) {
     const pmRows = await selectRows("project_management_ledger", { limit: 20000 });
     const configuredIds = new Set(pmRows.map((r:any) => String(r.project_id || "")).filter(Boolean));
-    // Project Management is intentionally limited to projects that have
-    // actually been initialized with at least one Project Management ledger row.
-    // Project status alone must not make a project appear in this workspace.
     projects = allProjects.filter((p:any) => configuredIds.has(String(p.id)));
   }
 
@@ -326,7 +323,7 @@ async function workspace(user: Row, requested?: string) {
       projects: projectList,
       selectedProject: null,
       entries: [],
-      totals: { debit: 0, credit: 0, balance: 0 },
+      totals: { debit: 0, cashIncome: 0, credit: 0, balance: 0 },
       summary: { supplierAdvance: 0, chequeOnHold: 0, engShajivBalance: 0, notes: "" },
       categories: [],
       masterLedger: [],
@@ -336,10 +333,11 @@ async function workspace(user: Row, requested?: string) {
 
   const rows = await selectRows("project_management_ledger", { filters: { project_id: selected.id }, order: "entry_date:asc", limit: 10000 });
   const sattapurBricks = sattapurSnapshot(rows);
+  const liveChequeOnHold = rows.reduce((s:number,row:any)=>s+(isChequeOnHold(row)?num(row.debit):0),0);
   let incomeBalance = 0;
   let expenseBalance = 0;
   const entries = calculate(rows).map((row:any) => {
-    incomeBalance += num(row.debit);
+    incomeBalance += num(row.effective_debit ?? row.debit);
     expenseBalance += num(row.credit);
     return {
       ...row,
@@ -349,25 +347,26 @@ async function workspace(user: Row, requested?: string) {
       received_from: clean(row.received_from,160),
     };
   });
-  // Total Deposit is the project's original funding/deposit figure and must
-  // remain unchanged when Sattapur deposits are reclassified as expenses.
   const debit = rows.reduce((s,r) => s + num(r.debit), 0);
+  const cashIncome = entries.reduce((s,r) => s + num(r.effective_debit ?? r.debit), 0);
   const credit = entries.reduce((s,r) => s + num(r.credit), 0);
   const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Other Expenses", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
-  const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
+  const categories = categoryNames.map(category => ({
+    category,
+    total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.effective_debit ?? r.debit), 0),
+    count: entries.filter(r => String(r.category || "") === category).length
+  }));
   const masterLedger = await masterLedgerFor(user, selected);
   const summary = await projectSummaryFor(selected);
   const contractorBills = await contractorWorkspaceFor(selected, entries);
   const linkedSupplierAdvance = sattapurBricks.holdAmount;
-  // Sattapur deposits are already included in Total Expense, so the hold is
-  // shown separately and must not be deducted from cash a second time.
-  const engShajivBalance = debit - credit - summary.chequeOnHold;
+  const engShajivBalance = debit - credit - liveChequeOnHold;
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
-    totals: { debit, credit, balance: debit - credit },
-    summary: { ...summary, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance },
+    totals: { debit, cashIncome, credit, balance: engShajivBalance },
+    summary: { ...summary, chequeOnHold: liveChequeOnHold, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance },
     sattapurBricks,
     categories,
     masterLedger,
