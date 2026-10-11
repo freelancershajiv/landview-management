@@ -14,6 +14,7 @@ import ConversionAnalytics from "@/components/conversion-analytics";
 import WebsiteLeadNotifier from "@/components/website-lead-notifier";
 import PublicLeadActions from "@/components/public-lead-actions";
 import PublicHomeProjectEnhancer from "@/components/public-home-project-enhancer";
+import ProjectManagementLedgerNormalizer from "@/components/project-management-ledger-normalizer";
 import "./globals.css";
 import "./brand-loader.css";
 import "./premium-theme.css";
@@ -98,6 +99,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <ThemeSwitch />
         <BrandLoader />
+        <ProjectManagementLedgerNormalizer />
         {children}
         <PublicLeadActions />
         <PublicHomeProjectEnhancer />
