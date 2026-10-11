@@ -23,11 +23,16 @@ export function supplierMovement(row: Row) {
   return supplierClean(row?.supplier_movement_type, 40).toLowerCase();
 }
 
+export function supplierAdvanceApplied(row: Row) {
+  return Math.max(0, Math.min(supplierNum(row?.credit), supplierNum(row?.supplier_advance_applied)));
+}
+
 export function supplierCashExpenseForRows(rows: Row[]) {
   return rows.reduce((sum, row) => {
     const movement = supplierMovement(row);
     if (movement === "delivery" || movement === "refund") return sum;
     if (movement === "advance_fund") return sum + (supplierHeldCheque(row) ? 0 : supplierNum(row.debit));
+    if (movement === "direct_purchase") return sum + Math.max(0, supplierNum(row.credit) - supplierAdvanceApplied(row));
     return sum + supplierNum(row.credit);
   }, 0);
 }
@@ -50,6 +55,7 @@ export async function supplierWorkspaceForProject(projectId: string, projectCode
   const recordedFunds = rows.reduce((sum: number, row: Row) => sum + supplierNum(row.debit), 0);
   const chequeOnHold = rows.reduce((sum: number, row: Row) => sum + (supplierHeldCheque(row) ? supplierNum(row.debit) : 0), 0);
   const cashIncome = supplierCashIncomeForRows(rows);
+  const recognizedExpense = rows.reduce((sum: number, row: Row) => sum + supplierNum(row.credit), 0);
   const cashExpense = supplierCashExpenseForRows(rows);
   const cashBalance = cashIncome - cashExpense;
 
@@ -61,6 +67,9 @@ export async function supplierWorkspaceForProject(projectId: string, projectCode
     let advanceFund = 0;
     let advanceCash = 0;
     let directPurchase = 0;
+    let directPurchaseCash = 0;
+    let advanceApplied = 0;
+    let deliveryValue = 0;
     let deliveredValue = 0;
     let deliveredQuantity = 0;
     let refunded = 0;
@@ -70,45 +79,67 @@ export async function supplierWorkspaceForProject(projectId: string, projectCode
       if (movement === "advance_fund" && !supplierHeldCheque(row)) advanceFund += supplierNum(row.debit);
       if (movement === "advance_cash") advanceCash += supplierNum(row.credit);
       if (movement === "direct_purchase") {
-        directPurchase += supplierNum(row.credit);
-        deliveredValue += supplierNum(row.credit);
+        const value = supplierNum(row.credit);
+        const applied = supplierAdvanceApplied(row);
+        directPurchase += value;
+        advanceApplied += applied;
+        directPurchaseCash += Math.max(0, value - applied);
+        deliveredValue += value;
         deliveredQuantity += supplierNum(row.sft);
       }
       if (movement === "delivery") {
-        deliveredValue += supplierNum(row.credit);
+        const value = supplierNum(row.credit);
+        deliveryValue += value;
+        deliveredValue += value;
         deliveredQuantity += supplierNum(row.sft);
       }
       if (movement === "refund") refunded += movementAmount(row);
     }
 
-    const payments = Math.max(0, advanceFund + advanceCash + directPurchase - refunded);
-    const advance = Math.max(0, payments - deliveredValue);
-    const payable = Math.max(0, deliveredValue - payments);
+    const fundedAdvance = Math.max(0, advanceFund + advanceCash - refunded);
+    const advanceEligibleValue = deliveryValue + advanceApplied;
+    const netSupplierPosition = fundedAdvance - advanceEligibleValue;
+    const advance = Math.max(0, netSupplierPosition);
+    const payable = Math.max(0, -netSupplierPosition);
+    const payments = Math.max(0, advanceFund + advanceCash + directPurchaseCash - refunded);
     const heldCheque = accountRows.reduce((sum: number, row: Row) => sum + (supplierHeldCheque(row) ? supplierNum(row.debit) : 0), 0);
 
     const movements = accountRows.slice().sort((a: Row, b: Row) => {
       const d = String(b.entry_date || "").localeCompare(String(a.entry_date || ""));
       if (d) return d;
       return String(b.created_at || "").localeCompare(String(a.created_at || ""));
-    }).map((row: Row) => ({
-      id: row.id,
-      serialNo: supplierNum(row.serial_no),
-      date: row.entry_date,
-      movementType: supplierMovement(row) || "unclassified",
-      details: row.details || "",
-      category: row.category || "",
-      quantity: supplierNum(row.sft),
-      rate: supplierNum(row.rate),
-      debit: supplierNum(row.debit),
-      credit: supplierNum(row.credit),
-      amount: movementAmount(row),
-      paymentMethod: row.payment_method || "",
-      chequeStatus: supplierChequeStatus(row),
-      receivedFrom: row.received_from || "",
-      paidTo: row.paid_to || row.supplier || "",
-      memo: row.memo || "",
-      createdBy: row.created_by || "",
-    }));
+    }).map((row: Row) => {
+      const applied = supplierAdvanceApplied(row);
+      const movement = supplierMovement(row) || "unclassified";
+      const cashAmount = movement === "advance_fund"
+        ? (supplierHeldCheque(row) ? 0 : supplierNum(row.debit))
+        : movement === "delivery" || movement === "refund"
+          ? 0
+          : movement === "direct_purchase"
+            ? Math.max(0, supplierNum(row.credit) - applied)
+            : supplierNum(row.credit);
+      return {
+        id: row.id,
+        serialNo: supplierNum(row.serial_no),
+        date: row.entry_date,
+        movementType: movement,
+        details: row.details || "",
+        category: row.category || "",
+        quantity: supplierNum(row.sft),
+        rate: supplierNum(row.rate),
+        debit: supplierNum(row.debit),
+        credit: supplierNum(row.credit),
+        amount: movementAmount(row),
+        advanceApplied: applied,
+        cashAmount,
+        paymentMethod: row.payment_method || "",
+        chequeStatus: supplierChequeStatus(row),
+        receivedFrom: row.received_from || "",
+        paidTo: row.paid_to || row.supplier || "",
+        memo: row.memo || "",
+        createdBy: row.created_by || "",
+      };
+    });
 
     return {
       id: account.id,
@@ -122,6 +153,9 @@ export async function supplierWorkspaceForProject(projectId: string, projectCode
       advanceFund,
       advanceCash,
       directPurchase,
+      directPurchaseCash,
+      advanceApplied,
+      deliveryValue,
       refunded,
       deliveredValue,
       deliveredQuantity,
@@ -138,6 +172,7 @@ export async function supplierWorkspaceForProject(projectId: string, projectCode
   const supplierPayable = activeAccounts.reduce((sum: number, account: Row) => sum + supplierNum(account.payable), 0);
   const totalPayments = activeAccounts.reduce((sum: number, account: Row) => sum + supplierNum(account.payments), 0);
   const totalDeliveredValue = activeAccounts.reduce((sum: number, account: Row) => sum + supplierNum(account.deliveredValue), 0);
+  const liquidPosition = cashBalance + supplierAdvance - supplierPayable;
 
   return {
     projectId,
@@ -148,13 +183,16 @@ export async function supplierWorkspaceForProject(projectId: string, projectCode
       accountCount: activeAccounts.length,
       recordedFunds,
       cashIncome,
+      recognizedExpense,
       cashExpense,
+      cashOutflow: cashExpense,
       cashBalance,
       chequeOnHold,
       supplierAdvance,
       supplierPayable,
       totalPayments,
       totalDeliveredValue,
+      liquidPosition,
     },
   };
 }
