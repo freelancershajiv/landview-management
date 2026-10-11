@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { landViewApi } from "@/lib/api";
 import { ErrorState, LoadingState, PageHeader } from "@/components/lv-ui";
 import WhatsAppNumberCheck from "@/components/whatsapp-number-check";
-import LegacyProjectFinanceImport, { emptyLegacyFinance, type LegacyFinanceDraft } from "@/components/legacy-project-finance-import";
+import LegacyProjectFinanceImport, { createEmptyLegacyFinance, type LegacyFinanceDraft } from "@/components/legacy-project-finance-import";
 
 type IdMode = "automatic" | "manual";
 type EntryMode = "current" | "legacy";
@@ -63,10 +63,11 @@ const legacyEmptyForm: FormState = {
 };
 
 const css = `
-.new-project-page{display:grid;gap:18px;max-width:1120px}.new-project-actions{display:flex;gap:8px;flex-wrap:wrap}.new-project-btn{height:40px;padding:0 14px;border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));border-radius:8px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_fff, #fff);font-size:12px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.new-project-btn.primary{background:#d61f26;border-color:var(--theme-line-_d61f26, #d61f26)}.new-project-btn:disabled{opacity:.5;cursor:not-allowed}.new-project-card{border:1px solid var(--theme-line-rgba_255_255_255__11_, rgba(255,255,255,.11));border-radius:12px;background:var(--theme-bg-_0e1720, #0e1720);overflow:hidden}.new-project-head{padding:16px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));background:var(--theme-bg-_141e28, #141e28)}.new-project-head strong{display:block;color:var(--theme-ink-_f4f6f8, #f4f6f8);font-size:14px}.new-project-head small{display:block;margin-top:5px;color:var(--theme-ink-_7e8b95, #7e8b95);font-size:11px;line-height:1.55}.entry-mode-grid,.id-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08))}.entry-mode,.id-mode{padding:14px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:10px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_b9c2c9, #b9c2c9);text-align:left;cursor:pointer}.entry-mode.active,.id-mode.active{border-color:var(--theme-line-_d61f26, #d61f26);background:var(--theme-bg-rgba_214_31_38__09_, rgba(214,31,38,.09))}.entry-mode b,.id-mode b{display:block;color:var(--theme-ink-_fff, #fff);font-size:12px}.entry-mode span,.id-mode span{display:block;margin-top:5px;color:var(--theme-ink-_7f8b95, #7f8b95);font-size:11px;line-height:1.5}.entry-mode .tag{display:inline-flex;margin-bottom:8px;padding:3px 6px;border-radius:999px;background:rgba(255,255,255,.07);color:#9ca8b0;font-size:8px;font-weight:900;letter-spacing:.08em}.entry-mode.active .tag{background:rgba(214,31,38,.18);color:#ff9a94}.legacy-banner{margin:14px 16px 0;padding:12px 13px;border:1px solid rgba(214,31,38,.25);border-radius:8px;background:rgba(214,31,38,.06);color:#c9d0d5;font-size:10px;line-height:1.6}.legacy-banner b{color:#ff817a}.id-preview{margin:0 16px 2px;padding:12px 13px;border:1px solid var(--theme-line-rgba_255_255_255__09_, rgba(255,255,255,.09));border-radius:8px;background:var(--theme-bg-_101922, #101922);color:var(--theme-ink-_b8c1c8, #b8c1c8);font-size:11px;line-height:1.6}.id-preview b{color:var(--theme-ink-_ff7a72, #ff7a72)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px}.form-grid>label{display:grid;gap:6px;color:var(--theme-ink-_8d99a3, #8d99a3);font-size:11px;font-weight:700}.form-grid>label.full{grid-column:1/-1}.form-grid>label input,.form-grid>label select,.form-grid>label textarea{border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:7px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_edf1f4, #edf1f4);padding:0 10px;font-size:12px}.form-grid>label input,.form-grid>label select{height:41px}.form-grid>label textarea{min-height:96px;padding:10px;resize:vertical}.form-grid>label input:focus,.form-grid>label select:focus,.form-grid>label textarea:focus{outline:none;border-color:var(--theme-line-_d61f26, #d61f26)}.form-grid .submit{grid-column:1/-1}.location-tag-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.location-tag-actions .new-project-btn{height:34px;font-size:10px}.location-tag-status{font-size:10px;color:var(--theme-ink-_7f8b95, #7f8b95);line-height:1.45}.message{margin:0 16px 16px;padding:11px 13px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:8px;font-size:11px;line-height:1.55}.message.ok{border-color:var(--theme-line-rgba_59_190_120__35_, rgba(59,190,120,.35));color:var(--theme-ink-_95e2b2, #95e2b2)}.message.err{border-color:var(--theme-line-rgba_214_31_38__35_, rgba(214,31,38,.35));color:var(--theme-ink-_ff9d96, #ff9d96)}.created-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.new-project-note{padding:12px 16px;border-top:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));color:var(--theme-ink-_74818c, #74818c);font-size:11px;line-height:1.6}@media(max-width:700px){.entry-mode-grid,.id-mode-grid,.form-grid{grid-template-columns:1fr}.form-grid>label.full,.form-grid .submit{grid-column:auto}}
+.new-project-page{display:grid;gap:18px;max-width:1240px}.new-project-actions{display:flex;gap:8px;flex-wrap:wrap}.new-project-btn{height:40px;padding:0 14px;border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));border-radius:8px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_fff, #fff);font-size:12px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.new-project-btn.primary{background:#d61f26;border-color:var(--theme-line-_d61f26, #d61f26)}.new-project-btn:disabled{opacity:.5;cursor:not-allowed}.new-project-card{border:1px solid var(--theme-line-rgba_255_255_255__11_, rgba(255,255,255,.11));border-radius:12px;background:var(--theme-bg-_0e1720, #0e1720);overflow:hidden}.new-project-head{padding:16px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));background:var(--theme-bg-_141e28, #141e28)}.new-project-head strong{display:block;color:var(--theme-ink-_f4f6f8, #f4f6f8);font-size:14px}.new-project-head small{display:block;margin-top:5px;color:var(--theme-ink-_7e8b95, #7e8b95);font-size:11px;line-height:1.55}.entry-mode-grid,.id-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08))}.entry-mode,.id-mode{padding:14px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:10px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_b9c2c9, #b9c2c9);text-align:left;cursor:pointer}.entry-mode.active,.id-mode.active{border-color:var(--theme-line-_d61f26, #d61f26);background:var(--theme-bg-rgba_214_31_38__09_, rgba(214,31,38,.09))}.entry-mode b,.id-mode b{display:block;color:var(--theme-ink-_fff, #fff);font-size:12px}.entry-mode span,.id-mode span{display:block;margin-top:5px;color:var(--theme-ink-_7f8b95, #7f8b95);font-size:11px;line-height:1.5}.entry-mode .tag{display:inline-flex;margin-bottom:8px;padding:3px 6px;border-radius:999px;background:rgba(255,255,255,.07);color:#9ca8b0;font-size:8px;font-weight:900;letter-spacing:.08em}.entry-mode.active .tag{background:rgba(214,31,38,.18);color:#ff9a94}.legacy-banner{margin:14px 16px 0;padding:12px 13px;border:1px solid rgba(214,31,38,.25);border-radius:8px;background:rgba(214,31,38,.06);color:#c9d0d5;font-size:10px;line-height:1.6}.legacy-banner b{color:#ff817a}.id-preview{margin:0 16px 2px;padding:12px 13px;border:1px solid var(--theme-line-rgba_255_255_255__09_, rgba(255,255,255,.09));border-radius:8px;background:var(--theme-bg-_101922, #101922);color:var(--theme-ink-_b8c1c8, #b8c1c8);font-size:11px;line-height:1.6}.id-preview b{color:var(--theme-ink-_ff7a72, #ff7a72)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px}.form-grid>label{display:grid;gap:6px;color:var(--theme-ink-_8d99a3, #8d99a3);font-size:11px;font-weight:700}.form-grid>label.full{grid-column:1/-1}.form-grid>label input,.form-grid>label select,.form-grid>label textarea{border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:7px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_edf1f4, #edf1f4);padding:0 10px;font-size:12px}.form-grid>label input,.form-grid>label select{height:41px}.form-grid>label textarea{min-height:96px;padding:10px;resize:vertical}.form-grid>label input:focus,.form-grid>label select:focus,.form-grid>label textarea:focus{outline:none;border-color:var(--theme-line-_d61f26, #d61f26)}.form-grid .submit{grid-column:1/-1}.location-tag-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.location-tag-actions .new-project-btn{height:34px;font-size:10px}.location-tag-status{font-size:10px;color:var(--theme-ink-_7f8b95, #7f8b95);line-height:1.45}.message{margin:0 16px 16px;padding:11px 13px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:8px;font-size:11px;line-height:1.55}.message.ok{border-color:var(--theme-line-rgba_59_190_120__35_, rgba(59,190,120,.35));color:var(--theme-ink-_95e2b2, #95e2b2)}.message.err{border-color:var(--theme-line-rgba_214_31_38__35_, rgba(214,31,38,.35));color:var(--theme-ink-_ff9d96, #ff9d96)}.created-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.new-project-note{padding:12px 16px;border-top:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));color:var(--theme-ink-_74818c, #74818c);font-size:11px;line-height:1.6}@media(max-width:700px){.entry-mode-grid,.id-mode-grid,.form-grid{grid-template-columns:1fr}.form-grid>label.full,.form-grid .submit{grid-column:auto}}
 `;
 
 function text(value: unknown) { return String(value ?? "").trim(); }
+function amount(value: unknown) { const n = Number(String(value ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; }
 function normalizeProjectId(value: unknown) {
   const raw = text(value).toUpperCase();
   if (!raw) return "";
@@ -85,7 +86,7 @@ export default function NewProjectPage() {
   const [nextId, setNextId] = useState("");
   const [existingIds, setExistingIds] = useState<Set<string>>(new Set());
   const [form, setForm] = useState<FormState>(currentEmptyForm);
-  const [legacyFinance, setLegacyFinance] = useState<LegacyFinanceDraft>(emptyLegacyFinance);
+  const [legacyFinance, setLegacyFinance] = useState<LegacyFinanceDraft>(() => createEmptyLegacyFinance());
   const [saving, setSaving] = useState(false);
   const [locating, setLocating] = useState(false);
   const [locationMessage, setLocationMessage] = useState("");
@@ -130,13 +131,13 @@ export default function NewProjectPage() {
   function chooseEntryMode(next: EntryMode) {
     setEntryMode(next);
     setMessage(null);
+    setLegacyFinance(createEmptyLegacyFinance());
     if (next === "legacy") {
       setMode("manual");
       setForm((current) => ({ ...legacyEmptyForm, Project_ID: current.Project_ID }));
     } else {
       setMode("automatic");
       setForm(currentEmptyForm);
-      setLegacyFinance(emptyLegacyFinance);
     }
     setLocationMessage("");
   }
@@ -191,18 +192,17 @@ export default function NewProjectPage() {
       setMessage({ kind: "err", text: `${normalizedManual} already exists. Open that project instead of creating a duplicate.` });
       return;
     }
-    if (entryMode === "legacy") {
-      const invalidBill = legacyFinance.bills.find((bill) => !(Number(String(bill.amount).replace(/,/g, "")) > 0));
-      const invalidPayment = legacyFinance.payments.find((payment) => !(Number(String(payment.amount).replace(/,/g, "")) > 0));
-      if (invalidBill || invalidPayment) {
-        setMessage({ kind: "err", text: "Every historical bill and payment row must have an amount greater than zero." });
-        return;
-      }
+    const activeBills = legacyFinance.bills.filter((bill) => amount(bill.amount) > 0);
+    const activePayments = entryMode === "legacy" ? legacyFinance.payments.filter((payment) => amount(payment.amount) > 0) : [];
+    const invalidBill = activeBills.find((bill) => !bill.description.trim() || amount(bill.discount) < 0 || amount(bill.discount) > amount(bill.amount));
+    if (invalidBill) {
+      setMessage({ kind: "err", text: "Check the active bill rows. Each used row needs a service name and discount cannot exceed the gross amount." });
+      return;
     }
     setSaving(true);
     try {
-      const bills = entryMode === "legacy" ? legacyFinance.bills.map(({ key: _key, ...row }) => row) : [];
-      const payments = entryMode === "legacy" ? legacyFinance.payments.map(({ key: _key, ...row }) => row) : [];
+      const bills = activeBills.map(({ key: _key, ...row }) => row);
+      const payments = activePayments.map(({ key: _key, ...row }) => row);
       const response = await fetch("/api/projects/new", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -221,13 +221,14 @@ export default function NewProjectPage() {
       const json = await response.json();
       if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not create the project."));
       const createdId = text(json.data?.Project_ID);
+      const billSummary = Number(json.data?.billCount || 0) > 0 ? ` ${Number(json.data?.billCount || 0)} bill(s) saved.` : "";
       const legacySummary = json.data?.legacyImport
-        ? ` Historical finance imported: ${Number(json.data?.billCount || 0)} bill(s), ${Number(json.data?.paymentCount || 0)} payment(s); ${Number(json.data?.verifiedPaymentCount || 0)} ledger verified, ${Number(json.data?.mismatchPaymentCount || 0)} mismatch, ${Number(json.data?.unlinkedPaymentCount || 0)} unlinked.`
+        ? ` ${Number(json.data?.paymentCount || 0)} historical payment(s); ${Number(json.data?.verifiedPaymentCount || 0)} ledger verified, ${Number(json.data?.mismatchPaymentCount || 0)} mismatch, ${Number(json.data?.unlinkedPaymentCount || 0)} unlinked.`
         : "";
-      setMessage({ kind: "ok", text: `${createdId} was created successfully in Supabase.${legacySummary} You can now open the project or add its structured map address.`, id: createdId });
+      setMessage({ kind: "ok", text: `${createdId} was created successfully in Supabase.${billSummary}${legacySummary} You can now open the project or add its structured map address.`, id: createdId });
       setExistingIds((current) => new Set([...current, createdId]));
       setForm(entryMode === "legacy" ? legacyEmptyForm : currentEmptyForm);
-      setLegacyFinance(emptyLegacyFinance);
+      setLegacyFinance(createEmptyLegacyFinance());
       setLocationMessage("");
       const refresh = await fetch("/api/projects/new", { cache: "no-store", credentials: "same-origin" }).then(r => r.json()).catch(() => null);
       if (refresh?.success) setNextId(text(refresh.data?.nextId));
@@ -244,12 +245,12 @@ export default function NewProjectPage() {
   return <>
     <style dangerouslySetInnerHTML={{__html:css}} />
     <div className="new-project-page">
-      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="New Project" description="Register a current project or rebuild a historical project with its complete billing, payment and Accounts Ledger verification history." action={<div className="new-project-actions"><Link className="new-project-btn" href="/admin/projects">← Projects</Link><Link className="new-project-btn" href="/admin/projects/locations">Locations</Link><Link className="new-project-btn" href="/admin/projects/legacy">Legacy Projects</Link></div>} />
+      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="New Project" description="Register a current project or rebuild a historical project. Standard billing categories are opened automatically so bills can be entered directly in rows." action={<div className="new-project-actions"><Link className="new-project-btn" href="/admin/projects">← Projects</Link><Link className="new-project-btn" href="/admin/projects/locations">Locations</Link><Link className="new-project-btn" href="/admin/projects/legacy">Legacy Projects</Link></div>} />
 
       <section className="new-project-card">
-        <div className="new-project-head"><strong>Project entry type</strong><small>Use Historical / Old Project when you are rebuilding a project that already had bills or payments before it was entered in the current system.</small></div>
+        <div className="new-project-head"><strong>Project entry type</strong><small>Both modes include the full row-based bill setup. Historical / Old Project additionally lets you enter past payments and reconcile them against the Accounts Ledger.</small></div>
         <div className="entry-mode-grid">
-          <button className={`entry-mode ${entryMode === "current" ? "active" : ""}`} type="button" onClick={() => chooseEntryMode("current")}><span className="tag">NORMAL ENTRY</span><b>Current / New Project</b><span>Create the project now and use the normal Billing page for future bills and deposits.</span></button>
+          <button className={`entry-mode ${entryMode === "current" ? "active" : ""}`} type="button" onClick={() => chooseEntryMode("current")}><span className="tag">NORMAL ENTRY</span><b>Current / New Project</b><span>Enter project details and initial billing now. All bill groups are already expanded; blank rows are ignored.</span></button>
           <button className={`entry-mode ${entryMode === "legacy" ? "active" : ""}`} type="button" onClick={() => chooseEntryMode("legacy")}><span className="tag">FULL HISTORY</span><b>Historical / Old Project</b><span>Enter full project details, old bills, old payments and link each deposit to the existing Accounts Ledger for verification.</span></button>
         </div>
         {entryMode === "legacy" && <div className="legacy-banner"><b>No duplicate income:</b> linked historical payments are stored for project billing but are marked not to affect the business balance again. The selected old ledger row remains the authoritative accounting transaction.</div>}
@@ -282,14 +283,14 @@ export default function NewProjectPage() {
           <label>Site Geofence Radius (m)<input type="number" min="25" max="1000" value={form.Site_Geofence_Radius_M} onChange={(e)=>setForm({...form,Site_Geofence_Radius_M:e.target.value})} /></label>
           <label className="full">Notes<textarea value={form.Notes} onChange={(e)=>setForm({...form,Notes:e.target.value})} placeholder={entryMode === "legacy" ? "Historical project notes / source record notes" : "Optional project notes"} /></label>
 
-          {entryMode === "legacy" && <LegacyProjectFinanceImport projectCode={effectiveProjectCode} value={legacyFinance} onChange={setLegacyFinance} />}
+          <LegacyProjectFinanceImport mode={entryMode} projectCode={effectiveProjectCode} value={legacyFinance} onChange={setLegacyFinance} />
 
-          <button className="new-project-btn primary submit" type="submit" disabled={!canManage || saving || (mode === "manual" && manualExists)}>{saving ? (entryMode === "legacy" ? "Importing full project history…" : "Creating project…") : entryMode === "legacy" ? `Create Historical Project ${effectiveProjectCode || ""}`.trim() : mode === "automatic" ? "Create Project with Automatic ID" : `Create Project as ${normalizedManual || "Manual ID"}`}</button>
+          <button className="new-project-btn primary submit" type="submit" disabled={!canManage || saving || (mode === "manual" && manualExists)}>{saving ? (entryMode === "legacy" ? "Importing full project history…" : "Creating project and bills…") : entryMode === "legacy" ? `Create Historical Project ${effectiveProjectCode || ""}`.trim() : mode === "automatic" ? "Create Project with Automatic ID" : `Create Project as ${normalizedManual || "Manual ID"}`}</button>
         </form>
 
         {message && <div className={`message ${message.kind}`}>{message.text}{message.kind === "ok" && message.id && <div className="created-box"><button className="new-project-btn primary" type="button" onClick={()=>router.push(`/admin/projects/${encodeURIComponent(message.id || "")}`)}>Open Project</button><Link className="new-project-btn" href={`/admin/projects/locations?project=${encodeURIComponent(message.id)}`}>Add Structured Address</Link><Link className="new-project-btn" href="/admin/projects">View Projects</Link></div>}</div>}
         {!canManage && <div className="message err">Admin or manager access is required to create projects.</div>}
-        <div className="new-project-note">Historical import is for genuinely old projects that are missing from the current project register. If the File ID already exists, open that project and correct its billing/payment history instead of creating a duplicate.</div>
+        <div className="new-project-note">All standard bill rows are shown automatically. Leave a row blank if that service is not part of the project. Historical import is only for genuinely old projects; if the File ID already exists, open that project and correct its billing/payment history instead of creating a duplicate.</div>
       </section>
     </div>
   </>;
