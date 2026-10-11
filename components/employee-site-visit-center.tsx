@@ -49,6 +49,7 @@ export default function EmployeeSiteVisitCenter() {
   const [visits, setVisits] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [retryingVisit, setRetryingVisit] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [projectId, setProjectId] = useState("");
@@ -65,15 +66,18 @@ export default function EmployeeSiteVisitCenter() {
     setLoading(true);
     setError("");
     try {
-      const [projectResponse, visitResponse] = await Promise.all([
+      const [projectResponse, visitResponse, whatsAppResponse] = await Promise.all([
         fetch("/api/site-visits?mode=projects", { cache: "no-store", credentials: "same-origin" }).then((r) => r.json()),
         fetch("/api/site-visits", { cache: "no-store", credentials: "same-origin" }).then((r) => r.json()),
+        fetch("/api/site-visits/retry-whatsapp", { cache: "no-store", credentials: "same-origin" }).then((r) => r.json()).catch(() => null),
       ]);
       if (!projectResponse?.success) throw new Error(projectResponse?.error || "Could not load projects for Site Visits.");
       if (!visitResponse?.success) throw new Error(visitResponse?.error || "Could not load Site Visits.");
       const projectRows = projectResponse.data || [];
+      const statusMap = new Map<string, Row>((whatsAppResponse?.success ? whatsAppResponse.data || [] : []).map((row: Row) => [String(row.Visit_ID || ""), row]));
+      const visitRows = (visitResponse.data || []).map((row: Row) => ({ ...row, ...(statusMap.get(String(row.Visit_ID || "")) || {}) }));
       setProjects(projectRows);
-      setVisits(visitResponse.data || []);
+      setVisits(visitRows);
       setProjectId((current) => current || String(projectRows?.[0]?.Project_ID || ""));
     } catch (e: any) {
       setError(e?.message || "Could not load Site Visits.");
@@ -173,6 +177,28 @@ export default function EmployeeSiteVisitCenter() {
     }
   }
 
+  async function retryWhatsApp(visitId: string) {
+    setRetryingVisit(visitId);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/site-visits/retry-whatsapp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ visitId }),
+      });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success) throw new Error(String(json?.error || "WhatsApp retry failed."));
+      setNotice("Site Visit " + visitId + " · WhatsApp SENT successfully.");
+      await load();
+    } catch (e: any) {
+      setError("Site Visit remains saved. WhatsApp retry failed: " + (e?.message || "Unknown error."));
+    } finally {
+      setRetryingVisit("");
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -200,7 +226,14 @@ export default function EmployeeSiteVisitCenter() {
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not submit Site Visit."));
 
-      setNotice("Site Visit " + (json.data?.Visit_ID || "") + " submitted successfully.");
+      const visitId = String(json.data?.Visit_ID || "");
+      const whatsAppStatus = String(json.data?.WhatsApp_Publish_Status || "").toLowerCase();
+      const whatsAppReason = String(json.data?.WhatsApp_Publish_Reason || "").trim();
+      if (whatsAppStatus === "sent") {
+        setNotice("Site Visit " + visitId + " submitted · WhatsApp SENT.");
+      } else {
+        setNotice("Site Visit " + visitId + " submitted · WhatsApp NOT SENT" + (whatsAppReason ? " — " + whatsAppReason : ". Use Retry WhatsApp below."));
+      }
       setSiteNotes("");
       setVisitPhoto(null);
       setProblemPhoto(null);
@@ -225,7 +258,8 @@ export default function EmployeeSiteVisitCenter() {
       .sv-uploads{display:grid;grid-template-columns:1fr 1fr;gap:10px}.sv-upload-box{position:relative;min-height:96px;border:1px dashed var(--theme-line-_3b4751,#3b4751);border-radius:10px;background:var(--theme-bg-_0b1116,#0b1116);padding:12px;display:grid;align-content:center;justify-items:center;text-align:center;gap:5px;cursor:pointer}.sv-upload-box strong{font-size:9px}.sv-upload-box small{color:var(--theme-ink-_77838e,#77838e);font-size:8px;line-height:1.4;max-width:180px}.sv-upload-box input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}.sv-upload-box.has-file{border-style:solid;border-color:#2e8b4d;background:#102419}.sv-upload-plus{font-size:20px;line-height:1;color:#e85559}
       .sv-submit{height:44px;border:0;border-radius:9px;background:linear-gradient(180deg,#e53138,#bd171e);color:#fff;font-size:9px;font-weight:900;cursor:pointer}.sv-submit:disabled{opacity:.5;cursor:wait}.sv-helper{display:flex;justify-content:space-between;gap:10px;align-items:center;color:var(--theme-ink-_7e8993,#7e8993);font-size:8px}.sv-helper button{border:0;background:transparent;color:#ff7770;font-size:8px;font-weight:800;cursor:pointer;padding:0}.sv-gps-test{padding:8px 10px;border-radius:8px;background:var(--theme-bg-_151b20,#151b20);border:1px solid var(--theme-line-_34404a,#34404a);color:var(--theme-ink-_aeb7c1,#aeb7c1);font-size:8px}
       .sv-list{display:grid;gap:8px;padding:12px}.sv-row{border:1px solid var(--theme-line-_2b353e,#2b353e);border-radius:9px;background:var(--theme-bg-_10171d,#10171d);padding:12px;display:grid;grid-template-columns:1fr auto;gap:9px}.sv-row strong{display:block;font-size:10px}.sv-row small{display:block;margin-top:4px;color:var(--theme-ink-_7e8993,#7e8993);font-size:8px}.sv-row p{margin:7px 0 0;color:var(--theme-ink-_abb6be,#abb6be);font-size:9px;line-height:1.45}.sv-photo-row{display:flex;gap:6px;margin-top:8px}.sv-photo-row a{width:52px;height:42px;border-radius:6px;overflow:hidden;border:1px solid var(--theme-line-_35414b,#35414b);background:var(--theme-bg-_0a1014,#0a1014);display:block}.sv-photo-row img{width:100%;height:100%;object-fit:cover}.sv-status{align-self:start;padding:5px 7px;border-radius:999px;background:var(--theme-bg-_173827,#173827);color:var(--theme-ink-_a7dfbb,#a7dfbb);font-size:7px;font-weight:900}.sv-empty{padding:26px;text-align:center;color:var(--theme-ink-_7e8993,#7e8993);font-size:9px}.sv-refresh{border:1px solid var(--theme-line-_3b4650,#3b4650);border-radius:7px;background:transparent;color:var(--theme-ink-_c7d0d7,#c7d0d7);padding:7px 9px;font-size:8px;cursor:pointer}
-      @media(max-width:900px){.sv-grid{grid-template-columns:1fr}.sv-card.recent{order:2}}@media(max-width:600px){.sv-hero{padding:16px}.sv-simple-form{padding:13px}.sv-location-box{align-items:stretch;flex-direction:column}.sv-location-btn{width:100%}.sv-uploads{grid-template-columns:1fr 1fr}.sv-upload-box{min-height:88px}.sv-helper{align-items:flex-start;flex-direction:column}.sv-submit{height:46px}}
+      .sv-row-side{display:grid;justify-items:end;align-content:start;gap:6px}.sv-wa{max-width:150px;padding:5px 7px;border-radius:7px;font-size:7px;font-weight:900;text-align:right;background:#292015;color:#f1c27d;border:1px solid #5a452a}.sv-wa.sent{background:#102719;color:#9be0ac;border-color:#2d5f40}.sv-wa.failed,.sv-wa.skipped{background:#321718;color:#ffaaa5;border-color:#6c292e}.sv-wa-retry{border:1px solid #6b3134;border-radius:7px;background:#b91d25;color:#fff;padding:6px 8px;font-size:7px;font-weight:900;cursor:pointer}.sv-wa-retry:disabled{opacity:.55;cursor:wait}.sv-wa-reason{max-width:190px;color:#c7908f!important;text-align:right;line-height:1.35}
+      @media(max-width:900px){.sv-grid{grid-template-columns:1fr}.sv-card.recent{order:2}}@media(max-width:600px){.sv-hero{padding:16px}.sv-simple-form{padding:13px}.sv-location-box{align-items:stretch;flex-direction:column}.sv-location-btn{width:100%}.sv-uploads{grid-template-columns:1fr 1fr}.sv-upload-box{min-height:88px}.sv-helper{align-items:flex-start;flex-direction:column}.sv-submit{height:46px}.sv-row-side{justify-items:end}}
     `}</style>
 
     <div className="sv-hero">
@@ -296,18 +330,27 @@ export default function EmployeeSiteVisitCenter() {
       <section className="sv-card recent">
         <div className="sv-card-head"><div><strong>Recent Site Visits</strong><small>{visits.length} recorded visits</small></div><button type="button" className="sv-refresh" onClick={() => void load()} disabled={loading}>{loading ? "Loading…" : "Refresh"}</button></div>
         <div className="sv-list">
-          {visits.slice(0, 12).map((visit, index) => <article className="sv-row" key={visit.Visit_ID || index}>
-            <div>
-              <strong>{visit.Project_ID} · {visit.Purpose || "Site Visit"}</strong>
-              <small>{dateText(visit.Visit_Date)} · {visit.Employee_Name || visit.Visited_By || "Employee"}</small>
-              {visit.Problem_Details && <p>{visit.Problem_Details}</p>}
-              {(visit.Visit_Photo_Available || visit.Problem_Photo_Available) && <div className="sv-photo-row">
-                {visit.Visit_Photo_Available && <a href={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=visit"} target="_blank" rel="noreferrer"><img src={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=visit"} alt="Site visit" /></a>}
-                {visit.Problem_Photo_Available && <a href={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=problem"} target="_blank" rel="noreferrer"><img src={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=problem"} alt="Problem" /></a>}
-              </div>}
-            </div>
-            <span className="sv-status">{visit.Status || "Completed"}</span>
-          </article>)}
+          {visits.slice(0, 12).map((visit, index) => {
+            const waStatus = String(visit.WhatsApp_Publish_Status || "").toLowerCase();
+            const waLabel = waStatus === "sent" ? "WhatsApp · SENT" : waStatus === "failed" ? "WhatsApp · FAILED" : waStatus === "skipped" ? "WhatsApp · NOT SENT" : waStatus === "queued" ? "WhatsApp · QUEUED" : "";
+            return <article className="sv-row" key={visit.Visit_ID || index}>
+              <div>
+                <strong>{visit.Project_ID} · {visit.Purpose || "Site Visit"}</strong>
+                <small>{dateText(visit.Visit_Date)} · {visit.Employee_Name || visit.Visited_By || "Employee"}</small>
+                {visit.Problem_Details && <p>{visit.Problem_Details}</p>}
+                {(visit.Visit_Photo_Available || visit.Problem_Photo_Available) && <div className="sv-photo-row">
+                  {visit.Visit_Photo_Available && <a href={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=visit"} target="_blank" rel="noreferrer"><img src={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=visit"} alt="Site visit" /></a>}
+                  {visit.Problem_Photo_Available && <a href={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=problem"} target="_blank" rel="noreferrer"><img src={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=problem"} alt="Problem" /></a>}
+                </div>}
+              </div>
+              <div className="sv-row-side">
+                <span className="sv-status">{visit.Status || "Completed"}</span>
+                {waLabel && <span className={`sv-wa ${waStatus}`}>{waLabel}</span>}
+                {waStatus && waStatus !== "sent" && <button type="button" className="sv-wa-retry" disabled={retryingVisit === visit.Visit_ID} onClick={() => void retryWhatsApp(String(visit.Visit_ID || ""))}>{retryingVisit === visit.Visit_ID ? "RETRYING…" : "RETRY WHATSAPP"}</button>}
+                {waStatus && waStatus !== "sent" && visit.WhatsApp_Publish_Reason && <small className="sv-wa-reason">{visit.WhatsApp_Publish_Reason}</small>}
+              </div>
+            </article>;
+          })}
           {!visits.length && <div className="sv-empty">No Site Visits recorded yet.</div>}
         </div>
       </section>
