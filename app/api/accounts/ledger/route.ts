@@ -34,6 +34,14 @@ function isEditableTransactionCode(code: string) {
   return Boolean(code);
 }
 
+function isHistoricalImportedTransaction(code: string, row: Record<string, unknown>) {
+  const sourceType = text(row.source_type, 120).toUpperCase();
+  return code.startsWith("TXN-LEDGER-2025-")
+    || code.startsWith("TXN-HIST-2026-")
+    || sourceType === "MANUAL_IMPORT"
+    || sourceType === "OFFICIAL_LEDGER_IMPORT";
+}
+
 export async function PATCH(request: NextRequest) {
   let auditUser: Record<string, unknown> | null = null;
   let auditTransactionCode = "";
@@ -71,6 +79,45 @@ export async function PATCH(request: NextRequest) {
     if (!found.length) return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
     const current = found[0];
     auditBefore = current;
+
+    // Historical imports are accounting evidence, so their financial values stay locked.
+    // Admins may correct the wording directly without touching date, debit, credit, amount,
+    // project assignment, account, status or running balance.
+    if (isHistoricalImportedTransaction(transactionCode, current)) {
+      const description = text(body.Description || body.description, 1200);
+      if (!description) return NextResponse.json({ success: false, error: "Description is required." }, { status: 400 });
+
+      const updates = { description };
+      auditAfter = updates;
+      const updated = await updateRows("transactions", { transaction_code: transactionCode }, updates);
+
+      await recordAuditEvent({
+        user: auditUser,
+        request,
+        action: "accounts.ledger.description_correction",
+        entityType: "transaction",
+        entityId: transactionCode,
+        target: transactionCode,
+        before: current,
+        after: updated[0] || { ...current, ...updates },
+        details: {
+          historical: true,
+          descriptionOnly: true,
+          financialValuesLocked: true,
+          previousActionName: "historical_ledger_description_correction",
+        },
+      });
+
+      return NextResponse.json(
+        {
+          success: true,
+          data: updated[0] || null,
+          correctionMode: "historical-description-only",
+          message: "Historical ledger description corrected. Financial values and balances were not changed.",
+        },
+        { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
+      );
+    }
 
     const transactionDate = validDate(body.Transaction_Date || body.date);
     if (!transactionDate) return NextResponse.json({ success: false, error: "Enter a valid transaction date." }, { status: 400 });
@@ -134,8 +181,8 @@ export async function PATCH(request: NextRequest) {
       before: current,
       after: updated[0] || updates,
       details: {
-        historical: true,
-        previousActionName: "historical_ledger_edit",
+        historical: false,
+        previousActionName: "ledger_edit",
       },
     });
 
