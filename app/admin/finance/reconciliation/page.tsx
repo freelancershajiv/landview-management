@@ -43,6 +43,7 @@ type ReconciliationData = {
 };
 
 const LEDGER_ISSUES = new Set<LedgerVerificationStatus>(["mismatch", "missing", "duplicate"]);
+const DISPLAY_BATCH = 75;
 
 const FILTERS: Array<{ value: Filter; label: string }> = [
   { value: "all", label: "All" },
@@ -102,6 +103,7 @@ export default function BillReconciliationPage() {
   const [message, setMessage] = useState("");
   const [busyKey, setBusyKey] = useState("");
   const [selectedProjects, setSelectedProjects] = useState<Record<string, string>>({});
+  const [renderLimit, setRenderLimit] = useState(DISPLAY_BATCH);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -117,6 +119,7 @@ export default function BillReconciliationPage() {
       const next = json.data as ReconciliationData;
       setData(next);
       setSelectedProjects(Object.fromEntries(next.rows.map((row) => [row.key, row.projectCode || ""])));
+      setRenderLimit(DISPLAY_BATCH);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load reconciliation data.");
     } finally {
@@ -168,6 +171,8 @@ export default function BillReconciliationPage() {
       return row.search.includes(term) || String(row.amount).includes(term);
     });
   }, [data.rows, filter, query]);
+
+  const renderedRows = useMemo(() => visibleRows.slice(0, renderLimit), [visibleRows, renderLimit]);
 
   async function updateLink(row: ReconciliationRow, mode: "link" | "general") {
     const projectCode = selectedProjects[row.key] || "";
@@ -222,8 +227,9 @@ export default function BillReconciliationPage() {
         .recon-ledger-status.verified,.recon-ledger-status.posted{background:#e8f6ed;color:#23653b}.recon-ledger-status.unlinked{background:#fff3e5;color:#8a4b10}.recon-ledger-status.mismatch,.recon-ledger-status.missing,.recon-ledger-status.duplicate{background:#ffebe8;color:#9a3129}.recon-ledger-cell{min-width:180px;max-width:250px}
         .recon-project{min-width:170px}.recon-project strong{display:block}.recon-actions{display:grid;grid-template-columns:minmax(180px,1fr) auto;gap:7px;min-width:310px}.recon-select{min-height:36px;width:100%;padding:6px 8px;border:1px solid var(--theme-line,#cfd8df);border-radius:7px;background:var(--theme-bg,#fff);color:inherit;font-size:11px}.recon-save,.recon-general{min-height:36px;padding:7px 10px;border-radius:7px;font-size:10px;font-weight:900;cursor:pointer}.recon-save{border:1px solid #8b4039;background:#8b4039;color:white}.recon-general{grid-column:1/-1;border:1px solid var(--theme-line,#c8d1d8);background:transparent;color:inherit}.recon-save:disabled,.recon-general:disabled{opacity:.5;cursor:not-allowed}.recon-readonly{color:var(--theme-muted,#6c7882);font-size:11px;font-weight:800}.recon-empty{padding:34px!important;text-align:center;color:var(--theme-muted,#6c7882)}
         .recon-note{padding:12px 14px;border-left:3px solid #8b4039;background:var(--theme-bg-soft,#f4f6f8);color:var(--theme-muted,#5f6c75);font-size:12px;line-height:1.55}
+        .recon-more{display:flex;align-items:center;justify-content:center;gap:12px;padding:13px 16px;border-top:1px solid var(--theme-line-soft,#e9eef2);color:var(--theme-muted,#66737f);font-size:11px;font-weight:800}.recon-more button{min-height:34px;padding:6px 12px;border:1px solid var(--theme-line,#cfd8df);border-radius:7px;background:var(--theme-bg,#fff);color:inherit;font-size:10px;font-weight:900;cursor:pointer}
         @media(max-width:900px){.recon-controls{grid-template-columns:1fr}.recon-filters{justify-content:flex-start}.recon-summary{grid-template-columns:1fr 1fr}.recon-hero{flex-direction:column}.recon-refresh{width:100%}}
-        @media(max-width:560px){.recon-summary{grid-template-columns:1fr 1fr}.recon-hero{padding:17px}.recon-hero h1{font-size:21px}.recon-filters{display:grid;grid-template-columns:1fr 1fr}.recon-filter:last-child{grid-column:1/-1}}
+        @media(max-width:560px){.recon-summary{grid-template-columns:1fr 1fr}.recon-hero{padding:17px}.recon-hero h1{font-size:21px}.recon-filters{display:grid;grid-template-columns:1fr 1fr}.recon-filter:last-child{grid-column:1/-1}.recon-more{align-items:stretch;flex-direction:column;text-align:center}}
       `}</style>
 
       <header className="recon-hero">
@@ -257,13 +263,24 @@ export default function BillReconciliationPage() {
         <input
           className="recon-search"
           value={query}
-          onChange={(event) => setQuery(event.target.value)}
+          onChange={(event) => {
+            setQuery(event.target.value);
+            setRenderLimit(DISPLAY_BATCH);
+          }}
           placeholder="Search File ID, bill/payment/transaction ID, ledger ID, reference, client, phone or amount…"
           aria-label="Search reconciliation records"
         />
         <div className="recon-filters" aria-label="Reconciliation filters">
           {FILTERS.map((item) => (
-            <button key={item.value} type="button" className={`recon-filter ${filter === item.value ? "active" : ""}`} onClick={() => setFilter(item.value)}>
+            <button
+              key={item.value}
+              type="button"
+              className={`recon-filter ${filter === item.value ? "active" : ""}`}
+              onClick={() => {
+                setFilter(item.value);
+                setRenderLimit(DISPLAY_BATCH);
+              }}
+            >
               {item.label}<span>{counts[item.value]}</span>
             </button>
           ))}
@@ -295,7 +312,7 @@ export default function BillReconciliationPage() {
             {loading && (
               <tr><td className="recon-empty" colSpan={8}>Loading finance records…</td></tr>
             )}
-            {!loading && visibleRows.map((row) => {
+            {!loading && renderedRows.map((row) => {
               const selected = selectedProjects[row.key] || "";
               const busy = busyKey === row.key;
               return (
@@ -350,6 +367,16 @@ export default function BillReconciliationPage() {
             })}
           </tbody>
         </table>
+        {!loading && visibleRows.length > 0 && (
+          <div className="recon-more">
+            <span>Showing {Math.min(renderedRows.length, visibleRows.length)} of {visibleRows.length} matching records.</span>
+            {renderedRows.length < visibleRows.length && (
+              <button type="button" onClick={() => setRenderLimit((current) => current + DISPLAY_BATCH)}>
+                Load {Math.min(DISPLAY_BATCH, visibleRows.length - renderedRows.length)} more
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </section>
   );
