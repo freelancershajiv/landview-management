@@ -72,6 +72,7 @@ function normalizeLedger(table: HTMLTableElement) {
 
   body.querySelectorAll('tr[data-sattapur-linked-expense="true"]').forEach((row) => row.remove());
 
+  // Calculate balances in chronological order, regardless of how the ledger is displayed.
   let ordered = Array.from(body.rows);
   if (ordered.length > 1 && parseLedgerDate(ordered[0]) > parseLedgerDate(ordered[ordered.length - 1])) {
     ordered.reverse().forEach((row) => body.appendChild(row));
@@ -105,6 +106,28 @@ function normalizeLedger(table: HTMLTableElement) {
     const heldCheque = Boolean(row.querySelector(".pm-cheque-status.hold"));
     running += (heldCheque ? 0 : debit) - credit;
     cells[8].textContent = money(running);
+  }
+
+  // Display newest first without disturbing the already-calculated chronological balances.
+  // Keep each Sattapur deposit directly above its linked expense as one visual group.
+  const chronologicalRows = Array.from(body.rows);
+  const groups: HTMLTableRowElement[][] = [];
+  for (let i = 0; i < chronologicalRows.length; i += 1) {
+    const row = chronologicalRows[i];
+    if (row.dataset.sattapurLinkedExpense === "true") continue;
+    const group = [row];
+    const next = chronologicalRows[i + 1];
+    if (next?.dataset.sattapurLinkedExpense === "true") {
+      group.push(next);
+      i += 1;
+    }
+    groups.push(group);
+  }
+  groups.reverse().forEach((group) => group.forEach((row) => body.appendChild(row)));
+
+  const subtitle = table.closest(".pm-table-wrap")?.previousElementSibling?.querySelector(".pm-view-sub");
+  if (subtitle && subtitle.textContent?.includes("sorted by date ascending")) {
+    subtitle.textContent = subtitle.textContent.replace("sorted by date ascending", "sorted by date descending");
   }
 
   const finalOriginalRows = Array.from(body.rows).filter(
