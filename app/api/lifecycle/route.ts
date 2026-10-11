@@ -176,28 +176,46 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString();
     const actor = userIdOf(user) || text(user.employeeId || user.Employee_ID || user.username || user.Username, 200);
-    const changes = {
+    const changes: Row = {
       ...projectStageUpdates(phase),
       lifecycle_phase: phase,
       lifecycle_changed_at: now,
       lifecycle_changed_by: actor || null,
       updated_at: now,
     };
+    if (phase === "Supervision / Construction Stage" || phase === "Completed") {
+      changes.project_management_enabled = true;
+    }
     const updated = await updateRows("projects", { project_code: projectId }, changes);
     const after = updated[0] || { ...before, ...changes };
 
-    await insertRows("project_lifecycle_transitions", {
-      project_id: before.id,
-      project_code: projectId,
-      from_phase: currentPhase,
-      to_phase: phase,
+    const recent = await selectRows("project_lifecycle_transitions", {
+      filters: { project_id: before.id }, order: "created_at:desc", limit: 5,
+    });
+    const triggerRow = recent.find((row) => {
+      if (row.from_phase !== currentPhase || row.to_phase !== phase || row.source !== "project-lifecycle-trigger") return false;
+      const created = Date.parse(String(row.created_at || ""));
+      return Number.isFinite(created) && Math.abs(Date.now() - created) < 60_000;
+    });
+    const transitionPatch = {
       transition_type: transitionType,
       reason: reason || null,
       changed_by: actor || null,
       changed_by_role: role,
       source: "lifecycle-center",
-      created_at: now,
-    });
+    };
+    if (triggerRow?.id) {
+      await updateRows("project_lifecycle_transitions", { id: triggerRow.id }, transitionPatch);
+    } else {
+      await insertRows("project_lifecycle_transitions", {
+        project_id: before.id,
+        project_code: projectId,
+        from_phase: currentPhase,
+        to_phase: phase,
+        ...transitionPatch,
+        created_at: now,
+      });
+    }
 
     await recordAuditEvent({
       user,
