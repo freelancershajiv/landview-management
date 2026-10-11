@@ -204,8 +204,14 @@ export async function POST(request: NextRequest, context: { params: Promise<{ pr
         if (!txRows.length) return NextResponse.json({ success: false, error: `Ledger transaction ${ledgerCode} was not found.` }, { status: 404 });
         ledgerTransaction = txRows[0];
         if (!isCredit(ledgerTransaction)) return NextResponse.json({ success: false, error: "The selected ledger row is not an income / credit entry." }, { status: 400 });
-        const existingLinks = await selectRows("payments", { filters: { ledger_transaction_id: ledgerTransaction.id }, limit: 2 });
-        if (existingLinks.some((row) => text(row.payment_code) !== paymentCode)) return NextResponse.json({ success: false, error: "That Accounts Ledger entry is already linked to another payment." }, { status: 409 });
+        const [existingLinksById, existingLinksByCode] = await Promise.all([
+          selectRows("payments", { filters: { ledger_transaction_id: ledgerTransaction.id }, limit: 10 }),
+          selectRows("payments", { filters: { ledger_transaction_code: ledgerCode }, limit: 10 }),
+        ]);
+        const existingLinks = [...existingLinksById, ...existingLinksByCode];
+        if (existingLinks.some((row) => text(row.payment_code) !== paymentCode)) {
+          return NextResponse.json({ success: false, error: "That Accounts Ledger entry is already linked to another payment." }, { status: 409 });
+        }
         const verification = verificationFor(ledgerTransaction, amount, paymentDate, projectCode);
         verificationStatus = verification.status;
         verificationNotes = verification.notes;
