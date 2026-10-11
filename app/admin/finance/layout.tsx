@@ -19,6 +19,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
       <Link href="/admin/finance/control">Control Center</Link>
       <Link href="/admin/finance">Billing</Link>
       <Link href="/admin/finance/bills">Bills</Link>
+      <Link href="/admin/finance/reconciliation">Reconciliation</Link>
       <Link href="/admin/finance/invoices">Invoices</Link>
       <Link href="/admin/accounts">Accounts</Link>
     </nav>
