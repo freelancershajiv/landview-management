@@ -360,7 +360,7 @@ async function workspace(user: Row, requested?: string) {
   const summary = await projectSummaryFor(selected);
   const contractorBills = await contractorWorkspaceFor(selected, entries);
   const linkedSupplierAdvance = sattapurBricks.holdAmount;
-  const engShajivBalance = debit - credit - liveChequeOnHold;
+  const engShajivBalance = debit - credit - liveChequeOnHold - linkedSupplierAdvance;
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
@@ -443,7 +443,7 @@ export async function POST(request: NextRequest) {
         debit:0,
         credit:value,
         category:"Bricks",
-        memo:[memo,"SATTPUR_BRICKS_DELIVERY"].filter(Boolean).join("\\n"),
+        memo:[memo,"SATTPUR_BRICKS_DELIVERY"].filter(Boolean).join("\n"),
         source:"sattapur_bricks_delivery",
         created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW"
       };
