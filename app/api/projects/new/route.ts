@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getVercelOidcToken } from "@vercel/oidc";
 import { requireLocalSession } from "@/lib/local-session";
 import { insertRows, roleOf, selectRows } from "@/lib/supabase-data";
 import { looksLikeGoogleMapsLocation, resolveGoogleMapsLocation } from "@/lib/google-maps-location";
@@ -7,6 +8,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MANAGE_ROLES = new Set(["admin", "manager"]);
+const LEGACY_IMPORT_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-legacy-import";
+const OIDC_AUDIENCE = "https://supabase.landview.internal";
 
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -48,6 +51,28 @@ function coordinateOrNull(value: unknown, min: number, max: number) {
 function canonicalLocationTag(latitude: number, longitude: number) {
   return `https://www.google.com/maps?q=${Number(latitude.toFixed(8))},${Number(longitude.toFixed(8))}`;
 }
+function arrayOfRecords(value: unknown, max = 300) {
+  if (!Array.isArray(value)) return [] as Record<string, unknown>[];
+  return value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object" && !Array.isArray(item)).slice(0, max);
+}
+function actorOf(user: Record<string, unknown>) {
+  return text(user.Employee_ID || user.employeeId || user.User_ID || user.userId || user.Username || user.username || "LAND VIEW", 160);
+}
+
+async function createLegacyProjectFull(project: Record<string, unknown>, bills: Record<string, unknown>[], payments: Record<string, unknown>[], createdBy: string) {
+  const oidc = await getVercelOidcToken({ audience: OIDC_AUDIENCE });
+  if (!oidc) throw new Error("Vercel OIDC token is unavailable.");
+  const response = await fetch(LEGACY_IMPORT_URL, {
+    method: "POST",
+    headers: { authorization: `Bearer ${oidc}`, "content-type": "application/json" },
+    body: JSON.stringify({ project, bills, payments, createdBy }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(30_000),
+  });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || !json?.success) throw new Error(String(json?.error || `Legacy project import returned HTTP ${response.status}.`));
+  return json.data as Record<string, unknown>;
+}
 
 async function existingProjectCodes() {
   const rows = await selectRows("projects", { select: "project_code", limit: 10000 });
@@ -81,6 +106,9 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json() as Record<string, unknown>;
     const mode = text(body.idMode || body.mode, 20).toLowerCase() === "manual" ? "manual" : "automatic";
+    const legacyImport = body.legacyImport === true || text(body.entryMode, 20).toLowerCase() === "legacy";
+    const legacyBills = legacyImport ? arrayOfRecords(body.bills) : [];
+    const legacyPayments = legacyImport ? arrayOfRecords(body.payments) : [];
     const projectName = text(body.Project_Name || body.projectName, 240);
     const clientName = text(body.Client_Name || body.clientName, 240) || projectName;
     if (!projectName) return NextResponse.json({ success: false, error: "Project name is required." }, { status: 400 });
@@ -99,8 +127,7 @@ export async function POST(request: NextRequest) {
           locationTag = canonicalLocationTag(resolved.latitude, resolved.longitude);
         }
       } catch {
-        // Do not block project creation when Google temporarily refuses to expand
-        // a short link. The saved tag can be resolved again from the project editor.
+        // Do not block project creation when Google temporarily refuses to expand a short link.
       }
     }
 
@@ -116,8 +143,8 @@ export async function POST(request: NextRequest) {
       project_area_text: text(body.Project_Area || body.projectArea, 120) || null,
       number_of_stories_text: text(body.Number_of_Stories || body.numberOfStories, 80) || null,
       start_date: cleanDate(body.Start_Date || body.startDate),
-      design_stage_status: text(body.Design_Stage_Status || body.designStageStatus, 40) || "In Progress",
-      approval_stage_status: text(body.Approval_Stage_Status || body.approvalStageStatus, 40) || "Pending",
+      design_stage_status: text(body.Design_Stage_Status || body.designStageStatus, 40) || (legacyImport ? "Completed" : "In Progress"),
+      approval_stage_status: text(body.Approval_Stage_Status || body.approvalStageStatus, 40) || (legacyImport ? "Completed" : "Pending"),
       supervision_stage_status: text(body.Supervision_Stage_Status || body.supervisionStageStatus, 40) || "Completed",
       site_latitude: siteLatitude,
       site_longitude: siteLongitude,
@@ -129,6 +156,29 @@ export async function POST(request: NextRequest) {
     };
     const floors = integerOrNull(body.Number_of_Stories || body.numberOfStories);
     if (floors !== null) baseRow.floors = floors;
+    const createdBy = actorOf(user as Record<string, unknown>);
+
+    async function saveWithCode(code: string) {
+      if (legacyImport) {
+        const result = await createLegacyProjectFull({ ...baseRow, project_code: code }, legacyBills, legacyPayments, createdBy);
+        return NextResponse.json({
+          success: true,
+          data: {
+            Project_ID: code,
+            idMode: mode,
+            legacyImport: true,
+            billCount: Number(result.bill_count || 0),
+            paymentCount: Number(result.payment_count || 0),
+            verifiedPaymentCount: Number(result.verified_payment_count || 0),
+            mismatchPaymentCount: Number(result.mismatch_payment_count || 0),
+            unlinkedPaymentCount: Number(result.unlinked_payment_count || 0),
+            project: result,
+          },
+        }, { status: 201, headers: { "Cache-Control": "no-store, max-age=0" } });
+      }
+      const saved = await insertRows("projects", { ...baseRow, project_code: code });
+      return NextResponse.json({ success: true, data: { Project_ID: code, project: saved[0] || null, idMode: mode, legacyImport: false } }, { status: 201, headers: { "Cache-Control": "no-store, max-age=0" } });
+    }
 
     if (mode === "manual") {
       const code = normalizeProjectCode(body.Project_ID || body.projectId || body.manualId);
@@ -136,10 +186,9 @@ export async function POST(request: NextRequest) {
       const exists = await selectRows("projects", { filters: { project_code: code }, select: "id,project_code", limit: 1 });
       if (exists.length) return NextResponse.json({ success: false, error: `${code} already exists. Choose a genuinely unused project ID.` }, { status: 409 });
       try {
-        const saved = await insertRows("projects", { ...baseRow, project_code: code });
-        return NextResponse.json({ success: true, data: { Project_ID: code, project: saved[0] || null, idMode: mode } }, { status: 201, headers: { "Cache-Control": "no-store, max-age=0" } });
+        return await saveWithCode(code);
       } catch (error) {
-        if (isUniqueViolation(error)) return NextResponse.json({ success: false, error: `${code} was just taken by another project. Choose another ID.` }, { status: 409 });
+        if (isUniqueViolation(error)) return NextResponse.json({ success: false, error: `${code} already exists or one of the selected ledger entries is already linked. Refresh and review the import.` }, { status: 409 });
         throw error;
       }
     }
@@ -147,8 +196,7 @@ export async function POST(request: NextRequest) {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       const code = await nextAutomaticCode();
       try {
-        const saved = await insertRows("projects", { ...baseRow, project_code: code });
-        return NextResponse.json({ success: true, data: { Project_ID: code, project: saved[0] || null, idMode: mode } }, { status: 201, headers: { "Cache-Control": "no-store, max-age=0" } });
+        return await saveWithCode(code);
       } catch (error) {
         if (isUniqueViolation(error)) continue;
         throw error;
@@ -157,6 +205,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: false, error: "Could not reserve a unique automatic project ID. Please retry." }, { status: 409 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not create the project.";
-    return NextResponse.json({ success: false, error: message }, { status: 502, headers: { "Cache-Control": "no-store" } });
+    const status = /required|invalid|amount must|discount must|not found|not an income|already linked/i.test(message) ? 400 : 502;
+    return NextResponse.json({ success: false, error: message }, { status, headers: { "Cache-Control": "no-store" } });
   }
 }
