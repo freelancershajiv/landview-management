@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { hasCapability } from "@/lib/permissions";
 import { recordAuditEvent } from "@/lib/audit-log";
-import { normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
+import { insertRows, normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
 import {
   PROJECT_LIFECYCLE_PHASES,
   isProjectLifecyclePhase,
@@ -67,25 +67,44 @@ function proposalView(row: Row) {
 }
 
 function projectView(row: Row) {
+  const lifecyclePhase = isProjectLifecyclePhase(row.lifecycle_phase) ? row.lifecycle_phase : "Design Stage";
   return {
     projectId: row.project_code,
     projectName: row.project_name || "",
     clientName: row.client_name_snapshot || "",
-    lifecyclePhase: row.lifecycle_phase || "Design Stage",
+    lifecyclePhase,
+    nextPhase: lifecyclePhase === "Completed" ? "" : nextProjectLifecyclePhase(lifecyclePhase),
     designStatus: row.design_stage_status || "Pending",
     approvalStatus: row.approval_stage_status || "Pending",
     supervisionStatus: row.supervision_stage_status || "Completed",
     sourceProposalId: row.reclassified_proposal_code || "",
+    sourceLeadCode: row.source_lead_code || "",
     updatedAt: row.updated_at || row.created_at || "",
+  };
+}
+
+function transitionView(row: Row) {
+  return {
+    id: row.id,
+    projectId: row.project_code || "",
+    fromPhase: row.from_phase || "",
+    toPhase: row.to_phase || "",
+    type: row.transition_type || "",
+    reason: row.reason || "",
+    changedBy: row.changed_by || "",
+    changedByRole: row.changed_by_role || "",
+    source: row.source || "",
+    createdAt: row.created_at || "",
   };
 }
 
 export async function GET(request: NextRequest) {
   try {
-    await managementUser(request, false);
-    const [proposalRows, projectRows] = await Promise.all([
+    const user = await managementUser(request, false);
+    const [proposalRows, projectRows, transitionRows] = await Promise.all([
       selectRows("proposals", { order: "updated_at:desc", limit: 5000 }),
       selectRows("projects", { order: "updated_at:desc", limit: 5000 }),
+      selectRows("project_lifecycle_transitions", { order: "created_at:desc", limit: 250 }),
     ]);
     const proposals = proposalRows.map(proposalView);
     const projects = projectRows.map(projectView);
@@ -94,12 +113,16 @@ export async function GET(request: NextRequest) {
       const phase = text((item as any).lifecyclePhase) || "Unknown";
       counts[phase] = (counts[phase] || 0) + 1;
     }
+    const role = roleOf(user);
     return json({
       success: true,
       data: {
+        role,
+        canCorrect: role === "admin",
         counts,
         proposals,
         projects,
+        transitions: transitionRows.map(transitionView),
         projectPhases: PROJECT_LIFECYCLE_PHASES,
       },
     });
@@ -127,24 +150,72 @@ export async function POST(request: NextRequest) {
     const rows = await selectRows("projects", { filters: { project_code: projectId }, limit: 1 });
     if (!rows.length) throw new Error(`Project ${projectId} was not found.`);
     const before = rows[0];
+    const currentPhase: ProjectLifecyclePhase = isProjectLifecyclePhase(before.lifecycle_phase)
+      ? before.lifecycle_phase
+      : "Design Stage";
+    const role = roleOf(user);
 
-    const requested = action === "advanceproject"
-      ? nextProjectLifecyclePhase(before.lifecycle_phase)
-      : text(input.phase, 120);
-    if (!isProjectLifecyclePhase(requested)) throw new Error("Choose a valid project lifecycle phase.");
+    let phase: ProjectLifecyclePhase;
+    let transitionType: "advance" | "correction" = "advance";
+    let reason = "";
 
-    const phase = requested as ProjectLifecyclePhase;
+    if (action === "advanceproject") {
+      if (currentPhase === "Completed") throw new Error(`${projectId} is already completed.`);
+      phase = nextProjectLifecyclePhase(currentPhase);
+    } else {
+      if (role !== "admin") throw new Error("Admin permission is required for lifecycle corrections.");
+      const requested = text(input.phase, 120);
+      if (!isProjectLifecyclePhase(requested)) throw new Error("Choose a valid project lifecycle phase.");
+      phase = requested;
+      reason = text(input.reason, 800);
+      if (reason.length < 5) throw new Error("Enter a correction reason so the lifecycle audit trail remains clear.");
+      transitionType = "correction";
+    }
+
+    if (phase === currentPhase) throw new Error(`${projectId} is already in ${phase}.`);
+
     const now = new Date().toISOString();
     const actor = userIdOf(user) || text(user.employeeId || user.Employee_ID || user.username || user.Username, 200);
-    const changes = {
+    const changes: Row = {
       ...projectStageUpdates(phase),
       lifecycle_phase: phase,
       lifecycle_changed_at: now,
       lifecycle_changed_by: actor || null,
       updated_at: now,
     };
+    if (phase === "Supervision / Construction Stage" || phase === "Completed") {
+      changes.project_management_enabled = true;
+    }
     const updated = await updateRows("projects", { project_code: projectId }, changes);
     const after = updated[0] || { ...before, ...changes };
+
+    const recent = await selectRows("project_lifecycle_transitions", {
+      filters: { project_id: before.id }, order: "created_at:desc", limit: 5,
+    });
+    const triggerRow = recent.find((row) => {
+      if (row.from_phase !== currentPhase || row.to_phase !== phase || row.source !== "project-lifecycle-trigger") return false;
+      const created = Date.parse(String(row.created_at || ""));
+      return Number.isFinite(created) && Math.abs(Date.now() - created) < 60_000;
+    });
+    const transitionPatch = {
+      transition_type: transitionType,
+      reason: reason || null,
+      changed_by: actor || null,
+      changed_by_role: role,
+      source: "lifecycle-center",
+    };
+    if (triggerRow?.id) {
+      await updateRows("project_lifecycle_transitions", { id: triggerRow.id }, transitionPatch);
+    } else {
+      await insertRows("project_lifecycle_transitions", {
+        project_id: before.id,
+        project_code: projectId,
+        from_phase: currentPhase,
+        to_phase: phase,
+        ...transitionPatch,
+        created_at: now,
+      });
+    }
 
     await recordAuditEvent({
       user,
@@ -153,7 +224,7 @@ export async function POST(request: NextRequest) {
       entityType: "project",
       entityId: projectId,
       before: {
-        lifecycle_phase: before.lifecycle_phase,
+        lifecycle_phase: currentPhase,
         design_stage_status: before.design_stage_status,
         approval_stage_status: before.approval_stage_status,
         supervision_stage_status: before.supervision_stage_status,
@@ -164,7 +235,7 @@ export async function POST(request: NextRequest) {
         approval_stage_status: after.approval_stage_status,
         supervision_stage_status: after.supervision_stage_status,
       },
-      details: { requestedPhase: phase },
+      details: { transitionType, reason: reason || null, requestedPhase: phase },
       source: "lifecycle-center",
     });
 
@@ -183,7 +254,7 @@ export async function POST(request: NextRequest) {
         source: "lifecycle-center",
       });
     }
-    const status = /session/i.test(message) ? 401 : /permission|management|admin/i.test(message) ? 403 : /not found/i.test(message) ? 404 : 400;
+    const status = /session/i.test(message) ? 401 : /permission|management|admin/i.test(message) ? 403 : /not found/i.test(message) ? 404 : /already completed/i.test(message) ? 409 : 400;
     return json({ success: false, error: message }, status);
   }
 }

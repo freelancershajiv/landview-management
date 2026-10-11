@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireLocalSession } from "@/lib/local-session";
-import { roleOf, selectRows, updateRows } from "@/lib/supabase-data";
+import { requireLocalSession, userIdOf } from "@/lib/local-session";
+import { insertRows, roleOf, selectRows, updateRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,8 +56,18 @@ export async function POST(request: NextRequest) {
     const rows = await selectRows("website_leads", { filters: { id }, limit: 1 });
     const lead = rows[0];
     if (!lead) return NextResponse.json({ success: false, error: "Website lead not found." }, { status: 404 });
+    const now = new Date().toISOString();
+    const actor = userIdOf(auth.user) || text((auth.user as any)?.employeeId || (auth.user as any)?.Employee_ID || (auth.user as any)?.username || "management", 200);
+
     if (lead.converted_proposal_code) {
-      return NextResponse.json({ success: true, data: { proposalId: lead.converted_proposal_code, existing: true } });
+      const proposalId = text(lead.converted_proposal_code, 80).toUpperCase();
+      await updateRows("proposals", { proposal_code: proposalId }, {
+        source_lead_id: lead.id,
+        source_lead_code: lead.lead_code || null,
+        entry_source: "Website Lead",
+        updated_at: now,
+      });
+      return NextResponse.json({ success: true, data: { proposalId, existing: true } });
     }
 
     const items = proposalItems(lead.services);
@@ -107,12 +117,38 @@ export async function POST(request: NextRequest) {
     const proposalId = text(json?.data?.proposal?.Proposal_ID || json?.data?.Proposal_ID || json?.data?.proposal_id, 80).toUpperCase();
     if (!proposalId) throw new Error("Proposal was created but its ID was not returned.");
 
+    await updateRows("proposals", { proposal_code: proposalId }, {
+      source_lead_id: lead.id,
+      source_lead_code: lead.lead_code || null,
+      entry_source: "Website Lead",
+      approval_status: "Approved",
+      lifecycle_phase: "Proposal Draft",
+      lifecycle_changed_at: now,
+      lifecycle_changed_by: actor || null,
+      updated_at: now,
+    });
+
+    await insertRows("proposal_activity", {
+      activity_code: `PA-${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`,
+      proposal_code: proposalId,
+      prospect_code: null,
+      action: "Website Lead Converted to Proposal",
+      from_status: lead.status || "New",
+      to_status: "Draft",
+      performed_by: actor || "LAND VIEW",
+      performed_at: now,
+      details: lead.lead_code ? `Created from website enquiry ${lead.lead_code}.` : "Created from website enquiry.",
+      user_key: actor || null,
+      role: roleOf(auth.user),
+      reference: lead.lead_code || String(lead.id),
+    });
+
     const nextStatus = ["New", "Contacted"].includes(text(lead.status, 40)) ? "Qualified" : text(lead.status, 40) || "Qualified";
     await updateRows("website_leads", { id }, {
       converted_proposal_code: proposalId,
       status: nextStatus,
-      contacted_at: lead.contacted_at || new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      contacted_at: lead.contacted_at || now,
+      updated_at: now,
       next_action: "Review pricing and issue the draft proposal.",
     });
 

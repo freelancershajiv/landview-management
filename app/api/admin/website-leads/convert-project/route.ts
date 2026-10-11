@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireLocalSession } from "@/lib/local-session";
-import { roleOf, selectRows, updateRows } from "@/lib/supabase-data";
+import { requireLocalSession, userIdOf } from "@/lib/local-session";
+import { insertRows, roleOf, selectRows, updateRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,8 +58,17 @@ export async function POST(request: NextRequest) {
     const lead = rows[0];
     if (!lead) return NextResponse.json({ success: false, error: "Website lead not found." }, { status: 404 });
 
+    const actor = userIdOf(auth.user) || text((auth.user as any)?.employeeId || (auth.user as any)?.Employee_ID || (auth.user as any)?.username || "management", 200);
+    const role = roleOf(auth.user);
+
     if (lead.converted_project_code) {
-      return NextResponse.json({ success: true, data: { projectId: text(lead.converted_project_code, 40), existing: true } });
+      const projectId = text(lead.converted_project_code, 40).toUpperCase();
+      await updateRows("projects", { project_code: projectId }, {
+        source_lead_id: lead.id,
+        source_lead_code: lead.lead_code || null,
+        updated_at: new Date().toISOString(),
+      });
+      return NextResponse.json({ success: true, data: { projectId, existing: true } });
     }
 
     const leadStatus = text(lead.status, 40) || "New";
@@ -77,12 +86,19 @@ export async function POST(request: NextRequest) {
       proposal = proposalRows[0];
       if (proposal?.converted_project_code) {
         const projectId = text(proposal.converted_project_code, 40).toUpperCase();
+        const now = new Date().toISOString();
+        await updateRows("projects", { project_code: projectId }, {
+          source_lead_id: lead.id,
+          source_lead_code: lead.lead_code || null,
+          reclassified_proposal_code: proposalCode,
+          updated_at: now,
+        });
         await updateRows("website_leads", { id }, {
           converted_project_code: projectId,
           status: "Converted",
           follow_up_at: null,
           next_action: `Project ${projectId} already exists. Continue project setup and delivery workflow.`,
-          updated_at: new Date().toISOString(),
+          updated_at: now,
         });
         return NextResponse.json({ success: true, data: { projectId, existing: true, proposalId: proposalCode } });
       }
@@ -114,14 +130,20 @@ export async function POST(request: NextRequest) {
         Project_Name: generatedProjectName(lead, proposal),
         Client_Name: clientName,
         Phone_Number: text(proposal?.phone || lead.phone, 80),
+        Referred_By: text(proposal?.referred_by, 240),
+        Ref_Contact: text(proposal?.ref_contact, 120),
         Project_Type: projectType,
         Location: projectLocation,
+        Location_Tag: text(proposal?.location_tag, 1000),
         Project_Area: text(proposal?.plot_area, 120),
         Number_of_Stories: floors,
-        Start_Date: dhakaDate(),
+        Start_Date: text(proposal?.start_date, 20) || dhakaDate(),
         Design_Stage_Status: "In Progress",
         Approval_Stage_Status: "Pending",
         Supervision_Stage_Status: "Completed",
+        Site_Latitude: proposal?.site_latitude,
+        Site_Longitude: proposal?.site_longitude,
+        Site_Geofence_Radius_M: proposal?.site_geofence_radius_m || 150,
         Notes: notes,
       }),
     });
@@ -135,20 +157,73 @@ export async function POST(request: NextRequest) {
     if (!projectId) throw new Error("Project was created but its ID was not returned.");
 
     const now = new Date().toISOString();
+    await updateRows("projects", { project_code: projectId }, {
+      source_lead_id: lead.id,
+      source_lead_code: lead.lead_code || null,
+      reclassified_proposal_code: proposalCode || null,
+      lifecycle_phase: "Design Stage",
+      lifecycle_changed_at: now,
+      lifecycle_changed_by: actor || null,
+      client_email_snapshot: text(proposal?.email || lead.email, 240) || null,
+      client_address_snapshot: text(proposal?.address || lead.project_location, 1000) || null,
+      referred_by: text(proposal?.referred_by, 240) || null,
+      ref_contact: text(proposal?.ref_contact, 120) || null,
+      location_tag: text(proposal?.location_tag, 1000) || null,
+      site_visit_date: proposal?.site_visit_date || null,
+      site_latitude: proposal?.site_latitude ?? null,
+      site_longitude: proposal?.site_longitude ?? null,
+      site_location_accuracy_m: proposal?.site_location_accuracy_m ?? null,
+      site_location_captured_at: proposal?.site_location_captured_at || null,
+      site_geofence_radius_m: proposal?.site_geofence_radius_m || 150,
+      division: proposal?.division || null,
+      district: proposal?.district || null,
+      upazila_thana: proposal?.upazila_thana || null,
+      local_body_type: proposal?.local_body_type || null,
+      local_body_name: proposal?.local_body_name || null,
+      ward_no: proposal?.ward_no || null,
+      village_area: proposal?.village_area || null,
+      road_holding: proposal?.road_holding || null,
+      mouza: proposal?.mouza || null,
+      jl_no: proposal?.jl_no || null,
+      dag_no: proposal?.dag_no || null,
+      khatian_no: proposal?.khatian_no || null,
+      site_notes: proposal?.site_notes || null,
+      updated_at: now,
+    });
+
     await updateRows("website_leads", { id }, {
       converted_project_code: projectId,
       status: "Converted",
       contacted_at: lead.contacted_at || now,
       follow_up_at: null,
-      next_action: `Project ${projectId} created. Complete project setup, structured address and service workflow.`,
+      next_action: `Project ${projectId} created. Continue through the Project Lifecycle Center.`,
       updated_at: now,
     });
 
     if (proposalCode && proposal) {
       await updateRows("proposals", { proposal_code: proposalCode }, {
+        source_lead_id: lead.id,
+        source_lead_code: lead.lead_code || null,
         converted_project_code: projectId,
         status: "Converted",
+        lifecycle_phase: "Project Registered",
+        lifecycle_changed_at: now,
+        lifecycle_changed_by: actor || null,
         updated_at: now,
+      });
+      await insertRows("proposal_activity", {
+        activity_code: `PA-${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`,
+        proposal_code: proposalCode,
+        prospect_code: proposal.prospect_code || null,
+        action: "Project Registered",
+        from_status: proposal.status || "Draft",
+        to_status: "Converted",
+        performed_by: actor || "LAND VIEW",
+        performed_at: now,
+        details: `Registered as ${projectId}; lifecycle moved to Design Stage.`,
+        user_key: actor || null,
+        role,
+        reference: projectId,
       });
     }
 
