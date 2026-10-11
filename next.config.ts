@@ -34,7 +34,8 @@ const nextConfig: NextConfig = {
   async rewrites() {
     return {
       beforeFiles: [
-        { source: "/api/project-management", destination: "/api/project-management-ledger" },
+        { source: "/api/project-management", destination: "/api/project-management-ledger-v2" },
+        { source: "/api/project-control-center", destination: "/api/project-control-center-v2" },
       ],
       afterFiles: [
         { source: "/api/landview", destination: "/api/landview-hybrid" },
