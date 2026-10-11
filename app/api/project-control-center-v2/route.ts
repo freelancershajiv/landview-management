@@ -14,6 +14,7 @@ async function jsonResponse(response: Response, transform=false){
     const selected=payload.data.selectedProject;
     const workspace=await supplierWorkspaceForProject(String(selected.id),String(selected.projectCode||""));
     const summary=workspace.summary||{};
+    const legacySupplier=payload.data.supplier||{};
     const attention:Array<Row>=Array.isArray(payload.data.attention)?payload.data.attention.filter((item:Row)=>!/supplier advance still held with sattapur/i.test(String(item?.title||""))):[];
     if(supplierNum(summary.supplierAdvance)>0)attention.push({level:"info",title:"Supplier advances still held",amount:supplierNum(summary.supplierAdvance),href:`/projectmanagement/suppliers?projectId=${encodeURIComponent(String(selected.projectCode||""))}`});
     if(supplierNum(summary.supplierPayable)>0)attention.push({level:"warning",title:"Supplier deliveries currently payable",amount:supplierNum(summary.supplierPayable),href:`/projectmanagement/suppliers?projectId=${encodeURIComponent(String(selected.projectCode||""))}`});
@@ -22,7 +23,7 @@ async function jsonResponse(response: Response, transform=false){
       ...payload.data,
       totals:{...(payload.data.totals||{}),expense:supplierNum(summary.cashExpense),cashBalance:supplierNum(summary.cashBalance),supplierAdvance:supplierNum(summary.supplierAdvance),supplierPayable:supplierNum(summary.supplierPayable)},
       counts:{...(payload.data.counts||{}),supplierAccounts:supplierNum(summary.accountCount)},
-      supplier:{accountCount:supplierNum(summary.accountCount),totalPayments:supplierNum(summary.totalPayments),totalDeliveredValue:supplierNum(summary.totalDeliveredValue),supplierAdvance:supplierNum(summary.supplierAdvance),supplierPayable:supplierNum(summary.supplierPayable)},
+      supplier:{...legacySupplier,accountCount:supplierNum(summary.accountCount),totalPayments:supplierNum(summary.totalPayments),totalDeliveredValue:supplierNum(summary.totalDeliveredValue),supplierAdvance:supplierNum(summary.supplierAdvance),supplierPayable:supplierNum(summary.supplierPayable)},
       attention,
     };
   }
