@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 type DataRow = Record<string, unknown>;
 type RecordType = "bill" | "payment" | "transaction";
 type LinkStatus = "linked" | "unlinked" | "needs_review" | "general";
+type LedgerVerificationStatus = "not_applicable" | "verified" | "posted" | "unlinked" | "mismatch" | "missing" | "duplicate";
 
 type ProjectOption = {
   id: string;
@@ -16,6 +17,14 @@ type ProjectOption = {
   projectName: string;
   clientName: string;
   phoneNumber: string;
+};
+
+type ReconciliationContext = {
+  projectById: Map<string, ProjectOption>;
+  transactionById: Map<string, DataRow>;
+  transactionByCode: Map<string, DataRow>;
+  transactionByPaymentSource: Map<string, DataRow>;
+  paymentLinksByLedgerKey: Map<string, Set<string>>;
 };
 
 const TABLES: Record<RecordType, { table: string; codeField: string }> = {
@@ -67,12 +76,7 @@ function reconciliationStatus(
     return "linked";
   }
 
-  // A transaction retaining a project snapshot but missing the real FK is a
-  // concrete integrity mismatch and therefore requires review.
   if (snapshot) return "needs_review";
-
-  // Bills and client payments belong to a project by definition. A standalone
-  // ledger transaction, however, is allowed to be intentionally project-free.
   if (recordType === "bill" || recordType === "payment") return "unlinked";
   return "general";
 }
@@ -98,23 +102,146 @@ function recordDetails(recordType: RecordType, row: DataRow) {
   return text(row.description || row.category || row.transaction_type || "Ledger transaction", 600);
 }
 
+function isCredit(row: DataRow) {
+  return text(row.transaction_type, 60).toLowerCase() === "income" || text(row.direction, 60).toUpperCase() === "CREDIT";
+}
+
+function transactionAmount(row: DataRow) {
+  const amount = numeric(row.amount);
+  if (amount) return Math.abs(amount);
+  return Math.abs(numeric(row.credit || row.debit));
+}
+
+function addPaymentLedgerLink(map: Map<string, Set<string>>, key: string, paymentCode: string) {
+  if (!key || !paymentCode) return;
+  const current = map.get(key) || new Set<string>();
+  current.add(paymentCode);
+  map.set(key, current);
+}
+
+function linkedPaymentCount(transaction: DataRow, map: Map<string, Set<string>>) {
+  const payments = new Set<string>();
+  const id = text(transaction.id, 140);
+  const code = text(transaction.transaction_code, 220);
+  for (const paymentCode of map.get(`id:${id}`) || []) payments.add(paymentCode);
+  for (const paymentCode of map.get(`code:${code}`) || []) payments.add(paymentCode);
+  return payments.size;
+}
+
+function paymentLedgerHealth(
+  row: DataRow,
+  project: ProjectOption | undefined,
+  context: ReconciliationContext,
+): { status: LedgerVerificationStatus; notes: string; transactionCode: string } {
+  const paymentCode = text(row.payment_code, 180);
+  const linkedId = text(row.ledger_transaction_id, 140);
+  const linkedCode = text(row.ledger_transaction_code, 220);
+  const hasExplicitLink = Boolean(linkedId || linkedCode);
+  const autoTransaction = context.transactionByPaymentSource.get(paymentCode) || context.transactionByCode.get(`TXN-PAY-${paymentCode}`);
+  const transaction = (linkedId ? context.transactionById.get(linkedId) : undefined)
+    || (linkedCode ? context.transactionByCode.get(linkedCode) : undefined)
+    || (row.affects_business_balance !== false ? autoTransaction : undefined);
+
+  if (hasExplicitLink && !transaction) {
+    return {
+      status: "missing",
+      notes: "The payment stores an Accounts Ledger link, but that ledger transaction no longer exists.",
+      transactionCode: linkedCode,
+    };
+  }
+
+  if (!hasExplicitLink && row.affects_business_balance === false) {
+    return {
+      status: "unlinked",
+      notes: "Historical payment is not linked to an Accounts Ledger income entry.",
+      transactionCode: "",
+    };
+  }
+
+  if (!transaction) {
+    return {
+      status: "missing",
+      notes: "This operational payment should have an automatic Accounts Ledger transaction, but none was found.",
+      transactionCode: linkedCode,
+    };
+  }
+
+  const transactionCode = text(transaction.transaction_code, 220) || linkedCode;
+  if (linkedPaymentCount(transaction, context.paymentLinksByLedgerKey) > 1) {
+    return {
+      status: "duplicate",
+      notes: "More than one payment points to the same Accounts Ledger transaction. Review before changing balances.",
+      transactionCode,
+    };
+  }
+
+  if (!isCredit(transaction)) {
+    return {
+      status: "mismatch",
+      notes: "The linked Accounts Ledger transaction is not an income / credit entry.",
+      transactionCode,
+    };
+  }
+
+  const amountMatches = Math.abs(transactionAmount(transaction) - recordAmount("payment", row)) < 0.005;
+  const paymentDate = text(row.payment_date, 20);
+  const transactionDate = text(transaction.transaction_date, 20);
+  const dateMatches = !paymentDate || !transactionDate || paymentDate === transactionDate;
+  const expectedProject = project?.projectCode || "";
+  const transactionProject = normalizeProjectCode(transaction.project_code_snapshot || "");
+  const projectMatches = !transactionProject || !expectedProject || transactionProject === expectedProject;
+
+  if (!amountMatches || !dateMatches || !projectMatches) {
+    const differences = [
+      !amountMatches ? "amount" : "",
+      !dateMatches ? "date" : "",
+      !projectMatches ? "project" : "",
+    ].filter(Boolean).join(", ");
+    return {
+      status: "mismatch",
+      notes: `Payment and Accounts Ledger do not match on ${differences}.`,
+      transactionCode,
+    };
+  }
+
+  const generatedForPayment = Boolean(autoTransaction && text(autoTransaction.id, 140) === text(transaction.id, 140));
+  if (row.affects_business_balance !== false && generatedForPayment) {
+    return {
+      status: "posted",
+      notes: "Payment is represented by its automatic Accounts Ledger income transaction and the amount, date and project agree.",
+      transactionCode,
+    };
+  }
+
+  return {
+    status: "verified",
+    notes: transactionProject
+      ? "Payment amount, date and project match the linked Accounts Ledger income entry."
+      : "Payment amount and date match the linked Accounts Ledger entry; the older ledger entry has no project snapshot.",
+    transactionCode,
+  };
+}
+
 function buildRows(
   recordType: RecordType,
   rows: DataRow[],
-  projectById: Map<string, ProjectOption>,
+  context: ReconciliationContext,
 ) {
   const codeField = TABLES[recordType].codeField;
   return rows
     .map((row) => {
       const recordId = text(row[codeField], 180);
       if (!recordId) return null;
-      const project = projectById.get(text(row.project_id, 140));
+      const project = context.projectById.get(text(row.project_id, 140));
       const snapshot = recordType === "transaction" ? normalizeProjectCode(row.project_code_snapshot || "") : "";
       const status = reconciliationStatus(recordType, row, project);
       const sourceId = recordType === "transaction" ? text(row.source_id || row.reference_no, 240) : text(row.reference_no, 240);
       const amount = recordAmount(recordType, row);
       const details = recordDetails(recordType, row);
       const projectCode = project?.projectCode || snapshot;
+      const ledgerHealth = recordType === "payment"
+        ? paymentLedgerHealth(row, project, context)
+        : { status: "not_applicable" as LedgerVerificationStatus, notes: "", transactionCode: "" };
       return {
         key: `${recordType}:${recordId}`,
         recordType,
@@ -130,6 +257,9 @@ function buildRows(
         clientName: project?.clientName || "",
         phoneNumber: project?.phoneNumber || "",
         linkStatus: status,
+        ledgerVerificationStatus: ledgerHealth.status,
+        ledgerVerificationNotes: ledgerHealth.notes,
+        ledgerTransactionCode: ledgerHealth.transactionCode,
         search: [
           recordId,
           sourceId,
@@ -144,6 +274,9 @@ function buildRows(
           row.income_category,
           row.transaction_type,
           row.reference_no,
+          ledgerHealth.status,
+          ledgerHealth.transactionCode,
+          ledgerHealth.notes,
         ].map((value) => text(value)).filter(Boolean).join(" ").toLowerCase(),
       };
     })
@@ -171,10 +304,41 @@ export async function GET(request: NextRequest) {
       .map(readableProject)
       .filter((project) => project.id && project.projectCode);
     const projectById = new Map(projects.map((project) => [project.id, project]));
+    const transactionById = new Map<string, DataRow>();
+    const transactionByCode = new Map<string, DataRow>();
+    const transactionByPaymentSource = new Map<string, DataRow>();
+    for (const transaction of transactions) {
+      const id = text(transaction.id, 140);
+      const code = text(transaction.transaction_code, 220);
+      if (id) transactionById.set(id, transaction);
+      if (code) transactionByCode.set(code, transaction);
+      if (text(transaction.source_type, 80).toUpperCase() === "PAYMENT") {
+        const sourceId = text(transaction.source_id, 180);
+        if (sourceId) transactionByPaymentSource.set(sourceId, transaction);
+      }
+    }
+
+    const paymentLinksByLedgerKey = new Map<string, Set<string>>();
+    for (const payment of payments) {
+      const paymentCode = text(payment.payment_code, 180);
+      const ledgerId = text(payment.ledger_transaction_id, 140);
+      const ledgerCode = text(payment.ledger_transaction_code, 220);
+      if (ledgerId) addPaymentLedgerLink(paymentLinksByLedgerKey, `id:${ledgerId}`, paymentCode);
+      if (ledgerCode) addPaymentLedgerLink(paymentLinksByLedgerKey, `code:${ledgerCode}`, paymentCode);
+    }
+
+    const context: ReconciliationContext = {
+      projectById,
+      transactionById,
+      transactionByCode,
+      transactionByPaymentSource,
+      paymentLinksByLedgerKey,
+    };
+
     const rows = [
-      ...buildRows("bill", bills, projectById),
-      ...buildRows("payment", payments, projectById),
-      ...buildRows("transaction", transactions, projectById),
+      ...buildRows("bill", bills, context),
+      ...buildRows("payment", payments, context),
+      ...buildRows("transaction", transactions, context),
     ].sort((a, b) => String(b.date).localeCompare(String(a.date)) || a.recordId.localeCompare(b.recordId));
 
     return NextResponse.json(
