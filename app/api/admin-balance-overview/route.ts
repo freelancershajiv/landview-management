@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
+import { MAIN_LEDGER_COUNT_START, MAIN_LEDGER_END, MAIN_LEDGER_LIVE_START } from "@/lib/ledger-policy";
 import { selectRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -7,8 +8,6 @@ export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
 
-const LEDGER_LIVE_START = "2026-09-01";
-const LEDGER_END = "2026-12-31";
 const MUNICIPALITY_SCOPE = "municipality_file_pass";
 
 function text(value: unknown) {
@@ -60,12 +59,16 @@ function includedInMainLedger(row: Row) {
   const { debit, credit, transactionType } = transactionAmounts(row);
   if (!id || !date || (debit <= 0 && credit <= 0)) return false;
 
+  // 26 Dec 2024 is the first accounting date. Older entries remain stored and
+  // visible in the reference ledger, but can never affect the main balance.
+  if (date < MAIN_LEDGER_COUNT_START) return false;
+
   const historical = id.startsWith("TXN-LEDGER-2025-") || id.startsWith("TXN-HIST-2026-");
   if (historical) return true;
 
   if (normalizeStatus(row.status || "Posted") !== "posted") return false;
   if (["transfer", "personal income", "personal expense"].includes(transactionType)) return false;
-  return date >= LEDGER_LIVE_START && date <= LEDGER_END;
+  return date >= MAIN_LEDGER_LIVE_START && date <= MAIN_LEDGER_END;
 }
 
 export async function GET(request: NextRequest) {
