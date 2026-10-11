@@ -127,20 +127,10 @@ function sattapurSnapshot(rows: Row[]) {
   };
 }
 function accountingRows(rows: Row[]) {
-  // Sattapur delivery rows are material-delivery records, not new cash expenses.
-  // Sattapur deposits are cash expenses even when the historical row was entered as Debit.
-  return rows.filter((row:any) => !isSattapurDelivery(row)).map((row:any) => {
-    if (isSattapurDeposit(row)) {
-      return {
-        ...row,
-        debit:0,
-        credit:num(row.debit),
-        category:"Sattapur Bricks Deposit",
-        memo:[row.memo,"SATTPUR_BRICKS_DEPOSIT"].filter(Boolean).join("\n")
-      };
-    }
-    return row;
-  });
+  // Sattapur deposits remain exactly where they were recorded: Debit / Income.
+  // Brick deliveries are a separate material-delivery ledger and must not be
+  // converted into ordinary cash expenses.
+  return rows.filter((row:any) => !isSattapurDelivery(row));
 }
 function calculate(rows: Row[]) {
   let balance = 0;
@@ -349,8 +339,8 @@ async function workspace(user: Row, requested?: string) {
       received_from: clean(row.received_from,160),
     };
   });
-  // Total Deposit is the project's original funding/deposit figure and must
-  // remain unchanged when Sattapur deposits are reclassified as expenses.
+  // Total Deposit is always the original debit/income ledger, including
+  // Sattapur deposits. Sattapur delivery rows live in their own delivery ledger.
   const debit = rows.reduce((s,r) => s + num(r.debit), 0);
   const credit = entries.reduce((s,r) => s + num(r.credit), 0);
   const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Other Expenses", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
@@ -359,9 +349,10 @@ async function workspace(user: Row, requested?: string) {
   const summary = await projectSummaryFor(selected);
   const contractorBills = await contractorWorkspaceFor(selected, entries);
   const linkedSupplierAdvance = sattapurBricks.holdAmount;
-  // Sattapur deposits are already included in Total Expense, so the hold is
-  // shown separately and must not be deducted from cash a second time.
-  const engShajivBalance = debit - credit - summary.chequeOnHold;
+  // Sattapur deposits are project funding but are held by the supplier rather
+  // than Eng Shajiv. Keep them in Income while excluding the full amount from
+  // spendable cash. Deliveries reduce Supplier Advance, not Eng Shajiv cash.
+  const engShajivBalance = debit - credit - summary.chequeOnHold - sattapurBricks.depositAmount;
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
@@ -444,7 +435,7 @@ export async function POST(request: NextRequest) {
         debit:0,
         credit:value,
         category:"Bricks",
-        memo:[memo,"SATTPUR_BRICKS_DELIVERY"].filter(Boolean).join("\\n"),
+        memo:[memo,"SATTPUR_BRICKS_DELIVERY"].filter(Boolean).join("\n"),
         source:"sattapur_bricks_delivery",
         created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW"
       };
