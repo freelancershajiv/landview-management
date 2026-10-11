@@ -1,4 +1,4 @@
-import { normalizeProjectCode, selectRows } from "@/lib/supabase-data";
+import { normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
 
 type SiteVisitWhatsAppPayload = {
   visitId: string;
@@ -44,6 +44,36 @@ function addLine(lines: string[], label: string, value: unknown, max = 600) {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function recordSiteVisitWhatsAppResult(
+  payload: SiteVisitWhatsAppPayload,
+  result: SiteVisitWhatsAppResult,
+): Promise<SiteVisitWhatsAppResult> {
+  const visitId = text(payload.visitId, 120);
+  if (!visitId) return result;
+  try {
+    const rows = await selectRows("site_visits", { filters: { visit_code: visitId }, limit: 1 });
+    const row = rows[0];
+    if (!row) return result;
+    const now = new Date().toISOString();
+    await updateRows("site_visits", { visit_code: visitId }, {
+      whatsapp_publish_status: result.status,
+      whatsapp_publish_reason: text(result.reason, 1000) || null,
+      whatsapp_message_id: text(result.messageId, 300) || null,
+      whatsapp_media_count: Number.isFinite(Number(result.mediaCount)) ? Number(result.mediaCount) : 0,
+      whatsapp_last_attempt_at: now,
+      whatsapp_sent_at: result.status === "sent" ? now : (row.whatsapp_sent_at || null),
+      whatsapp_attempt_count: Math.max(0, Number(row.whatsapp_attempt_count || 0)) + 1,
+      updated_at: now,
+    });
+  } catch (error: any) {
+    console.warn("[site-visit-whatsapp] delivery result could not be stored", {
+      visitId,
+      message: text(error?.message || "Could not store WhatsApp delivery result.", 500),
+    });
+  }
+  return result;
 }
 
 function directMedia(payload: SiteVisitWhatsAppPayload) {
@@ -144,6 +174,7 @@ async function botStoreRequest(token: string, input: Record<string, unknown>) {
   }
   return json.data as any;
 }
+
 async function projectQueueRequest(token: string, input: Record<string, unknown>) {
   const url = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-project-queue";
   const response = await fetch(url, {
@@ -330,23 +361,23 @@ export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPaylo
   const token = String(process.env.WHATSAPP_BOT_API_TOKEN || "").trim();
   const groupInviteCode = String(process.env.WHATSAPP_SITE_VISIT_GROUP_INVITE_CODE || "").trim();
   if (!token) {
-    return { status: "skipped", reason: "LAND VIEW WhatsApp bot token is not configured." };
+    return recordSiteVisitWhatsAppResult(payload, { status: "skipped", reason: "LAND VIEW WhatsApp bot token is not configured." });
   }
 
   const clientUpdate = queueClientSiteVisitUpdate(token, payload);
   if (!groupInviteCode) {
     await clientUpdate;
-    return { status: "skipped", reason: "LAND VIEW Site Visit WhatsApp group is not configured." };
+    return recordSiteVisitWhatsAppResult(payload, { status: "skipped", reason: "LAND VIEW Site Visit WhatsApp group is not configured." });
   }
 
   try {
     const result = await sendFromEmployeeWhatsApp(token, groupInviteCode, payload);
     await clientUpdate;
-    return result;
+    return recordSiteVisitWhatsAppResult(payload, result);
   } catch (error: any) {
     await clientUpdate;
     const reason = text(error?.message || "Employee WhatsApp send request failed.", 500);
     console.error("[site-visit-whatsapp] employee send error", { message: reason });
-    return { status: "failed", reason };
+    return recordSiteVisitWhatsAppResult(payload, { status: "failed", reason });
   }
 }
