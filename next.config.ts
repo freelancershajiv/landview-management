@@ -32,10 +32,15 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
   async rewrites() {
-    return [
-      { source: "/api/landview", destination: "/api/landview-hybrid" },
-      { source: "/api/project-management", destination: "/api/project-management-ledger" },
-    ];
+    return {
+      beforeFiles: [
+        { source: "/api/project-management", destination: "/api/project-management-ledger" },
+      ],
+      afterFiles: [
+        { source: "/api/landview", destination: "/api/landview-hybrid" },
+      ],
+      fallback: [],
+    };
   },
   async redirects() {
     return [{ source: "/", has: [{ type: "host", value: "app.landview.com.bd" }], destination: "/login", permanent: false }];
