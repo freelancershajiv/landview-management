@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
-import { handleLandviewDataAction, normalizeProjectCode } from "@/lib/supabase-data";
+import { handleLandviewDataAction, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -12,8 +12,6 @@ const TABS = ["Summary","File List","Design Bill","Design Deposit","Design Books
 function text(v: unknown) { return String(v ?? "").trim(); }
 function num(v: unknown) { const n=Number(text(v).replace(/,/g,"").replace(/[^0-9.-]/g,"")); return Number.isFinite(n)?n:0; }
 function category(row: Row): Category {
-  // Prefer canonical billing buckets. Payment_For can be a free-text purpose
-  // such as "6th Floor R.C.C Bill" and must not override Income_Category.
   const source=text(
     row.Billing_Category || row.billing_category ||
     row.Income_Category || row.income_category ||
@@ -29,6 +27,14 @@ function category(row: Row): Category {
 function sheet(tab:string,headers:string[],rows:unknown[][],totals:Row={gross:0,discount:0,billed:0,paid:0,due:0,projects:1}) {
   return {tab,tabs:[...TABS],headers,rows:rows.map(r=>r.map(v=>String(v??""))),totals,url:"",updatedAt:new Date().toISOString()};
 }
+function verificationLabel(row: Row) {
+  const status = text(row.Ledger_Verification_Status || row.ledger_verification_status).toLowerCase();
+  const code = text(row.Ledger_Transaction_Code || row.ledger_transaction_code);
+  if (status === "verified") return code ? `Ledger Verified · ${code}` : "Ledger Verified";
+  if (status === "mismatch") return code ? `Ledger Mismatch · ${code}` : "Ledger Mismatch";
+  if (status === "unlinked") return "Ledger Unlinked";
+  return text(row.Approval_Status || row.approval_status || "Approved");
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -41,12 +47,34 @@ export async function GET(request: NextRequest) {
       const allowedIds=new Set(rawIds.split(/[;,\s]+/).map(normalizeProjectCode).filter(Boolean));
       if (!allowedIds.has(projectId)) return NextResponse.json({success:false,error:"Access denied for this project."},{status:403});
     }
-    const [project,billing]=await Promise.all([
+    const [project,billing,projectRows]=await Promise.all([
       handleLandviewDataAction("getProject",{projectId},user) as Promise<Row>,
       handleLandviewDataAction("getProjectBilling",{projectId},user) as Promise<Row>,
+      selectRows("projects", { filters: { project_code: projectId }, select: "id,project_code", limit: 1 }),
     ]);
     const bills=(Array.isArray(billing.bills)?billing.bills:[]) as Row[];
-    const payments=(Array.isArray(billing.payments)?billing.payments:[]) as Row[];
+    let payments=(Array.isArray(billing.payments)?billing.payments:[]) as Row[];
+
+    const canonicalProjectId = text(projectRows[0]?.id);
+    if (canonicalProjectId) {
+      const verificationRows = await selectRows("payments", {
+        filters: { project_id: canonicalProjectId },
+        select: "payment_code,ledger_transaction_code,ledger_verification_status,ledger_verified_at,ledger_verification_notes",
+        limit: 5000,
+      });
+      const verification = new Map(verificationRows.map((row) => [text(row.payment_code), row]));
+      payments = payments.map((payment) => {
+        const item = verification.get(text(payment.Payment_ID || payment.payment_code));
+        return item ? {
+          ...payment,
+          Ledger_Transaction_Code: item.ledger_transaction_code || "",
+          Ledger_Verification_Status: item.ledger_verification_status || "",
+          Ledger_Verified_At: item.ledger_verified_at || "",
+          Ledger_Verification_Notes: item.ledger_verification_notes || "",
+        } : payment;
+      });
+    }
+
     const groups: Record<Category,{bills:Row[];payments:Row[];gross:number;discount:number;paid:number;due:number}>={
       "Engineering Bill":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
       "Design Books":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
@@ -59,7 +87,7 @@ export async function GET(request: NextRequest) {
     const eng=groups["Engineering Bill"],books=groups["Design Books"],sup=groups["Supervision Bill"],oth=groups["Other Services Bill"];
     const totalDue=eng.due+books.due+sup.due+oth.due,totalBilled=eng.gross-eng.discount+books.gross-books.discount+sup.gross-sup.discount+oth.gross-oth.discount;
     const billRows=(c:Category)=>groups[c].bills.map(b=>[projectId,b.Description||c,b.Unit_Price||"",b.Quantity||"",b.Amount||0,b.Bill_ID||"",b.Status||"",b.Net_Amount ?? (num(b.Amount)-num(b.Discount)),b.Discount||0]);
-    const payRows=(c:Category)=>groups[c].payments.map(p=>[projectId,p.Payment_Date||"",[p.Payment_Method,p.Reference_No].filter(Boolean).join(" · ")||"Client Payment",p.Amount||0,p.Approval_Status||"Approved",p.Payment_ID||""]);
+    const payRows=(c:Category)=>groups[c].payments.map(p=>[projectId,p.Payment_Date||"",[p.Payment_Method,p.Reference_No].filter(Boolean).join(" · ")||"Client Payment",p.Amount||0,verificationLabel(p),p.Payment_ID||""]);
     const sheets=[
       sheet("Summary",["FILE ID","Client Name","Project Name","Engineering Bill","Engineering Discount","Engineering Deposit","Engineering Due","Supervision Bill","Supervision Discount","Supervision Deposit","Supervision Due","Other Services Bill","Other Services Discount","Other Services Deposit","Other Services Due","Design Books Bill","Design Books Discount","Design Books Deposit","Design Books Due","Total Due","Status"],[[projectId,project.Client_Name||"",project.Project_Name||"",eng.gross,eng.discount,eng.paid,eng.due,sup.gross,sup.discount,sup.paid,sup.due,oth.gross,oth.discount,oth.paid,oth.due,books.gross,books.discount,books.paid,books.due,totalDue,totalDue>.009?"DUE":totalBilled>0?"FULL PAID":""]]),
       sheet("File List",["FILE ID","Client Name","Address","Phone","Floor/Story","Build Type","Land Area","Referred By","Ref. Contact"],[[projectId,project.Client_Name||"",project.Location||"",project.Phone_Number||"",project.Floors||"",project.Project_Type||"",project.Plot_Area||"",project.Referred_By||"",project.Ref_Contact||""]]),
