@@ -5,7 +5,7 @@ import { normalizeProjectCode, roleOf, selectRows } from "@/lib/supabase-data";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MANAGE_ROLES = new Set(["admin", "manager"]);
+const MANAGE_ROLES = new Set(["admin", "manager", "accounts"]);
 function text(value: unknown, max = 1200) { return String(value ?? "").trim().slice(0, max); }
 function num(value: unknown) { const n = Number(text(value).replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; }
 function cleanDate(value: unknown) { const valueText = text(value, 20); return /^\d{4}-\d{2}-\d{2}$/.test(valueText) ? valueText : ""; }
@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireLocalSession(request);
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
-    if (!MANAGE_ROLES.has(roleOf(user))) return NextResponse.json({ success: false, error: "Admin or manager access is required." }, { status: 403 });
+    if (!MANAGE_ROLES.has(roleOf(user))) return NextResponse.json({ success: false, error: "Admin, manager or accounts access is required." }, { status: 403 });
 
     const projectCode = normalizeProjectCode(request.nextUrl.searchParams.get("projectCode") || "");
     const amount = num(request.nextUrl.searchParams.get("amount"));
