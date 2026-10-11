@@ -30,6 +30,13 @@ function isSattapurAccountingExpense(row: Row) {
       /SATTPUR_BRICKS_DEPOSIT/i.test(String(row?.memo || "")));
 }
 
+function effectiveDebit(row: Row) {
+  if (row?.effective_debit !== undefined && row?.effective_debit !== null) return num(row.effective_debit);
+  const isHeldCheque = String(row?.category || "").trim().toLowerCase() === "cheque" &&
+    num(row?.debit) > 0 && /^CHEQUE_STATUS:ON_HOLD/i.test(String(row?.memo || ""));
+  return isHeldCheque ? 0 : num(row?.debit);
+}
+
 function createdBefore(value: unknown) {
   const parsed = Date.parse(String(value || ""));
   if (Number.isFinite(parsed)) return new Date(parsed - 1).toISOString();
@@ -54,6 +61,7 @@ function expandSattapurFunding(data: Row) {
         created_at: createdBefore(row.created_at),
         category: deposit?.category || "Bank Transfer",
         debit: amount,
+        effective_debit: amount,
         credit: 0,
       });
     }
@@ -75,11 +83,13 @@ function expandSattapurFunding(data: Row) {
   let expenseBalance = 0;
   for (const row of expanded) {
     const debit = num(row.debit);
+    const effectiveIncome = effectiveDebit(row);
     const credit = num(row.credit);
-    incomeBalance += debit;
+    incomeBalance += effectiveIncome;
     expenseBalance += credit;
-    balance += debit - credit;
+    balance += effectiveIncome - credit;
     row.debit = debit;
+    row.effective_debit = effectiveIncome;
     row.credit = credit;
     row.income_balance = incomeBalance;
     row.expense_balance = expenseBalance;
@@ -92,19 +102,18 @@ function expandSattapurFunding(data: Row) {
       const matching = expanded.filter((row: Row) => String(row?.category || "Other Expenses").trim() === category);
       return {
         category,
-        total: matching.reduce((sum: number, row: Row) => sum + num(row.debit) + num(row.credit), 0),
+        total: matching.reduce((sum: number, row: Row) => sum + effectiveDebit(row) + num(row.credit), 0),
         count: matching.length,
       };
     });
 
-  const debit = expanded.reduce((sum: number, row: Row) => sum + num(row.debit), 0);
-  const credit = expanded.reduce((sum: number, row: Row) => sum + num(row.credit), 0);
+  const cashIncome = expanded.reduce((sum: number, row: Row) => sum + effectiveDebit(row), 0);
 
   return {
     ...data,
     entries: expanded,
     categories,
-    totals: { ...(data?.totals || {}), debit, credit, balance: debit - credit },
+    totals: { ...(data?.totals || {}), cashIncome },
   };
 }
 
