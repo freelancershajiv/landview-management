@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import ProjectFinanceMain from "./project-finance-main";
+import ProjectLedgerSwitcher from "./project-ledger-switcher";
 
 export const metadata: Metadata = {
   title: "Project Management | LAND VIEW",
@@ -8,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function ProjectManagementPage() {
-  return <ProjectFinanceMain />;
+  return <ProjectLedgerSwitcher />;
 }
