@@ -1,601 +1,200 @@
 "use client";
 // @ts-nocheck
-// build-debug trigger
-/* eslint-disable */
-
-/* Contractor workspace intentionally performs async state updates from its loader effect. */
-/* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
-
 import { useEffect, useMemo, useState } from "react";
 
-const CATEGORIES = [
-  "Masonry",
-  "R.C.C Masonry",
-  "Finishing Masonry",
-  "Electric Contractor",
-  "Plumbing Contractor",
-  "Bricks",
-  "Brick Chips",
-  "Stone",
-  "Stone & Sand",
-  "Cement",
-  "Cement & Steel",
-  "Syleth Sand",
-  "Normal Sand",
-  "Filling Sand",
-  "Filling Soil",
-  "Electrical Material",
-  "Plumbing Material",
-  "Tiles",
-  "Door",
-  "Grills",
-  "Other Expenses",
-];
-
-const SUPPLIER_CATEGORIES = new Set([
-  "Bricks",
-  "Brick Chips",
-  "Stone",
-  "Stone & Sand",
-  "Cement",
-  "Cement & Steel",
-  "Syleth Sand",
-  "Normal Sand",
-  "Filling Sand",
-  "Filling Soil",
-  "Electrical Material",
-  "Plumbing Material",
-  "Tiles",
-  "Door",
-  "Grills",
-]);
-
-function partyLabel(category:any){
-  return SUPPLIER_CATEGORIES.has(String(category||"").trim()) ? "Supplier" : "Contractor";
-}
-
-const money = (v:any) => new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v||0));
-const num = (v:any) => {
-  const n = Number(String(v??"").replace(/,/g,"").replace(/[^0-9.-]/g,""));
-  return Number.isFinite(n) ? n : 0;
+const money = (value: unknown) => new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 2 }).format(Number(value || 0));
+const num = (value: unknown) => Number(value || 0);
+const pct = (value: unknown) => value === null || value === undefined ? "Not reported" : `${num(value).toFixed(1)}%`;
+const dateText = (value: unknown) => {
+  const raw = String(value || "");
+  if (!raw) return "—";
+  const d = new Date(raw.includes("T") ? raw : `${raw}T00:00:00`);
+  return Number.isNaN(d.getTime()) ? raw : d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 };
-const dateText = (v:any) => {
-  const d = new Date(String(v||"").slice(0,10)+"T00:00:00");
-  return Number.isNaN(d.getTime()) ? String(v||"") : d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"});
-};
-const today = () => new Date().toISOString().slice(0,10);
-const moneyOrUnset = (v:any, configured:boolean) => configured ? money(v) : "Not set";
+const today = () => new Date().toISOString().slice(0, 10);
+const CATEGORIES = ["Masonry", "R.C.C Masonry", "Finishing Masonry", "Electric Contractor", "Plumbing Contractor", "Painting Contractor", "Tiles Contractor", "Aluminium Contractor", "Other Contractor"];
+const UNITS = ["SFT", "CFT", "RFT", "POINT", "NOS", "DAY", "JOB", "LS"];
 
-const blankContract = {
-  id:"",
-  contractorName:"",
-  partyType:"Contractor",
-  category:"Masonry",
-  billingUnit:"SFT",
-  contractQuantity:"",
-  agreedRate:"",
-  notes:"",
-};
+export default function ContractorAccountsPage() {
+  const [project, setProject] = useState("");
+  const [data, setData] = useState<any>(null);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [expanded, setExpanded] = useState("");
+  const [modal, setModal] = useState("");
+  const [contractForm, setContractForm] = useState<any>({});
+  const [billForm, setBillForm] = useState<any>({});
+  const [progressForm, setProgressForm] = useState<any>({});
 
-const blankBill = {
-  id:"",
-  billCode:"",
-  contractId:"",
-  billDate:today(),
-  description:"",
-  quantity:"",
-  rate:"",
-  deduction:"",
-  status:"Certified",
-  notes:"",
-};
-
-export default function ContractorBillsPage(){
-  const [project,setProject] = useState("");
-  const [data,setData] = useState<any>(null);
-  const [loading,setLoading] = useState(true);
-  const [saving,setSaving] = useState(false);
-  const [error,setError] = useState("");
-  const [message,setMessage] = useState("");
-  const [contractOpen,setContractOpen] = useState(false);
-  const [billOpen,setBillOpen] = useState(false);
-  const [contractForm,setContractForm] = useState<any>(blankContract);
-  const [billForm,setBillForm] = useState<any>(blankBill);
-  const [expanded,setExpanded] = useState("");
-  const [billContractFilter,setBillContractFilter] = useState("all");
-
-  async function load(code = project){
-    setLoading(true);
-    setError("");
-    try{
-      const r = await fetch(code ? "/api/project-management?projectId="+encodeURIComponent(code) : "/api/project-management",{credentials:"same-origin",cache:"no-store"});
-      const j = await r.json();
-      if(!r.ok || !j?.success) throw new Error(j?.error || "Could not load contractor bills.");
-      setData(j.data);
-      if(j.data?.selectedProject?.projectCode) setProject(j.data.selectedProject.projectCode);
-    }catch(e:any){
-      setError(e?.message || "Could not load contractor bills.");
-    }finally{
-      setLoading(false);
-    }
+  async function discoverProjects() {
+    try {
+      const response = await fetch("/api/project-control-center", { credentials: "same-origin", cache: "no-store" });
+      const payload = await response.json();
+      if (payload?.success) setProjects(payload.data?.projects || []);
+    } catch {}
   }
 
-  useEffect(()=>{
-    const code = typeof window !== "undefined"
-      ? new URLSearchParams(window.location.search).get("projectId") || ""
-      : "";
+  async function load(code = project) {
+    if (!code) { setLoading(false); await discoverProjects(); return; }
+    setLoading(true); setError("");
+    try {
+      const response = await fetch(`/api/project-contractor-accounts?projectId=${encodeURIComponent(code)}`, { credentials: "same-origin", cache: "no-store" });
+      const payload = await response.json();
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || "Could not load contractor accounts.");
+      setData(payload.data);
+      setProject(payload.data?.selectedProject?.projectCode || code);
+    } catch (e: any) { setError(e?.message || "Could not load contractor accounts."); }
+    finally { setLoading(false); }
+  }
+
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get("projectId") || "";
     setProject(code);
     void load(code);
-  },[]);
+  }, []);
 
-  const contractors: any[] = data?.contractorBills?.contracts || [];
-  const bills: any[] = data?.contractorBills?.bills || [];
-  const totals: any = data?.contractorBills?.totals || {
-    contractValue:0,certifiedAmount:0,paidAmount:0,advance:0,balancePayable:0,remainingContract:0,overCertified:0,configuredContractCount:0,unconfiguredContractCount:0
-  };
-
-  const contractMap = useMemo<Map<string, any>>(()=>new Map<string, any>(contractors.map((c:any)=>[String(c.id),c])),[contractors]);
-  const filteredBills = billContractFilter==="all"
-    ? bills
-    : bills.filter((b:any)=>String(b.contract_id)===String(billContractFilter));
-  const selectedBillContract = billContractFilter==="all" ? null : contractMap.get(String(billContractFilter));
-
-
-  function openNewContract(){
-    setContractForm({...blankContract});
-    setContractOpen(true);
+  function chooseProject(code: string) {
+    setProject(code);
+    window.history.replaceState(null, "", `/projectmanagement/contractors?projectId=${encodeURIComponent(code)}`);
+    void load(code);
   }
 
-  function openEditContract(c:any){
-    setContractForm({
-      id:c.id,
-      contractorName:c.contractor_name || "",
-      partyType:c.party_type || partyLabel(c.category),
-      category:c.category || "Masonry",
-      billingUnit:c.billing_unit || "SFT",
-      contractQuantity:String(c.contract_quantity ?? ""),
-      agreedRate:String(c.agreed_rate ?? ""),
-      notes:c.notes || "",
-    });
-    setContractOpen(true);
-  }
-
-  function openNewBill(contract?:any){
-    const c = contract || contractors[0];
-    setBillForm({
-      ...blankBill,
-      contractId:c?.id || "",
-      rate:String(c?.agreed_rate ?? ""),
-      description:c ? (c.category+" work bill") : "",
-    });
-    setBillOpen(true);
-  }
-
-  function openEditBill(b:any){
-    setBillForm({
-      id:b.id,
-      billCode:b.bill_code || "",
-      contractId:b.contract_id || "",
-      billDate:String(b.bill_date||"").slice(0,10),
-      description:b.description || "",
-      quantity:String(b.quantity ?? ""),
-      rate:String(b.rate ?? ""),
-      deduction:String(b.deduction ?? ""),
-      status:b.status || "Certified",
-      notes:b.notes || "",
-    });
-    setBillOpen(true);
-  }
-
-  function selectedContractForBill(){
-    return contractors.find((c:any)=>String(c.id)===String(billForm.contractId)) || null;
-  }
-
-  const billGross = num(billForm.quantity) * num(billForm.rate);
-  const billNet = Math.max(0,billGross-num(billForm.deduction));
-
-  async function saveContract(){
+  async function post(action: string, body: any) {
     setSaving(true); setError("");
-    try{
-      const r = await fetch("/api/project-management",{
-        method:"POST",
-        credentials:"same-origin",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          action:"saveContractorContract",
-          projectId:data?.selectedProject?.projectCode || project,
-          id:contractForm.id || undefined,
-          contractorName:contractForm.contractorName,
-          partyType:contractForm.partyType,
-          category:contractForm.category,
-          billingUnit:contractForm.billingUnit,
-          contractQuantity:num(contractForm.contractQuantity),
-          agreedRate:num(contractForm.agreedRate),
-          notes:contractForm.notes,
-        })
+    try {
+      const response = await fetch("/api/project-contractor-accounts", {
+        method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, projectId: project, ...body }),
       });
-      const j=await r.json();
-      if(!r.ok || !j?.success) throw new Error(j?.error || "Could not save contractor / supplier contract.");
-      setContractOpen(false);
-      setMessage(contractForm.id ? "Contractor / supplier contract updated." : "Contractor / supplier added.");
-      await load(data?.selectedProject?.projectCode || project);
-    }catch(e:any){
-      setError(e?.message || "Could not save contractor contract.");
-    }finally{
-      setSaving(false);
-    }
+      const payload = await response.json();
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || "Could not save contractor data.");
+      setModal("");
+      await load(project);
+    } catch (e: any) { setError(e?.message || "Could not save contractor data."); }
+    finally { setSaving(false); }
   }
 
-  async function saveBill(){
-    const selected = selectedContractForBill();
-    if(!selected) { setError("Select a contractor contract."); return; }
+  async function remove(type: string, id: string) {
+    if (!window.confirm(`Delete this ${type} record?`)) return;
     setSaving(true); setError("");
-    try{
-      const r = await fetch("/api/project-management",{
-        method:"POST",
-        credentials:"same-origin",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({
-          action:"saveContractorBill",
-          projectId:data?.selectedProject?.projectCode || project,
-          id:billForm.id || undefined,
-          billCode:billForm.billCode || undefined,
-          contractId:billForm.contractId,
-          billDate:billForm.billDate,
-          description:billForm.description,
-          quantity:num(billForm.quantity),
-          rate:num(billForm.rate),
-          deduction:num(billForm.deduction),
-          status:billForm.status,
-          notes:billForm.notes,
-        })
-      });
-      const j=await r.json();
-      if(!r.ok || !j?.success) throw new Error(j?.error || "Could not save contractor bill.");
-      setBillOpen(false);
-      setMessage(billForm.id ? "Contractor bill updated." : "Contractor bill created.");
-      await load(data?.selectedProject?.projectCode || project);
-    }catch(e:any){
-      setError(e?.message || "Could not save contractor bill.");
-    }finally{
-      setSaving(false);
-    }
+    try {
+      const response = await fetch(`/api/project-contractor-accounts?projectId=${encodeURIComponent(project)}&type=${encodeURIComponent(type)}&id=${encodeURIComponent(id)}`, { method: "DELETE", credentials: "same-origin" });
+      const payload = await response.json();
+      if (!response.ok || !payload?.success) throw new Error(payload?.error || "Could not delete record.");
+      await load(project);
+    } catch (e: any) { setError(e?.message || "Could not delete record."); }
+    finally { setSaving(false); }
   }
 
-  async function deleteBill(id:string){
-    if(!confirm("Delete this contractor bill?")) return;
-    try{
-      const r=await fetch("/api/project-management?type=contractor-bill&id="+encodeURIComponent(id),{method:"DELETE",credentials:"same-origin"});
-      const j=await r.json();
-      if(!r.ok || !j?.success) throw new Error(j?.error || "Could not delete contractor bill.");
-      setMessage("Contractor bill deleted.");
-      await load(data?.selectedProject?.projectCode || project);
-    }catch(e:any){ setError(e?.message || "Could not delete contractor bill."); }
+  function openContract(account?: any) {
+    setContractForm(account ? {
+      id: account.id, contractorName: account.contractorName, category: account.category, billingUnit: account.billingUnit,
+      pricingType: account.pricingType, contractQuantity: account.contractQuantity, agreedRate: account.agreedRate,
+      contractAmount: account.contractAmount, scopeDescription: account.scopeDescription, startDate: account.startDate,
+      targetCompletionDate: account.targetCompletionDate, notes: account.notes,
+    } : { contractorName: "", category: "Masonry", billingUnit: "SFT", pricingType: "rate", contractQuantity: "", agreedRate: "", contractAmount: "", scopeDescription: "", startDate: "", targetCompletionDate: "", notes: "" });
+    setModal("contract");
   }
 
-  if(loading && !data){
-    return <main className="cb-page"><div className="cb-loading"><div className="cb-spinner"/><strong>Loading Contractor Bills</strong><span>Preparing contract reconciliation…</span></div></main>;
+  function openBill(account: any, bill?: any) {
+    setBillForm(bill ? {
+      id: bill.id, billCode: bill.billCode, contractId: account.id, billDate: bill.date, description: bill.description,
+      quantity: bill.quantity, rate: bill.rate, deduction: bill.deduction, status: bill.status, notes: bill.notes,
+    } : { contractId: account.id, billDate: today(), description: "", quantity: "", rate: account.agreedRate || "", deduction: 0, status: "Certified", notes: "" });
+    setModal("bill");
   }
 
-  const admin = Boolean(data && !data.readOnly);
+  function openProgress(account: any, progress?: any) {
+    setProgressForm(progress ? {
+      id: progress.id, contractId: account.id, progressDate: progress.date, progressPercent: progress.percent,
+      completedQuantity: progress.completedQuantity, stageName: progress.stageName, floorLabel: progress.floorLabel,
+      description: progress.description, notes: progress.notes,
+    } : { contractId: account.id, progressDate: today(), progressPercent: account.physicalProgress ?? "", completedQuantity: "", stageName: "", floorLabel: "", description: "", notes: "" });
+    setModal("progress");
+  }
 
-  return (
-    <main className="cb-page">
-      <div className="cb-shell">
-        <header className="cb-header">
-          <div>
-            <div className="cb-kicker">LAND VIEW · PROJECT MANAGEMENT</div>
-            <h1>Contractor Bills</h1>
-            <p>Calculate earned contractor bills separately from the payment ledger, then reconcile certified work against actual payments.</p>
-            <div className="cb-project-pill">
-              <strong>{data?.selectedProject?.projectCode || project || "—"}</strong>
-              <span>{data?.selectedProject?.projectName || "Project"}</span>
-            </div>
-          </div>
-          <div className="cb-header-actions">
-            <button className="cb-btn cb-btn-secondary" onClick={()=>window.location.assign("/projectmanagement?projectId="+encodeURIComponent(data?.selectedProject?.projectCode||project))}>← Ledger</button>
-            <button className="cb-btn cb-btn-secondary" onClick={()=>void load(data?.selectedProject?.projectCode||project)}>↻ Refresh</button>
-            {admin && <button className="cb-btn cb-btn-primary" onClick={openNewContract}>＋ Add Contractor / Supplier</button>}
-            {admin && contractors.length>0 && <button className="cb-btn cb-btn-dark" onClick={()=>openNewBill()}>＋ New Bill</button>}
-          </div>
-        </header>
+  const summary = data?.summary || {};
+  const accounts = data?.accounts || [];
+  const selected = data?.selectedProject;
+  const readOnly = Boolean(data?.readOnly);
+  const canDelete = Boolean(data?.canDelete);
+  const unconfigured = useMemo(() => accounts.filter((a: any) => !a.contractConfigured).length, [accounts]);
 
-        {error && <div className="cb-alert cb-error"><span>!</span><div>{error}</div><button onClick={()=>setError("")}>×</button></div>}
-        {message && <div className="cb-alert cb-success"><span>✓</span><div>{message}</div><button onClick={()=>setMessage("")}>×</button></div>}
+  if (loading && !data) return <main className="ca-page ca-loading"><div className="spinner"/><strong>Loading Contractor Accounts</strong><small>Linking contracts, certified work, payments and site progress…</small><style jsx>{styles}</style></main>;
 
-        <section className="cb-explain">
-          <div>
-            <strong>How this works</strong>
-            <span>Contract value = contract quantity × agreed rate. Certified bills come from this screen. Payments come automatically from the existing debit/credit ledger when the project, expense category, and contractor match.</span>
-          </div>
-          <div className="cb-formula">Certified − Paid = Balance Payable · Paid − Certified = Advance</div>
-        </section>
+  if (!project || !selected) {
+    return <main className="ca-page"><section className="chooser"><span className="kicker">LAND VIEW · PHASE 3</span><h1>Contractor Accounts</h1><p>Select a managed project to open contractor financial control and work progress.</p>{error && <div className="alert">{error}</div>}<select value={project} onChange={e => chooseProject(e.target.value)}><option value="">Select project…</option>{projects.map((p: any) => <option key={p.id || p.projectCode} value={p.projectCode}>{p.projectCode} — {p.projectName}</option>)}</select></section><style jsx>{styles}</style></main>;
+  }
 
-        <section className="cb-stats">
-          <div className="cb-stat"><span>Contract Value</span><strong>{totals.unconfiguredContractCount ? "Not set" : money(totals.contractValue)}</strong><small>{totals.unconfiguredContractCount ? "Set project quantity and agreed rate first" : "Agreed quantity × agreed rate"}</small></div>
-          <div className="cb-stat"><span>Certified Bills</span><strong>{money(totals.certifiedAmount)}</strong><small>Certified work only</small></div>
-          <div className="cb-stat"><span>Paid from Ledger</span><strong>{money(totals.paidAmount)}</strong><small>Existing contractor payments</small></div>
-          <div className="cb-stat"><span>Advance</span><strong>{money(totals.advance)}</strong><small>Paid more than certified</small></div>
-          <div className="cb-stat"><span>Balance Payable</span><strong>{money(totals.balancePayable)}</strong><small>Certified but not yet paid</small></div>
-          <div className="cb-stat"><span>Remaining Contract</span><strong>{totals.unconfiguredContractCount ? "Not set" : money(totals.remainingContract)}</strong><small>{totals.overCertified>0 ? money(totals.overCertified)+" over contract value" : "Contract value less certified bills"}</small></div>
-        </section>
+  return <main className="ca-page">
+    <div className="ca-shell">
+      <header className="hero">
+        <div><span className="kicker">LAND VIEW · CONTRACTOR CONTROL</span><h1>{selected.projectCode} <em>{selected.projectName}</em></h1><p>Contract value, certified work, paid amount and physical site progress are controlled separately.</p></div>
+        <div className="hero-actions"><button onClick={() => void load(project)}>↻ Refresh</button>{!readOnly && <button className="primary" onClick={() => openContract()}>+ Contractor</button>}</div>
+      </header>
+      {error && <div className="alert">{error}</div>}
 
-        <section className="cb-panel">
-          <div className="cb-panel-head">
-            <div>
-              <span className="cb-label">CONTRACT SETUP</span>
-              <h2>Contractors & Reconciliation</h2>
-            </div>
-            {admin && <button className="cb-small-btn" onClick={openNewContract}>Add Supplier / Contractor</button>}
-          </div>
+      <section className="metrics">
+        <Metric label="Contract Value" value={money(summary.contractValue)} note={`${summary.configuredContractCount || 0} configured`} />
+        <Metric label="Certified Work" value={money(summary.certifiedAmount)} note={summary.certifiedProgress == null ? "Contract values not fully set" : `${pct(summary.certifiedProgress)} of configured value`} />
+        <Metric label="Paid" value={money(summary.paidAmount)} note={`${accounts.reduce((s:any,a:any)=>s+num(a.paymentCount),0)} linked payments`} />
+        <Metric label="Contractor Advance" value={money(summary.contractorAdvance)} note="Paid above certified work" tone={num(summary.contractorAdvance)>0?"warn":""} />
+        <Metric label="Contractor Payable" value={money(summary.contractorPayable)} note="Certified but unpaid" tone={num(summary.contractorPayable)>0?"danger":""} />
+        <Metric label="Physical Progress" value={pct(summary.overallPhysicalProgress)} note={`${summary.physicalProgressReportedCount || 0}/${accounts.length} contractors reported`} />
+      </section>
 
-          <div className="cb-table-wrap">
-            <table className="cb-table">
-              <thead>
-                <tr>
-                  <th>Contractor / Supplier</th>
-                  <th>Category</th>
-                  <th>Unit</th>
-                  <th className="num">Contract Qty</th>
-                  <th className="num">Rate</th>
-                  <th className="num">Contract Value</th>
-                  <th className="num">Certified</th>
-                  <th className="num">Paid</th>
-                  <th className="num">Advance</th>
-                  <th className="num">Balance</th>
-                  <th className="num">Remaining</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {contractors.map((c:any)=>{
-                  const isExpanded=expanded===c.id;
-                  const contractBills=bills.filter((b:any)=>String(b.contract_id)===String(c.id));
-                  return (
-                    <tr key={c.id} className={isExpanded?"cb-expanded-row":""}>
-                      <td colSpan={12} className="cb-contractor-cell">
-                        <div className="cb-row-main">
-                          <div className="cb-contractor-name"><strong>{c.contractor_name}</strong><small>{c.contractConfigured ? "" : "Contract quantity/rate not set · "}{c.paymentCount||0} matched ledger payment{(c.paymentCount||0)===1?"":"s"}</small></div>
-                          <div><span className="cb-tag">{c.category}</span></div>
-                          <div className="cb-center">{c.billing_unit}</div>
-                          <div className="num">{num(c.contract_quantity).toLocaleString("en-BD",{maximumFractionDigits:3})}</div>
-                          <div className="num">{money(c.agreed_rate)}</div>
-                          <div className="num cb-strong">{moneyOrUnset(c.contractValue,c.contractConfigured)}</div>
-                          <div className="num">{money(c.certifiedAmount)}</div>
-                          <div className="num cb-paid">{money(c.paidAmount)}</div>
-                          <div className="num cb-advance">{money(c.advance)}</div>
-                          <div className="num cb-balance">{money(c.balancePayable)}</div>
-                          <div className="num">{moneyOrUnset(c.remainingContract,c.contractConfigured)}</div>
-                          <div className="cb-actions">
-                            {admin && <button className="cb-icon" title="Edit contract" onClick={()=>openEditContract(c)}>✎</button>}
-                            {admin && <button className="cb-icon" title="New bill" onClick={()=>openNewBill(c)}>＋</button>}
-                            <button className="cb-icon" title="Statement" onClick={()=>setExpanded(isExpanded?"":c.id)}>{isExpanded?"−":"▤"}</button>
-                          </div>
-                        </div>
-                        {isExpanded && (
-                          <div className="cb-detail">
-                            <div className="cb-detail-grid">
-                              <div className="cb-detail-card cb-party-ledger-card">
-                                <span>Party Ledger · Debit / Credit</span>
-                                <strong>{money(c.paidAmount)}</strong>
-                                <small>All ledger entries matched to this supplier / contractor</small>
-                                <div className="cb-party-ledger-wrap">
-                                  <table className="cb-party-ledger">
-                                    <thead><tr><th>Date</th><th>Details</th><th>Category</th><th className="num">Debit</th><th className="num">Credit</th><th className="num">Balance</th></tr></thead>
-                                    <tbody>
-                                      {(c.partyLedger||[]).map((p:any)=><tr key={p.id}>
-                                        <td>{dateText(p.date)}</td>
-                                        <td title={p.details}>{p.details||"—"}</td>
-                                        <td>{p.category||"—"}</td>
-                                        <td className="num cb-ledger-debit">{p.debit?money(p.debit):"—"}</td>
-                                        <td className="num cb-ledger-credit">{p.credit?money(p.credit):"—"}</td>
-                                        <td className="num cb-ledger-balance">{money(p.balance)}</td>
-                                      </tr>)}
-                                      {!(c.partyLedger||[]).length && <tr><td colSpan={6} className="cb-empty-inline">No matching ledger entries found.</td></tr>}
-                                    </tbody>
-                                  </table>
-                                </div>
-                              </div>
-                              <div className="cb-detail-card">
-                                <span>Certified Bills</span>
-                                <strong>{money(c.certifiedAmount)}</strong>
-                                <small>{contractBills.filter((b:any)=>String(b.status).toLowerCase()==="certified").length} certified bill(s)</small>
-                                <div className="cb-mini-list">
-                                  {contractBills.map((b:any)=><div key={b.id}><span>{dateText(b.bill_date)}</span><b>{b.bill_code} · {b.description}</b><strong>{money(b.net_amount)}</strong></div>)}
-                                  {!contractBills.length && <div className="cb-empty-inline">No contractor bills yet.</div>}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-                {!contractors.length && (
-                  <tr><td colSpan={12} className="cb-empty"><strong>No contractor / supplier contracts set up for this project.</strong><span>Start by adding the contractor or supplier, category, project quantity and agreed rate.</span></td></tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </section>
+      {unconfigured > 0 && <div className="notice"><strong>{unconfigured} contractor account{unconfigured===1?" is":"s are"} not financially configured.</strong><span>Historical bills and payments remain visible; add contract value only when the real agreement is known.</span></div>}
 
-        <section className="cb-panel">
-          <div className="cb-panel-head cb-bill-register-head">
-            <div>
-              <span className="cb-label">BILL REGISTER</span>
-              <h2>Certified Contractor Bills</h2>
-            </div>
-            <div className="cb-bill-register-actions">
-              <label className="cb-bill-filter">
-                <span>VIEW PARTY</span>
-                <select value={billContractFilter} onChange={e=>setBillContractFilter(e.target.value)}>
-                  <option value="all">All Contractors / Suppliers</option>
-                  {contractors.map((c:any)=><option key={c.id} value={c.id}>{c.contractor_name} · {c.category}</option>)}
-                </select>
-              </label>
-              {admin && contractors.length>0 && <button className="cb-small-btn" onClick={()=>void openNewBill(selectedBillContract || undefined)}>New Bill</button>}
-            </div>
-          </div>
-          <div className="cb-filter-summary">
-            {billContractFilter==="all"
-              ? <>Showing <strong>{filteredBills.length}</strong> bill{filteredBills.length===1?"":"s"} from all contractors / suppliers.</>
-              : <>Showing <strong>{filteredBills.length}</strong> bill{filteredBills.length===1?"":"s"} for <strong>{selectedBillContract?.contractor_name || "selected party"}</strong>.</>}
-          </div>
-          <div className="cb-table-wrap">
-            <table className="cb-table cb-bills-table">
-              <thead>
-                <tr>
-                  <th>Bill</th><th>Date</th><th>Contractor</th><th>Description</th>
-                  <th className="num">Qty</th><th className="num">Rate</th><th className="num">Gross</th><th className="num">Deduction</th><th className="num">Net</th><th>Status</th><th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredBills.map((b:any)=>{
-                  const c=contractMap.get(String(b.contract_id));
-                  return <tr key={b.id}>
-                    <td><strong>{b.bill_code}</strong></td>
-                    <td>{dateText(b.bill_date)}</td>
-                    <td><strong>{c?.contractor_name||"—"}</strong><small className="cb-sub">{c?.category||""}</small></td>
-                    <td><div className="cb-description">{b.description}</div><small>{b.notes||""}</small></td>
-                    <td className="num">{num(b.quantity).toLocaleString("en-BD",{maximumFractionDigits:3})}</td>
-                    <td className="num">{money(b.rate)}</td>
-                    <td className="num">{money(b.gross_amount)}</td>
-                    <td className="num">{money(b.deduction)}</td>
-                    <td className="num cb-strong">{money(b.net_amount)}</td>
-                    <td><span className={"cb-status "+String(b.status||"").toLowerCase()}>{b.status}</span></td>
-                    <td className="cb-actions">
-                      {admin && <button className="cb-icon" title="Edit bill" onClick={()=>openEditBill(b)}>✎</button>}
-                      {admin && <button className="cb-icon cb-danger" title="Delete bill" onClick={()=>void deleteBill(b.id)}>⌫</button>}
-                    </td>
-                  </tr>
-                })}
-                {!filteredBills.length && <tr><td colSpan={11} className="cb-empty"><strong>{billContractFilter==="all" ? "No contractor bills have been entered." : "No bills found for this contractor."}</strong><span>Daily payments stay in the ledger; certified earned amounts are entered here.</span></td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </section>
-
-        {contractOpen && admin && (
-          <div className="cb-backdrop">
-            <section className="cb-modal">
-              <div className="cb-modal-head">
-                <div><span className="cb-label">CONTRACT SETUP</span><h2>{contractForm.id?"Edit Supplier / Contractor":"Add Supplier / Contractor"}</h2><p>Set the project size/quantity and agreed rate for this party in this category.</p></div>
-                <button className="cb-close" onClick={()=>setContractOpen(false)}>×</button>
+      <section className="contract-list">
+        {accounts.map((a: any) => {
+          const isOpen = expanded === a.id;
+          return <article className="contract-card" key={a.id}>
+            <div className="contract-main">
+              <div className="identity"><span>{a.category}</span><h2>{a.contractorName}</h2><p>{a.scopeDescription || a.notes || "Scope not recorded"}</p></div>
+              <div className="money-grid"><div><span>Contract</span><strong>{a.contractConfigured ? money(a.contractValue) : "Not set"}</strong></div><div><span>Certified</span><strong>{money(a.certifiedAmount)}</strong></div><div><span>Paid</span><strong>{money(a.paidAmount)}</strong></div><div><span>{a.payable>0?"Payable":a.advance>0?"Advance":"Position"}</span><strong className={a.payable>0?"danger-text":a.advance>0?"warn-text":"good-text"}>{a.payable>0?money(a.payable):a.advance>0?money(a.advance):"Settled"}</strong></div></div>
+              <div className="progress-grid">
+                <Progress label="Physical" value={a.physicalProgress} empty="Not reported" />
+                <Progress label="Certified" value={a.certifiedProgress} empty="Contract not set" />
+                <Progress label="Paid" value={a.paymentProgress} empty="Contract not set" />
               </div>
-              <div className="cb-form">
-                <label><span>Party Type</span><select value={contractForm.partyType} onChange={e=>setContractForm({...contractForm,partyType:e.target.value})}><option>Supplier</option><option>Contractor</option></select></label>
-                <label><span>Party Name</span><input value={contractForm.contractorName} onChange={e=>setContractForm({...contractForm,contractorName:e.target.value})} placeholder="Supplier / contractor name"/></label>
-                <label><span>Category</span><select value={contractForm.category} onChange={e=>setContractForm({...contractForm,category:e.target.value})}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></label>
-                <label><span>Billing Unit</span><input value={contractForm.billingUnit} onChange={e=>setContractForm({...contractForm,billingUnit:e.target.value})} placeholder="SFT / POINT / FLAT"/></label>
-                <label><span>Contract Quantity / Project Size</span><input value={contractForm.contractQuantity} onChange={e=>setContractForm({...contractForm,contractQuantity:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
-                <label><span>Agreed Rate</span><input value={contractForm.agreedRate} onChange={e=>setContractForm({...contractForm,agreedRate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
-                <div className="cb-calc"><span>Contract Value</span><strong>{money(num(contractForm.contractQuantity)*num(contractForm.agreedRate))}</strong><small>Quantity × Rate</small></div>
-                <label className="full"><span>Notes</span><textarea value={contractForm.notes} onChange={e=>setContractForm({...contractForm,notes:e.target.value})} placeholder="Optional contract note"/></label>
-              </div>
-              <div className="cb-modal-foot"><button className="cb-btn cb-btn-secondary" onClick={()=>setContractOpen(false)}>Cancel</button><button className="cb-btn cb-btn-primary" onClick={()=>void saveContract()} disabled={saving}>{saving?"Saving…":"Save Contractor / Supplier"}</button></div>
-            </section>
-          </div>
-        )}
+              <div className="card-actions"><button onClick={() => setExpanded(isOpen?"":a.id)}>{isOpen?"Close":"Details"}</button>{!readOnly && <><button onClick={() => openProgress(a)}>Update Progress</button><button onClick={() => openBill(a)}>New Bill</button><button onClick={() => openContract(a)}>Edit Contract</button></>}</div>
+            </div>
+            {isOpen && <div className="details-zone">
+              <section><div className="section-head"><div><span>WORK PROGRESS</span><strong>Physical site history</strong></div>{!readOnly && <button onClick={() => openProgress(a)}>+ Progress</button>}</div>{a.latestProgress && <div className="latest-progress"><b>{pct(a.latestProgress.percent)}</b><div><strong>{a.latestProgress.stageName || "Site progress"}{a.latestProgress.floorLabel?` · ${a.latestProgress.floorLabel}`:""}</strong><span>{dateText(a.latestProgress.date)} · {a.latestProgress.description}</span></div></div>}<div className="mini-table"><table><thead><tr><th>Date</th><th>Stage / Floor</th><th>Description</th><th className="num">Physical</th><th></th></tr></thead><tbody>{a.progressHistory.map((r:any)=><tr key={r.id}><td>{dateText(r.date)}</td><td>{[r.stageName,r.floorLabel].filter(Boolean).join(" · ")||"—"}</td><td>{r.description}</td><td className="num"><strong>{pct(r.percent)}</strong></td><td className="actions">{!readOnly&&<button onClick={()=>openProgress(a,r)}>Edit</button>}{canDelete&&<button onClick={()=>void remove("progress",r.id)}>Delete</button>}</td></tr>)}{!a.progressHistory.length&&<tr><td colSpan={5} className="empty">No physical progress has been reported yet.</td></tr>}</tbody></table></div></section>
+              <section><div className="section-head"><div><span>CERTIFIED WORK</span><strong>Bills & certifications</strong></div>{!readOnly && <button onClick={() => openBill(a)}>+ Bill</button>}</div><div className="mini-table"><table><thead><tr><th>Date</th><th>Bill</th><th>Description</th><th>Status</th><th className="num">Net Amount</th><th></th></tr></thead><tbody>{a.bills.map((b:any)=><tr key={b.id}><td>{dateText(b.date)}</td><td><b>{b.billCode}</b></td><td>{b.description}</td><td><span className={`status ${String(b.status).toLowerCase()}`}>{b.status}</span></td><td className="num"><strong>{money(b.netAmount)}</strong></td><td className="actions">{!readOnly&&<button onClick={()=>openBill(a,b)}>Edit</button>}{canDelete&&<button onClick={()=>void remove("bill",b.id)}>Delete</button>}</td></tr>)}{!a.bills.length&&<tr><td colSpan={6} className="empty">No contractor bills recorded.</td></tr>}</tbody></table></div></section>
+              <section><div className="section-head"><div><span>PAYMENT LEDGER</span><strong>Money paid to contractor</strong></div><small>{a.paymentCount} linked entries</small></div><div className="mini-table"><table><thead><tr><th>Date</th><th>Details</th><th>Category</th><th className="num">Amount</th><th className="num">Cumulative Paid</th></tr></thead><tbody>{a.paymentLedger.map((r:any)=><tr key={r.id}><td>{dateText(r.date)}</td><td>{r.details}</td><td>{r.category||"—"}</td><td className="num"><strong>{money(r.amount)}</strong></td><td className="num">{money(r.runningPaid)}</td></tr>)}{!a.paymentLedger.length&&<tr><td colSpan={5} className="empty">No linked contractor payments.</td></tr>}</tbody></table></div></section>
+            </div>}
+          </article>;
+        })}
+        {!accounts.length && <div className="empty-card">No contractor accounts are configured for this project.</div>}
+      </section>
+    </div>
 
-        {billOpen && admin && (
-          <div className="cb-backdrop">
-            <section className="cb-modal">
-              <div className="cb-modal-head">
-                <div><span className="cb-label">CONTRACTOR BILL</span><h2>{billForm.id?"Edit Bill":"New Contractor Bill"}</h2><p>Enter the completed quantity. The amount is calculated from quantity × rate.</p></div>
-                <button className="cb-close" onClick={()=>setBillOpen(false)}>×</button>
-              </div>
-              <div className="cb-form">
-                <label className="full"><span>Contractor / Supplier / Contract</span><select value={billForm.contractId} onChange={e=>{const id=e.target.value;const c=contractors.find((x:any)=>String(x.id)===String(id));setBillForm({...billForm,contractId:id,rate:String(c?.agreed_rate??""),description:c?(c.category+" work bill"):billForm.description});}}>{contractors.map(c=><option key={c.id} value={c.id}>{c.contractor_name+" · "+c.category}</option>)}</select></label>
-                <label><span>Bill Date</span><input type="date" value={billForm.billDate} onChange={e=>setBillForm({...billForm,billDate:e.target.value})}/></label>
-                <label><span>Status</span><select value={billForm.status} onChange={e=>setBillForm({...billForm,status:e.target.value})}><option>Draft</option><option>Certified</option><option>Void</option></select></label>
-                <label className="full"><span>Description</span><input value={billForm.description} onChange={e=>setBillForm({...billForm,description:e.target.value})} placeholder="Ground floor masonry work / electrical points / plumbing work"/></label>
-                <label><span>Completed Quantity</span><input value={billForm.quantity} onChange={e=>setBillForm({...billForm,quantity:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
-                <label><span>Rate</span><input value={billForm.rate} onChange={e=>setBillForm({...billForm,rate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
-                <label><span>Deduction</span><input value={billForm.deduction} onChange={e=>setBillForm({...billForm,deduction:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>
-                <div className="cb-calc"><span>Bill Amount</span><strong>{money(billNet)}</strong><small>Gross {money(billGross)} − Deduction {money(num(billForm.deduction))}</small></div>
-                <label className="full"><span>Notes</span><textarea value={billForm.notes} onChange={e=>setBillForm({...billForm,notes:e.target.value})} placeholder="Optional bill note"/></label>
-              </div>
-              <div className="cb-modal-foot"><button className="cb-btn cb-btn-secondary" onClick={()=>setBillOpen(false)}>Cancel</button><button className="cb-btn cb-btn-primary" onClick={()=>void saveBill()} disabled={saving}>{saving?"Saving…":billForm.id?"Update Bill":"Save Bill"}</button></div>
-            </section>
-          </div>
-        )}
+    {modal === "contract" && <Modal title={contractForm.id?"Edit Contractor Contract":"New Contractor Contract"} onClose={()=>setModal("")}>
+      <div className="form-grid"><Field label="Contractor Name"><input value={contractForm.contractorName||""} onChange={e=>setContractForm({...contractForm,contractorName:e.target.value})}/></Field><Field label="Category"><select value={contractForm.category||"Masonry"} onChange={e=>setContractForm({...contractForm,category:e.target.value})}>{CATEGORIES.map(x=><option key={x}>{x}</option>)}</select></Field><Field label="Pricing Type"><select value={contractForm.pricingType||"rate"} onChange={e=>setContractForm({...contractForm,pricingType:e.target.value})}><option value="rate">Quantity × Rate</option><option value="lump_sum">Lump Sum</option></select></Field><Field label="Billing Unit"><select value={contractForm.billingUnit||"SFT"} onChange={e=>setContractForm({...contractForm,billingUnit:e.target.value})}>{UNITS.map(x=><option key={x}>{x}</option>)}</select></Field>{contractForm.pricingType==="lump_sum"?<Field label="Contract Amount"><input type="number" value={contractForm.contractAmount||""} onChange={e=>setContractForm({...contractForm,contractAmount:e.target.value})}/></Field>:<><Field label="Contract Quantity"><input type="number" value={contractForm.contractQuantity||""} onChange={e=>setContractForm({...contractForm,contractQuantity:e.target.value})}/></Field><Field label="Agreed Rate"><input type="number" value={contractForm.agreedRate||""} onChange={e=>setContractForm({...contractForm,agreedRate:e.target.value})}/></Field></>}<Field label="Start Date"><input type="date" value={contractForm.startDate||""} onChange={e=>setContractForm({...contractForm,startDate:e.target.value})}/></Field><Field label="Target Completion"><input type="date" value={contractForm.targetCompletionDate||""} onChange={e=>setContractForm({...contractForm,targetCompletionDate:e.target.value})}/></Field><Field label="Scope" full><textarea value={contractForm.scopeDescription||""} onChange={e=>setContractForm({...contractForm,scopeDescription:e.target.value})}/></Field><Field label="Notes" full><textarea value={contractForm.notes||""} onChange={e=>setContractForm({...contractForm,notes:e.target.value})}/></Field></div><ModalActions saving={saving} onCancel={()=>setModal("")} onSave={()=>void post("saveContract",contractForm)}/>
+    </Modal>}
 
-        <style jsx>{`.cb-page{min-height:100vh;background:var(--theme-bg-_fff, #fff);color:#17232b;padding:30px 28px 60px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-.cb-shell{max-width:1540px;margin:0 auto}
-.cb-header{display:flex;justify-content:space-between;gap:28px;align-items:flex-end;margin-bottom:22px}
-.cb-kicker{display:flex;align-items:center;gap:8px;color:#1d6b52;font-size:11px;letter-spacing:.15em;font-weight:850}
-.cb-kicker:before{content:"";width:8px;height:8px;border-radius:50%;background:var(--theme-bg-_1d6b52, #1d6b52);display:inline-block;box-shadow:0 0 0 5px var(--theme-shadow-rgba_29_107_82__10_, rgba(29,107,82,.10))}
-.cb-header h1{font-size:clamp(30px,3.6vw,48px);line-height:1.02;letter-spacing:-.045em;margin:9px 0 8px;color:#142027}
-.cb-header p{max-width:780px;margin:0;color:var(--theme-ink-_68767f, #68767f);font-size:14px;line-height:1.65}
-.cb-header-actions{display:flex;gap:9px;flex-wrap:wrap;justify-content:flex-end}
-.cb-project-pill{display:inline-flex;align-items:center;gap:10px;margin-top:17px;padding:8px 11px;border:1px solid var(--theme-line-_dde6e2, #dde6e2);background:#f6faf8;border-radius:10px;color:var(--theme-ink-_5d6d73, #5d6d73);font-size:11px}
-.cb-project-pill strong{color:#1d6b52;font-size:11px;font-weight:850;letter-spacing:.10em}
-.cb-btn{height:42px;padding:0 15px;border-radius:11px;font-size:13px;font-weight:780;display:inline-flex;align-items:center;gap:8px;font:inherit;border:0;cursor:pointer;transition:.18s ease}
-.cb-btn-secondary{background:var(--theme-bg-_fff, #fff);color:#243038;border:1px solid var(--theme-line-_dfe5e8, #dfe5e8)}.cb-btn-secondary:hover{background:#f8fafb}
-.cb-btn-primary{background:var(--theme-bg-_1d6b52, #1d6b52);color:var(--theme-ink-_fff, #fff);box-shadow:0 8px 18px var(--theme-shadow-rgba_29_107_82__18_, rgba(29,107,82,.18))}.cb-btn-primary:hover{background:var(--theme-bg-_175a45, #175a45);transform:translateY(-1px)}
-.cb-btn-dark{background:var(--theme-bg-_17242b, #17242b);color:var(--theme-ink-_fff, #fff)}.cb-btn-dark:hover{background:var(--theme-bg-_0f191f, #0f191f)}
-.cb-btn:disabled{opacity:.55;cursor:not-allowed;transform:none}
-.cb-alert{display:flex;align-items:center;gap:11px;padding:12px 15px;border-radius:12px;margin-bottom:12px;font-size:13px}
-.cb-alert>span{width:24px;height:24px;display:grid;place-items:center;border-radius:50%;font-weight:900}
-.cb-alert button{margin-left:auto;border:0;background:transparent;cursor:pointer;font-size:18px;color:inherit}
-.cb-error{background:#fff0ee;color:#a53c32;border:1px solid var(--theme-line-_f3d3ce, #f3d3ce)}.cb-error>span{background:#f7d6d1}
-.cb-success{background:#edf8f2;color:#206449;border:1px solid var(--theme-line-_d3ebdc, #d3ebdc)}.cb-success>span{background:#d5ecde}
-.cb-explain{display:flex;justify-content:space-between;gap:20px;background:var(--theme-bg-_fff, #fff);border:1px solid var(--theme-line-_e4e9ec, #e4e9ec);border-radius:18px;padding:16px 18px;margin-bottom:16px;box-shadow:0 12px 34px var(--theme-shadow-rgba_20_38_29__04_, rgba(20,38,29,.04))}
-.cb-explain strong{display:block;font-size:13px;color:#17242b}.cb-explain span{display:block;max-width:980px;color:var(--theme-ink-_7c898f, #7c898f);font-size:11px;margin-top:4px;line-height:1.55}.cb-formula{align-self:center;padding:9px 11px;border-radius:9px;background:#f5faf8;border:1px solid var(--theme-line-_dce5e3, #dce5e3);color:#356a58;font-size:10px;font-weight:800;white-space:nowrap}
-.cb-stats{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}
-.cb-stat{position:relative;overflow:hidden;background:var(--theme-bg-_fff, #fff);border:1px solid var(--theme-line-_e4e9ec, #e4e9ec);border-radius:16px;padding:18px 19px;min-height:136px;box-shadow:0 10px 28px var(--theme-shadow-rgba_20_38_29__035_, rgba(20,38,29,.035))}
-.cb-stat:after{content:"";position:absolute;width:90px;height:90px;border-radius:50%;right:-28px;bottom:-37px;background:var(--theme-bg-rgba_29_107_82__06_, rgba(29,107,82,.06))}
-.cb-stat:nth-child(1){border-top:3px solid var(--theme-line-_365f8a, #365f8a)}.cb-stat:nth-child(2){border-top:3px solid var(--theme-line-_1d6b52, #1d6b52)}.cb-stat:nth-child(3){border-top:3px solid var(--theme-line-_1d6b52, #1d6b52)}.cb-stat:nth-child(4){border-top:3px solid var(--theme-line-_8a6b31, #8a6b31)}.cb-stat:nth-child(5){border-top:3px solid var(--theme-line-_86606b, #86606b)}.cb-stat:nth-child(6){border-top:3px solid var(--theme-line-_5f6d77, #5f6d77)}
-.cb-stat span{display:block;color:var(--theme-ink-_7a868c, #7a868c);font-size:12px;font-weight:760}.cb-stat strong{display:block;font-size:27px;letter-spacing:-.04em;margin-top:12px;color:#18262d;position:relative;z-index:1}.cb-stat small{display:block;color:var(--theme-ink-_919ca2, #919ca2);font-size:11px;margin-top:7px}
-.cb-panel{background:var(--theme-bg-_fff, #fff);border:1px solid var(--theme-line-_e1e7e9, #e1e7e9);border-radius:18px;overflow:hidden;box-shadow:0 14px 38px var(--theme-shadow-rgba_20_38_29__045_, rgba(20,38,29,.045));margin-bottom:16px}
-.cb-panel-head{display:flex;justify-content:space-between;align-items:flex-end;gap:18px;padding:16px 18px;border-bottom:1px solid var(--theme-line-_edf0f2, #edf0f2)}
-.cb-label{display:block;font-size:10px;letter-spacing:.12em;font-weight:850;color:var(--theme-ink-_8a969c, #8a969c);margin-bottom:8px}
-.cb-panel-head h2{margin:0;font-size:18px;color:#17242b;letter-spacing:-.02em}
-.cb-small-btn{border:1px solid var(--theme-line-_dce5e3, #dce5e3);background:#f5faf8;color:#356a58;border-radius:9px;padding:9px 12px;font:inherit;font-size:11px;font-weight:800;cursor:pointer;white-space:nowrap}.cb-small-btn:hover{background:#edf6f2}
-.cb-table-wrap{overflow:auto}
-          .cb-bill-register-head{align-items:flex-end}.cb-bill-register-actions{display:flex;align-items:flex-end;gap:10px}.cb-bill-filter{display:flex;flex-direction:column;gap:5px}.cb-bill-filter span{font-size:9px;letter-spacing:.10em;font-weight:850;color:var(--theme-ink-_8a969c, #8a969c)}.cb-bill-filter select{min-width:260px;height:38px;padding:0 11px;border:1px solid var(--theme-line-_dfe6e9, #dfe6e9);background:#fbfcfc;color:#26353d;border-radius:9px;font:inherit;font-size:12px;font-weight:700;outline:none}.cb-bill-filter select:focus{border-color:var(--theme-line-_79ad98, #79ad98);box-shadow:0 0 0 3px var(--theme-shadow-rgba_29_107_82__08_, rgba(29,107,82,.08))}.cb-filter-summary{padding:9px 18px;background:#fafcfc;border-bottom:1px solid var(--theme-line-_edf0f2, #edf0f2);color:var(--theme-ink-_89959b, #89959b);font-size:10px}.cb-filter-summary strong{color:#55656c}@media(max-width:760px){.cb-bill-register-actions{width:100%;flex-direction:column;align-items:stretch}.cb-bill-filter select{width:100%;min-width:0}}
-.cb-table{width:100%;min-width:1380px;border-collapse:separate;border-spacing:0;font-size:12px}
-.cb-table th{position:sticky;top:0;z-index:2;background:#f8fafb;color:var(--theme-ink-_819097, #819097);border-bottom:1px solid var(--theme-line-_e7ecee, #e7ecee);padding:11px 12px;text-align:left;font-size:9px;letter-spacing:.10em;font-weight:850;text-transform:uppercase;white-space:nowrap}
-.cb-table td{padding:11px 12px;border-bottom:1px solid var(--theme-line-_f0f3f4, #f0f3f4);color:#38464e;vertical-align:middle;white-space:nowrap}
-.cb-table tbody tr:hover{background:#fafcfb}
-.cb-table tbody tr:last-child td{border-bottom:0}
-.cb-table .num{text-align:right}
-.cb-table small.cb-sub,.cb-contractor-name small{display:block;color:var(--theme-ink-_9ba5a9, #9ba5a9);font-size:10px;margin-top:3px}
-.cb-contractor-cell{padding:0!important;white-space:normal!important}
-.cb-row-main{display:grid;grid-template-columns:1.45fr 1.1fr .55fr .8fr .8fr 1fr 1fr 1fr .9fr 1fr 1fr .8fr;gap:0;align-items:center;padding:11px 12px}
-.cb-contractor-name strong{font-size:12px;color:#26353d}
-.cb-center{text-align:center}
-.cb-tag{display:inline-flex;max-width:185px;padding:5px 8px;background:#f3f6f5;border:1px solid var(--theme-line-_e5ebe8, #e5ebe8);border-radius:8px;color:var(--theme-ink-_5b696f, #5b696f);font-size:10px;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.cb-strong{font-weight:800;color:#1d6b52}.cb-paid{font-weight:780;color:#315c7f}.cb-advance{font-weight:800;color:#8a6b31}.cb-balance{font-weight:850;color:#8c4b4b}
-.cb-actions{display:flex;gap:5px;justify-content:flex-end}
-.cb-icon{width:29px;height:29px;border-radius:8px;background:#f2f5f5;color:var(--theme-ink-_607078, #607078);border:1px solid var(--theme-line-_e4e9ea, #e4e9ea);font:inherit;font-size:12px;cursor:pointer;transition:.18s ease}.cb-icon:hover{background:#e7eeeb;color:#244f40}.cb-danger:hover{background:#fff0ee;color:#a4483f}
-.cb-expanded-row{background:#fafcfb}
-.cb-detail{padding:0 14px 14px}
-.cb-detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-.cb-detail-card{border:1px solid var(--theme-line-_e2e7e9, #e2e7e9);border-radius:12px;background:var(--theme-bg-_fff, #fff);padding:12px}.cb-detail-card>span{display:block;color:var(--theme-ink-_6f7d83, #6f7d83);font-size:10px;font-weight:800}.cb-detail-card>strong{display:block;font-size:18px;color:#18262d;margin-top:5px}.cb-detail-card>small{display:block;color:var(--theme-ink-_9aa5aa, #9aa5aa);font-size:9px;margin-top:3px}
-.cb-party-ledger-wrap{margin-top:9px;border:1px solid var(--theme-line-_eef2f1, #eef2f1);border-radius:10px;overflow:auto;max-height:360px}
-.cb-party-ledger{width:100%;min-width:760px;border-collapse:collapse;font-size:10px}
-.cb-party-ledger th{position:sticky;top:0;background:#f8fafb;color:var(--theme-ink-_87949a, #87949a);border-bottom:1px solid var(--theme-line-_e7ecee, #e7ecee);padding:8px;text-align:left;font-size:8px;letter-spacing:.08em;text-transform:uppercase;z-index:1}
-.cb-party-ledger td{padding:8px;border-bottom:1px solid var(--theme-line-_f1f3f3, #f1f3f3);color:#4b585f;white-space:nowrap}
-.cb-party-ledger tr:last-child td{border-bottom:0}.cb-party-ledger td:nth-child(2){max-width:260px;overflow:hidden;text-overflow:ellipsis}.cb-party-ledger .num{text-align:right}
-.cb-ledger-debit{color:#2f668e;font-weight:700}.cb-ledger-credit{color:#8a5b2c;font-weight:800}.cb-ledger-balance{color:#245c48;font-weight:800}
-.cb-mini-list{margin-top:9px;border-top:1px solid var(--theme-line-_eef2f1, #eef2f1)}.cb-mini-list>div{display:grid;grid-template-columns:85px 1fr auto;gap:8px;padding:8px 0;border-bottom:1px solid var(--theme-line-_f1f3f3, #f1f3f3);font-size:10px}.cb-mini-list>div:last-child{border-bottom:0}.cb-mini-list span{color:var(--theme-ink-_8d989d, #8d989d)}.cb-mini-list b{font-weight:700;color:#4b585f}.cb-mini-list strong{color:#245c48}.cb-empty-inline{grid-template-columns:1fr!important;color:var(--theme-ink-_a0aaae, #a0aaae)}
-.cb-empty{text-align:center!important;padding:70px 20px!important;color:var(--theme-ink-_89959b, #89959b)!important}.cb-empty strong{display:block;color:#59666d;font-size:13px}.cb-empty span{display:block;font-size:11px;margin-top:4px}
-.cb-status{display:inline-flex;padding:4px 7px;border-radius:999px;font-size:9px;font-weight:850}.cb-status.certified{background:#edf8f2;color:#2f7058;border:1px solid var(--theme-line-_d4ebdd, #d4ebdd)}.cb-status.draft{background:#fff3df;color:#946020;border:1px solid var(--theme-line-_efd7aa, #efd7aa)}.cb-status.void{background:#fff0ee;color:#a4483f;border:1px solid var(--theme-line-_f3d3ce, #f3d3ce)}
-.cb-description{font-weight:720;color:#26353d}.cb-bills-table td small{display:block;color:var(--theme-ink-_9ba5a9, #9ba5a9);font-size:10px;margin-top:3px;max-width:300px;overflow:hidden;text-overflow:ellipsis}
-.cb-backdrop{position:fixed;inset:0;background:var(--theme-bg-rgba_12_25_21__52_, rgba(12,25,21,.52));backdrop-filter:blur(5px);display:grid;place-items:center;padding:20px;z-index:100}
-.cb-modal{background:var(--theme-bg-_fff, #fff);border:1px solid var(--theme-line-_dfe6e7, #dfe6e7);border-radius:20px;box-shadow:0 28px 80px var(--theme-shadow-rgba_13_28_23__22_, rgba(13,28,23,.22));max-height:92vh;overflow:hidden;width:min(780px,100%) }
-.cb-modal-head{display:flex;justify-content:space-between;gap:18px;padding:20px 21px;border-bottom:1px solid var(--theme-line-_edf0f2, #edf0f2)}.cb-modal-head h2{margin:0;font-size:24px;letter-spacing:-.03em;color:#17242b}.cb-modal-head p{margin:5px 0 0;color:var(--theme-ink-_8a969c, #8a969c);font-size:12px}.cb-close{width:34px;height:34px;border-radius:9px;background:#f4f6f7;color:var(--theme-ink-_65727a, #65727a);font-size:21px;line-height:1;border:0;cursor:pointer}
-.cb-form{display:grid;grid-template-columns:1fr 1fr;gap:13px;padding:20px 21px;overflow:auto}.cb-form label{display:block}.cb-form label.full{grid-column:1/-1}.cb-form label span{display:block;font-size:10px;font-weight:800;color:var(--theme-ink-_758289, #758289);margin-bottom:6px;letter-spacing:.03em}.cb-form input,.cb-form select,.cb-form textarea{width:100%;box-sizing:border-box;border:1px solid var(--theme-line-_dfe6e9, #dfe6e9);background:#fbfcfc;color:#1e2b31;border-radius:10px;min-height:42px;padding:0 12px;outline:none;font:inherit;font-size:13px}.cb-form textarea{padding:11px 12px;min-height:78px;resize:vertical}.cb-form input:focus,.cb-form select:focus,.cb-form textarea:focus{border-color:var(--theme-line-_79ad98, #79ad98);box-shadow:0 0 0 3px var(--theme-shadow-rgba_29_107_82__08_, rgba(29,107,82,.08))}
-.cb-calc{border:1px solid var(--theme-line-_deebe5, #deebe5);background:#f6faf8;border-radius:11px;padding:10px 12px;display:flex;flex-direction:column;justify-content:center}.cb-calc span{font-size:9px;color:var(--theme-ink-_718078, #718078);font-weight:800}.cb-calc strong{font-size:20px;margin-top:3px;color:#1d6b52}.cb-calc small{font-size:9px;color:var(--theme-ink-_8a969b, #8a969b);margin-top:2px}
-.cb-modal-foot{display:flex;justify-content:flex-end;gap:8px;padding:14px 21px;background:#fafcfc;border-top:1px solid var(--theme-line-_edf0f2, #edf0f2)}
-.cb-loading{min-height:100vh;display:grid;place-items:center;align-content:center;gap:8px;background:var(--theme-bg-_fff, #fff);color:#26343b}.cb-loading span{font-size:11px;color:var(--theme-ink-_89959a, #89959a)}.cb-spinner{width:28px;height:28px;border-radius:50%;border:3px solid var(--theme-line-_e5ebea, #e5ebea);border-top-color:var(--theme-line-_1d6b52, #1d6b52);animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-@media (max-width:1250px){.cb-stats{grid-template-columns:repeat(3,1fr)}.cb-row-main{min-width:1380px}.cb-table{min-width:1500px}.cb-detail-grid{grid-template-columns:1fr}}
-@media (max-width:1100px){.cb-stats{grid-template-columns:repeat(2,1fr)}}
-@media (max-width:800px){.cb-page{padding:18px 12px 45px}.cb-header{align-items:flex-start;flex-direction:column}.cb-header-actions{justify-content:flex-start;width:100%}.cb-header-actions .cb-btn{flex:1;justify-content:center}.cb-stats{grid-template-columns:1fr 1fr}.cb-explain{flex-direction:column}.cb-form{grid-template-columns:1fr}.cb-form label.full{grid-column:auto}}
-@media (max-width:540px){.cb-stats{grid-template-columns:1fr}.cb-modal-head{padding:16px}.cb-form{padding:16px}.cb-modal-foot{padding:12px 16px}}`}</style>
-      </div>
-    </main>
-  );
+    {modal === "bill" && <Modal title="Contractor Bill / Certification" onClose={()=>setModal("")}>
+      <div className="form-grid"><Field label="Bill Date"><input type="date" value={billForm.billDate||""} onChange={e=>setBillForm({...billForm,billDate:e.target.value})}/></Field><Field label="Status"><select value={billForm.status||"Certified"} onChange={e=>setBillForm({...billForm,status:e.target.value})}><option>Draft</option><option>Certified</option><option>Void</option></select></Field><Field label="Description" full><input value={billForm.description||""} onChange={e=>setBillForm({...billForm,description:e.target.value})}/></Field><Field label="Completed Quantity"><input type="number" value={billForm.quantity||""} onChange={e=>setBillForm({...billForm,quantity:e.target.value})}/></Field><Field label="Rate"><input type="number" value={billForm.rate||""} onChange={e=>setBillForm({...billForm,rate:e.target.value})}/></Field><Field label="Deduction"><input type="number" value={billForm.deduction||0} onChange={e=>setBillForm({...billForm,deduction:e.target.value})}/></Field><div className="calculated"><span>Net Amount</span><strong>{money(Math.max(0,num(billForm.quantity)*num(billForm.rate)-num(billForm.deduction)))}</strong></div><Field label="Notes" full><textarea value={billForm.notes||""} onChange={e=>setBillForm({...billForm,notes:e.target.value})}/></Field></div><ModalActions saving={saving} onCancel={()=>setModal("")} onSave={()=>void post("saveBill",billForm)}/>
+    </Modal>}
+
+    {modal === "progress" && <Modal title="Physical Work Progress" onClose={()=>setModal("")}>
+      <div className="progress-warning">Physical progress is a site measurement. It does not automatically change certified bills or contractor payments.</div><div className="form-grid"><Field label="Progress Date"><input type="date" value={progressForm.progressDate||""} onChange={e=>setProgressForm({...progressForm,progressDate:e.target.value})}/></Field><Field label="Physical Progress %"><input type="number" min="0" max="100" step="0.01" value={progressForm.progressPercent??""} onChange={e=>setProgressForm({...progressForm,progressPercent:e.target.value})}/></Field><Field label="Stage"><input placeholder="e.g. Finishing Works" value={progressForm.stageName||""} onChange={e=>setProgressForm({...progressForm,stageName:e.target.value})}/></Field><Field label="Floor / Zone"><input placeholder="e.g. 2nd Floor" value={progressForm.floorLabel||""} onChange={e=>setProgressForm({...progressForm,floorLabel:e.target.value})}/></Field><Field label="Completed Quantity"><input type="number" value={progressForm.completedQuantity||""} onChange={e=>setProgressForm({...progressForm,completedQuantity:e.target.value})}/></Field><Field label="Description" full><textarea value={progressForm.description||""} onChange={e=>setProgressForm({...progressForm,description:e.target.value})}/></Field><Field label="Notes" full><textarea value={progressForm.notes||""} onChange={e=>setProgressForm({...progressForm,notes:e.target.value})}/></Field></div><ModalActions saving={saving} onCancel={()=>setModal("")} onSave={()=>void post("saveProgress",progressForm)}/>
+    </Modal>}
+    <style jsx>{styles}</style>
+  </main>;
 }
+
+function Metric({label,value,note,tone=""}:any){return <article className={`metric ${tone}`}><span>{label}</span><strong>{value}</strong><small>{note}</small></article>}
+function Progress({label,value,empty}:any){const has=value!==null&&value!==undefined;const width=Math.max(0,Math.min(100,num(value)));return <div className="progress"><div><span>{label}</span><strong>{has?pct(value):empty}</strong></div><i><b style={{width:`${has?width:0}%`}}/></i></div>}
+function Field({label,children,full=false}:any){return <label className={full?"field full":"field"}><span>{label}</span>{children}</label>}
+function Modal({title,onClose,children}:any){return <div className="modal-backdrop" onMouseDown={e=>{if(e.currentTarget===e.target)onClose()}}><section className="modal"><header><div><span>LAND VIEW · PHASE 3</span><strong>{title}</strong></div><button onClick={onClose}>×</button></header>{children}</section></div>}
+function ModalActions({saving,onCancel,onSave}:any){return <div className="modal-actions"><button onClick={onCancel}>Cancel</button><button className="primary" disabled={saving} onClick={onSave}>{saving?"Saving…":"Save"}</button></div>}
+
+const styles = `
+.ca-page{min-height:100vh;background:#f3f6f5;color:#17232b;padding:28px 26px 70px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.ca-shell{max-width:1540px;margin:0 auto}.ca-loading{display:flex;min-height:65vh;align-items:center;justify-content:center;flex-direction:column;gap:8px}.ca-loading small{color:#7f8d92}.spinner{width:34px;height:34px;border:3px solid #d8e4df;border-top-color:#1d6b52;border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}.hero{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;margin-bottom:18px}.kicker{display:block;color:#1d6b52;font-size:9px;font-weight:900;letter-spacing:.16em}.hero h1,.chooser h1{margin:7px 0 4px;font-size:clamp(30px,4vw,46px);letter-spacing:-.045em}.hero h1 em{font-style:normal;font-size:.52em;color:#76838a;font-weight:650}.hero p,.chooser p{margin:0;color:#74828a;font-size:12px}.hero-actions{display:flex;gap:8px}.hero-actions button,.card-actions button,.section-head button,.modal-actions button,.actions button{border:1px solid #dbe4e0;background:#fff;color:#285e4b;border-radius:9px;padding:9px 11px;font:inherit;font-size:10px;font-weight:850;cursor:pointer}.primary{background:#1d6b52!important;color:#fff!important;border-color:#1d6b52!important}.metrics{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:14px}.metric{background:#fff;border:1px solid #e0e7e5;border-radius:14px;padding:15px;box-shadow:0 8px 20px rgba(18,41,31,.035)}.metric span{font-size:9px;color:#75838a;font-weight:850}.metric strong{display:block;margin:8px 0 4px;font-size:19px;letter-spacing:-.03em}.metric small{font-size:8px;color:#98a2a6}.metric.warn strong,.warn-text{color:#a66a17}.metric.danger strong,.danger-text{color:#b34940}.good-text{color:#27735a}.notice{display:flex;justify-content:space-between;gap:20px;padding:12px 15px;margin-bottom:14px;background:#fff9e8;border:1px solid #ead9a4;border-radius:12px;color:#72591f;font-size:10px}.notice span{color:#907b4c}.contract-list{display:grid;gap:12px}.contract-card{background:#fff;border:1px solid #dfe7e4;border-radius:16px;overflow:hidden;box-shadow:0 10px 28px rgba(15,37,28,.035)}.contract-main{display:grid;grid-template-columns:minmax(220px,1.15fr) 1.3fr 1.2fr auto;gap:18px;align-items:center;padding:18px}.identity>span,.section-head>div>span{font-size:8px;letter-spacing:.12em;font-weight:900;color:#1d6b52}.identity h2{margin:5px 0 4px;font-size:17px}.identity p{margin:0;color:#889399;font-size:9px;line-height:1.5}.money-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}.money-grid div{padding:9px 10px;border:1px solid #edf1ef;border-radius:9px}.money-grid span{display:block;font-size:8px;color:#889397}.money-grid strong{display:block;margin-top:3px;font-size:11px}.progress-grid{display:grid;gap:7px}.progress>div{display:flex;justify-content:space-between;gap:10px;font-size:8px;color:#748187}.progress>div strong{color:#29383e}.progress i{height:5px;background:#edf1ef;border-radius:99px;overflow:hidden;display:block;margin-top:4px}.progress i b{display:block;height:100%;background:#1d6b52;border-radius:99px}.card-actions{display:flex;flex-direction:column;gap:5px}.details-zone{background:#f9fbfa;border-top:1px solid #e7ecea;padding:14px;display:grid;gap:13px}.details-zone section{background:#fff;border:1px solid #e5ebe8;border-radius:12px;padding:13px}.section-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}.section-head strong{display:block;font-size:12px;margin-top:2px}.section-head small{color:#89969b;font-size:8px}.latest-progress{display:flex;align-items:center;gap:12px;background:#edf7f2;border:1px solid #d5e9df;border-radius:10px;padding:11px;margin-bottom:10px}.latest-progress>b{font-size:22px;color:#1d6b52}.latest-progress div strong,.latest-progress div span{display:block}.latest-progress div strong{font-size:10px}.latest-progress div span{font-size:8px;color:#73827f;margin-top:3px}.mini-table{overflow:auto}.mini-table table{width:100%;border-collapse:collapse;font-size:9px;min-width:720px}.mini-table th{text-align:left;color:#7c898e;font-size:8px;padding:8px;border-bottom:1px solid #e7ecea}.mini-table td{padding:8px;border-bottom:1px solid #f0f3f2;vertical-align:top}.mini-table tr:last-child td{border-bottom:0}.num{text-align:right!important;white-space:nowrap}.actions{white-space:nowrap;text-align:right}.actions button{padding:5px 7px;margin-left:4px;font-size:8px}.status{display:inline-flex;padding:3px 6px;border-radius:99px;background:#eef2f1;font-size:7px;font-weight:850}.status.certified{background:#e8f5ee;color:#24694f}.status.void{background:#f9ecea;color:#9e433c}.empty,.empty-card{text-align:center;color:#8d989c;padding:20px!important}.empty-card{background:#fff;border:1px dashed #cfdad5;border-radius:14px}.chooser{max-width:620px;margin:80px auto;background:#fff;border:1px solid #dfe7e4;border-radius:18px;padding:28px}.chooser select{width:100%;min-height:44px;margin-top:22px;border:1px solid #d7e0dd;border-radius:10px;padding:0 12px;background:#fff}.alert{margin:10px 0;padding:11px 13px;border:1px solid #efcfc9;background:#fff0ed;color:#9b4038;border-radius:10px;font-size:10px}.modal-backdrop{position:fixed;inset:0;z-index:200;background:rgba(7,18,14,.58);display:flex;align-items:center;justify-content:center;padding:22px}.modal{width:min(760px,100%);max-height:90vh;overflow:auto;background:#fff;border-radius:16px;box-shadow:0 30px 90px rgba(0,0,0,.28)}.modal>header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid #e4eae7}.modal>header span{display:block;font-size:8px;color:#1d6b52;letter-spacing:.12em;font-weight:900}.modal>header strong{display:block;margin-top:3px;font-size:15px}.modal>header button{border:0;background:#f1f4f3;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:20px}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:18px}.field{display:grid;gap:5px}.field.full{grid-column:1/-1}.field>span{font-size:8px;font-weight:850;color:#6d7d82}.field input,.field select,.field textarea{width:100%;border:1px solid #d9e2df;border-radius:9px;padding:9px 10px;font:inherit;font-size:11px;background:#fff;color:#1c292f;box-sizing:border-box}.field textarea{min-height:74px;resize:vertical}.calculated{align-self:end;padding:9px 10px;background:#f3f7f5;border-radius:9px}.calculated span{font-size:8px;color:#78868b}.calculated strong{display:block;margin-top:3px;font-size:13px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid #e4eae7}.progress-warning{margin:16px 18px 0;padding:10px 12px;border-radius:9px;background:#eef5f2;color:#42645a;font-size:9px;line-height:1.5}
+@media(max-width:1180px){.metrics{grid-template-columns:repeat(3,1fr)}.contract-main{grid-template-columns:1fr 1fr}.card-actions{flex-direction:row;grid-column:1/-1;justify-content:flex-end}}
+@media(max-width:720px){.ca-page{padding:18px 10px 60px}.hero{align-items:flex-start;flex-direction:column}.hero-actions{width:100%}.hero-actions button{flex:1}.metrics{grid-template-columns:1fr 1fr}.contract-main{grid-template-columns:1fr}.card-actions{grid-column:auto;display:grid;grid-template-columns:1fr 1fr}.notice{flex-direction:column}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.modal-backdrop{padding:8px}.modal{max-height:95vh}.metric strong{font-size:16px}}
+`;
