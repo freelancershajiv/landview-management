@@ -4,11 +4,13 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams } from "next/navigation";
 import ProjectFinanceHistoryEditor from "@/components/project-finance-history-editor";
+import ProjectFileLedgerLinker from "@/components/project-file-ledger-linker";
 
 export default function ProjectFinanceEditorPortal() {
   const params = useParams<{ projectId: string }>();
   const projectCode = decodeURIComponent(String(params?.projectId || ""));
   const [host, setHost] = useState<HTMLElement | null>(null);
+  const [financeRevision, setFinanceRevision] = useState(0);
 
   useEffect(() => {
     let currentHost: HTMLElement | null = null;
@@ -51,9 +53,10 @@ export default function ProjectFinanceEditorPortal() {
     <div>
       <div className="pc-edit-section-head" style={{ marginBottom: 12 }}>
         <strong>Billing, payments & ledger history</strong>
-        <small>Same full historical controls available during old-project registration.</small>
+        <small>Same full historical controls available during old-project registration, including automatic File ID ledger linking.</small>
       </div>
-      <ProjectFinanceHistoryEditor projectCode={projectCode} />
+      <ProjectFileLedgerLinker projectCode={projectCode} onLinked={() => setFinanceRevision((value) => value + 1)} />
+      <ProjectFinanceHistoryEditor key={`${projectCode}-${financeRevision}`} projectCode={projectCode} />
     </div>,
     host,
   );
