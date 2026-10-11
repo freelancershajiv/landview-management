@@ -127,20 +127,10 @@ function sattapurSnapshot(rows: Row[]) {
   };
 }
 function accountingRows(rows: Row[]) {
-  // Sattapur delivery rows are material-delivery records, not new cash expenses.
-  // Sattapur deposits are cash expenses even when the historical row was entered as Debit.
-  return rows.filter((row:any) => !isSattapurDelivery(row)).map((row:any) => {
-    if (isSattapurDeposit(row)) {
-      return {
-        ...row,
-        debit:0,
-        credit:num(row.debit),
-        category:"Sattapur Bricks Deposit",
-        memo:[row.memo,"SATTPUR_BRICKS_DEPOSIT"].filter(Boolean).join("\n")
-      };
-    }
-    return row;
-  });
+  // Sattapur deposits stay in the main Income ledger exactly as recorded.
+  // The Sattapur view only links those same debit rows for hold calculation.
+  // Delivery rows are material receipts, so they remain outside the cash ledger.
+  return rows.filter((row:any) => !isSattapurDelivery(row));
 }
 function calculate(rows: Row[]) {
   let balance = 0;
@@ -340,7 +330,9 @@ async function workspace(user: Row, requested?: string) {
   let expenseBalance = 0;
   const entries = calculate(rows).map((row:any) => {
     incomeBalance += num(row.debit);
-    expenseBalance += num(row.credit);
+    // Sattapur funding is still a cash allocation for Total Expense, but its
+    // source transaction remains visible only as a Debit/Income row.
+    expenseBalance += num(row.credit) + (isSattapurDeposit(row) ? num(row.debit) : 0);
     return {
       ...row,
       income_balance: incomeBalance,
@@ -349,25 +341,33 @@ async function workspace(user: Row, requested?: string) {
       received_from: clean(row.received_from,160),
     };
   });
-  // Total Deposit is the project's original funding/deposit figure and must
-  // remain unchanged when Sattapur deposits are reclassified as expenses.
+  // Total Deposit always comes from the original debit/income rows. Sattapur
+  // deposits are not moved out of Income. For cash accounting, those linked
+  // deposits are also included in Total Expense without creating a duplicate row.
   const debit = rows.reduce((s,r) => s + num(r.debit), 0);
-  const credit = entries.reduce((s,r) => s + num(r.credit), 0);
+  const credit = entries.reduce((s,r) => s + num(r.credit), 0) + sattapurBricks.depositAmount;
   const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Other Expenses", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
   const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
   const masterLedger = await masterLedgerFor(user, selected);
   const summary = await projectSummaryFor(selected);
   const contractorBills = await contractorWorkspaceFor(selected, entries);
   const linkedSupplierAdvance = sattapurBricks.holdAmount;
-  // Sattapur deposits are already included in Total Expense, so the hold is
-  // shown separately and must not be deducted from cash a second time.
-  const engShajivBalance = debit - credit - summary.chequeOnHold;
+  const currentChequeOnHold = rows.reduce((sum:number,row:any) => {
+    const isHeld = clean(row.category,120).toLowerCase() === "cheque"
+      && num(row.debit) > 0
+      && /^CHEQUE_STATUS:ON_HOLD/i.test(clean(row.memo,1000));
+    return sum + (isHeld ? num(row.debit) : 0);
+  },0);
+  // Sattapur deposits are included in Total Expense as a cash allocation, while
+  // the same transactions stay visible in Main Income. Hold is informational and
+  // must not be deducted from Eng Shajiv a second time.
+  const engShajivBalance = debit - credit - currentChequeOnHold;
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
     totals: { debit, credit, balance: debit - credit },
-    summary: { ...summary, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance },
+    summary: { ...summary, chequeOnHold: currentChequeOnHold, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance },
     sattapurBricks,
     categories,
     masterLedger,
@@ -618,7 +618,7 @@ export async function DELETE(request: NextRequest) {
     }
     if (type === "contractor-contract") {
       const deleted = await deleteRows("project_contractor_contracts",{id});
-      if (!deleted.length) return fail("Contractor contract not found.",404);
+      if (!deleted.length) return fail("Supplier / contractor not found.",404);
       return ok({deleted:true,id,type});
     }
     const deleted = await deleteRows("project_management_ledger", { id });
