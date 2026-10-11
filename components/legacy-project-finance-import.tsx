@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type LegacyBillDraft = {
   key: string;
@@ -42,6 +42,8 @@ type LedgerCandidate = {
   category: string;
   description: string;
   reference: string;
+  account?: string;
+  paymentMethod?: string;
   sourceType: string;
   status: string;
   matchStatus: "exact" | "review";
@@ -100,6 +102,9 @@ function number(value: unknown) {
 function money(value: number) {
   return `BDT ${value.toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+function validProjectCode(value: string) {
+  return /^LV-\d{3,}$/i.test(String(value || "").trim());
+}
 function standardBill(category: string, description: string, index: number): LegacyBillDraft {
   const slug = `${category}-${description}`.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   return {
@@ -126,6 +131,28 @@ function newCustomBill(category: string): LegacyBillDraft {
 function newPayment(): LegacyPaymentDraft {
   return { key: key("pay"), payment_date: "", amount: "", payment_method: "Cash", reference_no: "", deposit_account: "", payment_for: "", income_category: "Engineering Bill", received_from: "", received_by: "", notes: "", ledger_transaction_code: "" };
 }
+function categoryFromLedger(candidate: LedgerCandidate) {
+  const wording = `${candidate.category} ${candidate.description}`.toLowerCase();
+  if (/supervision/.test(wording)) return "Supervision Bill";
+  if (/municipality|fire service|noc|submission|vetting|consultancy|soil|survey|file pass/.test(wording)) return "Other Services Bill";
+  return "Engineering Bill";
+}
+function paymentFromLedger(candidate: LedgerCandidate): LegacyPaymentDraft {
+  return {
+    key: key("pay"),
+    payment_date: candidate.date || "",
+    amount: String(candidate.amount || ""),
+    payment_method: candidate.paymentMethod || "Cash",
+    reference_no: candidate.reference || "",
+    deposit_account: candidate.account || "",
+    payment_for: candidate.description || candidate.category || "Historical payment",
+    income_category: categoryFromLedger(candidate),
+    received_from: "",
+    received_by: "",
+    notes: "",
+    ledger_transaction_code: candidate.transactionCode,
+  };
+}
 
 export function createEmptyLegacyFinance(): LegacyFinanceDraft {
   return { bills: standardBills(), payments: [] };
@@ -136,6 +163,9 @@ export default function LegacyProjectFinanceImport({ projectCode, value, onChang
   const [searching, setSearching] = useState<Record<string, boolean>>({});
   const [matches, setMatches] = useState<Record<string, LedgerCandidate[]>>({});
   const [matchErrors, setMatchErrors] = useState<Record<string, string>>({});
+  const [projectLedger, setProjectLedger] = useState<LedgerCandidate[]>([]);
+  const [projectLedgerLoading, setProjectLedgerLoading] = useState(false);
+  const [projectLedgerError, setProjectLedgerError] = useState("");
   const historical = mode === "legacy";
 
   const totals = useMemo(() => {
@@ -145,6 +175,52 @@ export default function LegacyProjectFinanceImport({ projectCode, value, onChang
     const activeBills = value.bills.filter((row) => number(row.amount) > 0).length;
     return { billed, paid, linked, activeBills, due: Math.max(0, billed - paid) };
   }, [historical, value]);
+
+  const locallyLinkedCodes = useMemo(
+    () => new Set(value.payments.map((payment) => payment.ledger_transaction_code).filter(Boolean)),
+    [value.payments],
+  );
+  const unselectedProjectLedger = useMemo(
+    () => projectLedger.filter((candidate) => !locallyLinkedCodes.has(candidate.transactionCode)),
+    [projectLedger, locallyLinkedCodes],
+  );
+
+  useEffect(() => {
+    if (!historical || !validProjectCode(projectCode)) {
+      setProjectLedger([]);
+      setProjectLedgerError("");
+      setProjectLedgerLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setProjectLedgerLoading(true);
+      setProjectLedgerError("");
+      try {
+        const params = new URLSearchParams({ mode: "project", projectCode });
+        const response = await fetch(`/api/projects/legacy-ledger?${params.toString()}`, {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        const json = await response.json();
+        if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not load File ID ledger income."));
+        setProjectLedger(Array.isArray(json.data) ? json.data : []);
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setProjectLedger([]);
+        setProjectLedgerError(error instanceof Error ? error.message : "Could not load File ID ledger income.");
+      } finally {
+        if (!controller.signal.aborted) setProjectLedgerLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [historical, projectCode]);
 
   function updateBill(rowKey: string, changes: Partial<LegacyBillDraft>) {
     onChange({
@@ -166,6 +242,14 @@ export default function LegacyProjectFinanceImport({ projectCode, value, onChang
   function removePayment(rowKey: string) {
     onChange({ ...value, payments: value.payments.filter((row) => row.key !== rowKey) });
     setMatches((current) => { const next = { ...current }; delete next[rowKey]; return next; });
+  }
+  function linkProjectLedger(candidate: LedgerCandidate) {
+    if (locallyLinkedCodes.has(candidate.transactionCode)) return;
+    onChange({ ...value, payments: [...value.payments, paymentFromLedger(candidate)] });
+  }
+  function linkAllProjectLedger() {
+    if (!unselectedProjectLedger.length) return;
+    onChange({ ...value, payments: [...value.payments, ...unselectedProjectLedger.map(paymentFromLedger)] });
   }
 
   async function findLedgerMatches(payment: LegacyPaymentDraft) {
@@ -193,13 +277,13 @@ export default function LegacyProjectFinanceImport({ projectCode, value, onChang
     <div className="legacy-finance-intro">
       <div>
         <b>{historical ? "Historical billing & payments" : "Project billing setup"}</b>
-        <span>{historical ? "All standard bill categories are already open below. Enter amounts only for the services this old project used; blank rows are ignored. Historical deposits can be linked to the existing Accounts Ledger without double-posting income." : "All standard billing categories are already open. Enter bill details directly in the rows you need; blank rows are ignored when the project is created."}</span>
+        <span>{historical ? "All standard bill categories are already open below. Enter amounts only for the services this old project used; blank rows are ignored. When the File ID matches old Accounts Ledger income, those entries appear automatically for linking." : "All standard billing categories are already open. Enter bill details directly in the rows you need; blank rows are ignored when the project is created."}</span>
       </div>
       <div className="legacy-summary">
         <span><small>ACTIVE BILLS</small><b>{totals.activeBills}</b></span>
         <span><small>NET BILLED</small><b>{money(totals.billed)}</b></span>
         <span><small>{historical ? "PAYMENTS" : "BILL GROUPS"}</small><b>{historical ? money(totals.paid) : BILL_GROUPS.length}</b></span>
-        <span><small>{historical ? "DUE" : "STANDARD ROWS"}</small><b>{historical ? money(totals.due) : value.bills.length}</b></span>
+        <span><small>{historical ? "LEDGER LINKED" : "STANDARD ROWS"}</small><b>{historical ? `${totals.linked}/${value.payments.length}` : value.bills.length}</b></span>
       </div>
     </div>
 
@@ -230,20 +314,38 @@ export default function LegacyProjectFinanceImport({ projectCode, value, onChang
     </div>
 
     {historical && <div className="legacy-section">
-      <div className="legacy-section-head"><div><b>Payment details & ledger verification</b><span>Add each old deposit and match it to the existing Accounts Ledger when possible.</span></div><button type="button" className="legacy-add" onClick={() => onChange({ ...value, payments: [...value.payments, newPayment()] })}>+ Add Payment</button></div>
-      {!value.payments.length && <div className="legacy-empty">No historical payments added yet.</div>}
+      <div className="legacy-section-head">
+        <div><b>Historical Accounts Ledger income for {validProjectCode(projectCode) ? projectCode : "this File ID"}</b><span>Once a valid File ID is entered, unused Income entries already carrying that File ID appear here automatically. Link them as historical payments; this does not post the income again.</span></div>
+        {!!unselectedProjectLedger.length && <button type="button" className="legacy-add" onClick={linkAllProjectLedger}>Link All {unselectedProjectLedger.length}</button>}
+      </div>
+      {!validProjectCode(projectCode) ? <div className="legacy-empty">Enter the historical File ID above, for example LV-178, to load its Accounts Ledger income.</div>
+        : projectLedgerLoading ? <div className="legacy-empty">Loading Income entries for {projectCode}…</div>
+        : projectLedgerError ? <div className="legacy-error block">{projectLedgerError}</div>
+        : !projectLedger.length ? <div className="legacy-empty">No unused historical Income ledger entries were found for {projectCode}.</div>
+        : <div className="project-ledger-list">{projectLedger.map((candidate) => {
+          const linked = locallyLinkedCodes.has(candidate.transactionCode);
+          return <div className={`project-ledger-row ${linked ? "linked" : ""}`} key={candidate.id}>
+            <div className="project-ledger-main"><span className="match-badge exact">File ID Match</span><b>{candidate.transactionCode}</b><span>{candidate.date || "No date"} · {money(candidate.amount)} · {candidate.projectCode}</span><small>{[candidate.category, candidate.description, candidate.account, candidate.reference].filter(Boolean).join(" · ") || candidate.sourceType}</small></div>
+            <button type="button" disabled={linked} onClick={() => linkProjectLedger(candidate)}>{linked ? "Linked" : "Link as Payment"}</button>
+          </div>;
+        })}</div>}
+    </div>}
+
+    {historical && <div className="legacy-section">
+      <div className="legacy-section-head"><div><b>Payment details & ledger verification</b><span>Linked File-ID income is inserted here automatically as a payment row. You can correct its category/details before creating the historical project, or add another payment manually.</span></div><button type="button" className="legacy-add" onClick={() => onChange({ ...value, payments: [...value.payments, newPayment()] })}>+ Add Payment</button></div>
+      {!value.payments.length && <div className="legacy-empty">No historical payments linked or added yet.</div>}
       {value.payments.map((payment, index) => {
         const rowMatches = matches[payment.key] || [];
         return <div className="legacy-row payment" key={payment.key}>
-          <div className="legacy-row-title"><b>Payment #{index + 1}</b><button type="button" onClick={() => removePayment(payment.key)}>Remove</button></div>
+          <div className="legacy-row-title"><div><b>Payment #{index + 1}</b>{payment.ledger_transaction_code && <span className="linked-label">{payment.ledger_transaction_code}</span>}</div><button type="button" onClick={() => removePayment(payment.key)}>Remove</button></div>
           <div className="legacy-grid">
             <label>Payment Date<input type="date" value={payment.payment_date} onChange={(e) => updatePayment(payment.key, { payment_date: e.target.value, ledger_transaction_code: "" })} /></label>
             <label>Amount<input inputMode="decimal" value={payment.amount} onChange={(e) => updatePayment(payment.key, { amount: e.target.value, ledger_transaction_code: "" })} /></label>
             <label>Billing Category<select value={payment.income_category} onChange={(e) => updatePayment(payment.key, { income_category: e.target.value })}>{PAYMENT_CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></label>
             <label>Payment For<input value={payment.payment_for} onChange={(e) => updatePayment(payment.key, { payment_for: e.target.value })} placeholder="e.g. Architectural Design" /></label>
-            <label>Payment Method<select value={payment.payment_method} onChange={(e) => updatePayment(payment.key, { payment_method: e.target.value })}><option>Cash</option><option>Bank Transfer</option><option>Cheque</option><option>bKash</option><option>Nagad</option><option>Card</option><option>Other</option></select></label>
+            <label>Payment Method<select value={payment.payment_method} onChange={(e) => updatePayment(payment.key, { payment_method: e.target.value })}><option>Cash</option><option>Bank</option><option>Bank Transfer</option><option>Cheque</option><option>bKash</option><option>Nagad</option><option>Card</option><option>Other</option></select></label>
             <label>Reference No.<input value={payment.reference_no} onChange={(e) => updatePayment(payment.key, { reference_no: e.target.value })} /></label>
-            <label>Deposit Account<input value={payment.deposit_account} onChange={(e) => updatePayment(payment.key, { deposit_account: e.target.value })} placeholder="Optional historical account" /></label>
+            <label>Deposit Account<input value={payment.deposit_account} onChange={(e) => updatePayment(payment.key, { deposit_account: e.target.value })} placeholder="Historical account" /></label>
             <label>Received From<input value={payment.received_from} onChange={(e) => updatePayment(payment.key, { received_from: e.target.value })} /></label>
             <label>Received By<input value={payment.received_by} onChange={(e) => updatePayment(payment.key, { received_by: e.target.value })} /></label>
             <label className="wide">Notes<input value={payment.notes} onChange={(e) => updatePayment(payment.key, { notes: e.target.value })} /></label>
@@ -265,7 +367,7 @@ export default function LegacyProjectFinanceImport({ projectCode, value, onChang
     </div>}
 
     <style>{`
-      .legacy-finance-wrap{grid-column:1/-1;display:grid;gap:12px;min-width:0}.legacy-finance-intro,.legacy-section{border:1px solid rgba(255,255,255,.11);border-radius:12px;background:#0d161f;overflow:hidden}.legacy-finance-intro{padding:15px;display:grid;gap:13px}.legacy-finance-intro>div:first-child>b,.legacy-section-head b{display:block;color:#f4f6f8;font-size:13px}.legacy-finance-intro>div:first-child>span,.legacy-section-head span{display:block;margin-top:4px;color:#7f8c96;font-size:10px;line-height:1.5}.legacy-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.legacy-summary span{border:1px solid rgba(255,255,255,.09);border-radius:8px;background:#111c25;padding:10px}.legacy-summary small{display:block;color:#75838e;font-size:8px;font-weight:900;letter-spacing:.08em}.legacy-summary b{display:block;margin-top:5px;color:#fff;font-size:11px}.legacy-section-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.08);background:#121d26}.legacy-add,.legacy-row-title button,.ledger-link-actions button,.bill-group-head button{border:1px solid rgba(255,255,255,.13);border-radius:7px;background:#18242e;color:#fff;padding:8px 10px;font-size:10px;font-weight:800;cursor:pointer}.legacy-add{background:#d61f26;border-color:#d61f26}.bill-group{border-bottom:1px solid rgba(255,255,255,.08)}.bill-group:last-of-type{border-bottom:0}.bill-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#0f1922}.bill-group-head>div{display:flex;align-items:center;gap:10px}.bill-group-head b{color:#f2f5f7;font-size:11px}.bill-group-head span{color:#778590;font-size:9px}.bill-group-head button{padding:6px 8px;background:#16232d}.bill-grid-scroll{overflow-x:auto;padding:0 10px 10px}.bill-grid{min-width:1160px;display:grid;grid-template-columns:minmax(190px,2fr) 128px 100px 64px 105px 95px 110px 120px minmax(130px,1fr) 34px;gap:6px;align-items:center}.bill-grid-header{padding:8px 4px 5px;color:#71808b;font-size:7px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.bill-inline-row{padding:5px 4px;border-top:1px solid rgba(255,255,255,.055)}.bill-inline-row.active{background:rgba(214,31,38,.035)}.bill-inline-row input,.bill-inline-row select{width:100%;height:34px;border:1px solid rgba(255,255,255,.11);border-radius:6px;background:#101a23;color:#edf1f4;padding:0 8px;font-size:10px}.bill-inline-row input:focus,.bill-inline-row select:focus{outline:none;border-color:#d61f26}.bill-inline-row strong{font-size:9px;color:#dbe2e7;text-align:right;white-space:nowrap}.row-remove{width:30px;height:30px;border:1px solid rgba(214,31,38,.22);border-radius:6px;background:rgba(214,31,38,.06);color:#ff9d96;font-size:15px;cursor:pointer}.blank-note{padding:10px 13px;border-top:1px solid rgba(255,255,255,.06);color:#74828d;font-size:9px}.legacy-empty{padding:16px;color:#71808b;font-size:10px}.legacy-empty.compact{padding:10px 0 0}.legacy-row{margin:12px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:#101a23;overflow:hidden}.legacy-row-title{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.08)}.legacy-row-title b{color:#e9eef2;font-size:11px}.legacy-row-title button{padding:6px 8px;color:#ff9d96}.legacy-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px}.legacy-grid label{display:grid;gap:5px;color:#83909a;font-size:9px;font-weight:800}.legacy-grid label.wide{grid-column:span 2}.legacy-grid input,.legacy-grid select{height:37px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#0d161f;color:#edf1f4;padding:0 9px;font-size:11px}.ledger-link-box{margin:0 12px 12px;padding:11px;border:1px solid rgba(214,31,38,.25);border-radius:8px;background:rgba(214,31,38,.04)}.ledger-link-top{display:flex;justify-content:space-between;align-items:center;gap:10px}.ledger-link-top b{display:block;color:#f0f3f5;font-size:10px}.ledger-link-top span{display:block;margin-top:4px;color:#7f8c96;font-size:9px}.ledger-link-actions{display:flex;gap:6px;flex-wrap:wrap}.ledger-matches{display:grid;gap:6px;margin-top:9px}.ledger-candidate{text-align:left;border:1px solid rgba(255,255,255,.09);border-radius:7px;background:#111d26;color:#dbe2e7;padding:9px;cursor:pointer}.ledger-candidate.selected{border-color:#d61f26;background:rgba(214,31,38,.09)}.ledger-candidate b{display:block;margin-top:4px;font-size:10px}.ledger-candidate span:not(.match-badge){display:block;margin-top:3px;color:#a9b3ba;font-size:9px}.ledger-candidate small{display:block;margin-top:3px;color:#6f7e89;font-size:8px}.match-badge{display:inline-flex;border-radius:999px;padding:3px 6px;font-size:7px;font-weight:900;text-transform:uppercase}.match-badge.exact{background:rgba(52,190,115,.15);color:#83dfaa}.match-badge.review{background:rgba(243,172,47,.14);color:#f1c66f}.legacy-error{margin-top:8px;color:#ff9d96;font-size:9px}@media(max-width:800px){.legacy-summary{grid-template-columns:1fr 1fr}.legacy-grid{grid-template-columns:1fr 1fr}.ledger-link-top{align-items:flex-start;flex-direction:column}}@media(max-width:560px){.legacy-summary,.legacy-grid{grid-template-columns:1fr}.legacy-grid label.wide{grid-column:auto}.legacy-section-head,.bill-group-head{align-items:flex-start;flex-direction:column}}
+      .legacy-finance-wrap{grid-column:1/-1;display:grid;gap:12px;min-width:0}.legacy-finance-intro,.legacy-section{border:1px solid rgba(255,255,255,.11);border-radius:12px;background:#0d161f;overflow:hidden}.legacy-finance-intro{padding:15px;display:grid;gap:13px}.legacy-finance-intro>div:first-child>b,.legacy-section-head b{display:block;color:#f4f6f8;font-size:13px}.legacy-finance-intro>div:first-child>span,.legacy-section-head span{display:block;margin-top:4px;color:#7f8c96;font-size:10px;line-height:1.5}.legacy-summary{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.legacy-summary span{border:1px solid rgba(255,255,255,.09);border-radius:8px;background:#111c25;padding:10px}.legacy-summary small{display:block;color:#75838e;font-size:8px;font-weight:900;letter-spacing:.08em}.legacy-summary b{display:block;margin-top:5px;color:#fff;font-size:11px}.legacy-section-head{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:13px 14px;border-bottom:1px solid rgba(255,255,255,.08);background:#121d26}.legacy-add,.legacy-row-title button,.ledger-link-actions button,.bill-group-head button,.project-ledger-row>button{border:1px solid rgba(255,255,255,.13);border-radius:7px;background:#18242e;color:#fff;padding:8px 10px;font-size:10px;font-weight:800;cursor:pointer}.legacy-add{background:#d61f26;border-color:#d61f26}.bill-group{border-bottom:1px solid rgba(255,255,255,.08)}.bill-group:last-of-type{border-bottom:0}.bill-group-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:#0f1922}.bill-group-head>div{display:flex;align-items:center;gap:10px}.bill-group-head b{color:#f2f5f7;font-size:11px}.bill-group-head span{color:#778590;font-size:9px}.bill-group-head button{padding:6px 8px;background:#16232d}.bill-grid-scroll{overflow-x:auto;padding:0 10px 10px}.bill-grid{min-width:1160px;display:grid;grid-template-columns:minmax(190px,2fr) 128px 100px 64px 105px 95px 110px 120px minmax(130px,1fr) 34px;gap:6px;align-items:center}.bill-grid-header{padding:8px 4px 5px;color:#71808b;font-size:7px;font-weight:900;letter-spacing:.07em;text-transform:uppercase}.bill-inline-row{padding:5px 4px;border-top:1px solid rgba(255,255,255,.055)}.bill-inline-row.active{background:rgba(214,31,38,.035)}.bill-inline-row input,.bill-inline-row select{width:100%;height:34px;border:1px solid rgba(255,255,255,.11);border-radius:6px;background:#101a23;color:#edf1f4;padding:0 8px;font-size:10px}.bill-inline-row input:focus,.bill-inline-row select:focus{outline:none;border-color:#d61f26}.bill-inline-row strong{font-size:9px;color:#dbe2e7;text-align:right;white-space:nowrap}.row-remove{width:30px;height:30px;border:1px solid rgba(214,31,38,.22);border-radius:6px;background:rgba(214,31,38,.06);color:#ff9d96;font-size:15px;cursor:pointer}.blank-note{padding:10px 13px;border-top:1px solid rgba(255,255,255,.06);color:#74828d;font-size:9px}.project-ledger-list{display:grid;gap:7px;padding:10px}.project-ledger-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px;border:1px solid rgba(255,255,255,.09);border-radius:8px;background:#101a23}.project-ledger-row.linked{border-color:rgba(52,190,115,.28);background:rgba(52,190,115,.035)}.project-ledger-row>button{flex:0 0 auto;background:#d61f26;border-color:#d61f26}.project-ledger-row>button:disabled{background:#173023;border-color:#28533a;color:#8bd2a6;cursor:default}.project-ledger-main{min-width:0}.project-ledger-main b{display:block;margin-top:4px;color:#eef2f5;font-size:10px}.project-ledger-main>span:not(.match-badge){display:block;margin-top:3px;color:#a9b3ba;font-size:9px}.project-ledger-main small{display:block;margin-top:3px;color:#74828d;font-size:8px;line-height:1.45}.legacy-empty{padding:16px;color:#71808b;font-size:10px}.legacy-empty.compact{padding:10px 0 0}.legacy-row{margin:12px;border:1px solid rgba(255,255,255,.09);border-radius:10px;background:#101a23;overflow:hidden}.legacy-row-title{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid rgba(255,255,255,.08)}.legacy-row-title>div{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.legacy-row-title b{color:#e9eef2;font-size:11px}.legacy-row-title button{padding:6px 8px;color:#ff9d96}.linked-label{padding:3px 6px;border-radius:999px;background:rgba(52,190,115,.11);color:#8bd2a6;font-size:8px;font-weight:800}.legacy-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;padding:12px}.legacy-grid label{display:grid;gap:5px;color:#83909a;font-size:9px;font-weight:800}.legacy-grid label.wide{grid-column:span 2}.legacy-grid input,.legacy-grid select{height:37px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:#0d161f;color:#edf1f4;padding:0 9px;font-size:11px}.ledger-link-box{margin:0 12px 12px;padding:11px;border:1px solid rgba(214,31,38,.25);border-radius:8px;background:rgba(214,31,38,.04)}.ledger-link-top{display:flex;justify-content:space-between;align-items:center;gap:10px}.ledger-link-top b{display:block;color:#f0f3f5;font-size:10px}.ledger-link-top span{display:block;margin-top:4px;color:#7f8c96;font-size:9px}.ledger-link-actions{display:flex;gap:6px;flex-wrap:wrap}.ledger-matches{display:grid;gap:6px;margin-top:9px}.ledger-candidate{text-align:left;border:1px solid rgba(255,255,255,.09);border-radius:7px;background:#111d26;color:#dbe2e7;padding:9px;cursor:pointer}.ledger-candidate.selected{border-color:#d61f26;background:rgba(214,31,38,.09)}.ledger-candidate b{display:block;margin-top:4px;font-size:10px}.ledger-candidate span:not(.match-badge){display:block;margin-top:3px;color:#a9b3ba;font-size:9px}.ledger-candidate small{display:block;margin-top:3px;color:#6f7e89;font-size:8px}.match-badge{display:inline-flex;border-radius:999px;padding:3px 6px;font-size:7px;font-weight:900;text-transform:uppercase}.match-badge.exact{background:rgba(52,190,115,.15);color:#83dfaa}.match-badge.review{background:rgba(243,172,47,.14);color:#f1c66f}.legacy-error{margin-top:8px;color:#ff9d96;font-size:9px}.legacy-error.block{margin:12px;padding:10px;border:1px solid rgba(214,31,38,.25);border-radius:7px;background:rgba(214,31,38,.05)}@media(max-width:800px){.legacy-summary{grid-template-columns:1fr 1fr}.legacy-grid{grid-template-columns:1fr 1fr}.ledger-link-top,.project-ledger-row{align-items:flex-start;flex-direction:column}}@media(max-width:560px){.legacy-summary,.legacy-grid{grid-template-columns:1fr}.legacy-grid label.wide{grid-column:auto}.legacy-section-head{align-items:flex-start;flex-direction:column}.project-ledger-row>button{width:100%}}
     `}</style>
   </section>;
 }
