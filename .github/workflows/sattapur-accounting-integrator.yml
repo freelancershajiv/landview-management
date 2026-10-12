@@ -1,0 +1,37 @@
+name: Sattapur Accounting Integrator
+
+"on":
+  push:
+    branches: [finance-integrity-v2-core]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: ${{ github.actor != 'github-actions[bot]' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: finance-integrity-v2-core
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Apply Sattapur accounting patch
+        run: python3 scripts/patch-sattapur-accounting.py
+      - name: Install dependencies
+        run: npm ci
+      - name: Run tests
+        run: npm test
+      - name: Build application
+        run: npm run build
+      - name: Commit integration
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/project-management/route.ts app/projectmanagement/page.tsx tests/sattapur-project-management-integration.test.cjs
+          git diff --cached --check
+          git commit -m "feat: count Sattapur payments as expenses and deposits"
+          git push origin HEAD:finance-integrity-v2-core
