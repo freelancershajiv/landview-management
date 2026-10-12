@@ -2,6 +2,7 @@ import AdminMobileDock from "@/components/admin-mobile-dock";
 import ManagementShellV2 from "@/components/management-shell-v2";
 import ProjectFinanceAdminModule from "@/components/project-finance-admin-module";
 import ProjectFinanceRouteController from "@/components/project-finance-route-controller";
+import ProjectFinancePartyEnhancer from "@/components/project-finance-party-enhancer";
 import { requirePortalSession } from "@/lib/server-auth";
 import "../admin/admin-brand-theme.css";
 import "../admin/admin-layout-polish.css";
@@ -16,6 +17,7 @@ import "./project-finance-admin-module.css";
 import "./project-finance-color-harmony.css";
 import "../dual-mode-navigation.css";
 import "./project-finance-dual-mode-polish.css";
+import "./project-finance-party-dropdown.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
@@ -34,6 +36,7 @@ export default async function ProjectFinanceLayout({ children }: Readonly<{ chil
     <>
       <ManagementShellV2 initialUser={session.user}>
         <div className="pf-redesign pf-management-shell">
+          <ProjectFinancePartyEnhancer />
           <ProjectFinanceRouteController />
           <ProjectFinanceAdminModule />
           {children}
