@@ -92,7 +92,7 @@ function setReactInputValue(input: HTMLInputElement, value: string) {
 
 function labelByText(root: ParentNode, text: string) {
   return Array.from(root.querySelectorAll("label")).find((label) =>
-    clean(label.querySelector("span")?.textContent).toLowerCase() === text.toLowerCase()
+    clean(label.querySelector("span")?.textContent).toLowerCase() === text.toLowerCase(),
   ) as HTMLLabelElement | undefined;
 }
 
@@ -114,6 +114,18 @@ function uniqueGroups(parties: Party[]): PartyGroup[] {
     });
   }
   return Array.from(groups.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function addedRelevantUi(mutations: MutationRecord[]) {
+  return mutations.some((mutation) =>
+    Array.from(mutation.addedNodes).some((node) => {
+      if (!(node instanceof Element)) return false;
+      return (
+        node.matches(".pm-entry-modal, .pm-party-table, .pm-party-list-wrap") ||
+        Boolean(node.querySelector(".pm-entry-modal, .pm-party-table, .pm-party-list-wrap"))
+      );
+    }),
+  );
 }
 
 export default function ProjectFinancePartyEnhancer() {
@@ -144,6 +156,17 @@ export default function ProjectFinancePartyEnhancer() {
       const category = clean(categorySelect.value);
       const desiredType = preferredPartyType(category);
       const current = clean(input.value);
+      const signature = `${category}\u0000${current}\u0000${groups
+        .map((party) => `${party.name}|${party.partyType}|${party.categories.join(",")}`)
+        .join(";")}`;
+
+      // Do not rebuild the injected select when nothing relevant changed.
+      // Rebuilding it creates child-list mutations; doing that from a MutationObserver
+      // callback was the cause of the Add Expense browser freeze.
+      if (!forceSuggestion && select.dataset.pfPartySignature === signature) {
+        syncSelectFromInput(input, select);
+        return;
+      }
 
       const suggested = groups.filter((party) => {
         const categoryMatch = party.categories.some((partyCategory) => categoryMatches(category, partyCategory));
@@ -153,7 +176,7 @@ export default function ProjectFinancePartyEnhancer() {
 
       const remaining = groups.filter((party) => !suggested.some((item) => key(item.name) === key(party.name)));
       const previous = select.value;
-      select.innerHTML = "";
+      select.replaceChildren();
 
       const placeholder = document.createElement("option");
       placeholder.value = "";
@@ -200,6 +223,10 @@ export default function ProjectFinancePartyEnhancer() {
       } else {
         select.value = "";
       }
+
+      select.dataset.pfPartySignature = `${category}\u0000${clean(input.value)}\u0000${groups
+        .map((party) => `${party.name}|${party.partyType}|${party.categories.join(",")}`)
+        .join(";")}`;
     };
 
     const enhanceExpenseModal = () => {
@@ -226,6 +253,7 @@ export default function ProjectFinancePartyEnhancer() {
           });
 
           categorySelect.addEventListener("change", () => {
+            if (select) delete select.dataset.pfPartySignature;
             window.setTimeout(() => populate(input, select as HTMLSelectElement, categorySelect, true), 0);
           });
         }
@@ -239,8 +267,8 @@ export default function ProjectFinancePartyEnhancer() {
       const table = document.querySelector(".pm-party-table");
       const head = table?.closest(".pm-party-list-wrap")?.querySelector(".pm-party-list-head span") as HTMLElement | null;
       if (!head) return;
-      const uniqueCount = uniqueGroups(parties).length;
-      head.textContent = `${uniqueCount.toLocaleString("en-BD")} named parties`;
+      const nextText = `${uniqueGroups(parties).length.toLocaleString("en-BD")} named parties`;
+      if (clean(head.textContent) !== nextText) head.textContent = nextText;
     };
 
     const enhance = () => {
@@ -275,7 +303,11 @@ export default function ProjectFinancePartyEnhancer() {
       }
     };
 
-    observer = new MutationObserver(() => enhance());
+    observer = new MutationObserver((mutations) => {
+      // Only react when the expense modal/party UI itself is added. Ignore mutations
+      // caused by populating our injected select, so the observer cannot call itself forever.
+      if (addedRelevantUi(mutations)) enhance();
+    });
     observer.observe(document.body, { childList: true, subtree: true });
     void loadParties();
 
