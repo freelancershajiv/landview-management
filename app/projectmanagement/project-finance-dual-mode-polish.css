@@ -1,0 +1,204 @@
+/* Project Finance — final true light/dark mode polish.
+   Loaded last in the Project Finance layout so legacy finance-specific
+   hard-coded dark surfaces cannot leak into Light Mode. */
+
+@media screen {
+  /* =========================================================
+     LIGHT MODE
+     ========================================================= */
+  html:not([data-theme="dark"]) .pf-management-shell {
+    color: var(--lv-text-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module,
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-head,
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-project-card,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-finance-summary,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-overview-history,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-workspace,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-sattapur-card,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-parties-card,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-stat {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  /* Active finance module should remain light in Light Mode. */
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card.active,
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card[aria-current="page"] {
+    background:
+      linear-gradient(90deg, var(--lv-brand-soft-strong), var(--lv-brand-soft)),
+      var(--lv-surface-panel) !important;
+    border-color: var(--lv-brand-border) !important;
+    color: var(--lv-brand-text) !important;
+    box-shadow: inset 3px 0 0 var(--lv-brand-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card.active .pf-admin-module-icon,
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card[aria-current="page"] .pf-admin-module-icon {
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-brand-border) !important;
+    color: var(--lv-brand-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card.active .pf-admin-module-copy strong,
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card[aria-current="page"] .pf-admin-module-copy strong {
+    color: var(--lv-brand-text) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card.active .pf-admin-module-copy small,
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card[aria-current="page"] .pf-admin-module-copy small {
+    color: var(--lv-text-secondary) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card.active .pf-admin-module-arrow,
+  html:not([data-theme="dark"]) .pf-management-shell .pf-admin-module-card[aria-current="page"] .pf-admin-module-arrow {
+    color: var(--lv-brand-primary) !important;
+  }
+
+  /* The main cash card stays visually dominant without becoming a dark island. */
+  html:not([data-theme="dark"]) .pf-management-shell .pm-stat-shajiv {
+    background:
+      radial-gradient(circle at 92% 0%, var(--lv-brand-soft-strong), transparent 38%),
+      linear-gradient(145deg, #ffffff, var(--lv-surface-muted)) !important;
+    border: 1px solid var(--lv-brand-border) !important;
+    box-shadow: var(--lv-shadow-sm) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pm-stat-shajiv .pm-stat-head span,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-stat-shajiv .pm-stat-head b,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-stat-shajiv small {
+    color: var(--lv-text-muted) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pm-stat-shajiv strong {
+    color: var(--lv-text-strong) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pm-stat-shajiv::after {
+    background: var(--lv-brand-primary) !important;
+  }
+
+  /* Project code and formerly-dark secondary controls should follow Light Mode. */
+  html:not([data-theme="dark"]) .pf-management-shell .pm-project-code {
+    background: var(--lv-brand-soft) !important;
+    border: 1px solid var(--lv-brand-border) !important;
+    color: var(--lv-brand-text) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pm-btn-dark {
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pm-btn-dark:hover {
+    background: var(--lv-control-bg-hover) !important;
+    border-color: var(--lv-brand-border) !important;
+    color: var(--lv-brand-text) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pm-finance-foot {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pm-sattapur-hold {
+    background: var(--lv-warning-soft) !important;
+    border-color: var(--lv-warning-border) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pm-ledger-dropdown.is-open,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-all-ledger.is-active {
+    border-color: var(--lv-brand-border) !important;
+    box-shadow: 0 0 0 3px var(--lv-brand-ring) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pm-ledger-icon {
+    color: var(--lv-brand-text) !important;
+  }
+
+  html:not([data-theme="dark"]) .pf-management-shell .pm-form-grid input:focus,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-form-grid select:focus,
+  html:not([data-theme="dark"]) .pf-management-shell .pm-form-grid textarea:focus {
+    border-color: var(--lv-brand-primary) !important;
+    box-shadow: 0 0 0 3px var(--lv-brand-ring) !important;
+  }
+
+  /* =========================================================
+     DARK MODE
+     ========================================================= */
+  html[data-theme="dark"] .pf-management-shell .pf-admin-module-card.active,
+  html[data-theme="dark"] .pf-management-shell .pf-admin-module-card[aria-current="page"] {
+    background:
+      radial-gradient(circle at 92% 10%, rgba(225,58,66,.16), transparent 34%),
+      linear-gradient(145deg, var(--lv-surface-elevated), var(--lv-surface-chrome-2)) !important;
+    border-color: var(--lv-brand-border) !important;
+    color: #fff !important;
+    box-shadow: inset 3px 0 0 var(--lv-brand-primary) !important;
+  }
+
+  html[data-theme="dark"] .pf-management-shell .pf-admin-module-card.active .pf-admin-module-icon,
+  html[data-theme="dark"] .pf-management-shell .pf-admin-module-card[aria-current="page"] .pf-admin-module-icon {
+    background: rgba(255,255,255,.055) !important;
+    border-color: var(--lv-brand-border) !important;
+    color: var(--lv-brand-text) !important;
+  }
+
+  html[data-theme="dark"] .pf-management-shell .pf-admin-module-card.active .pf-admin-module-copy small,
+  html[data-theme="dark"] .pf-management-shell .pf-admin-module-card[aria-current="page"] .pf-admin-module-copy small {
+    color: var(--lv-text-on-chrome-muted) !important;
+  }
+
+  html[data-theme="dark"] .pf-management-shell .pf-admin-module-card.active .pf-admin-module-arrow,
+  html[data-theme="dark"] .pf-management-shell .pf-admin-module-card[aria-current="page"] .pf-admin-module-arrow {
+    color: var(--lv-brand-text) !important;
+  }
+
+  html[data-theme="dark"] .pf-management-shell .pm-stat-shajiv {
+    background:
+      radial-gradient(circle at 90% 0%, rgba(225,58,66,.16), transparent 35%),
+      linear-gradient(145deg, var(--lv-surface-elevated), var(--lv-surface-chrome-2)) !important;
+    border: 1px solid var(--lv-border-chrome) !important;
+    box-shadow: var(--lv-shadow-md) !important;
+  }
+
+  html[data-theme="dark"] .pf-management-shell .pm-stat-shajiv .pm-stat-head span,
+  html[data-theme="dark"] .pf-management-shell .pm-stat-shajiv .pm-stat-head b,
+  html[data-theme="dark"] .pf-management-shell .pm-stat-shajiv small {
+    color: var(--lv-text-on-chrome-muted) !important;
+  }
+
+  html[data-theme="dark"] .pf-management-shell .pm-stat-shajiv strong {
+    color: var(--lv-text-on-chrome) !important;
+  }
+
+  html[data-theme="dark"] .pf-management-shell .pm-project-code,
+  html[data-theme="dark"] .pf-management-shell .pm-btn-dark {
+    background: var(--lv-surface-elevated) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  html[data-theme="dark"] .pf-management-shell .pm-finance-foot {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+  }
+
+  /* Shared dark surfaces: use semantic tokens instead of stale hard-coded greens. */
+  html[data-theme="dark"] .pf-management-shell :is(
+    .pm-category-bar,.pm-toolbar,.pm-finance-summary-head,.pm-overview-history-head,
+    .pm-sattapur-head,.pm-parties-head,.pm-modal-head,.pm-modal-foot
+  ) {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+  }
+
+  html[data-theme="dark"] .pf-management-shell :is(input,select,textarea,.pm-search,.pm-ledger-dropdown,.pm-all-ledger) {
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+    color: var(--lv-text-primary) !important;
+  }
+}
