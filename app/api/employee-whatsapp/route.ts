@@ -41,9 +41,6 @@ function response(data: unknown, status = 200) {
 }
 
 async function currentEmployee(request: NextRequest) {
-  // Role switching already creates HMAC-signed identity cookies. Prefer those
-  // locally so the employee WhatsApp card does not depend on a second remote
-  // auth lookup immediately after switching from Admin to EMP-0002.
   const signedBase = readSignedWorkspaceUser(request.cookies.get(QUICK_USER_COOKIE)?.value) as Row | null;
   let user: Row | null = signedBase;
   if (user && roleOf(user) === "admin") {
@@ -64,10 +61,20 @@ function retriableBotStatus(status: number) {
 }
 
 function retryDelay(attempt: number) {
-  // A Render free instance may need several seconds to wake and then restore
-  // the Baileys session. Spread retries out instead of immediately repeating
-  // the request while the service is still booting.
   return Math.min(5_000, 1_000 * (attempt + 1));
+}
+
+function transientStatusData(message?: string) {
+  return {
+    ok: true,
+    connection: "connecting",
+    paired: false,
+    qrAvailable: false,
+    qrDataUrl: null,
+    phoneNumber: null,
+    temporary: true,
+    lastError: clean(message || "WhatsApp service is reconnecting. Status will refresh automatically.", 500),
+  };
 }
 
 async function botRequest(path: string, init?: RequestInit) {
@@ -128,7 +135,12 @@ export async function GET(request: NextRequest) {
     if (message === "SESSION_EXPIRED") return response({ success: false, error: "Session expired." }, 401);
     if (message === "EMPLOYEE_REQUIRED") return response({ success: false, error: "Employee access is required." }, 403);
     if (message === "EMPLOYEE_ID_MISSING") return response({ success: false, error: "Employee ID is missing from this account." }, 400);
-    return response({ success: false, error: message }, Number(error?.status) || 500);
+
+    const status = Number(error?.status) || 0;
+    if (!status || retriableBotStatus(status)) {
+      return response({ success: true, data: transientStatusData(message) });
+    }
+    return response({ success: false, error: message }, status || 500);
   }
 }
 
@@ -139,6 +151,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const action = clean(body?.action, 40).toLowerCase();
     if (action !== "reset") return response({ success: false, error: "Unsupported WhatsApp action." }, 400);
+
+    try {
+      await botRequest(`/employee/status?employeeId=${encodeURIComponent(employeeId)}`);
+    } catch {
+      // The status request is only used to wake a sleeping Render instance.
+    }
 
     const data = await botRequest("/employee/reset", {
       method: "POST",
