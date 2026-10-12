@@ -1,0 +1,35 @@
+@media screen {
+  .pf-management-shell input[data-pf-party-native="1"] {
+    display: none !important;
+  }
+
+  .pf-management-shell .pf-party-select {
+    width: 100% !important;
+    min-height: 40px !important;
+    padding: 0 36px 0 11px !important;
+    border: 1px solid var(--lv-control-border) !important;
+    border-radius: 10px !important;
+    background: var(--lv-control-bg) !important;
+    color: var(--lv-text-primary) !important;
+    font: inherit !important;
+    font-size: 11px !important;
+    font-weight: 740 !important;
+    outline: 0 !important;
+  }
+
+  .pf-management-shell .pf-party-select:focus {
+    border-color: var(--lv-brand-primary) !important;
+    box-shadow: 0 0 0 3px var(--lv-brand-ring) !important;
+  }
+
+  .pf-management-shell .pf-party-select optgroup {
+    color: var(--lv-text-muted);
+    font-weight: 800;
+  }
+
+  .pf-management-shell .pf-party-select option {
+    color: var(--lv-text-primary);
+    background: var(--lv-control-bg);
+    font-weight: 600;
+  }
+}
