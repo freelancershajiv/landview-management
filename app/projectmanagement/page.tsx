@@ -99,7 +99,8 @@ export default function ProjectManagementPage(){
       .sort((a:any,b:any)=>{
         const d=String(b.entry_date||"").localeCompare(String(a.entry_date||""));
         if(d)return d;
-        return String(b.created_at||"").localeCompare(String(a.created_at||""));
+        const created=String(b.created_at||"").localeCompare(String(a.created_at||""));
+        return created || String(b.id||"").localeCompare(String(a.id||""));
       });
   },[entries,ledgerView,ledgerCategory,search,dateFrom,dateTo,ledgerParty]);
 
@@ -112,8 +113,8 @@ export default function ProjectManagementPage(){
   const filteredHold=filtered.reduce((sum:number,r:any)=>sum+(String(r.category||"").toLowerCase()==="cheque"&&chequeStatus(r)==="On Hold"?num(r.debit):0),0);
   function resetLedgerFilters(){setLedgerCategory("all");setSearch("");setDateFrom("");setDateTo("");setLedgerParty("all");}
   function exportLedger(){
-    const headings=ledgerView==="income" ? ["Date","Received From","Paid To","Details","Category","Income","Cheque Status"] : ledgerView==="expense" ? ["Date","Paid To","Details","Category","Quantity","Rate","Expense"] : ["Date","Received From","Paid To","Details","Category","Income","Expense"];
-    const rows=filtered.map((r:any)=>ledgerView==="income" ? [r.entry_date,r.received_from,r.paid_to,r.details,r.category,num(r.debit),String(r.category||"").toLowerCase()==="cheque"?chequeStatus(r):""] : ledgerView==="expense" ? [r.entry_date,r.paid_to||r.supplier,r.details,r.category,r.sft,r.rate,num(r.credit)] : [r.entry_date,r.received_from,r.paid_to||r.supplier,r.details,r.category,num(r.debit),num(r.credit)]);
+    const headings=ledgerView==="income" ? ["Date","Received From","Paid To","Details","Category","Income","Cheque Status"] : ledgerView==="expense" ? ["Date","Paid To","Details","Category","Quantity","Rate","Expense"] : ["Date","Received From","Paid To","Details","Category","Income","Expense","Supplier Allocation","Cheque on Hold","Available Cash Balance"];
+    const rows=filtered.map((r:any)=>ledgerView==="income" ? [r.entry_date,r.received_from,r.paid_to,r.details,r.category,num(r.debit),String(r.category||"").toLowerCase()==="cheque"?chequeStatus(r):""] : ledgerView==="expense" ? [r.entry_date,r.paid_to||r.supplier,r.details,r.category,r.sft,r.rate,num(r.credit)] : [r.entry_date,r.received_from,r.paid_to||r.supplier,r.details,r.category,num(r.debit),num(r.credit),num(r.supplier_allocation),num(r.cheque_on_hold),num(r.available_cash_balance)]);
     const cell=(value:any)=>{let text=String(value??"");if(/^[=+@\-\t\r]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';};
     const csv=[headings,...rows].map(row=>row.map(cell).join(",")).join("\r\n");
     const url=URL.createObjectURL(new Blob(["\ufeff",csv],{type:"text/csv;charset=utf-8;"}));
@@ -609,6 +610,7 @@ export default function ProjectManagementPage(){
             </div>
           </div>
 
+          {ledgerView==="all"&&<p className="pm-cash-explanation">Available cash = income − expenses − supplier allocations − held cheques. Balances include earlier entries even when filters are applied. Supplier deliveries do not deduct cash a second time.</p>}
           <div className="pm-table-wrap">
             <table className="pm-table">
               <thead>
@@ -645,7 +647,9 @@ export default function ProjectManagementPage(){
                     <th className="num-col">Rate</th>
                     <th className="num-col">Debit</th>
                     <th className="num-col">Credit</th>
-                    <th className="num-col">Balance</th>
+                    <th className="num-col">Supplier Allocation</th>
+                    <th className="num-col">Cheque on Hold</th>
+                    <th className="num-col">Available Cash Balance</th>
                     {admin&&<th className="action-col"/>}
                   </tr>
                 )}
@@ -701,7 +705,9 @@ export default function ProjectManagementPage(){
                           <td className="num-col">{r.rate?money(r.rate):"—"}</td>
                           <td className={"num-col "+(isDebit?"pm-money-debit":"pm-muted")}>{r.debit?money(r.debit):"—"}</td>
                           <td className={"num-col "+(!isDebit&&num(r.credit)>0?"pm-money-credit":"pm-muted")}>{r.credit?money(r.credit):"—"}</td>
-                          <td className="num-col pm-balance">{money(r.balance)}</td>
+                          <td className="num-col">{num(r.supplier_allocation)?money(r.supplier_allocation):"—"}</td>
+                          <td className="num-col">{num(r.cheque_on_hold)?money(r.cheque_on_hold):"—"}</td>
+                          <td className="num-col pm-balance">{money(r.available_cash_balance)}</td>
                           {admin&&<td className="action-col"><div className="pm-row-actions"><button className="pm-icon-btn" title="Edit" onClick={()=>openEdit(r)}>✎</button><button className="pm-icon-btn pm-danger" title="Delete" onClick={()=>void remove(r)}>⌫</button></div></td>}
                         </>
                       )}
@@ -709,7 +715,7 @@ export default function ProjectManagementPage(){
                   );
                 })}
                 {!filtered.length&&
-                  <tr><td colSpan={admin?(ledgerView==="income"?8:ledgerView==="expense"?9:10):ledgerView==="income"?7:ledgerView==="expense"?8:9} className="pm-empty">
+                  <tr><td colSpan={admin?(ledgerView==="income"?8:ledgerView==="expense"?9:12):ledgerView==="income"?7:ledgerView==="expense"?8:11} className="pm-empty">
                     <div className="pm-empty-icon">⌕</div>
                     <strong>No entries found</strong>
                     <span>{ledgerView==="income"?"No income entries found.":"No expense entries found."}</span>
@@ -1014,6 +1020,7 @@ export default function ProjectManagementPage(){
         .pm-sattapur-table tfoot td{font-weight:850;background:#fafcfc;border-top:1px solid var(--theme-line-_e5ebed, #e5ebed);border-bottom:0;color:#334249}
         .pm-sattapur-empty{text-align:center!important;color:var(--theme-ink-_929da1, #929da1)!important;padding:28px!important}
         .pm-workspace{background:var(--theme-bg-_fff, #fff);border:1px solid var(--theme-line-_e1e7e9, #e1e7e9);border-radius:18px;overflow:hidden;box-shadow:0 14px 38px var(--theme-shadow-rgba_20_38_29__045_, rgba(20,38,29,.045))}
+        .pm-cash-explanation{margin:0;padding:12px 18px;color:#304a3d;background:#f3f8f5;font-size:12px;line-height:1.6}
         .pm-ledger-filters{display:flex;flex-wrap:wrap;gap:12px;padding:18px;border-bottom:1px solid #dce5e0;align-items:end}
         .pm-ledger-filters label{display:flex;flex:1 1 160px;flex-direction:column;gap:6px;color:#273e34;font-size:12px;font-weight:700}
         .pm-ledger-filters input,.pm-ledger-filters select{min-height:40px;width:100%;box-sizing:border-box;border:1px solid #bdcbc3;border-radius:8px;padding:8px;background:#fff;color:#172b22;font:inherit}

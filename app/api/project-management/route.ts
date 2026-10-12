@@ -134,6 +134,7 @@ function accountingRows(rows: Row[]) {
 }
 function calculate(rows: Row[]) {
   let balance = 0;
+  let availableCash = 0;
   return accountingRows(rows).slice().sort((a,b) => {
     const d = String(a.entry_date || "").localeCompare(String(b.entry_date || ""));
     if (d) return d;
@@ -143,7 +144,14 @@ function calculate(rows: Row[]) {
   }).map(row => {
     const debit = num(row.debit), credit = num(row.credit);
     balance += debit - credit;
-    return { ...row, debit, credit, sft: num(row.sft), rate: num(row.rate), balance };
+    const supplierAllocation = isSattapurDeposit(row) ? debit : 0;
+    const chequeOnHold = clean(row.category,120).toLowerCase() === "cheque"
+      && /^CHEQUE_STATUS:ON_HOLD/i.test(clean(row.memo,1000)) ? debit : 0;
+    // Match the dashboard cash position; neither supplier funding nor an
+    // uncleared cheque is cash available with the project custodian.
+    availableCash = Math.round((availableCash + debit - credit - supplierAllocation - chequeOnHold) * 100) / 100;
+    return { ...row, debit, credit, sft: num(row.sft), rate: num(row.rate), balance,
+      supplier_allocation: supplierAllocation, cheque_on_hold: chequeOnHold, available_cash_balance: availableCash };
   });
 }
 async function projectSummaryFor(project: Row) {
