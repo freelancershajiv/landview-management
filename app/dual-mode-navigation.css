@@ -1,0 +1,350 @@
+/* LAND VIEW true dual-mode navigation
+   ------------------------------------------------------------
+   Navigation must belong to the selected theme. Light mode uses clean
+   white/off-white navigation surfaces; dark mode uses graphite chrome.
+   LAND VIEW red is reserved for active/hover emphasis in both modes. */
+
+@media screen {
+  /* =========================================================
+     LIGHT MODE — ADMIN / MANAGEMENT
+     ========================================================= */
+  html:not([data-theme="dark"]) .portal-admin .primary-nav,
+  html:not([data-theme="dark"]) .portal-admin .sidebar,
+  html:not([data-theme="dark"]) .portal-admin .sidebar-brand,
+  html:not([data-theme="dark"]) .portal-admin .sidebar-footer {
+    background: #ffffff !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .primary-nav {
+    border-right: 1px solid var(--lv-border-default) !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    box-shadow: 8px 0 26px rgba(15,23,42,.045) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .sidebar-brand {
+    border-bottom: 1px solid var(--lv-border-soft) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .sidebar-brand strong,
+  html:not([data-theme="dark"]) .portal-admin .sidebar-user strong {
+    color: var(--lv-text-strong) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .sidebar-brand small,
+  html:not([data-theme="dark"]) .portal-admin .sidebar-user small,
+  html:not([data-theme="dark"]) .portal-admin .sidebar-section-label {
+    color: var(--lv-text-muted) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .sidebar-admin-editing {
+    border-top-color: var(--lv-border-soft) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .sidebar-admin-editing .sidebar-section-label {
+    color: var(--lv-brand-text) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a {
+    color: var(--lv-text-secondary) !important;
+    border-color: transparent !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a::before {
+    background: var(--lv-text-faint) !important;
+    box-shadow: none !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a .nav-icon {
+    color: var(--lv-text-muted) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a:hover {
+    color: var(--lv-text-strong) !important;
+    background: var(--lv-surface-hover) !important;
+    border-color: var(--lv-border-soft) !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a:hover::before,
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a:hover .nav-icon {
+    color: var(--lv-brand-text) !important;
+    background: var(--lv-brand-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a.active,
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a[aria-current="page"] {
+    color: var(--lv-brand-text) !important;
+    background: linear-gradient(90deg, var(--lv-brand-soft-strong), var(--lv-brand-soft)) !important;
+    border-color: var(--lv-brand-border) !important;
+    box-shadow: inset 3px 0 0 var(--lv-brand-primary) !important;
+    transform: none !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a.active::before,
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a[aria-current="page"]::before {
+    background: var(--lv-brand-primary) !important;
+    box-shadow: 0 0 0 4px var(--lv-brand-soft) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a.active .nav-icon,
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a[aria-current="page"] .nav-icon {
+    color: var(--lv-brand-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .sidebar-footer {
+    border-top: 1px solid var(--lv-border-soft) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .primary-nav-inner {
+    scrollbar-color: var(--lv-border-strong) transparent !important;
+  }
+  html:not([data-theme="dark"]) .portal-admin .primary-nav-inner::-webkit-scrollbar-thumb {
+    background: var(--lv-border-strong) !important;
+  }
+
+  /* =========================================================
+     DARK MODE — ADMIN / MANAGEMENT
+     ========================================================= */
+  html[data-theme="dark"] .portal-admin .primary-nav,
+  html[data-theme="dark"] .portal-admin .sidebar,
+  html[data-theme="dark"] .portal-admin .sidebar-brand,
+  html[data-theme="dark"] .portal-admin .sidebar-footer {
+    background:
+      radial-gradient(circle at 28% 0%, rgba(225,58,66,.11), transparent 30%),
+      linear-gradient(180deg, var(--lv-surface-chrome), var(--lv-surface-chrome-2)) !important;
+    border-color: var(--lv-border-chrome) !important;
+    color: var(--lv-text-on-chrome) !important;
+  }
+
+  html[data-theme="dark"] .portal-admin .primary-nav {
+    border-right: 1px solid var(--lv-border-chrome) !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    box-shadow: 10px 0 30px rgba(0,0,0,.18) !important;
+  }
+
+  html[data-theme="dark"] .portal-admin .sidebar-brand {
+    border-bottom: 1px solid var(--lv-border-chrome) !important;
+  }
+
+  html[data-theme="dark"] .portal-admin .sidebar-brand strong,
+  html[data-theme="dark"] .portal-admin .sidebar-user strong {
+    color: var(--lv-text-on-chrome) !important;
+  }
+
+  html[data-theme="dark"] .portal-admin :is(.sidebar-brand small,.sidebar-user small,.sidebar-section-label) {
+    color: var(--lv-text-on-chrome-muted) !important;
+  }
+
+  html[data-theme="dark"] .portal-admin .sidebar-admin-editing {
+    border-top-color: var(--lv-border-chrome) !important;
+  }
+  html[data-theme="dark"] .portal-admin .sidebar-admin-editing .sidebar-section-label {
+    color: var(--lv-brand-text) !important;
+  }
+
+  html[data-theme="dark"] .portal-admin .primary-nav a {
+    color: var(--lv-text-on-chrome-muted) !important;
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+  }
+  html[data-theme="dark"] .portal-admin .primary-nav a:hover {
+    color: #fff !important;
+    background: rgba(255,255,255,.05) !important;
+    border-color: rgba(255,255,255,.07) !important;
+    transform: none !important;
+  }
+  html[data-theme="dark"] .portal-admin .primary-nav a.active,
+  html[data-theme="dark"] .portal-admin .primary-nav a[aria-current="page"] {
+    color: #fff !important;
+    background: linear-gradient(90deg, var(--lv-brand-soft-strong), rgba(225,58,66,.055)) !important;
+    border-color: var(--lv-brand-border) !important;
+    box-shadow: inset 3px 0 0 var(--lv-brand-primary) !important;
+  }
+  html[data-theme="dark"] .portal-admin .primary-nav a.active .nav-icon,
+  html[data-theme="dark"] .portal-admin .primary-nav a[aria-current="page"] .nav-icon,
+  html[data-theme="dark"] .portal-admin .primary-nav a:hover .nav-icon {
+    color: var(--lv-brand-text) !important;
+  }
+
+  /* =========================================================
+     LIGHT MODE — EMPLOYEE
+     ========================================================= */
+  html:not([data-theme="dark"]) .portal-employee .employee-sidebar,
+  html:not([data-theme="dark"]) .portal-employee .employee-brand,
+  html:not([data-theme="dark"]) .portal-employee .employee-sidebar-footer {
+    background: #ffffff !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-employee .employee-sidebar {
+    box-shadow: 8px 0 26px rgba(15,23,42,.045) !important;
+  }
+  html:not([data-theme="dark"]) .portal-employee .employee-brand {
+    border-bottom-color: var(--lv-border-soft) !important;
+  }
+  html:not([data-theme="dark"]) .portal-employee .employee-brand strong,
+  html:not([data-theme="dark"]) .portal-employee .employee-profile-copy strong {
+    color: var(--lv-text-strong) !important;
+  }
+  html:not([data-theme="dark"]) .portal-employee :is(.employee-brand small,.employee-nav-label,.employee-profile-copy small) {
+    color: var(--lv-text-muted) !important;
+  }
+  html:not([data-theme="dark"]) .portal-employee .employee-nav-button {
+    color: var(--lv-text-secondary) !important;
+    background: transparent !important;
+    border-color: transparent !important;
+  }
+  html:not([data-theme="dark"]) .portal-employee .employee-nav-button .nav-icon {
+    color: var(--lv-text-muted) !important;
+  }
+  html:not([data-theme="dark"]) .portal-employee .employee-nav-button:hover {
+    background: var(--lv-surface-hover) !important;
+    border-color: var(--lv-border-soft) !important;
+    color: var(--lv-text-strong) !important;
+  }
+  html:not([data-theme="dark"]) .portal-employee .employee-nav-button[aria-current="location"] {
+    background: linear-gradient(90deg, var(--lv-brand-soft-strong), var(--lv-brand-soft)) !important;
+    border-color: var(--lv-brand-border) !important;
+    box-shadow: inset 3px 0 0 var(--lv-brand-primary) !important;
+    color: var(--lv-brand-text) !important;
+  }
+  html:not([data-theme="dark"]) .portal-employee .employee-nav-button[aria-current="location"] .nav-icon,
+  html:not([data-theme="dark"]) .portal-employee .employee-nav-button:hover .nav-icon {
+    color: var(--lv-brand-primary) !important;
+  }
+  html:not([data-theme="dark"]) .portal-employee .employee-profile {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-soft) !important;
+  }
+
+  /* Dark employee sidebar */
+  html[data-theme="dark"] .portal-employee .employee-sidebar {
+    background:
+      radial-gradient(circle at 30% 0%, rgba(225,58,66,.11), transparent 30%),
+      linear-gradient(180deg, var(--lv-surface-chrome), var(--lv-surface-chrome-2) 74%) !important;
+    border-color: var(--lv-border-chrome) !important;
+    box-shadow: 12px 0 35px rgba(0,0,0,.22) !important;
+  }
+  html[data-theme="dark"] .portal-employee .employee-brand,
+  html[data-theme="dark"] .portal-employee .employee-sidebar-footer {
+    background: transparent !important;
+    border-color: var(--lv-border-chrome) !important;
+  }
+  html[data-theme="dark"] .portal-employee .employee-brand strong,
+  html[data-theme="dark"] .portal-employee .employee-profile-copy strong { color: var(--lv-text-on-chrome) !important; }
+  html[data-theme="dark"] .portal-employee :is(.employee-brand small,.employee-nav-label,.employee-profile-copy small,.employee-nav-button) { color: var(--lv-text-on-chrome-muted) !important; }
+  html[data-theme="dark"] .portal-employee .employee-nav-button:hover {
+    background: rgba(255,255,255,.05) !important;
+    border-color: rgba(255,255,255,.08) !important;
+    color: #fff !important;
+  }
+  html[data-theme="dark"] .portal-employee .employee-nav-button[aria-current="location"] {
+    background: linear-gradient(90deg, var(--lv-brand-soft-strong), rgba(225,58,66,.055)) !important;
+    border-color: var(--lv-brand-border) !important;
+    box-shadow: inset 3px 0 0 var(--lv-brand-primary) !important;
+    color: #fff !important;
+  }
+
+  /* =========================================================
+     LIGHT MODE — CLIENT
+     ========================================================= */
+  html:not([data-theme="dark"]) .lv-client-side {
+    background: #ffffff !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: 8px 0 26px rgba(15,23,42,.045) !important;
+  }
+  html:not([data-theme="dark"]) .lv-client-brand,
+  html:not([data-theme="dark"]) .lv-client-brand strong {
+    color: var(--lv-text-strong) !important;
+  }
+  html:not([data-theme="dark"]) .lv-client-brand img {
+    content: url('/land-view-logo.svg');
+  }
+  html:not([data-theme="dark"]) .lv-client-brand small,
+  html:not([data-theme="dark"]) .lv-client-foot,
+  html:not([data-theme="dark"]) .lv-client-help p {
+    color: var(--lv-text-muted) !important;
+  }
+  html:not([data-theme="dark"]) .lv-client-nav a {
+    color: var(--lv-text-secondary) !important;
+    background: transparent !important;
+    border-color: transparent !important;
+  }
+  html:not([data-theme="dark"]) .lv-client-nav a:hover {
+    background: var(--lv-surface-hover) !important;
+    border-color: var(--lv-border-soft) !important;
+    color: var(--lv-text-strong) !important;
+  }
+  html:not([data-theme="dark"]) .lv-client-nav a[aria-current="location"] {
+    background: linear-gradient(90deg, var(--lv-brand-soft-strong), var(--lv-brand-soft)) !important;
+    border-color: var(--lv-brand-border) !important;
+    box-shadow: inset 3px 0 0 var(--lv-brand-primary) !important;
+    color: var(--lv-brand-text) !important;
+  }
+  html:not([data-theme="dark"]) .lv-client-help {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+  }
+  html:not([data-theme="dark"]) .lv-client-help strong { color: var(--lv-text-strong) !important; }
+
+  /* Dark client sidebar */
+  html[data-theme="dark"] .lv-client-side {
+    background:
+      radial-gradient(circle at 28% 0%, rgba(225,58,66,.11), transparent 30%),
+      linear-gradient(180deg, var(--lv-surface-chrome), var(--lv-surface-chrome-2)) !important;
+    border-color: var(--lv-border-chrome) !important;
+    color: var(--lv-text-on-chrome) !important;
+    box-shadow: 12px 0 35px rgba(0,0,0,.22) !important;
+  }
+  html[data-theme="dark"] .lv-client-brand img {
+    content: url('/land-view-logo-light.svg');
+  }
+  html[data-theme="dark"] .lv-client-brand,
+  html[data-theme="dark"] .lv-client-brand strong { color: var(--lv-text-on-chrome) !important; }
+  html[data-theme="dark"] :is(.lv-client-brand small,.lv-client-foot,.lv-client-help p,.lv-client-nav a) { color: var(--lv-text-on-chrome-muted) !important; }
+  html[data-theme="dark"] .lv-client-nav a:hover {
+    background: rgba(255,255,255,.05) !important;
+    border-color: rgba(255,255,255,.08) !important;
+    color: #fff !important;
+  }
+  html[data-theme="dark"] .lv-client-nav a[aria-current="location"] {
+    background: linear-gradient(90deg, var(--lv-brand-soft-strong), rgba(225,58,66,.055)) !important;
+    border-color: var(--lv-brand-border) !important;
+    box-shadow: inset 3px 0 0 var(--lv-brand-primary) !important;
+    color: #fff !important;
+  }
+  html[data-theme="dark"] .lv-client-help {
+    background: rgba(255,255,255,.035) !important;
+    border-color: rgba(255,255,255,.08) !important;
+  }
+
+  /* Mobile drawers inherit the active theme rather than forcing graphite. */
+  @media (max-width: 900px) {
+    html:not([data-theme="dark"]) .portal-admin .primary-nav.open,
+    html:not([data-theme="dark"]) .portal-employee .employee-sidebar.open,
+    html:not([data-theme="dark"]) .lv-client-side.open {
+      background: #ffffff !important;
+      border-color: var(--lv-border-default) !important;
+      box-shadow: 18px 0 42px rgba(15,23,42,.12) !important;
+    }
+
+    html[data-theme="dark"] .portal-admin .primary-nav.open,
+    html[data-theme="dark"] .portal-employee .employee-sidebar.open,
+    html[data-theme="dark"] .lv-client-side.open {
+      background: linear-gradient(180deg, var(--lv-surface-chrome), var(--lv-surface-chrome-2)) !important;
+      border-color: var(--lv-border-chrome) !important;
+      box-shadow: 24px 0 50px rgba(0,0,0,.42) !important;
+    }
+  }
+}
