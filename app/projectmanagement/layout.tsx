@@ -4,6 +4,7 @@ import ProjectFinanceAdminModule from "@/components/project-finance-admin-module
 import ProjectFinanceRouteController from "@/components/project-finance-route-controller";
 import ProjectFinancePartyEnhancer from "@/components/project-finance-party-enhancer";
 import ProjectFinanceSummaryV2 from "@/components/project-finance-summary-v2";
+import ProjectFinanceLocalDate from "@/components/project-finance-local-date";
 import { requirePortalSession } from "@/lib/server-auth";
 import "../admin/admin-brand-theme.css";
 import "../admin/admin-layout-polish.css";
@@ -31,6 +32,7 @@ export default async function ProjectFinanceLayout({ children }: Readonly<{ chil
       <div className="pf-redesign">
         <ProjectFinanceRouteController />
         <ProjectFinanceSummaryV2 />
+        <ProjectFinanceLocalDate />
         {children}
       </div>
     );
@@ -43,6 +45,7 @@ export default async function ProjectFinanceLayout({ children }: Readonly<{ chil
           <ProjectFinancePartyEnhancer />
           <ProjectFinanceRouteController />
           <ProjectFinanceSummaryV2 />
+          <ProjectFinanceLocalDate />
           <ProjectFinanceAdminModule />
           {children}
         </div>
