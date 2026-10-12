@@ -2,159 +2,160 @@
 
 import { useEffect } from "react";
 
-const money = (value: number) =>
-  new Intl.NumberFormat("en-BD", {
+const SATTAPUR = "sattapur";
+
+function text(value: unknown) {
+  return String(value ?? "").trim();
+}
+
+function money(value: number) {
+  return new Intl.NumberFormat("en-BD", {
     style: "currency",
     currency: "BDT",
+    minimumFractionDigits: 2,
     maximumFractionDigits: 2,
-  }).format(value);
-
-function amount(text: string) {
-  const n = Number(String(text || "").replace(/,/g, "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : 0;
+  }).format(value || 0);
 }
 
-function isFullLedger(table: HTMLTableElement) {
-  const headers = Array.from(table.querySelectorAll("thead th")).map((th) =>
-    String(th.textContent || "").trim().toLowerCase()
+function numeric(value: unknown) {
+  const normalized = text(value)
+    .replace(/[\u00A0\u202F\s]/g, "")
+    .replace(/[^\d().,\-]/g, "");
+
+  if (!normalized || normalized === "-" || normalized === "—") return 0;
+
+  const negative = /^\(.*\)$/.test(normalized) || normalized.startsWith("-");
+  const unsigned = normalized.replace(/[()\-]/g, "");
+
+  let prepared = unsigned;
+  if (unsigned.includes(",") && unsigned.includes(".")) {
+    prepared =
+      unsigned.lastIndexOf(".") > unsigned.lastIndexOf(",")
+        ? unsigned.replace(/,/g, "")
+        : unsigned.replace(/\./g, "").replace(",", ".");
+  } else if (unsigned.includes(",")) {
+    const groups = unsigned.split(",");
+    const looksGrouped = groups.slice(1).every((group) => group.length === 3);
+    prepared = looksGrouped ? groups.join("") : `${groups.slice(0, -1).join("")}.${groups.at(-1)}`;
+  }
+
+  const parsed = Number(prepared);
+  return Number.isFinite(parsed) ? (negative ? -parsed : parsed) : 0;
+}
+
+function isProjectManagementPage() {
+  return window.location.pathname.replace(/\/+$/, "") === "/projectmanagement";
+}
+
+function tableHeaders(table: HTMLTableElement) {
+  return Array.from(table.querySelectorAll("thead th")).map((cell) => text(cell.textContent));
+}
+
+function columnIndex(headers: string[], name: string) {
+  return headers.findIndex((header) => header.toLowerCase() === name.toLowerCase());
+}
+
+function factualRows(table: HTMLTableElement) {
+  return Array.from(table.querySelectorAll<HTMLTableRowElement>("tbody tr")).filter(
+    (row) => !row.hasAttribute("data-ledger-linked-expense") && row.querySelectorAll("td").length > 1,
   );
-  return headers.includes("debit") && headers.includes("credit") && headers.includes("balance");
 }
 
-function hashRows(rows: HTMLTableRowElement[]) {
-  let hash = 2166136261;
-  for (const row of rows) {
-    const text = String(row.textContent || "");
-    for (let i = 0; i < text.length; i += 1) {
-      hash ^= text.charCodeAt(i);
-      hash = Math.imul(hash, 16777619);
+function isSattapurDeposit(row: HTMLTableRowElement, headers: string[]) {
+  const dateIndex = Math.max(0, columnIndex(headers, "Date"));
+  const rowDate = text(row.children[dateIndex]?.textContent);
+  if (/^(20\s+Nov|23\s+Nov)\s+2025$/i.test(rowDate)) return false;
+
+  const debitIndex = columnIndex(headers, "Debit");
+  const categoryIndex = columnIndex(headers, "Category");
+  if (debitIndex < 0 || categoryIndex < 0) return false;
+
+  const debit = numeric(row.children[debitIndex]?.textContent);
+  if (debit <= 0) return false;
+
+  const category = text(row.children[categoryIndex]?.textContent).toLowerCase();
+  if (!["cash", "bank transfer", "cheque"].includes(category)) return false;
+
+  const partyIndex = columnIndex(headers, "Paid To / Supplier");
+  const detailsIndex = columnIndex(headers, "Details");
+  const matchText = [
+    partyIndex >= 0 ? row.children[partyIndex]?.textContent : "",
+    detailsIndex >= 0 ? row.children[detailsIndex]?.textContent : "",
+    categoryIndex >= 0 ? row.children[categoryIndex]?.textContent : "",
+  ]
+    .map((value) => text(value).toLowerCase())
+    .join(" ");
+
+  return matchText.includes(SATTAPUR);
+}
+
+function normalizeLedgerTable(table: HTMLTableElement) {
+  const headers = tableHeaders(table);
+  const debitIndex = columnIndex(headers, "Debit");
+  const creditIndex = columnIndex(headers, "Credit");
+  const balanceIndex = columnIndex(headers, "Balance");
+  if (debitIndex < 0 || creditIndex < 0 || balanceIndex < 0) return;
+
+  // Clear DOM-only Sattapur allocation rows left by an older render. The six
+  // real supplier-deposit records stay in the data and in the Sattapur view.
+  table.querySelectorAll("[data-ledger-linked-expense]").forEach((row) => row.remove());
+
+  let runningBalance = 0;
+  for (const row of factualRows(table)) {
+    const debit = numeric(row.children[debitIndex]?.textContent);
+    const credit = numeric(row.children[creditIndex]?.textContent);
+    const sattapurAllocation = isSattapurDeposit(row, headers) ? debit : 0;
+
+    // A Sattapur deposit is already cash paid out as supplier advance. Apply
+    // its cash effect invisibly instead of manufacturing a second expense row.
+    runningBalance += debit - credit - sattapurAllocation;
+
+    const balanceCell = row.children[balanceIndex] as HTMLElement | undefined;
+    if (!balanceCell) continue;
+    balanceCell.textContent = money(runningBalance);
+    balanceCell.classList.toggle("negative", runningBalance < 0);
+    balanceCell.classList.toggle("positive", runningBalance >= 0);
+  }
+}
+
+function normalizeProjectLedger() {
+  if (!isProjectManagementPage()) return;
+  document.querySelectorAll<HTMLTableElement>(".pm-workspace .pm-table").forEach((table) => {
+    const headers = tableHeaders(table);
+    if (headers.includes("Debit") && headers.includes("Credit") && headers.includes("Balance")) {
+      normalizeLedgerTable(table);
     }
-  }
-  return String(hash >>> 0);
-}
-
-function isSattapurDepositRow(row: HTMLTableRowElement) {
-  if (row.dataset.sattapurLinkedExpense === "true") return false;
-  const cells = row.cells;
-  if (cells.length < 9) return false;
-  const party = String(cells[1]?.textContent || "").trim().toLowerCase();
-  const details = String(cells[2]?.textContent || "").trim().toLowerCase();
-  const debit = amount(String(cells[6]?.textContent || ""));
-  return debit > 0 && (party.includes("sattapur") || details.includes("sattapur brick"));
-}
-
-function parseLedgerDate(row: HTMLTableRowElement) {
-  const value = String(row.cells[0]?.textContent || "").trim();
-  const normalized = value.replace(/^(\d{2})\s([A-Za-z]{3})\s(\d{4})$/, "$2 $1 $3");
-  const parsed = Date.parse(normalized);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function normalizeLedger(table: HTMLTableElement) {
-  if (!isFullLedger(table)) return;
-  const body = table.tBodies[0];
-  if (!body) return;
-
-  const currentOriginalRows = Array.from(body.rows).filter(
-    (row) => row.dataset.sattapurLinkedExpense !== "true"
-  );
-  if (!currentOriginalRows.length) return;
-
-  const expectedLinkedCount = currentOriginalRows.filter(isSattapurDepositRow).length;
-  const currentLinkedCount = body.querySelectorAll('tr[data-sattapur-linked-expense="true"]').length;
-  const currentHash = hashRows(currentOriginalRows);
-  if (
-    table.dataset.pmLedgerNormalizedHash === currentHash &&
-    currentLinkedCount === expectedLinkedCount
-  ) {
-    return;
-  }
-
-  body.querySelectorAll('tr[data-sattapur-linked-expense="true"]').forEach((row) => row.remove());
-
-  // Calculate balances in chronological order, regardless of how the ledger is displayed.
-  let ordered = Array.from(body.rows);
-  if (ordered.length > 1 && parseLedgerDate(ordered[0]) > parseLedgerDate(ordered[ordered.length - 1])) {
-    ordered.reverse().forEach((row) => body.appendChild(row));
-  }
-
-  ordered = Array.from(body.rows);
-  for (const row of ordered) {
-    if (!isSattapurDepositRow(row)) continue;
-    const debit = amount(String(row.cells[6]?.textContent || ""));
-
-    const linked = row.cloneNode(true) as HTMLTableRowElement;
-    linked.dataset.sattapurLinkedExpense = "true";
-    linked.classList.add("pm-linked-sattapur-expense");
-    linked.cells[1].textContent = "Sattapur Brick Field";
-    linked.cells[2].textContent = "Sattapur Deposit Allocation · linked expense";
-    linked.cells[3].textContent = "Bricks";
-    linked.cells[4].textContent = "—";
-    linked.cells[5].textContent = "—";
-    linked.cells[6].textContent = "—";
-    linked.cells[7].textContent = money(debit);
-    if (linked.cells[9]) linked.cells[9].textContent = "Linked";
-    row.insertAdjacentElement("afterend", linked);
-  }
-
-  let running = 0;
-  for (const row of Array.from(body.rows)) {
-    const cells = row.cells;
-    if (cells.length < 9) continue;
-    const debit = amount(String(cells[6]?.textContent || ""));
-    const credit = amount(String(cells[7]?.textContent || ""));
-    const heldCheque = Boolean(row.querySelector(".pm-cheque-status.hold"));
-    running += (heldCheque ? 0 : debit) - credit;
-    cells[8].textContent = money(running);
-  }
-
-  // Display newest first without disturbing the already-calculated chronological balances.
-  // Keep each Sattapur deposit directly above its linked expense as one visual group.
-  const chronologicalRows = Array.from(body.rows);
-  const groups: HTMLTableRowElement[][] = [];
-  for (let i = 0; i < chronologicalRows.length; i += 1) {
-    const row = chronologicalRows[i];
-    if (row.dataset.sattapurLinkedExpense === "true") continue;
-    const group = [row];
-    const next = chronologicalRows[i + 1];
-    if (next?.dataset.sattapurLinkedExpense === "true") {
-      group.push(next);
-      i += 1;
-    }
-    groups.push(group);
-  }
-  groups.reverse().forEach((group) => group.forEach((row) => body.appendChild(row)));
-
-  const subtitle = table.closest(".pm-table-wrap")?.previousElementSibling?.querySelector(".pm-view-sub");
-  if (subtitle && subtitle.textContent?.includes("sorted by date ascending")) {
-    subtitle.textContent = subtitle.textContent.replace("sorted by date ascending", "sorted by date descending");
-  }
-
-  const finalOriginalRows = Array.from(body.rows).filter(
-    (row) => row.dataset.sattapurLinkedExpense !== "true"
-  );
-  table.dataset.pmLedgerNormalizedHash = hashRows(finalOriginalRows);
+  });
 }
 
 export default function ProjectManagementLedgerNormalizer() {
   useEffect(() => {
-    if (window.location.pathname !== "/projectmanagement") return;
+    if (!isProjectManagementPage()) return;
 
     let scheduled = false;
-    const run = () => {
-      scheduled = false;
-      document.querySelectorAll<HTMLTableElement>("table.pm-table").forEach(normalizeLedger);
-    };
     const schedule = () => {
       if (scheduled) return;
       scheduled = true;
-      window.requestAnimationFrame(run);
+      window.requestAnimationFrame(() => {
+        scheduled = false;
+        normalizeProjectLedger();
+      });
     };
 
     schedule();
-    const observer = new MutationObserver(schedule);
+    const observer = new MutationObserver(() => schedule());
     observer.observe(document.body, { childList: true, subtree: true });
-    return () => observer.disconnect();
+
+    const onClick = () => window.setTimeout(schedule, 0);
+    const onHistory = () => schedule();
+    document.addEventListener("click", onClick, true);
+    window.addEventListener("popstate", onHistory);
+
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("click", onClick, true);
+      window.removeEventListener("popstate", onHistory);
+    };
   }, []);
 
   return null;
