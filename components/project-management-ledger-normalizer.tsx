@@ -74,19 +74,28 @@ function isSattapurDeposit(row: HTMLTableRowElement, headers: string[]) {
   if (debit <= 0) return false;
 
   const category = text(row.children[categoryIndex]?.textContent).toLowerCase();
-  if (!["cash", "bank transfer", "cheque"].includes(category)) return false;
+  if (!["cash", "bank transfer", "cheque"].some((name) => category.startsWith(name))) return false;
 
   const partyIndex = columnIndex(headers, "Paid To / Supplier");
   const detailsIndex = columnIndex(headers, "Details");
   const matchText = [
     partyIndex >= 0 ? row.children[partyIndex]?.textContent : "",
     detailsIndex >= 0 ? row.children[detailsIndex]?.textContent : "",
-    categoryIndex >= 0 ? row.children[categoryIndex]?.textContent : "",
   ]
     .map((value) => text(value).toLowerCase())
     .join(" ");
 
   return matchText.includes(SATTAPUR);
+}
+
+function isHeldCheque(row: HTMLTableRowElement, headers: string[]) {
+  const debitIndex = columnIndex(headers, "Debit");
+  const categoryIndex = columnIndex(headers, "Category");
+  if (debitIndex < 0 || categoryIndex < 0) return false;
+  if (numeric(row.children[debitIndex]?.textContent) <= 0) return false;
+
+  const categoryText = text(row.children[categoryIndex]?.textContent).toLowerCase();
+  return categoryText.includes("cheque") && categoryText.includes("on hold");
 }
 
 function normalizeLedgerTable(table: HTMLTableElement) {
@@ -96,19 +105,31 @@ function normalizeLedgerTable(table: HTMLTableElement) {
   const balanceIndex = columnIndex(headers, "Balance");
   if (debitIndex < 0 || creditIndex < 0 || balanceIndex < 0) return;
 
-  // Clear DOM-only Sattapur allocation rows left by an older render. The six
-  // real supplier-deposit records stay in the data and in the Sattapur view.
+  // Remove any stale DOM-only linked Sattapur rows from an older client render.
   table.querySelectorAll("[data-ledger-linked-expense]").forEach((row) => row.remove());
 
+  const rows = factualRows(table);
+  const totalBadge = document.querySelector<HTMLElement>(".pm-all-ledger b");
+  const totalEntries = totalBadge ? Math.round(numeric(totalBadge.textContent)) : 0;
+
+  // When search has reduced the table, keep the API-provided per-row balance.
+  // A partial table cannot safely be recalculated from zero.
+  if (totalEntries > 0 && rows.length !== totalEntries) return;
+
   let runningBalance = 0;
-  for (const row of factualRows(table)) {
+
+  // The UI renders newest first, while a running ledger must be calculated
+  // oldest first. Reverse the DOM rows for calculation, then write each result
+  // back to its original visible row.
+  for (const row of rows.slice().reverse()) {
     const debit = numeric(row.children[debitIndex]?.textContent);
     const credit = numeric(row.children[creditIndex]?.textContent);
     const sattapurAllocation = isSattapurDeposit(row, headers) ? debit : 0;
+    const heldChequeAllocation = isHeldCheque(row, headers) ? debit : 0;
 
-    // A Sattapur deposit is already cash paid out as supplier advance. Apply
-    // its cash effect invisibly instead of manufacturing a second expense row.
-    runningBalance += debit - credit - sattapurAllocation;
+    // Sattapur deposits are already cash paid out, and an on-hold cheque is not
+    // available cash yet. Neither should increase the main cash balance.
+    runningBalance += debit - credit - sattapurAllocation - heldChequeAllocation;
 
     const balanceCell = row.children[balanceIndex] as HTMLElement | undefined;
     if (!balanceCell) continue;
