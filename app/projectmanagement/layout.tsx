@@ -9,9 +9,11 @@ import "../admin/admin-theme-consistency.css";
 import "../admin/admin-mobile-redesign.css";
 import "../admin/admin-mobile-shell-final.css";
 import "../admin/admin-dashboard-light.css";
+import "../admin/admin-color-harmony.css";
 import "./project-finance-redesign.css";
 import "./project-finance-navigation.css";
 import "./project-finance-admin-module.css";
+import "./project-finance-color-harmony.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
