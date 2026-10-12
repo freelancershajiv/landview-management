@@ -7,9 +7,7 @@ type Snapshot = {
   projectCode: string;
   projectName: string;
   fundsReceived: number;
-  cashExpenses: number;
-  supplierAdvancesPaid: number;
-  supplierAdvanceOutstanding: number;
+  expensesPaid: number;
   chequeOnHold: number;
   cashInHand: number;
   ledgerCashInHand: number;
@@ -35,10 +33,9 @@ function projectIdFromLocation() {
 function buildSnapshot(data: any): Snapshot {
   const entries = Array.isArray(data?.entries) ? data.entries : [];
   const fundsReceived = entries.reduce((sum: number, row: any) => sum + num(row.debit), 0);
-  const cashExpenses = entries.reduce((sum: number, row: any) => sum + num(row.credit), 0);
-  const supplierAdvancesPaid = entries.reduce((sum: number, row: any) => sum + num(row.supplier_allocation), 0);
+  const expensesPaid = entries.reduce((sum: number, row: any) => sum + num(row.credit), 0);
   const chequeOnHold = entries.reduce((sum: number, row: any) => sum + num(row.cheque_on_hold), 0);
-  const cashInHand = Math.round((fundsReceived - cashExpenses - supplierAdvancesPaid - chequeOnHold) * 100) / 100;
+  const cashInHand = Math.round((fundsReceived - expensesPaid - chequeOnHold) * 100) / 100;
   const chronological = entries.slice().sort((a: any, b: any) => {
     const date = String(a.entry_date || "").localeCompare(String(b.entry_date || ""));
     if (date) return date;
@@ -52,9 +49,7 @@ function buildSnapshot(data: any): Snapshot {
     projectCode: String(data?.selectedProject?.projectCode || ""),
     projectName: String(data?.selectedProject?.projectName || ""),
     fundsReceived,
-    cashExpenses,
-    supplierAdvancesPaid,
-    supplierAdvanceOutstanding: num(data?.summary?.supplierAdvance),
+    expensesPaid,
     chequeOnHold,
     cashInHand,
     ledgerCashInHand: last ? num(last.available_cash_balance) : 0,
@@ -160,7 +155,7 @@ export default function ProjectFinanceSummaryV2() {
         <div>
           <span className="pf-summary-v2-kicker">PROJECT CASH POSITION</span>
           <h2>Finance Snapshot</h2>
-          <p>One accounting model: funds received − cash expenses − supplier advances − uncleared cheques = cash in hand.</p>
+          <p>Simple accounting: funds received − expenses − uncleared cheques = cash in hand.</p>
         </div>
         <div className={`pf-summary-v2-status ${reconciled ? "is-balanced" : "is-warning"}`}>
           <span>{reconciled ? "RECONCILED" : "CHECK REQUIRED"}</span>
@@ -177,19 +172,9 @@ export default function ProjectFinanceSummaryV2() {
           <small>All project money received</small>
         </article>
         <article>
-          <span>Cash Expenses Paid</span>
-          <strong>{snapshot ? money(snapshot.cashExpenses) : "—"}</strong>
-          <small>Actual expenses paid from project funds</small>
-        </article>
-        <article>
-          <span>Supplier Advances Paid</span>
-          <strong>{snapshot ? money(snapshot.supplierAdvancesPaid) : "—"}</strong>
-          <small>Cash already transferred to suppliers</small>
-        </article>
-        <article>
-          <span>Supplier Advance Remaining</span>
-          <strong>{snapshot ? money(snapshot.supplierAdvanceOutstanding) : "—"}</strong>
-          <small>Advance not yet converted into delivered material</small>
+          <span>Total Expenses Paid</span>
+          <strong>{snapshot ? money(snapshot.expensesPaid) : "—"}</strong>
+          <small>All project cash outflows</small>
         </article>
         <article>
           <span>Cheque on Hold</span>
@@ -204,7 +189,7 @@ export default function ProjectFinanceSummaryV2() {
       </div>
 
       <div className="pf-summary-v2-equation">
-        <span>Funds Received</span><b>−</b><span>Cash Expenses</span><b>−</b><span>Supplier Advances</span><b>−</b><span>Cheque Hold</span><b>=</b><strong>Cash in Hand</strong>
+        <span>Funds Received</span><b>−</b><span>Expenses</span><b>−</b><span>Cheque Hold</span><b>=</b><strong>Cash in Hand</strong>
       </div>
     </section>,
     mount,
