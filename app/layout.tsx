@@ -27,8 +27,10 @@ import "./top-portal-navigation.css";
 import "./portal-sidebar-lock.css";
 // Keep typography near the end so it can normalize legacy component font sizes.
 import "./typography-system.css";
-// Final screen-only palette normalization for light/dark consistency.
+// Final legacy normalization before the semantic LAND VIEW color system.
 import "./theme-consistency.css";
+// Authoritative screen palette across public, login, employee and client surfaces.
+import "./landview-color-harmony.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
