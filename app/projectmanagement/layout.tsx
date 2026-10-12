@@ -6,6 +6,7 @@ import ProjectFinancePartyEnhancer from "@/components/project-finance-party-enha
 import ProjectFinanceSummaryV2 from "@/components/project-finance-summary-v2";
 import ProjectFinanceLocalDate from "@/components/project-finance-local-date";
 import ProjectFinanceSafeEdit from "@/components/project-finance-safe-edit";
+import ProjectFinanceExpensePartySelect from "@/components/project-finance-expense-party-select";
 import { requirePortalSession } from "@/lib/server-auth";
 import "../admin/admin-brand-theme.css";
 import "../admin/admin-layout-polish.css";
@@ -48,6 +49,7 @@ export default async function ProjectFinanceLayout({ children }: Readonly<{ chil
           <ProjectFinanceSummaryV2 />
           <ProjectFinanceLocalDate />
           <ProjectFinanceSafeEdit />
+          <ProjectFinanceExpensePartySelect />
           <ProjectFinanceAdminModule />
           {children}
         </div>
