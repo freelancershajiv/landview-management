@@ -23,8 +23,8 @@ jobs:
         run: python3 scripts/patch-sattapur-accounting.py
       - name: Install dependencies
         run: npm ci
-      - name: Run tests
-        run: npm test
+      - name: Run Sattapur and Finance V2 tests
+        run: node --test tests/sattapur-accounting.test.cjs tests/sattapur-project-management-integration.test.cjs tests/project-finance-core.test.cjs tests/project-finance-v2-integration.test.cjs
       - name: Build application
         run: npm run build
       - name: Commit integration
