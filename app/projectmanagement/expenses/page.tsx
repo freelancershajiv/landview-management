@@ -1,2 +1,2 @@
-import ProjectFinanceExpenseLedger from "@/components/project-finance-expense-ledger";
-export default function ExpenseLedgerPage(){return <ProjectFinanceExpenseLedger/>;}
+import ProjectFinanceLedgerLite from "@/components/project-finance-ledger-lite";
+export default function ExpenseLedgerPage(){return <ProjectFinanceLedgerLite mode="expense"/>;}
