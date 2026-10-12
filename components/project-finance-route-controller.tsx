@@ -8,7 +8,6 @@ const MODULE_ROUTE_BY_LABEL: Record<string, string> = {
   Ledger: "/projectmanagement/ledger",
   Income: "/projectmanagement/income",
   Expenses: "/projectmanagement/expenses",
-  "Sattapur Bricks": "/projectmanagement/sattapur",
   Suppliers: "/projectmanagement/parties",
 };
 
@@ -17,7 +16,6 @@ const MODULE_LABEL_BY_PATH: Record<string, string> = {
   "/projectmanagement/ledger": "Ledger",
   "/projectmanagement/income": "Income",
   "/projectmanagement/expenses": "Expenses",
-  "/projectmanagement/sattapur": "Sattapur Bricks",
   "/projectmanagement/parties": "Suppliers",
 };
 
@@ -38,6 +36,13 @@ function navLabel(button: HTMLButtonElement) {
   return String(button.textContent || "").trim();
 }
 
+function hideRetiredLegacyModules() {
+  const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>(".pm-module-nav button"));
+  for (const button of buttons) {
+    if (navLabel(button) === "Sattapur Bricks") button.style.display = "none";
+  }
+}
+
 export default function ProjectFinanceRouteController() {
   const pathname = usePathname();
   useEffect(() => {
@@ -51,6 +56,7 @@ export default function ProjectFinanceRouteController() {
       scheduled = true;
       window.requestAnimationFrame(() => {
         scheduled = false;
+        hideRetiredLegacyModules();
         syncModuleToRoute();
       });
     };
@@ -69,8 +75,6 @@ export default function ProjectFinanceRouteController() {
       target.click();
       syncing = false;
 
-      // The legacy Suppliers handler used to rewrite the URL back to the root.
-      // Keep the new page URL canonical while reusing the existing finance engine.
       window.setTimeout(() => {
         if (normalizePath(window.location.pathname) !== path || window.location.search !== new URL(desiredUrl, window.location.origin).search) {
           window.history.replaceState(null, "", desiredUrl);
@@ -95,6 +99,11 @@ export default function ProjectFinanceRouteController() {
 
       if (button.closest(".pm-module-nav")) {
         const label = navLabel(button);
+        if (label === "Sattapur Bricks") {
+          event.preventDefault();
+          event.stopPropagation();
+          return;
+        }
         const route = MODULE_ROUTE_BY_LABEL[label];
         if (route) {
           event.preventDefault();
