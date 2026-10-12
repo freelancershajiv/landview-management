@@ -9,7 +9,6 @@ const modules = [
   { href: "/projectmanagement/expenses", label: "Expense Ledger", icon: "↙", note: "Project cash out" },
   { href: "/projectmanagement/ledger", label: "Combined Ledger", icon: "≡", note: "Complete transaction history" },
   { href: "/projectmanagement/parties", label: "Parties", icon: "♙", note: "Suppliers & contractors" },
-  { href: "/projectmanagement/sattapur", label: "Sattapur", icon: "▦", note: "Brick deposit & delivery" },
   { href: "/projectmanagement/reports", label: "Reports", icon: "▤", note: "Monthly finance reports" },
   { href: "/projectmanagement/bills", label: "Bills", icon: "৳", note: "Contracts & billing" },
 ] as const;
@@ -32,7 +31,7 @@ export default function ProjectFinanceAdminModule() {
         <div>
           <span className="pf-admin-eyebrow">PROJECT MANAGEMENT · FINANCE</span>
           <h1>Project Finance</h1>
-          <p>Control project cash, expenses, suppliers, contractor bills and reporting from the LAND VIEW management workspace.</p>
+          <p>Control project income, expenses, parties, contractor bills and reporting from the LAND VIEW management workspace.</p>
         </div>
         <div className="pf-admin-project-chip">
           <small>ACTIVE PROJECT</small>
