@@ -133,7 +133,15 @@ function normalizeLedgerTable(table: HTMLTableElement) {
 
     const balanceCell = row.children[balanceIndex] as HTMLElement | undefined;
     if (!balanceCell) continue;
-    balanceCell.textContent = money(runningBalance);
+
+    // MutationObserver watches child-list changes on the whole page. Replacing
+    // textContent unconditionally creates a new mutation even when the balance
+    // is already correct, which can schedule this normalizer forever. Only
+    // touch the DOM when the displayed value actually needs to change.
+    const nextBalance = money(runningBalance);
+    if (text(balanceCell.textContent) !== nextBalance) {
+      balanceCell.textContent = nextBalance;
+    }
     balanceCell.classList.toggle("negative", runningBalance < 0);
     balanceCell.classList.toggle("positive", runningBalance >= 0);
   }
