@@ -12,7 +12,6 @@ import {
 } from "@/lib/sheet-invoices";
 import ProjectBillingDocument, {
   billingVerificationSnapshot,
-  hasBillingData,
   printBillingPdf,
 } from "@/components/project-billing-document";
 import EmailInvoiceButton from "@/components/email-invoice-button";
@@ -32,6 +31,17 @@ type ProjectBillingBundle = {
   mode?: string;
 };
 type FileListProject = { id: string; name: string; type: string; floor: string };
+type SingleBillOption = {
+  key: string;
+  categoryIndex: number;
+  itemIndex: number;
+  categoryName: string;
+  service: string;
+  amount: number;
+  discount: number;
+  netAmount: number;
+  status: string;
+};
 
 function snapshotKey(id: string) {
   return `${BILLING_SNAPSHOT_PREFIX}LV-${id}`;
@@ -55,26 +65,85 @@ function saveBillingSnapshot(id: string, billing: SheetInvoices) {
   catch {}
 }
 
-function singleBillLabel(name: string) {
-  if (name === "Engineering") return "Engineering Bill";
-  if (name === "Design Books") return "Design Books Bill";
-  if (name === "Supervision") return "Supervision Bill";
-  if (name === "Others") return "Other Services Bill";
-  return `${name} Bill`;
+function numberValue(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function buildSingleBill(result: SheetInvoices, categoryName: string): SheetInvoices | null {
-  const category = result.invoices.find((item) => item.name === categoryName && hasBillingData(item));
-  if (!category) return null;
+function singleBillAmounts(item: SheetInvoices["invoices"][number]["items"][number]) {
+  const amount = Math.max(0, numberValue(item.amount));
+  const explicitDiscount = Number(item.billDiscount);
+  const explicitNet = Number(item.billNetAmount);
+  const discount = Number.isFinite(explicitDiscount)
+    ? Math.max(0, explicitDiscount)
+    : Number.isFinite(explicitNet)
+      ? Math.max(0, amount - explicitNet)
+      : 0;
+  const netAmount = Number.isFinite(explicitNet)
+    ? Math.max(0, explicitNet)
+    : Math.max(0, amount - discount);
+  return { amount, discount, netAmount };
+}
+
+function singleBillOptions(result: SheetInvoices): SingleBillOption[] {
+  const options: SingleBillOption[] = [];
+  result.invoices.forEach((category, categoryIndex) => {
+    category.items.forEach((item, itemIndex) => {
+      const values = singleBillAmounts(item);
+      if (values.amount <= 0.009) return;
+      options.push({
+        key: `${categoryIndex}:${itemIndex}`,
+        categoryIndex,
+        itemIndex,
+        categoryName: category.name,
+        service: String(item.service || `${category.name} Bill`).trim() || `${category.name} Bill`,
+        amount: values.amount,
+        discount: values.discount,
+        netAmount: values.netAmount,
+        status: String(item.billStatus || "").trim(),
+      });
+    });
+  });
+  return options;
+}
+
+function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvoices | null {
+  const [categoryIndexText, itemIndexText] = selectionKey.split(":");
+  const categoryIndex = Number(categoryIndexText);
+  const itemIndex = Number(itemIndexText);
+  if (!Number.isInteger(categoryIndex) || !Number.isInteger(itemIndex)) return null;
+
+  const category = result.invoices[categoryIndex];
+  const item = category?.items?.[itemIndex];
+  if (!category || !item) return null;
+
+  const { amount, discount, netAmount } = singleBillAmounts(item);
+  const status = String(item.billStatus || "").trim().toLowerCase();
+  const fullyPaid = ["paid", "fully paid", "full paid", "settled", "complete", "completed"].includes(status);
+  const paid = fullyPaid ? netAmount : 0;
+  const due = Math.max(0, netAmount - paid);
+  const serviceName = String(item.service || category.name || "Single Bill").trim() || "Single Bill";
+
+  const singleCategory = {
+    ...category,
+    name: serviceName,
+    items: [item],
+    payments: [],
+    gross: amount,
+    discount,
+    paid,
+    due,
+  };
+
   return {
     ...result,
-    invoices: [category],
+    invoices: [singleCategory],
     totals: {
       ...result.totals,
-      gross: Number(category.gross || 0),
-      discount: Number(category.discount || 0),
-      paid: Number(category.paid || 0),
-      due: Number(category.due || 0),
+      gross: amount,
+      discount,
+      paid,
+      due,
     },
   };
 }
@@ -107,7 +176,7 @@ export default function ProjectBillingPage() {
   const [verificationError, setVerificationError] = useState("");
   const [dueOnly, setDueOnly] = useState(false);
   const [singleBillOpen, setSingleBillOpen] = useState(false);
-  const [singleBillCategory, setSingleBillCategory] = useState("");
+  const [singleBillSelection, setSingleBillSelection] = useState("");
   const [singleBillPrint, setSingleBillPrint] = useState<SheetInvoices | null>(null);
   const [fileListProjects, setFileListProjects] = useState<FileListProject[]>([]);
   const [fileListLoading, setFileListLoading] = useState(true);
@@ -181,7 +250,7 @@ export default function ProjectBillingPage() {
     const version = ++request.current;
     setFileId(`LV-${id}`);
     setError(""); setVerificationUrl(""); setVerificationError("");
-    setSingleBillOpen(false); setSingleBillCategory(""); setSingleBillPrint(null);
+    setSingleBillOpen(false); setSingleBillSelection(""); setSingleBillPrint(null);
 
     const snapshot = readBillingSnapshot(id);
     if (snapshot) {
@@ -210,7 +279,7 @@ export default function ProjectBillingPage() {
       if (restored) return;
       restored = true;
       setSingleBillPrint(null);
-      setSingleBillCategory("");
+      setSingleBillSelection("");
     };
     window.addEventListener("afterprint", restore, { once: true });
     const printTimer = window.setTimeout(() => { void printBillingPdf(singleBillPrint); }, 160);
@@ -230,18 +299,18 @@ export default function ProjectBillingPage() {
   }
 
   function openSingleBillGenerator() {
-    if (!result) return;
-    const available = result.invoices.filter(hasBillingData);
+    if (!result || refreshing) return;
+    const available = singleBillOptions(result);
     setDueOnly(false);
-    setSingleBillCategory(available.length === 1 ? available[0].name : "");
+    setSingleBillSelection(available.length === 1 ? available[0].key : "");
     setSingleBillOpen(true);
   }
 
   function generateSingleBill() {
-    if (!result || !singleBillCategory) return;
-    const single = buildSingleBill(result, singleBillCategory);
+    if (!result || !singleBillSelection) return;
+    const single = buildSingleBill(result, singleBillSelection);
     if (!single) {
-      setError("The selected bill has no billing data to generate.");
+      setError("The selected bill could not be generated. Refresh billing and try again.");
       return;
     }
     setSingleBillOpen(false);
@@ -262,7 +331,7 @@ export default function ProjectBillingPage() {
   }, []);
 
   const visibleBilling = singleBillPrint || result;
-  const singleBillOptions = result?.invoices.filter(hasBillingData) || [];
+  const billOptions = result ? singleBillOptions(result) : [];
 
   return (
     <div className={styles.workspace}>
@@ -277,8 +346,8 @@ export default function ProjectBillingPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
             <EmailInvoiceButton result={result} verificationUrl={verificationUrl} className={styles.printButton} />
             <WhatsAppInvoiceButton result={result} verificationUrl={verificationUrl} className={styles.printButton} />
-            <button className={styles.printButton} type="button" onClick={openSingleBillGenerator} disabled={singleBillPrint !== null}>
-              {singleBillPrint ? "Generating Single Bill…" : "Generate Single Bill"}
+            <button className={styles.printButton} type="button" onClick={openSingleBillGenerator} disabled={singleBillPrint !== null || refreshing}>
+              {refreshing ? "Refreshing Bills…" : singleBillPrint ? "Generating Single Bill…" : "Generate Single Bill"}
             </button>
             {Number(result.totals.due || 0) > 0.009 && (
               <button className={styles.printButton} type="button" onClick={generateDueBill} disabled={dueOnly || singleBillPrint !== null}>
@@ -300,7 +369,7 @@ export default function ProjectBillingPage() {
           value={fileId}
           onChange={(event) => {
             setFileId(event.target.value); setResult(null); setError(""); setVerificationUrl(""); setVerificationError("");
-            setSingleBillOpen(false); setSingleBillCategory(""); setSingleBillPrint(null);
+            setSingleBillOpen(false); setSingleBillSelection(""); setSingleBillPrint(null);
             request.current++; setBusy(false); setRefreshing(false);
           }}
           required autoComplete="off"
@@ -324,43 +393,45 @@ export default function ProjectBillingPage() {
           onMouseDown={(event) => { if (event.target === event.currentTarget) setSingleBillOpen(false); }}
           style={{ position: "fixed", inset: 0, zIndex: 1200, background: "rgba(8,18,16,.56)", backdropFilter: "blur(5px)", display: "grid", placeItems: "center", padding: 20 }}
         >
-          <section role="dialog" aria-modal="true" aria-labelledby="single-bill-title" style={{ width: "min(620px,100%)", maxHeight: "88vh", overflow: "auto", borderRadius: 18, border: "1px solid rgba(140,160,155,.28)", background: "var(--theme-bg-_fff, #fff)", boxShadow: "0 28px 80px rgba(8,18,16,.28)" }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="single-bill-title" style={{ width: "min(680px,100%)", maxHeight: "88vh", overflow: "auto", borderRadius: 18, border: "1px solid rgba(140,160,155,.28)", background: "var(--theme-bg-_fff, #fff)", boxShadow: "0 28px 80px rgba(8,18,16,.28)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 18, alignItems: "flex-start", padding: "20px 22px 16px", borderBottom: "1px solid rgba(140,160,155,.20)" }}>
               <div>
                 <span style={{ display: "block", fontSize: 10, fontWeight: 800, letterSpacing: ".12em", color: "#708078", marginBottom: 5 }}>SINGLE BILL GENERATION</span>
-                <h2 id="single-bill-title" style={{ margin: 0, fontSize: 22 }}>Which bill do you want to generate?</h2>
-                <p style={{ margin: "6px 0 0", color: "#738078", fontSize: 12 }}>Only bills with actual billing data are shown for {result.id}.</p>
+                <h2 id="single-bill-title" style={{ margin: 0, fontSize: 22 }}>Which individual bill do you want to generate?</h2>
+                <p style={{ margin: "6px 0 0", color: "#738078", fontSize: 12 }}>Each bill entry is listed separately. Its own discount and net amount will be used for {result.id}.</p>
               </div>
               <button type="button" onClick={() => setSingleBillOpen(false)} aria-label="Close" style={{ border: 0, background: "transparent", fontSize: 26, cursor: "pointer", lineHeight: 1, color: "#64726c" }}>×</button>
             </div>
 
             <div style={{ padding: "16px 22px", display: "grid", gap: 10 }}>
-              {singleBillOptions.map((category) => {
-                const selected = singleBillCategory === category.name;
+              {billOptions.map((bill) => {
+                const selected = singleBillSelection === bill.key;
                 return (
                   <button
-                    key={category.name}
+                    key={bill.key}
                     type="button"
-                    onClick={() => setSingleBillCategory(category.name)}
-                    style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 12, textAlign: "left", padding: "14px 15px", borderRadius: 12, border: selected ? "1px solid #2e715a" : "1px solid rgba(140,160,155,.26)", background: selected ? "rgba(46,113,90,.10)" : "transparent", color: "inherit", cursor: "pointer" }}
+                    onClick={() => setSingleBillSelection(bill.key)}
+                    style={{ width: "100%", display: "grid", gridTemplateColumns: "1fr auto", alignItems: "center", gap: 12, textAlign: "left", padding: "14px 15px", borderRadius: 12, border: selected ? "1px solid #b51f2e" : "1px solid rgba(140,160,155,.26)", background: selected ? "rgba(181,31,46,.08)" : "transparent", color: "inherit", cursor: "pointer" }}
                   >
                     <span>
-                      <strong style={{ display: "block", fontSize: 14 }}>{singleBillLabel(category.name)}</strong>
-                      <small style={{ display: "block", marginTop: 4, color: "#78857f" }}>{category.items.length} bill item{category.items.length === 1 ? "" : "s"} · Paid BDT {Number(category.paid || 0).toLocaleString("en-BD")}</small>
+                      <strong style={{ display: "block", fontSize: 14 }}>{bill.service}</strong>
+                      <small style={{ display: "block", marginTop: 4, color: "#78857f" }}>{bill.categoryName} Bill{bill.status ? ` · ${bill.status}` : ""}</small>
                     </span>
                     <span style={{ textAlign: "right" }}>
-                      <strong style={{ display: "block", fontSize: 13 }}>BDT {Number(category.gross || 0).toLocaleString("en-BD")}</strong>
-                      <small style={{ display: "block", marginTop: 4, color: Number(category.due || 0) > 0.009 ? "#a44a3f" : "#2e715a", fontWeight: 800 }}>{Number(category.due || 0) > 0.009 ? `Due BDT ${Number(category.due || 0).toLocaleString("en-BD")}` : "FULL PAID"}</small>
+                      <strong style={{ display: "block", fontSize: 13 }}>Bill BDT {bill.amount.toLocaleString("en-BD")}</strong>
+                      <small style={{ display: "block", marginTop: 4, color: bill.discount > 0.009 ? "#b51f2e" : "#68766f", fontWeight: 800 }}>
+                        {bill.discount > 0.009 ? `Discount BDT ${bill.discount.toLocaleString("en-BD")} · ` : ""}Net BDT {bill.netAmount.toLocaleString("en-BD")}
+                      </small>
                     </span>
                   </button>
                 );
               })}
-              {!singleBillOptions.length && <div style={{ padding: 18, textAlign: "center", color: "#7a8781" }}>No bill data is available for single generation.</div>}
+              {!billOptions.length && <div style={{ padding: 18, textAlign: "center", color: "#7a8781" }}>No individual bill entries are available for generation.</div>}
             </div>
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "14px 22px 20px", borderTop: "1px solid rgba(140,160,155,.20)" }}>
               <button className={styles.printButton} type="button" onClick={() => setSingleBillOpen(false)}>Cancel</button>
-              <button className={styles.printButton} type="button" onClick={generateSingleBill} disabled={!singleBillCategory}>Generate Selected Bill</button>
+              <button className={styles.printButton} type="button" onClick={generateSingleBill} disabled={!singleBillSelection}>Generate Selected Bill</button>
             </div>
           </section>
         </div>
