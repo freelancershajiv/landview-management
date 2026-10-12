@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
 
 const MODULE_ROUTE_BY_LABEL: Record<string, string> = {
   Overview: "/projectmanagement",
@@ -38,6 +39,7 @@ function navLabel(button: HTMLButtonElement) {
 }
 
 export default function ProjectFinanceRouteController() {
+  const pathname = usePathname();
   useEffect(() => {
     if (!normalizePath(window.location.pathname).startsWith("/projectmanagement")) return;
 
@@ -169,7 +171,7 @@ export default function ProjectFinanceRouteController() {
       document.removeEventListener("click", onProjectChoiceCapture, true);
       document.removeEventListener("change", onChangeCapture, true);
     };
-  }, []);
+  }, [pathname]);
 
   return null;
 }
