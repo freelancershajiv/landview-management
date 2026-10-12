@@ -18,6 +18,7 @@ import "./project-finance-color-harmony.css";
 import "../dual-mode-navigation.css";
 import "./project-finance-dual-mode-polish.css";
 import "./project-finance-party-dropdown.css";
+import "./project-finance-readable-summary.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
