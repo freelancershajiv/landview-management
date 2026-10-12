@@ -253,3 +253,21 @@
     gap: 5px !important;
   }
 }
+
+/* Keep the combined cash ledger compact without hiding financial amounts. */
+.pf-redesign .pm-table.pm-combined-compact { width:100%; min-width:940px; table-layout:fixed; }
+.pf-redesign .pm-combined-compact th,
+.pf-redesign .pm-combined-compact td { padding:10px 7px !important; }
+.pf-redesign .pm-combined-compact th { font-size:10px !important; letter-spacing:0 !important; white-space:nowrap; }
+.pf-redesign .pm-combined-compact th:nth-child(1) { width:90px; }
+.pf-redesign .pm-combined-compact th:nth-child(2) { width:110px; }
+.pf-redesign .pm-combined-compact th.num-col { width:110px; }
+.pf-redesign .pm-combined-compact th.action-col { width:64px; }
+.pf-redesign .pm-combined-compact .wide-col { min-width:0; white-space:normal; overflow-wrap:anywhere; }
+.pf-redesign .pm-combined-compact .pm-supplier { display:block; white-space:normal; overflow-wrap:anywhere; font-size:12px; }
+.pf-redesign .pm-combined-compact .pm-detail { font-size:12px; }
+.pf-redesign .pm-combined-compact .num-col { font-size:12px !important; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.pf-redesign .pm-combined-compact .pm-category-tag { max-width:100%; box-sizing:border-box; margin-top:5px; white-space:normal; }
+.pf-redesign .pm-combined-compact .pm-quantity-note { display:block; margin-top:4px; font-size:10px; }
+.pf-redesign .pm-combined-compact .pm-deduction small { display:block; font-size:10px; font-weight:500; }
+.pf-redesign .pm-combined-compact .pm-deduction + .pm-deduction { margin-top:5px; }

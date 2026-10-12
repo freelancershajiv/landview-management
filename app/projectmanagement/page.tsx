@@ -33,6 +33,7 @@ function suggestedPartyForCategory(data:any,category:string) {
 }
 
 const money=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v||0));
+const ledgerMoney=(v:any)=>new Intl.NumberFormat("en-BD",{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(v||0));
 const compactMoney=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",notation:"compact",maximumFractionDigits:1}).format(Number(v||0));
 const num=(v:any)=>{const n=Number(String(v??"").replace(/,/g,"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0};
 const dateText=(v:any)=>{const d=new Date(String(v||"").slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?String(v||""):d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})};
@@ -610,9 +611,9 @@ export default function ProjectManagementPage(){
             </div>
           </div>
 
-          {ledgerView==="all"&&<p className="pm-cash-explanation">Available cash = income − expenses − supplier allocations − held cheques. Balances include earlier entries even when filters are applied. Supplier deliveries do not deduct cash a second time.</p>}
+          {ledgerView==="all"&&<p className="pm-cash-explanation">All amounts in BDT. Available cash = income − expenses − supplier allocations − held cheques. Balances include earlier entries even when filters are applied. Supplier deliveries do not deduct cash a second time.</p>}
           <div className="pm-table-wrap">
-            <table className="pm-table">
+            <table className={"pm-table"+(ledgerView==="all"?" pm-combined-compact":"")}>
               <thead>
                 {ledgerView==="income" ? (
                   <tr>
@@ -640,16 +641,12 @@ export default function ProjectManagementPage(){
                 ) : (
                   <tr>
                     <th>Date</th>
-                    <th>Paid To / Supplier</th>
-                    <th className="wide-col">Details</th>
-                    <th>Category</th>
-                    <th className="num-col">Qty / SFT</th>
-                    <th className="num-col">Rate</th>
-                    <th className="num-col">Debit</th>
-                    <th className="num-col">Credit</th>
-                    <th className="num-col">Supplier Allocation</th>
-                    <th className="num-col">Cheque on Hold</th>
-                    <th className="num-col">Available Cash Balance</th>
+                    <th>Paid To</th>
+                    <th className="wide-col">Details / Category</th>
+                    <th className="num-col">Income</th>
+                    <th className="num-col">Expense</th>
+                    <th className="num-col">Deductions</th>
+                    <th className="num-col">Cash Balance</th>
                     {admin&&<th className="action-col"/>}
                   </tr>
                 )}
@@ -698,16 +695,19 @@ export default function ProjectManagementPage(){
                           <td><span className="pm-supplier">{party}</span></td>
                           <td className="wide-col">
                             <div className="pm-detail">{r.details}</div>
+                            <span className="pm-category-tag">{category}</span>
+                            {(num(r.sft)>0||num(r.rate)>0)&&<small className="pm-quantity-note">Qty: {r.sft||"—"} · Rate: {ledgerMoney(r.rate)}</small>}
+                            {category.toLowerCase()==="cheque"&&isDebit&&<span className={"pm-cheque-status "+(chequeStatus(r)==="On Hold"?"hold":"cashed")}>{chequeStatus(r)}</span>}
                             {r.memo&&String(r.memo).startsWith("MASTER_LEDGER:")&&<span className="pm-source-tag">Master Ledger</span>}
                           </td>
-                          <td><span className="pm-category-tag">{category}</span>{category.toLowerCase()==="cheque"&&isDebit&&<span className={"pm-cheque-status "+(chequeStatus(r)==="On Hold"?"hold":"cashed")}>{chequeStatus(r)}</span>}</td>
-                          <td className="num-col">{r.sft||"—"}</td>
-                          <td className="num-col">{r.rate?money(r.rate):"—"}</td>
-                          <td className={"num-col "+(isDebit?"pm-money-debit":"pm-muted")}>{r.debit?money(r.debit):"—"}</td>
-                          <td className={"num-col "+(!isDebit&&num(r.credit)>0?"pm-money-credit":"pm-muted")}>{r.credit?money(r.credit):"—"}</td>
-                          <td className="num-col">{num(r.supplier_allocation)?money(r.supplier_allocation):"—"}</td>
-                          <td className="num-col">{num(r.cheque_on_hold)?money(r.cheque_on_hold):"—"}</td>
-                          <td className="num-col pm-balance">{money(r.available_cash_balance)}</td>
+                          <td className={"num-col "+(isDebit?"pm-money-debit":"pm-muted")}>{r.debit?ledgerMoney(r.debit):"—"}</td>
+                          <td className={"num-col "+(!isDebit&&num(r.credit)>0?"pm-money-credit":"pm-muted")}>{r.credit?ledgerMoney(r.credit):"—"}</td>
+                          <td className="num-col">
+                            {num(r.supplier_allocation)>0&&<div className="pm-deduction"><small>Supplier</small>{ledgerMoney(r.supplier_allocation)}</div>}
+                            {num(r.cheque_on_hold)>0&&<div className="pm-deduction"><small>Held cheque</small>{ledgerMoney(r.cheque_on_hold)}</div>}
+                            {!num(r.supplier_allocation)&&!num(r.cheque_on_hold)&&"—"}
+                          </td>
+                          <td className="num-col pm-balance">{ledgerMoney(r.available_cash_balance)}</td>
                           {admin&&<td className="action-col"><div className="pm-row-actions"><button className="pm-icon-btn" title="Edit" onClick={()=>openEdit(r)}>✎</button><button className="pm-icon-btn pm-danger" title="Delete" onClick={()=>void remove(r)}>⌫</button></div></td>}
                         </>
                       )}
@@ -715,7 +715,7 @@ export default function ProjectManagementPage(){
                   );
                 })}
                 {!filtered.length&&
-                  <tr><td colSpan={admin?(ledgerView==="income"?8:ledgerView==="expense"?9:12):ledgerView==="income"?7:ledgerView==="expense"?8:11} className="pm-empty">
+                  <tr><td colSpan={admin?(ledgerView==="income"?8:ledgerView==="expense"?9:8):ledgerView==="income"?7:ledgerView==="expense"?8:7} className="pm-empty">
                     <div className="pm-empty-icon">⌕</div>
                     <strong>No entries found</strong>
                     <span>{ledgerView==="income"?"No income entries found.":"No expense entries found."}</span>
