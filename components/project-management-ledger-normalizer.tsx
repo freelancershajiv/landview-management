@@ -105,39 +105,27 @@ function normalizeLedgerTable(table: HTMLTableElement) {
   const balanceIndex = columnIndex(headers, "Balance");
   if (debitIndex < 0 || creditIndex < 0 || balanceIndex < 0) return;
 
-  // Remove any stale DOM-only linked Sattapur rows from an older client render.
   table.querySelectorAll("[data-ledger-linked-expense]").forEach((row) => row.remove());
 
   const rows = factualRows(table);
   const totalBadge = document.querySelector<HTMLElement>(".pm-all-ledger b");
   const totalEntries = totalBadge ? Math.round(numeric(totalBadge.textContent)) : 0;
 
-  // When search has reduced the table, keep the API-provided per-row balance.
-  // A partial table cannot safely be recalculated from zero.
   if (totalEntries > 0 && rows.length !== totalEntries) return;
 
   let runningBalance = 0;
 
-  // The UI renders newest first, while a running ledger must be calculated
-  // oldest first. Reverse the DOM rows for calculation, then write each result
-  // back to its original visible row.
   for (const row of rows.slice().reverse()) {
     const debit = numeric(row.children[debitIndex]?.textContent);
     const credit = numeric(row.children[creditIndex]?.textContent);
     const sattapurAllocation = isSattapurDeposit(row, headers) ? debit : 0;
     const heldChequeAllocation = isHeldCheque(row, headers) ? debit : 0;
 
-    // Sattapur deposits are already cash paid out, and an on-hold cheque is not
-    // available cash yet. Neither should increase the main cash balance.
     runningBalance += debit - credit - sattapurAllocation - heldChequeAllocation;
 
     const balanceCell = row.children[balanceIndex] as HTMLElement | undefined;
     if (!balanceCell) continue;
 
-    // MutationObserver watches child-list changes on the whole page. Replacing
-    // textContent unconditionally creates a new mutation even when the balance
-    // is already correct, which can schedule this normalizer forever. Only
-    // touch the DOM when the displayed value actually needs to change.
     const nextBalance = money(runningBalance);
     if (text(balanceCell.textContent) !== nextBalance) {
       balanceCell.textContent = nextBalance;
@@ -157,6 +145,20 @@ function normalizeProjectLedger() {
   });
 }
 
+function mutationTouchesLedger(mutation: MutationRecord) {
+  const target = mutation.target instanceof Element ? mutation.target : mutation.target.parentElement;
+  if (target?.closest(".pm-workspace .pm-table")) return true;
+
+  return Array.from(mutation.addedNodes).some((node) => {
+    if (!(node instanceof Element)) return false;
+    return (
+      node.matches(".pm-workspace .pm-table") ||
+      Boolean(node.querySelector(".pm-workspace .pm-table")) ||
+      Boolean(node.closest(".pm-workspace .pm-table"))
+    );
+  });
+}
+
 export default function ProjectManagementLedgerNormalizer() {
   useEffect(() => {
     if (!isProjectManagementPage()) return;
@@ -172,17 +174,17 @@ export default function ProjectManagementLedgerNormalizer() {
     };
 
     schedule();
-    const observer = new MutationObserver(() => schedule());
+
+    const observer = new MutationObserver((mutations) => {
+      if (mutations.some(mutationTouchesLedger)) schedule();
+    });
     observer.observe(document.body, { childList: true, subtree: true });
 
-    const onClick = () => window.setTimeout(schedule, 0);
     const onHistory = () => schedule();
-    document.addEventListener("click", onClick, true);
     window.addEventListener("popstate", onHistory);
 
     return () => {
       observer.disconnect();
-      document.removeEventListener("click", onClick, true);
       window.removeEventListener("popstate", onHistory);
     };
   }, []);
