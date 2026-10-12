@@ -63,6 +63,13 @@ function retriableBotStatus(status: number) {
   return status === 408 || status === 425 || status === 429 || status === 502 || status === 503 || status === 504;
 }
 
+function retryDelay(attempt: number) {
+  // A Render free instance may need several seconds to wake and then restore
+  // the Baileys session. Spread retries out instead of immediately repeating
+  // the request while the service is still booting.
+  return Math.min(5_000, 1_000 * (attempt + 1));
+}
+
 async function botRequest(path: string, init?: RequestInit) {
   const base = clean(process.env.WHATSAPP_BOT_URL, 1000).replace(/\/+$/, "");
   const token = clean(process.env.WHATSAPP_BOT_API_TOKEN, 1000);
@@ -73,7 +80,7 @@ async function botRequest(path: string, init?: RequestInit) {
   if (init?.body && !requestHeaders.has("content-type")) requestHeaders.set("content-type", "application/json");
 
   const method = String(init?.method || "GET").toUpperCase();
-  const attempts = method === "GET" ? 2 : 1;
+  const attempts = method === "GET" ? 6 : 1;
   let lastError: unknown = null;
 
   for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -90,7 +97,7 @@ async function botRequest(path: string, init?: RequestInit) {
         (error as Error & { status?: number }).status = result.status;
         if (attempt + 1 < attempts && retriableBotStatus(result.status)) {
           lastError = error;
-          await new Promise((resolve) => setTimeout(resolve, 450));
+          await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt)));
           continue;
         }
         throw error;
@@ -101,7 +108,7 @@ async function botRequest(path: string, init?: RequestInit) {
       const status = Number(error?.status) || 0;
       const mayRetry = !status || retriableBotStatus(status);
       if (attempt + 1 < attempts && mayRetry) {
-        await new Promise((resolve) => setTimeout(resolve, 450));
+        await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt)));
         continue;
       }
       throw error;
