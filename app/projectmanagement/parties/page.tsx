@@ -1,2 +1,2 @@
-import ProjectFinancePartiesLite from "@/components/project-finance-parties-lite";
-export default function PartiesPage(){return <ProjectFinancePartiesLite/>;}
+import ProjectFinancePartiesSeparated from "@/components/project-finance-parties-separated";
+export default function PartiesPage(){return <ProjectFinancePartiesSeparated/>;}
