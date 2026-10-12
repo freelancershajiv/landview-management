@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { calculateProjectFinanceV2Snapshot } from "@/lib/project-finance-core.mjs";
 import { requireLocalSession } from "@/lib/local-session";
