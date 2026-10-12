@@ -3,6 +3,7 @@ import ManagementShellV2 from "@/components/management-shell-v2";
 import ProjectFinanceAdminModule from "@/components/project-finance-admin-module";
 import ProjectFinanceRouteController from "@/components/project-finance-route-controller";
 import ProjectFinancePartyEnhancer from "@/components/project-finance-party-enhancer";
+import ProjectFinanceSummaryV2 from "@/components/project-finance-summary-v2";
 import { requirePortalSession } from "@/lib/server-auth";
 import "../admin/admin-brand-theme.css";
 import "../admin/admin-layout-polish.css";
@@ -19,6 +20,7 @@ import "../dual-mode-navigation.css";
 import "./project-finance-dual-mode-polish.css";
 import "./project-finance-party-dropdown.css";
 import "./project-finance-readable-summary.css";
+import "./project-finance-summary-v2.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
@@ -28,6 +30,7 @@ export default async function ProjectFinanceLayout({ children }: Readonly<{ chil
     return (
       <div className="pf-redesign">
         <ProjectFinanceRouteController />
+        <ProjectFinanceSummaryV2 />
         {children}
       </div>
     );
@@ -39,6 +42,7 @@ export default async function ProjectFinanceLayout({ children }: Readonly<{ chil
         <div className="pf-redesign pf-management-shell">
           <ProjectFinancePartyEnhancer />
           <ProjectFinanceRouteController />
+          <ProjectFinanceSummaryV2 />
           <ProjectFinanceAdminModule />
           {children}
         </div>
