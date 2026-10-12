@@ -1,0 +1,255 @@
+/* Project Finance readability polish — intentionally loaded last. */
+@media screen {
+  .pf-management-shell .pm-project-card {
+    padding: 18px 20px !important;
+  }
+
+  .pf-management-shell .pm-label {
+    font-size: 10px !important;
+    line-height: 1.25 !important;
+    letter-spacing: .11em !important;
+  }
+
+  .pf-management-shell .pm-project-select select {
+    min-height: 44px !important;
+    font-size: 13px !important;
+  }
+
+  .pf-management-shell .pm-project-code {
+    font-size: 11px !important;
+  }
+
+  .pf-management-shell .pm-project-name {
+    font-size: 18px !important;
+  }
+
+  .pf-management-shell .pm-project-meta {
+    font-size: 12px !important;
+    line-height: 1.45 !important;
+  }
+
+  .pf-management-shell .pm-project-date span {
+    font-size: 9px !important;
+  }
+
+  .pf-management-shell .pm-project-date strong {
+    font-size: 16px !important;
+  }
+
+  .pf-management-shell .pm-project-date small {
+    font-size: 11px !important;
+  }
+
+  .pf-management-shell .pm-finance-summary {
+    background: var(--lv-surface-panel) !important;
+    border: 1px solid var(--lv-border-default) !important;
+    border-radius: 16px !important;
+    overflow: hidden !important;
+    box-shadow: var(--lv-shadow-sm) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary-head {
+    padding: 18px 20px 15px !important;
+    background: var(--lv-surface-panel) !important;
+    border-bottom: 1px solid var(--lv-border-default) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary-head strong {
+    margin-top: 3px !important;
+    font-size: 21px !important;
+    line-height: 1.2 !important;
+    letter-spacing: -.02em !important;
+  }
+
+  .pf-management-shell .pm-finance-summary-head small {
+    max-width: 920px !important;
+    margin-top: 7px !important;
+    color: var(--lv-text-muted) !important;
+    font-size: 12px !important;
+    line-height: 1.55 !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stats {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 12px !important;
+    padding: 14px !important;
+    background: var(--lv-surface-muted) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat {
+    min-width: 0 !important;
+    min-height: 148px !important;
+    padding: 18px !important;
+    border: 1px solid var(--lv-border-default) !important;
+    border-top-width: 1px !important;
+    border-radius: 13px !important;
+    background: var(--lv-surface-panel) !important;
+    box-shadow: 0 5px 16px rgba(20, 38, 29, .035) !important;
+    overflow: hidden !important;
+  }
+
+  /* Remove the old decorative circles / bars behind the figures. */
+  .pf-management-shell .pm-finance-summary .pm-stat::before,
+  .pf-management-shell .pm-finance-summary .pm-stat::after {
+    content: none !important;
+    display: none !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-head {
+    gap: 10px !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-head span {
+    color: var(--lv-text-secondary, var(--lv-text-muted)) !important;
+    font-size: 11px !important;
+    line-height: 1.25 !important;
+    font-weight: 820 !important;
+    letter-spacing: .015em !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-head b {
+    flex: 0 0 auto !important;
+    width: 28px !important;
+    height: 28px !important;
+    display: inline-grid !important;
+    place-items: center !important;
+    border: 1px solid var(--lv-border-default) !important;
+    border-radius: 8px !important;
+    background: var(--lv-surface-muted) !important;
+    color: var(--lv-text-muted) !important;
+    font-size: 12px !important;
+    line-height: 1 !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat > strong,
+  .pf-management-shell .pm-finance-summary .pm-stat-shajiv > strong {
+    display: block !important;
+    margin-top: 16px !important;
+    color: var(--lv-text-strong) !important;
+    font-size: clamp(21px, 1.45vw, 27px) !important;
+    line-height: 1.05 !important;
+    font-weight: 860 !important;
+    letter-spacing: -.035em !important;
+    white-space: nowrap !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat > small,
+  .pf-management-shell .pm-finance-summary .pm-stat-shajiv > small {
+    display: block !important;
+    margin-top: 9px !important;
+    color: var(--lv-text-muted) !important;
+    font-size: 11px !important;
+    line-height: 1.45 !important;
+  }
+
+  /* Keep semantic meaning as a restrained accent instead of large colored graphics. */
+  .pf-management-shell .pm-finance-summary .pm-stat-debit .pm-stat-head b {
+    background: var(--lv-success-soft) !important;
+    color: var(--lv-success) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-credit .pm-stat-head b {
+    background: var(--lv-danger-soft) !important;
+    color: var(--lv-danger) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-advance .pm-stat-head b {
+    background: var(--lv-warning-soft) !important;
+    color: var(--lv-warning) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-hold .pm-stat-head b {
+    background: var(--lv-info-soft) !important;
+    color: var(--lv-info) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-shajiv {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    box-shadow: inset 3px 0 0 var(--lv-brand-primary), 0 5px 16px rgba(20, 38, 29, .035) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-shajiv :is(.pm-stat-head span, strong, small) {
+    color: inherit !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-shajiv .pm-stat-head span {
+    color: var(--lv-text-secondary, var(--lv-text-muted)) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-shajiv > strong {
+    color: var(--lv-text-strong) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-shajiv > small {
+    color: var(--lv-text-muted) !important;
+  }
+
+  .pf-management-shell .pm-finance-foot {
+    padding: 12px 16px !important;
+    background: var(--lv-surface-panel) !important;
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+  }
+
+  .pf-management-shell .pm-overview-history-head {
+    padding: 18px 20px !important;
+  }
+
+  .pf-management-shell .pm-overview-history-head strong {
+    font-size: 19px !important;
+  }
+
+  .pf-management-shell .pm-overview-history-head small {
+    margin-top: 6px !important;
+    font-size: 11px !important;
+    line-height: 1.45 !important;
+  }
+
+  .pf-management-shell .pm-overview-history-head button {
+    font-size: 11px !important;
+  }
+
+  .pf-management-shell .pm-overview-table th {
+    font-size: 10px !important;
+  }
+
+  .pf-management-shell .pm-overview-table td {
+    font-size: 12px !important;
+  }
+}
+
+@media screen and (max-width: 1250px) {
+  .pf-management-shell .pm-finance-summary .pm-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-shajiv {
+    grid-column: 1 / -1 !important;
+  }
+}
+
+@media screen and (max-width: 700px) {
+  .pf-management-shell .pm-finance-summary .pm-stats {
+    grid-template-columns: 1fr !important;
+    padding: 10px !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat-shajiv {
+    grid-column: auto !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat {
+    min-height: 132px !important;
+  }
+
+  .pf-management-shell .pm-finance-summary .pm-stat > strong {
+    font-size: 24px !important;
+    white-space: normal !important;
+  }
+
+  .pf-management-shell .pm-finance-foot {
+    flex-direction: column !important;
+    gap: 5px !important;
+  }
+}
