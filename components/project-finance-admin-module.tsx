@@ -5,9 +5,9 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 const modules = [
   { href: "/projectmanagement", label: "Overview", icon: "⌂", note: "Project fund position" },
-  { href: "/projectmanagement/income", label: "Cash In", icon: "↗", note: "Deposits & receipts" },
-  { href: "/projectmanagement/expenses", label: "Expenses", icon: "↙", note: "Project cash out" },
-  { href: "/projectmanagement/ledger", label: "Ledger", icon: "≡", note: "Complete transaction history" },
+  { href: "/projectmanagement/income", label: "Income Ledger", icon: "↗", note: "Deposits & receipts" },
+  { href: "/projectmanagement/expenses", label: "Expense Ledger", icon: "↙", note: "Project cash out" },
+  { href: "/projectmanagement/ledger", label: "Combined Ledger", icon: "≡", note: "Complete transaction history" },
   { href: "/projectmanagement/parties", label: "Parties", icon: "♙", note: "Suppliers & contractors" },
   { href: "/projectmanagement/sattapur", label: "Sattapur", icon: "▦", note: "Brick deposit & delivery" },
   { href: "/projectmanagement/reports", label: "Reports", icon: "▤", note: "Monthly finance reports" },

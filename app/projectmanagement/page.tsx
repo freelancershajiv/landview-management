@@ -46,6 +46,8 @@ export default function ProjectManagementPage(){
   const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
 
+  const [dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[ledgerParty,setLedgerParty]=useState("all");
+
   const [partiesOpen,setPartiesOpen]=useState(false),[partySaving,setPartySaving]=useState(false),[partyForm,setPartyForm]=useState({name:"",partyType:"Supplier",category:"Bricks",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
   const [sattapurDeliveryOpen,setSattapurDeliveryOpen]=useState(false),[sattapurDeliverySaving,setSattapurDeliverySaving]=useState(false),[sattapurDeliveryForm,setSattapurDeliveryForm]=useState({deliveryDate:new Date().toISOString().slice(0,10),details:"",quantity:"",rate:"14.50",memo:""}),[sattapurDeliveriesOpen,setSattapurDeliveriesOpen]=useState(false),[sattapurLedgerOpen,setSattapurLedgerOpen]=useState(false);
 
@@ -89,7 +91,9 @@ export default function ProjectManagementPage(){
       .filter((r:any)=>{
         const matchesView=ledgerView==="all" || (ledgerView==="income" ? num(r.debit)>0 : num(r.credit)>0);
         const matchesCategory=ledgerCategory==="all" || String(r.category||"Other Expenses")===ledgerCategory;
-        return matchesView && matchesCategory && (!q||[r.details,r.supplier,r.paid_to,r.received_from,r.category,r.memo,r.entry_date].join(" ").toLowerCase().includes(q));
+        const date=String(r.entry_date||"").slice(0,10);
+        const party=ledgerView==="income" ? r.received_from : (r.paid_to||r.supplier);
+        return matchesView && matchesCategory && (!dateFrom||date>=dateFrom) && (!dateTo||date<=dateTo) && (ledgerParty==="all"||party===ledgerParty) && (!q||[r.details,r.supplier,r.paid_to,r.received_from,r.category,r.memo,r.entry_date].join(" ").toLowerCase().includes(q));
       })
       .slice()
       .sort((a:any,b:any)=>{
@@ -97,7 +101,24 @@ export default function ProjectManagementPage(){
         if(d)return d;
         return String(b.created_at||"").localeCompare(String(a.created_at||""));
       });
-  },[entries,ledgerView,ledgerCategory,search]);
+  },[entries,ledgerView,ledgerCategory,search,dateFrom,dateTo,ledgerParty]);
+
+  const ledgerParties=Array.from(new Set<string>(entries
+    .filter((r:any)=>ledgerView==="all"||(ledgerView==="income"?num(r.debit)>0:num(r.credit)>0))
+    .map((r:any)=>String((ledgerView==="income"?r.received_from:(r.paid_to||r.supplier))||"").trim())
+    .filter(Boolean))).sort();
+  const filteredIncome=filtered.reduce((sum:number,r:any)=>sum+num(r.debit),0);
+  const filteredExpense=filtered.reduce((sum:number,r:any)=>sum+num(r.credit),0);
+  const filteredHold=filtered.reduce((sum:number,r:any)=>sum+(String(r.category||"").toLowerCase()==="cheque"&&chequeStatus(r)==="On Hold"?num(r.debit):0),0);
+  function resetLedgerFilters(){setLedgerCategory("all");setSearch("");setDateFrom("");setDateTo("");setLedgerParty("all");}
+  function exportLedger(){
+    const headings=ledgerView==="income" ? ["Date","Received From","Paid To","Details","Category","Income","Cheque Status"] : ledgerView==="expense" ? ["Date","Paid To","Details","Category","Quantity","Rate","Expense"] : ["Date","Received From","Paid To","Details","Category","Income","Expense"];
+    const rows=filtered.map((r:any)=>ledgerView==="income" ? [r.entry_date,r.received_from,r.paid_to,r.details,r.category,num(r.debit),String(r.category||"").toLowerCase()==="cheque"?chequeStatus(r):""] : ledgerView==="expense" ? [r.entry_date,r.paid_to||r.supplier,r.details,r.category,r.sft,r.rate,num(r.credit)] : [r.entry_date,r.received_from,r.paid_to||r.supplier,r.details,r.category,num(r.debit),num(r.credit)]);
+    const cell=(value:any)=>{let text=String(value??"");if(/^[=+@\-\t\r]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';};
+    const csv=[headings,...rows].map(row=>row.map(cell).join(",")).join("\r\n");
+    const url=URL.createObjectURL(new Blob(["\ufeff",csv],{type:"text/csv;charset=utf-8;"}));
+    const link=document.createElement("a");link.href=url;link.download=`${project}-${ledgerView}-ledger.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
 
   const currentChequeOnHold=entries.reduce((s:number,r:any)=>s+(String(r.category||"").toLowerCase()==="cheque"&&num(r.debit)>0&&chequeStatus(r)==="On Hold"?num(r.debit):0),0);
   const categoryTotals=useMemo(()=>{
@@ -124,7 +145,7 @@ export default function ProjectManagementPage(){
     setLedgerView("income");
     setLedgerCategory("all");
     setActiveModule("overview");
-    setSearch("");
+    resetLedgerFilters();
     if(typeof window!=="undefined"){
       window.history.replaceState(null,"","/projectmanagement?projectId="+encodeURIComponent(normalized));
     }
@@ -171,7 +192,7 @@ export default function ProjectManagementPage(){
         memo:form.category==="Cheque" ? `CHEQUE_STATUS:${form.chequeStatus==="On Hold"?"ON_HOLD":"CASHED"}${form.memo.trim()?`\n${form.memo.trim()}`:""}` : form.memo
       };
       if(!form.details.trim())throw new Error("Details are required.");
-      if((body.debit>0)===(body.credit>0))throw new Error("Enter either Debit or Credit.");
+      if((entryType==="income" && (body.debit<=0||body.credit!==0)) || (entryType==="expense" && (body.credit<=0||body.debit!==0)))throw new Error("Enter a positive "+entryType+" amount only.");
       if(body.debit>0 && !RECEIVED_FROM_OPTIONS.includes(String(body.receivedFrom||"")))throw new Error("Select a valid Received From option.");
       const r=await fetch("/api/project-management",{
         method:editing?"PUT":"POST",
@@ -360,7 +381,7 @@ export default function ProjectManagementPage(){
   const totalDebit=num(data?.totals?.debit);
   const totalCredit=num(data?.totals?.credit);
   const balance=num(data?.totals?.balance);
-  const currentTitle = ledgerView==="income" ? (ledgerCategory==="all" ? "Income Ledger" : ledgerCategory) : ledgerView==="expense" ? (ledgerCategory==="all" ? "Expense Ledger" : ledgerCategory) : "All Ledger Entries";
+  const currentTitle = ledgerView==="income" ? "Income Ledger" : ledgerView==="expense" ? "Expense Ledger" : "All Ledger Entries";
   const currentCount = filtered.length;
   const sattapurBricks=data?.sattapurBricks||{depositAmount:0,depositCount:0,deliveredQuantity:0,deliveredValue:0,deliveryCount:0,holdAmount:0,overDeliveredValue:0,deposits:[],deliveries:[]};
 
@@ -449,9 +470,9 @@ export default function ProjectManagementPage(){
 
         <nav className="pm-module-nav" aria-label="Project Management modules">
           <button className={activeModule==="overview"?"is-active":""} onClick={()=>setActiveModule("overview")}>Overview</button>
-          <button className={activeModule==="ledger"?"is-active":""} onClick={()=>{setActiveModule("ledger");setLedgerView("all");setLedgerCategory("all")}}>Ledger</button>
-          <button className={activeModule==="income"?"is-active":""} onClick={()=>{setActiveModule("income");setLedgerView("income");setLedgerCategory("all")}}>Income</button>
-          <button className={activeModule==="expense"?"is-active":""} onClick={()=>{setActiveModule("expense");setLedgerView("expense");setLedgerCategory("all")}}>Expenses</button>
+          <button className={activeModule==="ledger"?"is-active":""} onClick={()=>{setActiveModule("ledger");setLedgerView("all");resetLedgerFilters()}}>Ledger</button>
+          <button className={activeModule==="income"?"is-active":""} onClick={()=>{setActiveModule("income");setLedgerView("income");resetLedgerFilters()}}>Income</button>
+          <button className={activeModule==="expense"?"is-active":""} onClick={()=>{setActiveModule("expense");setLedgerView("expense");resetLedgerFilters()}}>Expenses</button>
           <button className={activeModule==="sattapur"?"is-active":""} onClick={()=>setActiveModule("sattapur")}>Sattapur Bricks</button>
           <button className={activeModule==="suppliers"?"is-active":""} onClick={()=>{setActiveModule("suppliers");window.history.replaceState(null,"","/projectmanagement?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||"")+"&section=suppliers")}}>Suppliers</button>
           <button onClick={()=>window.location.assign("/projectmanagement/report?projectId="+encodeURIComponent(project||data?.selectedProject?.projectCode||""))}>Monthly Report</button>
@@ -557,43 +578,29 @@ export default function ProjectManagementPage(){
         </section>
 
         <section className="pm-workspace" style={{display:(activeModule==="ledger"||activeModule==="income"||activeModule==="expense")?"block":"none"}}>
-          <div className="pm-category-bar">
-            <div className="pm-category-title">
-              <span className="pm-label">LEDGER VIEW</span>
-              <strong>Choose income or expense</strong>
-            </div>
-            <div className="pm-ledger-selects">
-              <label className={"pm-ledger-dropdown pm-income-dropdown "+(ledgerView==="income"?"is-open":"")}>
-                <span className="pm-ledger-icon">↗</span>
-                <span className="pm-ledger-copy"><small>INCOME</small><strong>Income</strong></span>
-                <select value={ledgerView==="income"?ledgerCategory:""} onChange={e=>{setLedgerView("income");setLedgerCategory(e.target.value)}}>
-                  <option value="" disabled>Income</option>
-                  <option value="all">All Income</option>
-                  {incomeCategories.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-              </label>
-              <label className={"pm-ledger-dropdown pm-expense-dropdown "+(ledgerView==="expense"?"is-open":"")}>
-                <span className="pm-ledger-icon">↙</span>
-                <span className="pm-ledger-copy"><small>EXPENSE</small><strong>Expense</strong></span>
-                <select value={ledgerView==="expense"?ledgerCategory:""} onChange={e=>{setLedgerView("expense");setLedgerCategory(e.target.value)}}>
-                  <option value="" disabled>Expense</option>
-                  <option value="all">All Expenses</option>
-                  {expenseCategories.map(c=><option key={c} value={c}>{c}</option>)}
-                </select>
-              </label>
-              <button className={"pm-all-ledger "+(ledgerView==="all"?"is-active":"")} onClick={()=>{setLedgerView("all");setLedgerCategory("all")}}>
-                <span>All Entries</span><b>{entries.length.toLocaleString("en-BD")}</b>
-              </button>
-            </div>
+          <div className="pm-ledger-filters">
+            <label>Category<select aria-label="Ledger category" value={ledgerCategory} onChange={e=>setLedgerCategory(e.target.value)}><option value="all">All categories</option>{(ledgerView==="income"?incomeCategories:ledgerView==="expense"?expenseCategories:categories).map(c=><option key={c} value={c}>{c}</option>)}</select></label>
+            <label>{ledgerView==="income"?"Received from":"Paid to / Supplier"}<select aria-label="Ledger party" value={ledgerParty} onChange={e=>setLedgerParty(e.target.value)}><option value="all">All parties</option>{ledgerParties.map(party=><option key={party}>{party}</option>)}</select></label>
+            <label>From date<input aria-label="From date" type="date" value={dateFrom} max={dateTo||undefined} onChange={e=>setDateFrom(e.target.value)}/></label>
+            <label>To date<input aria-label="To date" type="date" value={dateTo} min={dateFrom||undefined} onChange={e=>setDateTo(e.target.value)}/></label>
+            <button className="pm-btn pm-btn-secondary" onClick={resetLedgerFilters}>Reset filters</button>
+          </div>
+          <div className="pm-ledger-summary" aria-live="polite">
+            <div><span>Matching records</span><strong>{filtered.length}</strong></div>
+            {ledgerView!=="expense"&&<div><span>Filtered income</span><strong>{money(filteredIncome)}</strong></div>}
+            {ledgerView!=="income"&&<div><span>Filtered expenses</span><strong>{money(filteredExpense)}</strong></div>}
+            {ledgerView==="income"&&<><div><span>Cheques on hold</span><strong>{money(filteredHold)}</strong></div><div><span>Income excluding held cheques</span><strong>{money(filteredIncome-filteredHold)}</strong></div></>}
+            <button className="pm-btn pm-btn-secondary" disabled={!filtered.length} onClick={exportLedger}>Export filtered CSV</button>
+            {admin&&ledgerView!=="all"&&<button className="pm-btn pm-btn-primary" onClick={()=>openNew(ledgerView==="income"?"income":"expense")}>＋ Add {ledgerView==="income"?"Income":"Expense"}</button>}
           </div>
 
           <div className="pm-toolbar">
             <div>
               <div className="pm-view-title">{currentTitle}</div>
-              <div className="pm-view-sub">{currentCount.toLocaleString("en-BD")} records · sorted by date ascending</div>
+              <div className="pm-view-sub">{currentCount.toLocaleString("en-BD")} records · newest first · cumulative totals include earlier entries</div>
             </div>
             <div className="pm-toolbar-right">
-              {ledgerCategory!=="all"&&<span className="pm-total-pill">Category total {money(categoryTotals[ledgerCategory]||0)}</span>}
+
               <div className="pm-search">
                 <span>⌕</span>
                 <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Search supplier, details, category…"/>
@@ -613,7 +620,7 @@ export default function ProjectManagementPage(){
                     <th className="wide-col">Details</th>
                     <th>Category</th>
                     <th className="num-col">Income</th>
-                    <th className="num-col">Income Balance</th>
+                    <th className="num-col">Cumulative Income</th>
                     {admin&&<th className="action-col"/>}
                   </tr>
                 ) : ledgerView==="expense" ? (
@@ -625,7 +632,7 @@ export default function ProjectManagementPage(){
                     <th className="num-col">Qty / SFT</th>
                     <th className="num-col">Rate</th>
                     <th className="num-col">Expense</th>
-                    <th className="num-col">Expense Balance</th>
+                    <th className="num-col">Cumulative Expenses</th>
                     {admin&&<th className="action-col"/>}
                   </tr>
                 ) : (
@@ -1007,6 +1014,11 @@ export default function ProjectManagementPage(){
         .pm-sattapur-table tfoot td{font-weight:850;background:#fafcfc;border-top:1px solid var(--theme-line-_e5ebed, #e5ebed);border-bottom:0;color:#334249}
         .pm-sattapur-empty{text-align:center!important;color:var(--theme-ink-_929da1, #929da1)!important;padding:28px!important}
         .pm-workspace{background:var(--theme-bg-_fff, #fff);border:1px solid var(--theme-line-_e1e7e9, #e1e7e9);border-radius:18px;overflow:hidden;box-shadow:0 14px 38px var(--theme-shadow-rgba_20_38_29__045_, rgba(20,38,29,.045))}
+        .pm-ledger-filters{display:flex;flex-wrap:wrap;gap:12px;padding:18px;border-bottom:1px solid #dce5e0;align-items:end}
+        .pm-ledger-filters label{display:flex;flex:1 1 160px;flex-direction:column;gap:6px;color:#273e34;font-size:12px;font-weight:700}
+        .pm-ledger-filters input,.pm-ledger-filters select{min-height:40px;width:100%;box-sizing:border-box;border:1px solid #bdcbc3;border-radius:8px;padding:8px;background:#fff;color:#172b22;font:inherit}
+        .pm-ledger-summary{display:flex;flex-wrap:wrap;align-items:center;gap:20px;padding:18px;background:#f3f8f5;border-bottom:1px solid #dce5e0}
+        .pm-ledger-summary>div{flex:1 1 150px}.pm-ledger-summary span{display:block;font-size:12px;color:#344f40}.pm-ledger-summary strong{display:block;margin-top:6px;color:#153e2b;font-size:20px}
         .pm-category-bar{border-bottom:1px solid var(--theme-line-_edf0f2, #edf0f2);padding:15px 17px 10px}
         .pm-category-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
         .pm-category-title .pm-label{margin:0}
