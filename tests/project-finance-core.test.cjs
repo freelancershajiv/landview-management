@@ -57,6 +57,16 @@ test("supplier movements affect cash only once", async () => {
   assert.equal(result.cashBalance, 16500);
 });
 
+test("an 8,000 expense reduces 328,366.71 cash to 320,366.71 exactly", async () => {
+  const { calculateProjectFinanceV2Snapshot } = await modulePromise;
+  const rows = [
+    { id:"expense-8000", created_at:"2026-10-12T00:00:00Z", debit:0, credit:8000, approval_status:"approved" },
+  ];
+  const result = calculateProjectFinanceV2Snapshot(rows, { ...baseConfig, openingCash:328366.71 });
+  assert.equal(result.cashBalance, 320366.71);
+  assert.equal(result.postCutoverCashDelta, -8000);
+});
+
 test("unapproved rows are excluded from finance v2 cash", async () => {
   const { calculateProjectFinanceV2Snapshot } = await modulePromise;
   const rows = [

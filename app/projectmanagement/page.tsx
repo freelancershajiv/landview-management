@@ -99,7 +99,8 @@ export default function ProjectManagementPage(){
       });
   },[entries,ledgerView,ledgerCategory,search]);
 
-  const currentChequeOnHold=entries.reduce((s:number,r:any)=>s+(String(r.category||"").toLowerCase()==="cheque"&&num(r.debit)>0&&chequeStatus(r)==="On Hold"?num(r.debit):0),0);
+  const legacyChequeOnHold=entries.reduce((s:number,r:any)=>s+(String(r.category||"").toLowerCase()==="cheque"&&num(r.debit)>0&&chequeStatus(r)==="On Hold"?num(r.debit):0),0);
+  const currentChequeOnHold=data?.summary?.chequeOnHold==null?legacyChequeOnHold:num(data.summary.chequeOnHold);
   const categoryTotals=useMemo(()=>{
     const x:any={};
     for(const c of categories){
@@ -360,6 +361,7 @@ export default function ProjectManagementPage(){
   const totalDebit=num(data?.totals?.debit);
   const totalCredit=num(data?.totals?.credit);
   const balance=num(data?.totals?.balance);
+  const engShajivBalance=data?.summary?.engShajivBalance==null?totalDebit-totalCredit-currentChequeOnHold:num(data.summary.engShajivBalance);
   const currentTitle = ledgerView==="income" ? (ledgerCategory==="all" ? "Income Ledger" : ledgerCategory) : ledgerView==="expense" ? (ledgerCategory==="all" ? "Expense Ledger" : ledgerCategory) : "All Ledger Entries";
   const currentCount = filtered.length;
   const sattapurBricks=data?.sattapurBricks||{depositAmount:0,depositCount:0,deliveredQuantity:0,deliveredValue:0,deliveryCount:0,holdAmount:0,overDeliveredValue:0,deposits:[],deliveries:[]};
@@ -518,7 +520,7 @@ export default function ProjectManagementPage(){
             </div>
             <div className="pm-stat pm-stat-balance pm-stat-shajiv">
               <div className="pm-stat-head"><span>Eng Shajiv Balance</span><b>＝</b></div>
-              <strong>{money(totalDebit-totalCredit-currentChequeOnHold)}</strong>
+              <strong>{money(engShajivBalance)}</strong>
               <small>Cash balance after expenses and cheque hold</small>
             </div>
           </div>

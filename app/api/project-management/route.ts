@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
+import { calculateProjectFinanceV2Snapshot } from "@/lib/project-finance-core.mjs";
 import { employeeCodeOf, insertRows, normalizeProjectCode, selectRows, updateRows, deleteRows, upsertRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -152,7 +153,13 @@ async function projectSummaryFor(project: Row) {
   return {
     supplierAdvance: num(row.supplier_advance),
     chequeOnHold: num(row.cheque_on_hold),
-    notes: clean(row.notes, 2000)
+    notes: clean(row.notes, 2000),
+    financeV2Config: {
+      enabled: row.finance_v2_enabled === true,
+      cutoverAt: row.finance_v2_cutover_at || null,
+      openingCash: row.finance_v2_opening_cash ?? null,
+      openingHeldCheques: row.finance_v2_opening_held_cheques || [],
+    },
   };
 }
 
@@ -350,24 +357,27 @@ async function workspace(user: Row, requested?: string) {
   const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
   const masterLedger = await masterLedgerFor(user, selected);
   const summary = await projectSummaryFor(selected);
+  const financeV2Snapshot = calculateProjectFinanceV2Snapshot(rows, summary.financeV2Config);
+  const { financeV2Config: _financeV2Config, ...publicSummary } = summary;
   const contractorBills = await contractorWorkspaceFor(selected, entries);
   const linkedSupplierAdvance = sattapurBricks.holdAmount;
-  const currentChequeOnHold = rows.reduce((sum:number,row:any) => {
+  const legacyChequeOnHold = rows.reduce((sum:number,row:any) => {
     const isHeld = clean(row.category,120).toLowerCase() === "cheque"
       && num(row.debit) > 0
       && /^CHEQUE_STATUS:ON_HOLD/i.test(clean(row.memo,1000));
     return sum + (isHeld ? num(row.debit) : 0);
   },0);
-  // Sattapur deposits are included in Total Expense as a cash allocation, while
-  // the same transactions stay visible in Main Income. Hold is informational and
-  // must not be deducted from Eng Shajiv a second time.
-  const engShajivBalance = debit - credit - currentChequeOnHold;
+  // Current-state cash and held cheques come from Finance V2 only after a valid
+  // cutover snapshot exists. Projects without a verified cutover stay on the
+  // legacy formula, while lifetime Deposit/Expense totals remain unchanged.
+  const currentChequeOnHold = financeV2Snapshot?.chequeOnHold ?? legacyChequeOnHold;
+  const engShajivBalance = financeV2Snapshot?.cashBalance ?? (debit - credit - legacyChequeOnHold);
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
     totals: { debit, credit, balance: debit - credit },
-    summary: { ...summary, chequeOnHold: currentChequeOnHold, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance },
+    summary: { ...publicSummary, chequeOnHold: currentChequeOnHold, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance, financeVersion: financeV2Snapshot ? "v2" : "legacy", financeV2CutoverAt: financeV2Snapshot?.cutoverAt || null },
     sattapurBricks,
     categories,
     masterLedger,
