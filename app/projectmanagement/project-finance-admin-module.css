@@ -1,0 +1,350 @@
+/* Project Finance inside the LAND VIEW management workspace */
+.pf-management-shell {
+  min-height: 0;
+  background: transparent;
+  color: var(--lv-text-primary, #182028);
+}
+
+.pf-management-shell .pf-admin-module {
+  margin: 0 0 14px;
+  border: 1px solid var(--lv-border-default, #d9dee3);
+  border-radius: 14px;
+  background: var(--lv-surface-panel, #fff);
+  box-shadow: 0 8px 26px rgba(15, 23, 42, .06);
+  overflow: hidden;
+}
+
+.pf-management-shell .pf-admin-module-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 22px 17px;
+  border-bottom: 1px solid var(--lv-border-default, #e0e4e8);
+  background:
+    linear-gradient(135deg, rgba(183, 43, 50, .045), transparent 45%),
+    var(--lv-surface-panel, #fff);
+}
+
+.pf-management-shell .pf-admin-eyebrow {
+  display: block;
+  color: var(--lv-brand-text, #b72b32);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .16em;
+}
+
+.pf-management-shell .pf-admin-module-head h1 {
+  margin: 5px 0 5px;
+  color: var(--lv-text-primary, #171d23);
+  font-size: 26px;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+}
+
+.pf-management-shell .pf-admin-module-head p {
+  max-width: 720px;
+  margin: 0;
+  color: var(--lv-text-secondary, #69747d);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.pf-management-shell .pf-admin-project-chip {
+  min-width: 155px;
+  padding: 10px 12px;
+  border: 1px solid var(--lv-border-default, #dce1e5);
+  border-radius: 10px;
+  background: var(--lv-surface-soft, #f7f8f9);
+  text-align: right;
+}
+
+.pf-management-shell .pf-admin-project-chip small {
+  display: block;
+  color: var(--lv-text-muted, #88929a);
+  font-size: 7px;
+  font-weight: 900;
+  letter-spacing: .11em;
+}
+
+.pf-management-shell .pf-admin-project-chip strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--lv-text-primary, #1d252b);
+  font-size: 12px;
+}
+
+.pf-management-shell .pf-admin-module-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  background: var(--lv-border-default, #e0e4e8);
+}
+
+.pf-management-shell .pf-admin-module-card {
+  min-width: 0;
+  min-height: 76px;
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--lv-surface-panel, #fff);
+  color: var(--lv-text-primary, #1c242a);
+  text-decoration: none;
+  transition: background .16s ease, box-shadow .16s ease, color .16s ease;
+}
+
+.pf-management-shell .pf-admin-module-card:hover {
+  position: relative;
+  z-index: 2;
+  background: var(--lv-surface-hover, #f8f9fa);
+  box-shadow: inset 0 -2px 0 rgba(183, 43, 50, .35);
+}
+
+.pf-management-shell .pf-admin-module-card.active {
+  background: linear-gradient(145deg, #1a2228, #11171c);
+  color: #fff;
+  box-shadow: inset 3px 0 0 #d61f26;
+}
+
+.pf-management-shell .pf-admin-module-icon {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--lv-border-default, #dde2e6);
+  border-radius: 8px;
+  background: var(--lv-surface-soft, #f5f7f8);
+  color: var(--lv-brand-text, #b72b32);
+  font-size: 13px;
+  font-weight: 900;
+}
+
+.pf-management-shell .pf-admin-module-card.active .pf-admin-module-icon {
+  border-color: rgba(255,255,255,.12);
+  background: rgba(255,255,255,.07);
+  color: #ff6e73;
+}
+
+.pf-management-shell .pf-admin-module-copy {
+  min-width: 0;
+}
+
+.pf-management-shell .pf-admin-module-copy strong {
+  display: block;
+  color: inherit;
+  font-size: 10px;
+  line-height: 1.2;
+}
+
+.pf-management-shell .pf-admin-module-copy small {
+  display: block;
+  margin-top: 3px;
+  color: var(--lv-text-muted, #88929a);
+  font-size: 7.5px;
+  line-height: 1.25;
+}
+
+.pf-management-shell .pf-admin-module-card.active .pf-admin-module-copy small {
+  color: #87939d;
+}
+
+.pf-management-shell .pf-admin-module-arrow {
+  color: var(--lv-text-muted, #8a949c);
+  font-size: 12px;
+}
+
+.pf-management-shell .pf-admin-module-card.active .pf-admin-module-arrow {
+  color: #ff7075;
+}
+
+/* Remove the duplicate standalone finance shell now that ManagementShellV2 owns navigation. */
+.pf-management-shell .pm-page {
+  min-height: 0 !important;
+  padding: 0 0 34px !important;
+  background: transparent !important;
+}
+
+.pf-management-shell .pm-shell,
+.pf-management-shell .pm-shell.pm-chooser-shell {
+  width: 100% !important;
+  max-width: none !important;
+  margin: 0 !important;
+  display: block !important;
+}
+
+.pf-management-shell .pm-shell > * {
+  grid-column: auto !important;
+}
+
+.pf-management-shell .pm-module-nav {
+  display: none !important;
+}
+
+/* Keep operational actions, but make the old page hero a compact command row. */
+.pf-management-shell .pm-topbar {
+  min-height: 0 !important;
+  display: flex !important;
+  justify-content: flex-end !important;
+  align-items: center !important;
+  margin: 0 0 10px !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.pf-management-shell .pm-topbar > div:first-child {
+  display: none !important;
+}
+
+.pf-management-shell .pm-actions {
+  width: 100%;
+  justify-content: flex-end !important;
+  gap: 6px !important;
+}
+
+.pf-management-shell .pm-actions > .pm-btn:nth-child(1),
+.pf-management-shell .pm-actions > .pm-btn:nth-child(2),
+.pf-management-shell .pm-actions > .pm-btn:nth-child(3) {
+  display: none !important;
+}
+
+.pf-management-shell .pm-btn {
+  min-height: 36px !important;
+  border-radius: 8px !important;
+  font-size: 9px !important;
+}
+
+/* Admin-dashboard-like context and KPI modules. */
+.pf-management-shell .pm-project-card,
+.pf-management-shell .pm-finance-summary,
+.pf-management-shell .pm-overview-history,
+.pf-management-shell .pm-workspace,
+.pf-management-shell .pm-sattapur-card,
+.pf-management-shell .pm-parties-card {
+  border: 1px solid var(--lv-border-default, #dce1e5) !important;
+  border-radius: 12px !important;
+  background: var(--lv-surface-panel, #fff) !important;
+  box-shadow: none !important;
+}
+
+.pf-management-shell .pm-project-card {
+  margin: 0 0 10px !important;
+  padding: 13px 15px !important;
+}
+
+.pf-management-shell .pm-finance-summary {
+  margin: 0 0 10px !important;
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.pf-management-shell .pm-finance-summary-head,
+.pf-management-shell .pm-overview-history-head,
+.pf-management-shell .pm-sattapur-head,
+.pf-management-shell .pm-parties-head,
+.pf-management-shell .pm-category-bar,
+.pf-management-shell .pm-toolbar {
+  border-color: var(--lv-border-default, #dce1e5) !important;
+  background: var(--lv-surface-soft, #f8f9fa) !important;
+}
+
+.pf-management-shell .pm-finance-summary-head {
+  padding: 14px 16px !important;
+}
+
+.pf-management-shell .pm-finance-summary-head strong,
+.pf-management-shell .pm-overview-history-head strong {
+  color: var(--lv-text-primary, #172028) !important;
+  font-size: 13px !important;
+}
+
+.pf-management-shell .pm-stats {
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  gap: 1px !important;
+  padding: 0 !important;
+  background: var(--lv-border-default, #e0e4e8) !important;
+}
+
+.pf-management-shell .pm-stat {
+  min-height: 100px !important;
+  margin: 0 !important;
+  padding: 14px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: var(--lv-surface-panel, #fff) !important;
+  box-shadow: none !important;
+}
+
+.pf-management-shell .pm-stat strong {
+  margin-top: 8px !important;
+  color: var(--lv-text-primary, #172028) !important;
+  font-size: 17px !important;
+}
+
+.pf-management-shell .pm-stat-shajiv {
+  background: linear-gradient(145deg, #182127, #11171c) !important;
+}
+
+.pf-management-shell .pm-stat-shajiv .pm-stat-head span,
+.pf-management-shell .pm-stat-shajiv strong,
+.pf-management-shell .pm-stat-shajiv small {
+  color: #fff !important;
+}
+
+.pf-management-shell .pm-finance-foot {
+  padding: 10px 15px !important;
+  border-top: 1px solid var(--lv-border-default, #dce1e5) !important;
+  background: var(--lv-surface-soft, #f8f9fa) !important;
+}
+
+html[data-theme="dark"] .pf-management-shell .pf-admin-module,
+html[data-theme="dark"] .pf-management-shell .pf-admin-module-head,
+html[data-theme="dark"] .pf-management-shell .pf-admin-module-card,
+html[data-theme="dark"] .pf-management-shell .pm-project-card,
+html[data-theme="dark"] .pf-management-shell .pm-finance-summary,
+html[data-theme="dark"] .pf-management-shell .pm-overview-history,
+html[data-theme="dark"] .pf-management-shell .pm-workspace,
+html[data-theme="dark"] .pf-management-shell .pm-sattapur-card,
+html[data-theme="dark"] .pf-management-shell .pm-parties-card,
+html[data-theme="dark"] .pf-management-shell .pm-stat {
+  background-color: #11181e !important;
+  color: #eef2f5;
+}
+
+html[data-theme="dark"] .pf-management-shell .pf-admin-module-grid,
+html[data-theme="dark"] .pf-management-shell .pm-stats {
+  background: #2a343d !important;
+}
+
+html[data-theme="dark"] .pf-management-shell .pf-admin-module-head h1,
+html[data-theme="dark"] .pf-management-shell .pm-stat strong,
+html[data-theme="dark"] .pf-management-shell .pm-finance-summary-head strong,
+html[data-theme="dark"] .pf-management-shell .pm-overview-history-head strong {
+  color: #f4f6f8 !important;
+}
+
+@media (max-width: 1180px) {
+  .pf-management-shell .pf-admin-module-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pf-management-shell .pm-stats { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }
+  .pf-management-shell .pm-stat-shajiv { grid-column: 1 / -1; }
+}
+
+@media (max-width: 720px) {
+  .pf-management-shell .pf-admin-module-head { align-items: flex-start; flex-direction: column; gap: 12px; padding: 16px; }
+  .pf-management-shell .pf-admin-project-chip { width: 100%; text-align: left; }
+  .pf-management-shell .pf-admin-module-grid { grid-template-columns: 1fr 1fr; }
+  .pf-management-shell .pf-admin-module-card { min-height: 66px; padding: 10px; }
+  .pf-management-shell .pf-admin-module-copy small { display: none; }
+  .pf-management-shell .pm-actions { justify-content: flex-start !important; }
+  .pf-management-shell .pm-actions > .pm-btn:nth-child(1),
+  .pf-management-shell .pm-actions > .pm-btn:nth-child(2),
+  .pf-management-shell .pm-actions > .pm-btn:nth-child(3) { display: none !important; }
+  .pf-management-shell .pm-project-card { grid-template-columns: 1fr !important; gap: 10px !important; }
+  .pf-management-shell .pm-project-date { padding-left: 0 !important; border-left: 0 !important; text-align: left !important; }
+  .pf-management-shell .pm-stats { grid-template-columns: 1fr !important; }
+  .pf-management-shell .pm-stat-shajiv { grid-column: auto; }
+}
