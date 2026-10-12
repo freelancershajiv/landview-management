@@ -1,0 +1,125 @@
+name: Finance V2 Branch Integrator
+
+on:
+  push:
+    branches:
+      - finance-integrity-v2-core
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: finance-integrity-v2-core
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Patch Project Management to Finance V2
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          route = Path('app/api/project-management/route.ts')
+          text = route.read_text()
+
+          old = 'import { requireLocalSession } from "@/lib/local-session";\n'
+          new = 'import { requireLocalSession } from "@/lib/local-session";\nimport { calculateProjectFinanceV2Snapshot } from "@/lib/project-finance-core.mjs";\n'
+          if old not in text:
+              raise SystemExit('main route import anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '''  return {\n    supplierAdvance: num(row.supplier_advance),\n    chequeOnHold: num(row.cheque_on_hold),\n    notes: clean(row.notes, 2000)\n  };'''
+          new = '''  return {\n    supplierAdvance: num(row.supplier_advance),\n    chequeOnHold: num(row.cheque_on_hold),\n    notes: clean(row.notes, 2000),\n    financeV2Config: {\n      enabled: row.finance_v2_enabled === true,\n      cutoverAt: row.finance_v2_cutover_at || null,\n      openingCash: row.finance_v2_opening_cash ?? null,\n      openingHeldCheques: row.finance_v2_opening_held_cheques || [],\n    },\n  };'''
+          if old not in text:
+              raise SystemExit('projectSummaryFor anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '''  const summary = await projectSummaryFor(selected);\n  const contractorBills = await contractorWorkspaceFor(selected, entries);\n  const linkedSupplierAdvance = sattapurBricks.holdAmount;\n  const currentChequeOnHold = rows.reduce((sum:number,row:any) => {\n    const isHeld = clean(row.category,120).toLowerCase() === "cheque"\n      && num(row.debit) > 0\n      && /^CHEQUE_STATUS:ON_HOLD/i.test(clean(row.memo,1000));\n    return sum + (isHeld ? num(row.debit) : 0);\n  },0);\n  // Sattapur deposits are included in Total Expense as a cash allocation, while\n  // the same transactions stay visible in Main Income. Hold is informational and\n  // must not be deducted from Eng Shajiv a second time.\n  const engShajivBalance = debit - credit - currentChequeOnHold;'''
+          new = '''  const summary = await projectSummaryFor(selected);\n  const financeV2Snapshot = calculateProjectFinanceV2Snapshot(rows, summary.financeV2Config);\n  const { financeV2Config: _financeV2Config, ...publicSummary } = summary;\n  const contractorBills = await contractorWorkspaceFor(selected, entries);\n  const linkedSupplierAdvance = sattapurBricks.holdAmount;\n  const legacyChequeOnHold = rows.reduce((sum:number,row:any) => {\n    const isHeld = clean(row.category,120).toLowerCase() === "cheque"\n      && num(row.debit) > 0\n      && /^CHEQUE_STATUS:ON_HOLD/i.test(clean(row.memo,1000));\n    return sum + (isHeld ? num(row.debit) : 0);\n  },0);\n  // Current-state cash and held cheques come from Finance V2 only after a valid\n  // cutover snapshot exists. Projects without a verified cutover stay on the\n  // legacy formula, while lifetime Deposit/Expense totals remain unchanged.\n  const currentChequeOnHold = financeV2Snapshot?.chequeOnHold ?? legacyChequeOnHold;\n  const engShajivBalance = financeV2Snapshot?.cashBalance ?? (debit - credit - legacyChequeOnHold);'''
+          if old not in text:
+              raise SystemExit('workspace finance anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '    summary: { ...summary, chequeOnHold: currentChequeOnHold, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance },'
+          new = '    summary: { ...publicSummary, chequeOnHold: currentChequeOnHold, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance, financeVersion: financeV2Snapshot ? "v2" : "legacy", financeV2CutoverAt: financeV2Snapshot?.cutoverAt || null },'
+          if old not in text:
+              raise SystemExit('summary response anchor not found')
+          text = text.replace(old, new, 1)
+          route.write_text(text)
+
+          page = Path('app/projectmanagement/page.tsx')
+          text = page.read_text()
+          old = '  const currentChequeOnHold=entries.reduce((s:number,r:any)=>s+(String(r.category||"").toLowerCase()==="cheque"&&num(r.debit)>0&&chequeStatus(r)==="On Hold"?num(r.debit):0),0);'
+          new = '''  const legacyChequeOnHold=entries.reduce((s:number,r:any)=>s+(String(r.category||"").toLowerCase()==="cheque"&&num(r.debit)>0&&chequeStatus(r)==="On Hold"?num(r.debit):0),0);\n  const currentChequeOnHold=data?.summary?.chequeOnHold==null?legacyChequeOnHold:num(data.summary.chequeOnHold);'''
+          if old not in text:
+              raise SystemExit('UI cheque anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '''  const totalDebit=num(data?.totals?.debit);\n  const totalCredit=num(data?.totals?.credit);\n  const balance=num(data?.totals?.balance);'''
+          new = '''  const totalDebit=num(data?.totals?.debit);\n  const totalCredit=num(data?.totals?.credit);\n  const balance=num(data?.totals?.balance);\n  const engShajivBalance=data?.summary?.engShajivBalance==null?totalDebit-totalCredit-currentChequeOnHold:num(data.summary.engShajivBalance);'''
+          if old not in text:
+              raise SystemExit('UI totals anchor not found')
+          text = text.replace(old, new, 1)
+
+          old = '<strong>{money(totalDebit-totalCredit-currentChequeOnHold)}</strong>'
+          new = '<strong>{money(engShajivBalance)}</strong>'
+          if old not in text:
+              raise SystemExit('UI balance card anchor not found')
+          text = text.replace(old, new, 1)
+          page.write_text(text)
+
+          test_file = Path('tests/project-finance-v2-integration.test.cjs')
+          test_file.write_text(r'''/* eslint-disable @typescript-eslint/no-require-imports */
+const test = require("node:test");
+const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
+
+test("Project Management API uses Finance V2 current-state snapshot with legacy fallback", () => {
+  const source = fs.readFileSync(path.resolve(__dirname, "../app/api/project-management/route.ts"), "utf8");
+  assert.match(source, /calculateProjectFinanceV2Snapshot\(rows, summary\.financeV2Config\)/);
+  assert.match(source, /financeV2Snapshot\?\.chequeOnHold \?\? legacyChequeOnHold/);
+  assert.match(source, /financeV2Snapshot\?\.cashBalance \?\? \(debit - credit - legacyChequeOnHold\)/);
+  assert.match(source, /financeVersion: financeV2Snapshot \? "v2" : "legacy"/);
+  assert.match(source, /totals: \{ debit, credit, balance: debit - credit \}/);
+});
+
+test("Project Management UI renders canonical current-state values from the API", () => {
+  const source = fs.readFileSync(path.resolve(__dirname, "../app/projectmanagement/page.tsx"), "utf8");
+  assert.match(source, /data\?\.summary\?\.chequeOnHold==null\?legacyChequeOnHold:num\(data\.summary\.chequeOnHold\)/);
+  assert.match(source, /data\?\.summary\?\.engShajivBalance==null\?totalDebit-totalCredit-currentChequeOnHold:num\(data\.summary\.engShajivBalance\)/);
+  assert.match(source, /money\(engShajivBalance\)/);
+});
+''')
+
+          core_test = Path('tests/project-finance-core.test.cjs')
+          text = core_test.read_text()
+          marker = 'test("unapproved rows are excluded from finance v2 cash", async () => {'
+          regression = '''test("an 8,000 expense reduces 328,366.71 cash to 320,366.71 exactly", async () => {\n  const { calculateProjectFinanceV2Snapshot } = await modulePromise;\n  const rows = [\n    { id:"expense-8000", created_at:"2026-10-12T00:00:00Z", debit:0, credit:8000, approval_status:"approved" },\n  ];\n  const result = calculateProjectFinanceV2Snapshot(rows, { ...baseConfig, openingCash:328366.71 });\n  assert.equal(result.cashBalance, 320366.71);\n  assert.equal(result.postCutoverCashDelta, -8000);\n});\n\n'''
+          if regression not in text:
+              if marker not in text:
+                  raise SystemExit('core test anchor not found')
+              text = text.replace(marker, regression + marker, 1)
+              core_test.write_text(text)
+          PY
+      - name: Install dependencies
+        run: npm ci
+      - name: Run Finance V2 tests
+        run: node --test tests/project-finance-core.test.cjs tests/project-finance-v2-integration.test.cjs
+      - name: Commit integration
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/api/project-management/route.ts app/projectmanagement/page.tsx tests/project-finance-core.test.cjs tests/project-finance-v2-integration.test.cjs
+          git diff --cached --check
+          git commit -m "feat: use finance v2 for project current balance"
+          git push origin HEAD:finance-integrity-v2-core
