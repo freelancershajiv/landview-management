@@ -1,0 +1,28 @@
+/* Project Finance information architecture — loaded after the visual redesign. */
+.pf-redesign .pm-module-nav button:nth-child(1){order:1}
+.pf-redesign .pm-module-nav button:nth-child(3){order:2;font-size:0!important}
+.pf-redesign .pm-module-nav button:nth-child(4){order:3}
+.pf-redesign .pm-module-nav button:nth-child(6){order:4;font-size:0!important}
+.pf-redesign .pm-module-nav button:nth-child(5){order:5}
+.pf-redesign .pm-module-nav button:nth-child(2){order:6}
+.pf-redesign .pm-module-nav button:nth-child(7){order:7;font-size:0!important}
+.pf-redesign .pm-module-nav button:nth-child(8){order:8;font-size:0!important}
+.pf-redesign .pm-module-nav button:nth-child(3)::after{content:"Cash In";font-size:11px;font-weight:760}
+.pf-redesign .pm-module-nav button:nth-child(6)::after{content:"Parties";font-size:11px;font-weight:760}
+.pf-redesign .pm-module-nav button:nth-child(7)::after{content:"Reports";font-size:11px;font-weight:760}
+.pf-redesign .pm-module-nav button:nth-child(8)::after{content:"Bills & Contracts";font-size:11px;font-weight:760}
+
+/* Present this route explicitly as Project Finance without changing its business logic. */
+.pf-redesign .pm-title-row h1{font-size:0!important}
+.pf-redesign .pm-title-row h1::after{content:"Project Finance";font-size:clamp(28px,3vw,40px);line-height:1.02;font-weight:880;letter-spacing:-.045em}
+
+/* Make the most important actions visually obvious. */
+.pf-redesign .pm-actions .pm-btn-income{order:-2}
+.pf-redesign .pm-actions .pm-btn-primary{order:-1}
+
+@media(max-width:900px){
+  .pf-redesign .pm-module-nav button:nth-child(3)::after,
+  .pf-redesign .pm-module-nav button:nth-child(6)::after,
+  .pf-redesign .pm-module-nav button:nth-child(7)::after,
+  .pf-redesign .pm-module-nav button:nth-child(8)::after{font-size:9px}
+}
