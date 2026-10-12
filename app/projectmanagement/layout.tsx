@@ -14,6 +14,7 @@ import "./project-finance-redesign.css";
 import "./project-finance-navigation.css";
 import "./project-finance-admin-module.css";
 import "./project-finance-color-harmony.css";
+import "../dual-mode-navigation.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
