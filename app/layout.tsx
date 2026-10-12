@@ -31,6 +31,8 @@ import "./typography-system.css";
 import "./theme-consistency.css";
 // Authoritative screen palette across public, login, employee and client surfaces.
 import "./landview-color-harmony.css";
+// Navigation must independently honor light and dark mode.
+import "./dual-mode-navigation.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
