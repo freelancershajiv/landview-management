@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
+import { calculateProjectFinanceV2Snapshot } from "@/lib/project-finance-core.mjs";
+import { accountingRows, isSattapur, sattapurSnapshot } from "@/lib/sattapur-accounting.mjs";
 import { employeeCodeOf, insertRows, normalizeProjectCode, selectRows, updateRows, deleteRows, upsertRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -83,55 +85,6 @@ async function projectFor(user: Row, value: unknown) {
   if (!rows.length) throw new Error("Project not found.");
   return rows[0];
 }
-function isSattapur(row: Row) {
-  // These two historical ledger entries must remain ordinary debit/credit
-  // entries and must never be reclassified as Sattapur Bricks accounting.
-  const date = String(row.entry_date || "").slice(0, 10);
-  if (date === "2025-11-20" || date === "2025-11-23") return false;
-  const party = clean(row.paid_to || row.supplier || "", 160).toLowerCase();
-  const text = clean(row.details || "", 500).toLowerCase();
-  return party.includes("sattapur") || text.includes("sattapur brick");
-}
-function isSattapurDelivery(row: Row) {
-  return isSattapur(row) && num(row.credit) > 0 && clean(row.category, 120).toLowerCase() === "bricks";
-}
-function isSattapurDeposit(row: Row) {
-  return isSattapur(row) && num(row.debit) > 0;
-}
-function sattapurSnapshot(rows: Row[]) {
-  const deposits = rows.filter(isSattapurDeposit);
-  const deliveries = rows.filter(isSattapurDelivery);
-  const depositAmount = deposits.reduce((s:number,r:any) => s + num(r.debit), 0);
-  const deliveredQuantity = deliveries.reduce((s:number,r:any) => s + num(r.sft), 0);
-  const deliveredValue = deliveries.reduce((s:number,r:any) => s + num(r.credit), 0);
-  const holdAmount = Math.max(0, depositAmount - deliveredValue);
-  const overDeliveredValue = Math.max(0, deliveredValue - depositAmount);
-  return {
-    depositAmount,
-    depositCount: deposits.length,
-    deliveredQuantity,
-    deliveredValue,
-    deliveryCount: deliveries.length,
-    holdAmount,
-    overDeliveredValue,
-    deposits: deposits.map((r:any) => ({
-      id:r.id,date:r.entry_date,details:r.details,amount:num(r.debit),category:r.category,memo:r.memo || ""
-    })),
-    deliveries: deliveries
-      .slice()
-      .sort((a:any,b:any) => String(b.entry_date||"").localeCompare(String(a.entry_date||"")))
-      .map((r:any) => ({
-        id:r.id,date:r.entry_date,details:r.details,quantity:num(r.sft),rate:num(r.rate),
-        value:num(r.credit),memo:r.memo || ""
-      }))
-  };
-}
-function accountingRows(rows: Row[]) {
-  // Sattapur deposits stay in the main Income ledger exactly as recorded.
-  // The Sattapur view only links those same debit rows for hold calculation.
-  // Delivery rows are material receipts, so they remain outside the cash ledger.
-  return rows.filter((row:any) => !isSattapurDelivery(row));
-}
 function calculate(rows: Row[]) {
   let balance = 0;
   return accountingRows(rows).slice().sort((a,b) => {
@@ -152,7 +105,13 @@ async function projectSummaryFor(project: Row) {
   return {
     supplierAdvance: num(row.supplier_advance),
     chequeOnHold: num(row.cheque_on_hold),
-    notes: clean(row.notes, 2000)
+    notes: clean(row.notes, 2000),
+    financeV2Config: {
+      enabled: row.finance_v2_enabled === true,
+      cutoverAt: row.finance_v2_cutover_at || null,
+      openingCash: row.finance_v2_opening_cash ?? null,
+      openingHeldCheques: row.finance_v2_opening_held_cheques || [],
+    },
   };
 }
 
@@ -330,9 +289,10 @@ async function workspace(user: Row, requested?: string) {
   let expenseBalance = 0;
   const entries = calculate(rows).map((row:any) => {
     incomeBalance += num(row.debit);
-    // Sattapur funding is still a cash allocation for Total Expense, but its
-    // source transaction remains visible only as a Debit/Income row.
-    expenseBalance += num(row.credit) + (isSattapurDeposit(row) ? num(row.debit) : 0);
+    // Supplier payments are ordinary project expenses. Sattapur funding rows
+    // are therefore already counted once here as credits; deliveries are
+    // excluded from the cash ledger and only consume the supplier deposit.
+    expenseBalance += num(row.credit);
     return {
       ...row,
       income_balance: incomeBalance,
@@ -341,33 +301,36 @@ async function workspace(user: Row, requested?: string) {
       received_from: clean(row.received_from,160),
     };
   });
-  // Total Deposit always comes from the original debit/income rows. Sattapur
-  // deposits are not moved out of Income. For cash accounting, those linked
-  // deposits are also included in Total Expense without creating a duplicate row.
-  const debit = rows.reduce((s,r) => s + num(r.debit), 0);
-  const credit = entries.reduce((s,r) => s + num(r.credit), 0) + sattapurBricks.depositAmount;
+  // Full-ledger totals are based on normalized cash rows. Historical Sattapur
+  // debit deposits are reclassified as expenses for presentation/accounting,
+  // while new Sattapur payments are stored as expenses from the start.
+  const debit = entries.reduce((s,r) => s + num(r.debit), 0);
+  const credit = entries.reduce((s,r) => s + num(r.credit), 0);
   const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Other Expenses", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
   const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
   const masterLedger = await masterLedgerFor(user, selected);
   const summary = await projectSummaryFor(selected);
+  const financeV2Snapshot = calculateProjectFinanceV2Snapshot(rows, summary.financeV2Config);
+  const { financeV2Config: _financeV2Config, ...publicSummary } = summary;
   const contractorBills = await contractorWorkspaceFor(selected, entries);
   const linkedSupplierAdvance = sattapurBricks.holdAmount;
-  const currentChequeOnHold = rows.reduce((sum:number,row:any) => {
+  const legacyChequeOnHold = entries.reduce((sum:number,row:any) => {
     const isHeld = clean(row.category,120).toLowerCase() === "cheque"
       && num(row.debit) > 0
       && /^CHEQUE_STATUS:ON_HOLD/i.test(clean(row.memo,1000));
     return sum + (isHeld ? num(row.debit) : 0);
   },0);
-  // Sattapur deposits are included in Total Expense as a cash allocation, while
-  // the same transactions stay visible in Main Income. Hold is informational and
-  // must not be deducted from Eng Shajiv a second time.
-  const engShajivBalance = debit - credit - currentChequeOnHold;
+  // Current-state cash and held cheques come from Finance V2 only after a valid
+  // cutover snapshot exists. Projects without a verified cutover stay on the
+  // legacy formula, while lifetime Deposit/Expense totals remain unchanged.
+  const currentChequeOnHold = financeV2Snapshot?.chequeOnHold ?? legacyChequeOnHold;
+  const engShajivBalance = financeV2Snapshot?.cashBalance ?? (debit - credit - legacyChequeOnHold);
   return {
     projects: projectList,
     selectedProject: { id:selected.id, projectCode:selected.project_code, projectName:selected.project_name || selected.project_code, clientName:selected.client_name_snapshot || "", location:selected.location || "", status:selected.status || "" },
     entries,
     totals: { debit, credit, balance: debit - credit },
-    summary: { ...summary, chequeOnHold: currentChequeOnHold, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance },
+    summary: { ...publicSummary, chequeOnHold: currentChequeOnHold, supplierAdvance: linkedSupplierAdvance, supplierAdvanceSource:"sattapur_bricks_deposit_minus_delivery", engShajivBalance, financeVersion: financeV2Snapshot ? "v2" : "legacy", financeV2CutoverAt: financeV2Snapshot?.cutoverAt || null },
     sattapurBricks,
     categories,
     masterLedger,
@@ -401,6 +364,9 @@ async function validateEntry(body: Row) {
     ? (()=>{ throw new Error("Select a valid Received From option."); })()
     : (receivedFromRaw || null);
   const paidTo = clean(body.paidTo ?? body.paid_to ?? body.Paid_To ?? body.supplier ?? body.Supplier,160) || null;
+  const paymentMethodRaw = clean(body.paymentMethod ?? body.payment_method ?? body.Payment_Method,40);
+  const paymentMethods = ["Cash","Cheque","Bank Transfer"];
+  const paymentMethod = credit > 0 ? (paymentMethods.includes(paymentMethodRaw) ? paymentMethodRaw : "Cash") : null;
   return {
     debit, credit, details, entryDate,
     sft:Math.max(0,num(body.sft ?? body.SFT)),
@@ -408,6 +374,7 @@ async function validateEntry(body: Row) {
     supplier:paidTo,
     receivedFrom,
     paidTo,
+    paymentMethod,
     category:clean(body.category ?? body.Category,120) || null,
     memo:clean(body.memo ?? body.Memo,1000) || null
   };
@@ -444,6 +411,10 @@ export async function POST(request: NextRequest) {
         debit:0,
         credit:value,
         category:"Bricks",
+        entry_type:"expense",
+        payment_method:null,
+        source_type:"supplier_delivery",
+        supplier_movement_type:"delivery",
         memo:[memo,"SATTPUR_BRICKS_DELIVERY"].filter(Boolean).join("\\n"),
         source:"sattapur_bricks_delivery",
         created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW"
@@ -553,6 +524,9 @@ export async function POST(request: NextRequest) {
       return ok(saved[0] || row);
     }
     const v = await validateEntry(body);
+    const sattapurPayment = v.credit > 0 && isSattapur({
+      paid_to:v.paidTo, supplier:v.paidTo, details:v.details, entry_date:v.entryDate
+    });
     const row = {
       project_id:project.id,
       project_code_snapshot:project.project_code,
@@ -566,8 +540,13 @@ export async function POST(request: NextRequest) {
       debit:v.debit,
       credit:v.credit,
       category:v.category,
+      payment_method:v.paymentMethod,
+      entry_type:v.credit > 0 ? "expense" : "income",
+      source_type:sattapurPayment ? "supplier_advance_cash" : "project_management",
+      supplier_movement_type:sattapurPayment ? "advance_fund" : null,
+      supplier_advance_applied:0,
       memo:v.memo,
-      source:"project_management",
+      source:sattapurPayment ? "supplier_advance_cash" : "project_management",
       created_by:employeeCodeOf(user) || userIdOf(user) || "LAND VIEW"
     };
     const saved = await insertRows("project_management_ledger", row);
@@ -584,6 +563,18 @@ export async function PUT(request: NextRequest) {
     const id = clean(body.id,100);
     if (!id) return fail("Ledger entry ID is required.",400);
     const v = await validateEntry(body);
+    const existingRows = await selectRows("project_management_ledger", { filters:{ id }, limit:1 });
+    if (!existingRows.length) return fail("Ledger entry not found.",404);
+    const existing = existingRows[0];
+    const sattapurPayment = v.credit > 0 && isSattapur({
+      paid_to:v.paidTo, supplier:v.paidTo, details:v.details, entry_date:v.entryDate
+    });
+    const existingSource = clean(existing.source,80);
+    const existingSourceType = clean(existing.source_type,80);
+    const existingMovement = clean(existing.supplier_movement_type,80);
+    const source = sattapurPayment ? "supplier_advance_cash" : (existingSource === "supplier_advance_cash" ? "project_management" : (existingSource || "project_management"));
+    const sourceType = sattapurPayment ? "supplier_advance_cash" : (existingSourceType === "supplier_advance_cash" ? source : (existingSourceType || source));
+    const supplierMovementType = sattapurPayment ? "advance_fund" : (existingMovement === "advance_fund" ? null : (existing.supplier_movement_type || null));
     const saved = await updateRows("project_management_ledger", { id }, {
       supplier:v.paidTo,
       paid_to:v.paidTo,
@@ -595,6 +586,12 @@ export async function PUT(request: NextRequest) {
       debit:v.debit,
       credit:v.credit,
       category:v.category,
+      payment_method:v.paymentMethod,
+      entry_type:v.credit > 0 ? "expense" : "income",
+      source,
+      source_type:sourceType,
+      supplier_movement_type:supplierMovementType,
+      supplier_advance_applied:0,
       memo:v.memo,
       updated_at:new Date().toISOString()
     });

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 const CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling","Bricks","Brick Chips","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];
 const INCOME_CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling"];
+const PAYMENT_METHODS = ["Cash","Cheque","Bank Transfer"];
 const RECEIVED_FROM_OPTIONS = ["Mr. Mahi Bhai","Scrap Selling","Mr. Jamaluddin"];
 const SUPPLIER_CATEGORIES = new Set(["Bricks","Brick Chips","Stone","Stone & Sand","Cement","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Electrical Material","Electrical Materials","Plumbing Material","Plumbing Materials","Tiles","Door","Doors & Wood","Grills","SS Grills & Works"]);
 const partyLabel=(category:string)=>SUPPLIER_CATEGORIES.has(String(category||"").trim())?"Supplier":"Contractor";
@@ -36,7 +37,7 @@ const money=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"B
 const compactMoney=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",notation:"compact",maximumFractionDigits:1}).format(Number(v||0));
 const num=(v:any)=>{const n=Number(String(v??"").replace(/,/g,"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0};
 const dateText=(v:any)=>{const d=new Date(String(v||"").slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?String(v||""):d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})};
-const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),receivedFrom:type==="income"?"Mr. Mahi Bhai":"",paidTo:type==="income"?"Eng Shajiv":"",supplier:type==="income"?"Eng Shajiv":"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",chequeStatus:"Cashed",memo:""});
+const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),receivedFrom:type==="income"?"Mr. Mahi Bhai":"",paidTo:type==="income"?"Eng Shajiv":"",supplier:type==="income"?"Eng Shajiv":"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",paymentMethod:"Cash",chequeStatus:"Cashed",memo:""});
 function chequeStatus(r:any){return /^CHEQUE_STATUS:ON_HOLD/i.test(String(r&&r.memo||""))?"On Hold":"Cashed";}
 function userMemo(r:any){return String(r&&r.memo||"").replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"").trim();}
 
@@ -99,7 +100,8 @@ export default function ProjectManagementPage(){
       });
   },[entries,ledgerView,ledgerCategory,search]);
 
-  const currentChequeOnHold=entries.reduce((s:number,r:any)=>s+(String(r.category||"").toLowerCase()==="cheque"&&num(r.debit)>0&&chequeStatus(r)==="On Hold"?num(r.debit):0),0);
+  const legacyChequeOnHold=entries.reduce((s:number,r:any)=>s+(String(r.category||"").toLowerCase()==="cheque"&&num(r.debit)>0&&chequeStatus(r)==="On Hold"?num(r.debit):0),0);
+  const currentChequeOnHold=data?.summary?.chequeOnHold==null?legacyChequeOnHold:num(data.summary.chequeOnHold);
   const categoryTotals=useMemo(()=>{
     const x:any={};
     for(const c of categories){
@@ -146,6 +148,7 @@ export default function ProjectManagementPage(){
       debit:r.debit||"",
       credit:r.credit||"",
       category:r.category||"Other Expenses",
+      paymentMethod:r.payment_method||(["Cheque","Bank Transfer","Cash"].includes(String(r.category||""))?String(r.category):"Cash"),
       chequeStatus:chequeStatus(r),
       memo:userMemo(r)
     });
@@ -168,6 +171,7 @@ export default function ProjectManagementPage(){
         debit:num(form.debit),
         credit:num(form.credit),
         category:form.category,
+        paymentMethod:entryType==="expense"?form.paymentMethod:null,
         memo:form.category==="Cheque" ? `CHEQUE_STATUS:${form.chequeStatus==="On Hold"?"ON_HOLD":"CASHED"}${form.memo.trim()?`\n${form.memo.trim()}`:""}` : form.memo
       };
       if(!form.details.trim())throw new Error("Details are required.");
@@ -360,6 +364,7 @@ export default function ProjectManagementPage(){
   const totalDebit=num(data?.totals?.debit);
   const totalCredit=num(data?.totals?.credit);
   const balance=num(data?.totals?.balance);
+  const engShajivBalance=data?.summary?.engShajivBalance==null?totalDebit-totalCredit-currentChequeOnHold:num(data.summary.engShajivBalance);
   const currentTitle = ledgerView==="income" ? (ledgerCategory==="all" ? "Income Ledger" : ledgerCategory) : ledgerView==="expense" ? (ledgerCategory==="all" ? "Expense Ledger" : ledgerCategory) : "All Ledger Entries";
   const currentCount = filtered.length;
   const sattapurBricks=data?.sattapurBricks||{depositAmount:0,depositCount:0,deliveredQuantity:0,deliveredValue:0,deliveryCount:0,holdAmount:0,overDeliveredValue:0,deposits:[],deliveries:[]};
@@ -491,7 +496,7 @@ export default function ProjectManagementPage(){
             <div>
               <span className="pm-label">PROJECT FINANCIAL SUMMARY</span>
               <strong>Fund position</strong>
-              <small>Sattapur Bricks deposits are treated as expenses immediately because the cash has already been paid out. Brick deliveries are tracked separately and reduce the amount still held with Sattapur.</small>
+              <small>Payments to Sattapur are project expenses and simultaneously fund the Sattapur deposit. Brick deliveries reduce that deposit without creating a second project expense.</small>
             </div>
 
           </div>
@@ -507,9 +512,9 @@ export default function ProjectManagementPage(){
               <small>Recognized / received project expense</small>
             </div>
             <div className="pm-stat pm-stat-advance">
-              <div className="pm-stat-head"><span>Sattapur Hold</span><b>⌁</b></div>
+              <div className="pm-stat-head"><span>Sattapur Deposit</span><b>⌁</b></div>
               <strong>{money(data?.summary?.supplierAdvance)}</strong>
-              <small>Deposit paid − delivered brick value</small>
+              <small>Sattapur payments − delivered brick value</small>
             </div>
             <div className="pm-stat pm-stat-hold">
               <div className="pm-stat-head"><span>Cheque on Hold</span><b>◷</b></div>
@@ -518,7 +523,7 @@ export default function ProjectManagementPage(){
             </div>
             <div className="pm-stat pm-stat-balance pm-stat-shajiv">
               <div className="pm-stat-head"><span>Eng Shajiv Balance</span><b>＝</b></div>
-              <strong>{money(totalDebit-totalCredit-currentChequeOnHold)}</strong>
+              <strong>{money(engShajivBalance)}</strong>
               <small>Cash balance after expenses and cheque hold</small>
             </div>
           </div>
@@ -674,7 +679,7 @@ export default function ProjectManagementPage(){
                             <div className="pm-detail">{r.details}</div>
                             {r.memo&&String(r.memo).startsWith("MASTER_LEDGER:")&&<span className="pm-source-tag">Master Ledger</span>}
                           </td>
-                          <td><span className="pm-category-tag">{category}</span></td>
+                          <td><span className="pm-category-tag">{category}</span>{r.payment_method&&<span className="pm-payment-method">{r.payment_method}</span>}</td>
                           <td className="num-col">{r.sft||"—"}</td>
                           <td className="num-col">{r.rate?money(r.rate):"—"}</td>
                           <td className="num-col pm-money-credit">{r.credit?money(r.credit):"—"}</td>
@@ -729,8 +734,9 @@ export default function ProjectManagementPage(){
             <div className="pm-form-grid">
               <label><span>Date</span><input type="date" value={form.entryDate} onChange={e=>setForm({...form,entryDate:e.target.value})}/></label>
               {entryType==="income"&&<label><span>Received From</span><select value={RECEIVED_FROM_OPTIONS.includes(form.receivedFrom)?form.receivedFrom:""} onChange={e=>setForm({...form,receivedFrom:e.target.value})}><option value="" disabled>Select source</option>{RECEIVED_FROM_OPTIONS.map(option=><option key={option} value={option}>{option}</option>)}</select></label>}
-              <label><span>Paid To</span><input list="pm-party-options" value={form.paidTo} onChange={e=>setForm({...form,paidTo:e.target.value,supplier:e.target.value})} placeholder="Supplier / contractor / other party"/></label>
+              <label><span>Paid To</span><input list="pm-party-options" value={form.paidTo} onChange={e=>{const paidTo=e.target.value;const sattapur=entryType==="expense"&&/sattapur/i.test(paidTo);setForm({...form,paidTo,supplier:paidTo,category:sattapur?"Bricks":form.category});}} placeholder="Supplier / contractor / other party"/></label>
               <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>{const category=e.target.value;const suggested=entryType==="expense"?suggestedPartyForCategory(data,category):"";setForm({...form,category,paidTo:suggested||form.paidTo,supplier:suggested||form.paidTo,chequeStatus:category==="Cheque"?form.chequeStatus:"Cashed"});}}>{(entryType==="income" ? incomeEntryCategories : expenseEntryCategories).map(c=><option key={c}>{c}</option>)}</select></label>
+              {entryType==="expense"&&<label><span>Payment Method</span><select value={form.paymentMethod||"Cash"} onChange={e=>setForm({...form,paymentMethod:e.target.value})}>{PAYMENT_METHODS.map(method=><option key={method}>{method}</option>)}</select></label>}
               {entryType==="income"&&form.category==="Cheque"&&<label><span>Cheque Status</span><select value={form.chequeStatus||"Cashed"} onChange={e=>setForm({...form,chequeStatus:e.target.value})}><option value="On Hold">On Hold</option><option value="Cashed">Cashed</option></select></label>}
               <label className="full"><span>Details</span><input value={form.details} onChange={e=>setForm({...form,details:e.target.value})} placeholder={entryType==="income" ? "Describe the income / transfer" : "Describe the expense"}/></label>
               {entryType==="expense"&&<><label><span>Qty / SFT</span><input value={form.sft} onChange={e=>setForm({...form,sft:e.target.value})} inputMode="decimal" placeholder="0.000"/></label><label><span>Rate</span><input value={form.rate} onChange={e=>setForm({...form,rate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label></>}
@@ -753,7 +759,7 @@ export default function ProjectManagementPage(){
       }
 
         {sattapurDeliveriesOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurDeliveriesOpen(false)}}><div className="pm-modal pm-sattapur-detail-modal"><div className="pm-modal-head"><div><h2>Sattapur Deliveries</h2><p>Complete delivery history and quantities recorded for Sattapur Bricks.</p></div><button className="pm-close" onClick={()=>setSattapurDeliveriesOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-sattapur-table"><thead><tr><th>Date</th><th>Details</th><th className="num-col">Quantity (SFT)</th><th className="num-col">Rate</th><th className="num-col">Value</th></tr></thead><tbody>{(sattapurBricks.deliveries||[]).map((r:any)=><tr key={r.id}><td>{dateText(r.date)}</td><td>{r.details}</td><td className="num-col">{num(r.quantity).toLocaleString("en-BD")}</td><td className="num-col">{money(r.rate)}</td><td className="num-col pm-money-credit">{money(r.value)}</td></tr>)}{!(sattapurBricks.deliveries||[]).length&&<tr><td colSpan={5} className="pm-sattapur-empty">No deliveries recorded yet.</td></tr>}</tbody></table></div></div></div>)}
-        {sattapurLedgerOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurLedgerOpen(false)}}><div className="pm-modal pm-sattapur-ledger-modal"><div className="pm-modal-head"><div><h2>Sattapur Ledger</h2><p>Financial entries connected to Sattapur Bricks.</p></div><button className="pm-close" onClick={()=>setSattapurLedgerOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-table pm-sattapur-ledger-table"><thead><tr><th>Date</th><th>Details</th><th>Category</th><th>Paid To / Supplier</th><th className="num-col">Debit</th><th className="num-col">Credit</th></tr></thead><tbody>{entries.filter((r:any)=>/sattapur/i.test([r.details,r.supplier,r.paid_to,r.received_from,r.memo,r.category].join(" "))).slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))).map((r:any)=><tr key={r.id}><td>{dateText(r.entry_date)}</td><td className="wide-col">{r.details}</td><td>{r.category||"—"}</td><td>{r.paid_to||r.supplier||r.received_from||"—"}</td><td className="num-col pm-money-debit">{num(r.debit)?money(r.debit):"—"}</td><td className="num-col pm-money-credit">{num(r.credit)?money(r.credit):"—"}</td></tr>)}{!entries.some((r:any)=>/sattapur/i.test([r.details,r.supplier,r.paid_to,r.received_from,r.memo,r.category].join(" ")))&&<tr><td colSpan={6} className="pm-empty">No Sattapur ledger entries found.</td></tr>}</tbody></table></div></div></div>)}
+        {sattapurLedgerOpen&&(<div className="pm-modal-backdrop" onMouseDown={e=>{if(e.target===e.currentTarget)setSattapurLedgerOpen(false)}}><div className="pm-modal pm-sattapur-ledger-modal"><div className="pm-modal-head"><div><h2>Sattapur Ledger</h2><p>Payments increase the Sattapur deposit; brick deliveries reduce it. Delivery value is not charged to project expense a second time.</p></div><button className="pm-close" onClick={()=>setSattapurLedgerOpen(false)}>×</button></div><div className="pm-sattapur-detail-scroll"><table className="pm-table pm-sattapur-ledger-table"><thead><tr><th>Date</th><th>Type</th><th>Details</th><th>Payment Method</th><th className="num-col">Deposit</th><th className="num-col">Delivery</th><th className="num-col">Deposit Balance</th></tr></thead><tbody>{(sattapurBricks.ledger||[]).slice().sort((a:any,b:any)=>String(b.date||"").localeCompare(String(a.date||""))||String(b.createdAt||"").localeCompare(String(a.createdAt||""))).map((r:any)=><tr key={r.id}><td>{dateText(r.date)}</td><td><span className={"pm-sattapur-type "+(r.type==="Delivery"?"delivery":"deposit")}>{r.type}</span></td><td className="wide-col">{r.details}</td><td>{r.paymentMethod||"—"}</td><td className="num-col pm-money-debit">{num(r.deposit)?money(r.deposit):"—"}</td><td className="num-col pm-money-credit">{num(r.delivery)?money(r.delivery):"—"}</td><td className="num-col pm-balance">{money(r.runningDeposit)}</td></tr>)}{!(sattapurBricks.ledger||[]).length&&<tr><td colSpan={7} className="pm-empty">No Sattapur ledger entries found.</td></tr>}</tbody></table></div></div></div>)}
       {sattapurDeliveryOpen&&admin&&
         <div className="pm-modal-backdrop">
           <section className="pm-modal pm-entry-modal">
@@ -1053,7 +1059,7 @@ export default function ProjectManagementPage(){
         .pm-detail{font-weight:720;color:#26353d;line-height:1.42;font-size:13px}
         .pm-source-tag{display:inline-flex;margin-top:5px;padding:3px 7px;border-radius:999px;background:#edf5f2;color:#37735f;font-size:9px;font-weight:800}
         .pm-cheque-status{display:inline-flex;margin-left:5px;padding:4px 7px;border-radius:999px;font-size:9px;font-weight:850}.pm-cheque-status.hold{background:#fff3df;color:#946020;border:1px solid var(--theme-line-_efd7aa, #efd7aa)}.pm-cheque-status.cashed{background:#edf8f2;color:#2f7058;border:1px solid var(--theme-line-_d4ebdd, #d4ebdd)}
-        .pm-category-tag{display:inline-flex;max-width:185px;padding:5px 8px;background:#f3f6f5;border:1px solid var(--theme-line-_e5ebe8, #e5ebe8);border-radius:8px;color:var(--theme-ink-_5b696f, #5b696f);font-size:10px;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        .pm-category-tag{display:inline-flex;max-width:185px;padding:5px 8px;background:#f3f6f5;border:1px solid var(--theme-line-_e5ebe8, #e5ebe8);border-radius:8px;color:var(--theme-ink-_5b696f, #5b696f);font-size:10px;font-weight:760;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pm-payment-method{display:inline-flex;margin-left:6px;padding:3px 7px;border-radius:999px;background:#eef4f2;color:#426258;font-size:9px;font-weight:800;white-space:nowrap}
         .pm-money-debit{color:#3b5f86;font-weight:780}
         .pm-money-credit{color:#1d6b52;font-weight:780}
         .pm-muted{color:var(--theme-ink-_c0c8cb, #c0c8cb)}
