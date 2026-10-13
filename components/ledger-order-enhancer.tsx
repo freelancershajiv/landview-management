@@ -46,6 +46,73 @@ function dateLabel(row: HTMLTableRowElement) {
   return row.querySelector<HTMLElement>(".date-cell")?.textContent?.trim() || "";
 }
 
+function nodeLabel(node: Element) {
+  return String(node.querySelector("span")?.textContent || "").trim().toLowerCase();
+}
+
+function setMoneyValue(container: Element | null, value: number) {
+  if (!container || !Number.isFinite(value)) return;
+  const strong = container.querySelector<HTMLElement>("strong");
+  if (!strong) return;
+  const formatted = money.format(value);
+  if (strong.textContent !== formatted) strong.textContent = formatted;
+  strong.classList.toggle("negative", value < 0);
+  strong.classList.toggle("positive", value >= 0);
+}
+
+function firstDisplayRow(rows: LedgerOrderRow[]) {
+  return [...rows].sort((a, b) => {
+    const dateOrder = b.date.localeCompare(a.date);
+    return dateOrder || a.position - b.position;
+  })[0] || null;
+}
+
+function ledgerMonthSummary(rows: LedgerOrderRow[], monthKey: string) {
+  if (!monthKey) return { openingBalance: 0, currentBalance: 0, movement: 0 };
+  const monthStart = `${monthKey}-01`;
+  const beforeMonth = rows.filter((row) => row.date < monthStart);
+  const monthRows = rows.filter((row) => row.date.slice(0, 7) === monthKey);
+
+  // The ledger/order API assigns the first displayed row of each date the
+  // end-of-date running balance. Use those exact balances here so the summary
+  // cards can never diverge from the ledger table again.
+  const openingBalance = firstDisplayRow(beforeMonth)?.balance ?? 0;
+  const currentBalance = firstDisplayRow(monthRows)?.balance ?? openingBalance;
+  return {
+    openingBalance,
+    currentBalance,
+    movement: currentBalance - openingBalance,
+  };
+}
+
+function updateBalanceSummary(rows: LedgerOrderRow[], monthKey: string) {
+  const root = document.querySelector(".bank-accounts-page");
+  if (!root) return;
+  const summary = ledgerMonthSummary(rows, monthKey);
+
+  const previousMetric = Array.from(root.querySelectorAll(".bank-metric"))
+    .find((node) => nodeLabel(node) === "previous balance") || null;
+  const currentMetric = Array.from(root.querySelectorAll(".bank-metric"))
+    .find((node) => nodeLabel(node) === "current balance") || null;
+  setMoneyValue(previousMetric, summary.openingBalance);
+  setMoneyValue(currentMetric, summary.currentBalance);
+
+  const openingStat = Array.from(root.querySelectorAll(".head-stat"))
+    .find((node) => nodeLabel(node) === "opening") || null;
+  const movementStat = Array.from(root.querySelectorAll(".head-stat"))
+    .find((node) => nodeLabel(node) === "cash movement") || null;
+  const closingStat = Array.from(root.querySelectorAll(".head-stat"))
+    .find((node) => nodeLabel(node) === "closing / live") || null;
+  setMoneyValue(openingStat, summary.openingBalance);
+  setMoneyValue(movementStat, summary.movement);
+  setMoneyValue(closingStat, summary.currentBalance);
+
+  const previousNote = previousMetric?.querySelector<HTMLElement>("p");
+  if (previousNote) previousNote.textContent = `Balance carried forward into ${monthKey}.`;
+  const currentNote = currentMetric?.querySelector<HTMLElement>("p");
+  if (currentNote) currentNote.textContent = `Ledger closing balance · month movement: ${money.format(summary.movement)}.`;
+}
+
 function installStyles() {
   if (document.getElementById("ledger-order-enhancer-style")) return;
   const style = document.createElement("style");
@@ -277,6 +344,7 @@ export default function LedgerOrderEnhancer() {
         if (currentMonthActive) addOrderControls(table, map);
         else removeOrderControls(table);
       });
+      updateBalanceSummary(stateRows, monthKey);
     }
 
     function scheduleApply() {
