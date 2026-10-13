@@ -9,6 +9,12 @@ export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
 
+type RetryMedia = {
+  kind: "visit" | "problem";
+  base64: string;
+  mimeType: string;
+};
+
 function clean(value: unknown, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
 }
@@ -46,6 +52,49 @@ async function mediaFromR2(fileId: unknown) {
     base64: Buffer.from(media.bytes).toString("base64"),
     mimeType: clean(media.contentType || "image/jpeg", 100),
   };
+}
+
+function mediaMetadata(value: unknown): Row[] {
+  if (Array.isArray(value)) return value.filter((item) => item && typeof item === "object") as Row[];
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed.filter((item) => item && typeof item === "object") : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+async function mediaSetFromVisit(visit: Row): Promise<RetryMedia[]> {
+  const items = mediaMetadata(visit.media_items)
+    .sort((a, b) => Number(a.sortOrder ?? a.sort_order ?? 0) - Number(b.sortOrder ?? b.sort_order ?? 0))
+    .slice(0, 8);
+
+  if (items.length) {
+    const loaded = await Promise.all(items.map(async (item) => {
+      const fileId = item.fileId || item.file_id;
+      const media = await mediaFromR2(fileId);
+      if (!media) return null;
+      return {
+        kind: String(item.kind || "visit").toLowerCase() === "problem" ? "problem" : "visit",
+        base64: media.base64,
+        mimeType: media.mimeType,
+      } satisfies RetryMedia;
+    }));
+    const complete = loaded.filter(Boolean) as RetryMedia[];
+    if (complete.length) return complete;
+  }
+
+  const [visitPhoto, problemPhoto] = await Promise.all([
+    mediaFromR2(visit.visit_photo_drive_file_id),
+    mediaFromR2(visit.problem_photo_drive_file_id),
+  ]);
+  const fallback: RetryMedia[] = [];
+  if (visitPhoto) fallback.push({ kind: "visit", ...visitPhoto });
+  if (problemPhoto) fallback.push({ kind: "problem", ...problemPhoto });
+  return fallback;
 }
 
 async function statusRowsForUser(user: Row) {
@@ -104,13 +153,18 @@ export async function POST(request: NextRequest) {
     if (!visit) return response({ success: false, error: "Site Visit not found." }, 404);
 
     const project = (await selectRows("projects", { filters: { id: visit.project_id }, limit: 1 }))[0];
-    const employee = (await selectRows("employees", { filters: { id: visit.employee_id }, limit: 1 }))[0];
-    if (!project || !employee) return response({ success: false, error: "Site Visit project or employee record is missing." }, 409);
+    const attributedEmployee = visit.employee_id
+      ? (await selectRows("employees", { filters: { id: visit.employee_id }, limit: 1 }))[0]
+      : null;
+    const senderEmployee = attributedEmployee || (await selectRows("employees", { filters: { employee_code: "EMP-0002" }, limit: 1 }))[0];
+    if (!project || !senderEmployee) return response({ success: false, error: "Site Visit project or WhatsApp sender record is missing." }, 409);
 
     if (!internal && user) {
       const role = roleOf(user);
-      if (role === "employee" && employeeCodeOf(user) !== clean(employee.employee_code, 120).toUpperCase()) {
-        return response({ success: false, error: "You can retry only your own Site Visit WhatsApp updates." }, 403);
+      if (role === "employee") {
+        if (!attributedEmployee || employeeCodeOf(user) !== clean(attributedEmployee.employee_code, 120).toUpperCase()) {
+          return response({ success: false, error: "You can retry only your own Site Visit WhatsApp updates." }, 403);
+        }
       }
       if (!["employee", "admin", "manager"].includes(role)) {
         return response({ success: false, error: "You cannot retry Site Visit WhatsApp updates." }, 403);
@@ -121,19 +175,18 @@ export async function POST(request: NextRequest) {
       return response({ success: true, data: { ...statusView(visit), Already_Sent: true } });
     }
 
-    const [visitPhoto, problemPhoto] = await Promise.all([
-      mediaFromR2(visit.visit_photo_drive_file_id),
-      mediaFromR2(visit.problem_photo_drive_file_id),
-    ]);
+    const mediaItems = await mediaSetFromVisit(visit);
+    const firstVisit = mediaItems.find((item) => item.kind === "visit") || null;
+    const firstProblem = mediaItems.find((item) => item.kind === "problem") || null;
 
     const result = await publishSiteVisitToWhatsApp({
       visitId: clean(visit.visit_code, 120),
       projectId: clean(project.project_code, 80),
       projectName: clean(project.project_name || project.client_name_snapshot, 220),
       projectLocation: clean(project.location, 300),
-      employeeId: clean(employee.employee_code, 120),
-      employeeName: clean(employee.name || visit.visited_by, 200),
-      senderEmployeeId: clean(employee.employee_code, 120),
+      employeeId: clean(attributedEmployee?.employee_code, 120),
+      employeeName: clean(attributedEmployee?.name || visit.visited_by, 200),
+      senderEmployeeId: clean(senderEmployee.employee_code, 120),
       visitDate: clean(visit.visit_date, 40),
       purpose: clean(visit.visit_purpose || visit.purpose, 500),
       problemDetails: clean(visit.observations, 1000),
@@ -146,10 +199,11 @@ export async function POST(request: NextRequest) {
       locationVerificationStatus: clean(visit.location_verification_status, 80),
       visitPhotoUrl: clean(visit.visit_photo_drive_url, 1000),
       problemPhotoUrl: clean(visit.problem_photo_drive_url, 1000),
-      visitPhotoBase64: visitPhoto?.base64,
-      visitPhotoMimeType: visitPhoto?.mimeType,
-      problemPhotoBase64: problemPhoto?.base64,
-      problemPhotoMimeType: problemPhoto?.mimeType,
+      visitPhotoBase64: firstVisit?.base64,
+      visitPhotoMimeType: firstVisit?.mimeType,
+      problemPhotoBase64: firstProblem?.base64,
+      problemPhotoMimeType: firstProblem?.mimeType,
+      mediaItems,
     });
 
     const refreshed = (await selectRows("site_visits", { filters: { visit_code: visitId }, limit: 1 }))[0] || visit;
