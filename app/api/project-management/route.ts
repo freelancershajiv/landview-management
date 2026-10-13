@@ -49,17 +49,21 @@ function cleanLv157Entries(rows: Row[]) {
   let runningBalance = 0;
   let incomeBalance = 0;
   let expenseBalance = 0;
+  let runningChequeOnHold = 0;
 
   return sortLedgerRows(rows).map((row: Row) => {
     const debit = num(row.debit);
     const credit = num(row.credit);
-    runningBalance = Math.round((runningBalance + debit - credit) * 100) / 100;
-    incomeBalance = Math.round((incomeBalance + debit) * 100) / 100;
-    expenseBalance = Math.round((expenseBalance + credit) * 100) / 100;
     const held = (
       clean(row.cheque_status, 40).toLowerCase() === "on_hold" ||
       /^CHEQUE_STATUS:ON_HOLD/i.test(clean(row.memo, 1000))
     ) ? debit : 0;
+
+    runningBalance = Math.round((runningBalance + debit - credit) * 100) / 100;
+    incomeBalance = Math.round((incomeBalance + debit) * 100) / 100;
+    expenseBalance = Math.round((expenseBalance + credit) * 100) / 100;
+    runningChequeOnHold = Math.round((runningChequeOnHold + held) * 100) / 100;
+    const availableCashBalance = Math.round((runningBalance - runningChequeOnHold) * 100) / 100;
 
     return {
       ...row,
@@ -74,7 +78,7 @@ function cleanLv157Entries(rows: Row[]) {
       supplier_advance_applied: 0,
       supplier_movement_type: null,
       cheque_on_hold: held,
-      available_cash_balance: runningBalance,
+      available_cash_balance: availableCashBalance,
       paid_to: clean(row.paid_to || (credit > 0 ? row.supplier : ""), 160),
       received_from: clean(row.received_from, 160),
     };
@@ -120,6 +124,7 @@ export async function GET(request: NextRequest) {
   const credit = entries.reduce((sum: number, row: Row) => sum + num(row.credit), 0);
   const chequeOnHold = entries.reduce((sum: number, row: Row) => sum + num(row.cheque_on_hold), 0);
   const balance = Math.round((debit - credit) * 100) / 100;
+  const engShajivBalance = Math.round((balance - chequeOnHold) * 100) / 100;
 
   payload.data = {
     ...payload.data,
@@ -130,7 +135,7 @@ export async function GET(request: NextRequest) {
       supplierAdvance: 0,
       supplierAdvanceSource: "disabled",
       chequeOnHold,
-      engShajivBalance: balance,
+      engShajivBalance,
       notes: "LV-157 rebuilt from the uploaded ledger sheet. Supplier advance and delivery are not configured.",
     },
     sattapurBricks: emptySupplierWorkspace(),
