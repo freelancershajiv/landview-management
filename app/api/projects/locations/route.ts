@@ -48,6 +48,8 @@ function publicRow(row: Record<string, unknown>) {
     wardNo: row.ward_no || "",
     villageArea: row.village_area || "",
     roadHolding: row.road_holding || "",
+    locationComplete: Boolean(row.site_location_captured_at),
+    locationCompletedAt: row.site_location_captured_at || "",
   };
 }
 
@@ -75,6 +77,7 @@ export async function POST(request: NextRequest) {
     const rows = await selectRows("projects", { filters: { project_code: projectCode }, select: "id,project_code", limit: 1 });
     if (!rows.length) return NextResponse.json({ success: false, error: "Project not found." }, { status: 404 });
 
+    const savedAt = new Date().toISOString();
     const changes: Record<string, unknown> = {
       division: text(body.division || body.Division, 100) || null,
       district: text(body.district || body.District, 100) || null,
@@ -85,7 +88,8 @@ export async function POST(request: NextRequest) {
       village_area: text(body.villageArea || body.Village_Area, 240) || null,
       road_holding: text(body.roadHolding || body.Road_Holding, 300) || null,
       location: text(body.fullAddress, 1000) || fullAddress(body) || null,
-      updated_at: new Date().toISOString(),
+      site_location_captured_at: savedAt,
+      updated_at: savedAt,
     };
     if (has(body, "locationTag", "Location_Tag")) changes.location_tag = text(body.locationTag || body.Location_Tag, 4000) || null;
     if (has(body, "siteLatitude", "Site_Latitude")) changes.site_latitude = finiteNumber(body.siteLatitude ?? body.Site_Latitude);
