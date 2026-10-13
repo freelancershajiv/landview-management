@@ -8,7 +8,20 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
-type PreparedImage = { mime: string; base64: string };
+type PreparedImage = { mime: string; base64: string; size: number; name: string };
+type StoredPhoto = {
+  kind: "visit" | "problem";
+  fileId: string;
+  fileUrl: string;
+  key: string;
+  mimeType: string;
+  size: number;
+  sortOrder: number;
+  originalName: string;
+  prepared: PreparedImage;
+};
+
+const MAX_TOTAL_PHOTOS = 8;
 
 function clean(value: unknown, max = 2000) {
   return String(value ?? "").trim().slice(0, max);
@@ -32,50 +45,58 @@ function supervisionActive(project: Row) {
   return String(project?.supervision_stage_status || "Completed").trim() !== "Completed";
 }
 
-function validImage(file: FormDataEntryValue | null): file is File {
-  return !!file && typeof file === "object" && typeof (file as File).arrayBuffer === "function";
+function validImage(value: FormDataEntryValue): value is File {
+  return typeof value === "object" && typeof (value as File)?.arrayBuffer === "function" && String((value as File)?.type || "").startsWith("image/");
+}
+
+function imageFiles(form: FormData, pluralKey: string, legacyKey: string) {
+  const plural = form.getAll(pluralKey).filter(validImage) as File[];
+  if (plural.length) return plural;
+  const legacy = form.get(legacyKey);
+  return legacy && validImage(legacy) ? [legacy] : [];
 }
 
 async function fileToBase64(file: File): Promise<PreparedImage> {
   if (file.size > 4 * 1024 * 1024) throw new Error("Each processed Site Visit photo must be 4 MB or smaller.");
   const mime = String(file.type || "").toLowerCase();
   if (!["image/jpeg", "image/png", "image/webp"].includes(mime)) {
-    throw new Error("Only JPG, PNG and WebP site visit photos are allowed.");
+    throw new Error("Only JPG, PNG and WebP Site Visit photos are allowed.");
   }
-  return { mime, base64: Buffer.from(await file.arrayBuffer()).toString("base64") };
+  return {
+    mime,
+    base64: Buffer.from(await file.arrayBuffer()).toString("base64"),
+    size: file.size,
+    name: clean(file.name, 240) || "site-visit.jpg",
+  };
 }
 
-async function storeAdminSiteVisitPhoto(input: {
+async function storePhoto(input: {
   projectCode: string;
-  projectName: string;
   visitCode: string;
   kind: "visit" | "problem";
-  file: PreparedImage;
+  file: File;
+  sortOrder: number;
 }) {
-  try {
-    const media = await uploadSiteVisitMediaToR2({
-      projectCode: input.projectCode,
-      visitCode: input.visitCode,
-      kind: input.kind,
-      mimeType: input.file.mime,
-      base64: input.file.base64,
-    });
-    return {
-      drive: { ...media, storageProvider: "cloudflare-r2" },
-      path: "",
-      storage: "cloudflare-r2" as const,
-      driveError: "",
-      storageError: "",
-    };
-  } catch (error: any) {
-    const message = String(error?.message || "Cloudflare R2 upload failed.");
-    console.error("Cloudflare R2 Admin Site Visit upload failed.", {
-      visitId: input.visitCode,
-      kind: input.kind,
-      error: message,
-    });
-    throw new Error(`Cloudflare R2 Site Visit upload failed: ${message}`);
-  }
+  const prepared = await fileToBase64(input.file);
+  const media = await uploadSiteVisitMediaToR2({
+    projectCode: input.projectCode,
+    visitCode: input.visitCode,
+    kind: input.kind,
+    mimeType: prepared.mime,
+    base64: prepared.base64,
+    uniqueId: `${input.kind}-${input.sortOrder + 1}-${crypto.randomUUID().slice(0, 8)}`,
+  });
+  return {
+    kind: input.kind,
+    fileId: String(media.fileId || ""),
+    fileUrl: String(media.fileUrl || ""),
+    key: String(media.key || ""),
+    mimeType: prepared.mime,
+    size: Number(media.size || prepared.size || 0),
+    sortOrder: input.sortOrder,
+    originalName: prepared.name,
+    prepared,
+  } satisfies StoredPhoto;
 }
 
 async function requireAdmin(request: NextRequest) {
@@ -89,7 +110,6 @@ export async function GET(request: NextRequest) {
   try {
     await requireAdmin(request);
     const mode = clean(request.nextUrl.searchParams.get("mode"), 40).toLowerCase();
-
     if (mode === "employees") {
       const employees = await selectRows("employees", { filters: { status: "Active" }, order: "employee_code:asc", limit: 1000 });
       return ok(employees.map((employee) => ({
@@ -125,86 +145,57 @@ export async function POST(request: NextRequest) {
     const projectCode = normalizeProjectCode(clean(form.get("projectId"), 80));
     if (!projectCode) return deny("Select a project.", 400);
 
-    const projects = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
-    const project = projects[0] as Row | undefined;
+    const project = (await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 }))[0] as Row | undefined;
     if (!project) return deny("Project not found.", 404);
-    if (!supervisionActive(project)) {
-      return deny("Site Visits are only available while the project is in the Supervision / Construction stage.", 409);
-    }
+    if (!supervisionActive(project)) return deny("Site Visits are only available while the project is in the Supervision / Construction stage.", 409);
 
     const issueEmployeeCode = clean(form.get("employeeId"), 120).toUpperCase();
     let issueEmployee: Row | null = null;
     if (issueEmployeeCode) {
-      const employees = await selectRows("employees", {
-        filters: { employee_code: issueEmployeeCode, status: "Active" },
-        limit: 1,
-      });
-      issueEmployee = (employees[0] as Row | undefined) || null;
+      issueEmployee = ((await selectRows("employees", { filters: { employee_code: issueEmployeeCode, status: "Active" }, limit: 1 }))[0] as Row | undefined) || null;
       if (!issueEmployee) return deny("Selected employee is not active or could not be found.", 400);
     }
 
     const visitDate = clean(form.get("visitDate"), 20) || new Date().toISOString().slice(0, 10);
-    const purpose = clean(form.get("purpose"), 300);
+    const purpose = clean(form.get("purpose"), 300) || "Site Visit";
     const problemDetails = clean(form.get("problemDetails"), 4000);
     const actionRequired = clean(form.get("actionRequired"), 4000);
     const notes = clean(form.get("notes"), 4000);
-    if (!purpose) return deny("Enter the visit purpose.", 400);
 
-    const visitFile = validImage(form.get("visitPhoto")) ? form.get("visitPhoto") as File : null;
-    const problemFile = validImage(form.get("problemPhoto")) ? form.get("problemPhoto") as File : null;
+    const visitFiles = imageFiles(form, "visitPhotos", "visitPhoto");
+    const problemFiles = imageFiles(form, "problemPhotos", "problemPhoto");
+    const totalPhotos = visitFiles.length + problemFiles.length;
+    if (totalPhotos > MAX_TOTAL_PHOTOS) return deny(`A Site Visit can contain up to ${MAX_TOTAL_PHOTOS} photos.`, 400);
 
     const visitCode = `SV-${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-    let visitPhotoDrive: any = null;
-    let problemPhotoDrive: any = null;
-    let visitPhotoPath = "";
-    let problemPhotoPath = "";
-    let visitPhotoStorage = "none";
-    let problemPhotoStorage = "none";
-    let visitWhatsAppPhoto: PreparedImage | null = null;
-    let problemWhatsAppPhoto: PreparedImage | null = null;
-    const storageWarnings: string[] = [];
+    const stored: StoredPhoto[] = [];
 
-    if (visitFile) {
-      const file = await fileToBase64(visitFile);
-      visitWhatsAppPhoto = file;
-      const stored = await storeAdminSiteVisitPhoto({
-        projectCode,
-        projectName: String(project.project_name || project.client_name_snapshot || projectCode),
-        visitCode,
-        kind: "visit",
-        file,
-      });
-      visitPhotoDrive = stored.drive;
-      visitPhotoPath = stored.path;
-      visitPhotoStorage = stored.storage;
-      if (stored.driveError) storageWarnings.push(`Visit photo archive: ${stored.driveError}`);
-      if (stored.storageError) storageWarnings.push(`Visit photo fallback: ${stored.storageError}`);
+    for (let index = 0; index < visitFiles.length; index += 1) {
+      stored.push(await storePhoto({ projectCode, visitCode, kind: "visit", file: visitFiles[index], sortOrder: stored.length }));
+    }
+    for (let index = 0; index < problemFiles.length; index += 1) {
+      stored.push(await storePhoto({ projectCode, visitCode, kind: "problem", file: problemFiles[index], sortOrder: stored.length }));
     }
 
-    if (problemFile) {
-      const file = await fileToBase64(problemFile);
-      problemWhatsAppPhoto = file;
-      const stored = await storeAdminSiteVisitPhoto({
-        projectCode,
-        projectName: String(project.project_name || project.client_name_snapshot || projectCode),
-        visitCode,
-        kind: "problem",
-        file,
-      });
-      problemPhotoDrive = stored.drive;
-      problemPhotoPath = stored.path;
-      problemPhotoStorage = stored.storage;
-      if (stored.driveError) storageWarnings.push(`Problem photo archive: ${stored.driveError}`);
-      if (stored.storageError) storageWarnings.push(`Problem photo fallback: ${stored.storageError}`);
-    }
+    const firstVisit = stored.find((photo) => photo.kind === "visit") || null;
+    const firstProblem = stored.find((photo) => photo.kind === "problem") || null;
+    const mediaItems = stored.map((photo) => ({
+      kind: photo.kind,
+      fileId: photo.fileId,
+      fileUrl: photo.fileUrl,
+      key: photo.key,
+      mimeType: photo.mimeType,
+      size: photo.size,
+      sortOrder: photo.sortOrder,
+      originalName: photo.originalName,
+      storageProvider: "cloudflare-r2",
+    }));
 
     const adminName = clean(user?.name || user?.Name || user?.username || user?.Username || "Admin", 200) || "Admin";
     const attributedEmployeeCode = clean(issueEmployee?.employee_code, 120);
     const attributedEmployeeName = clean(issueEmployee?.name, 200) || `Admin · ${adminName}`;
     const senderEmployeeCode = attributedEmployeeCode || "EMP-0002";
-    const createdBy = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(user?.id || ""))
-      ? String(user.id)
-      : null;
+    const createdBy = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(user?.id || "")) ? String(user.id) : null;
     const now = new Date().toISOString();
 
     await insertRows("site_visits", {
@@ -212,15 +203,16 @@ export async function POST(request: NextRequest) {
       project_id: project.id,
       employee_id: issueEmployee?.id || null,
       visit_date: visitDate,
-      purpose: purpose || null,
-      visit_purpose: purpose || null,
+      purpose,
+      visit_purpose: purpose,
       visited_by: attributedEmployeeName,
       observations: problemDetails || null,
       action_required: actionRequired || null,
       status: "Completed",
       notes: notes || null,
-      visit_photo_path: visitPhotoPath || null,
-      problem_photo_path: problemPhotoPath || null,
+      media_items: mediaItems,
+      visit_photo_path: null,
+      problem_photo_path: null,
       location_latitude: null,
       location_longitude: null,
       location_accuracy_m: null,
@@ -228,10 +220,10 @@ export async function POST(request: NextRequest) {
       location_verification_status: "ADMIN_NOT_REQUIRED",
       location_distance_m: null,
       location_source: "admin_manual",
-      visit_photo_drive_file_id: String(visitPhotoDrive?.fileId || "") || null,
-      visit_photo_drive_url: String(visitPhotoDrive?.fileUrl || "") || null,
-      problem_photo_drive_file_id: String(problemPhotoDrive?.fileId || "") || null,
-      problem_photo_drive_url: String(problemPhotoDrive?.fileUrl || "") || null,
+      visit_photo_drive_file_id: firstVisit?.fileId || null,
+      visit_photo_drive_url: firstVisit?.fileUrl || null,
+      problem_photo_drive_file_id: firstProblem?.fileId || null,
+      problem_photo_drive_url: firstProblem?.fileUrl || null,
       created_by: createdBy,
       source_created_at: now,
       updated_at: now,
@@ -255,12 +247,12 @@ export async function POST(request: NextRequest) {
       locationAccuracyM: null,
       locationDistanceM: null,
       locationVerificationStatus: "ADMIN_NOT_REQUIRED",
-      visitPhotoUrl: String(visitPhotoDrive?.fileUrl || ""),
-      problemPhotoUrl: String(problemPhotoDrive?.fileUrl || ""),
-      visitPhotoBase64: visitWhatsAppPhoto?.base64,
-      visitPhotoMimeType: visitWhatsAppPhoto?.mime,
-      problemPhotoBase64: problemWhatsAppPhoto?.base64,
-      problemPhotoMimeType: problemWhatsAppPhoto?.mime,
+      visitPhotoUrl: firstVisit?.fileUrl || "",
+      problemPhotoUrl: firstProblem?.fileUrl || "",
+      visitPhotoBase64: firstVisit?.prepared.base64,
+      visitPhotoMimeType: firstVisit?.prepared.mime,
+      problemPhotoBase64: firstProblem?.prepared.base64,
+      problemPhotoMimeType: firstProblem?.prepared.mime,
     });
 
     return ok({
@@ -275,21 +267,24 @@ export async function POST(request: NextRequest) {
       Problem_Details: problemDetails,
       Action_Required: actionRequired,
       Status: "Completed",
-      Visit_Photo_Available: Boolean(visitPhotoDrive?.fileId || visitPhotoPath),
-      Problem_Photo_Available: Boolean(problemPhotoDrive?.fileId || problemPhotoPath),
-      Visit_Photo_Storage: visitPhotoStorage,
-      Problem_Photo_Storage: problemPhotoStorage,
-      Storage_Warnings: storageWarnings,
+      Photo_Count: totalPhotos,
+      Site_Photo_Count: visitFiles.length,
+      Problem_Photo_Count: problemFiles.length,
+      Media_Items: mediaItems,
+      Visit_Photo_Available: Boolean(firstVisit),
+      Problem_Photo_Available: Boolean(firstProblem),
+      Visit_Photo_Storage: firstVisit ? "cloudflare-r2" : "none",
+      Problem_Photo_Storage: firstProblem ? "cloudflare-r2" : "none",
       Location_Verification_Status: "ADMIN_NOT_REQUIRED",
       WhatsApp_Publish_Status: whatsAppPublish.status,
       WhatsApp_Media_Count: whatsAppPublish.mediaCount || 0,
       WhatsApp_Publish_Reason: whatsAppPublish.reason || "",
     });
   } catch (error: any) {
-    const code = clean(error?.message, 100);
+    const code = clean(error?.message, 1000);
     if (code === "SESSION_EXPIRED") return deny("Session expired.", 401);
     if (code === "ADMIN_REQUIRED") return deny("Admin access is required.", 403);
     if (/Cloudflare R2/i.test(code)) return deny(code, 503);
-    return deny(clean(error?.message || "Could not create Site Visit.", 1000), 500);
+    return deny(code || "Could not create Site Visit.", 500);
   }
 }
