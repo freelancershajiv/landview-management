@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
 import PublicProjectMap from "@/components/public-project-map";
 import PublicProjectMapMarkerStatus from "@/components/public-project-map-marker-status";
+import PublicProjectMapMobileGuard from "@/components/public-project-map-mobile-guard";
 import { getPublicProjectsForSeo } from "@/lib/public-projects-server";
 import { selectRows } from "@/lib/supabase-data";
+import "./mobile-map-fix.css";
 
 export const dynamic = "force-dynamic";
 
@@ -62,6 +64,7 @@ export default async function ProjectMapPage() {
 
   return <>
     <PublicProjectMapMarkerStatus states={states} />
+    <PublicProjectMapMobileGuard />
     <PublicProjectMap initialProjects={projects} />
   </>;
 }
