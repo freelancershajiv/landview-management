@@ -253,6 +253,11 @@ export async function POST(request: NextRequest) {
       visitPhotoMimeType: firstVisit?.prepared.mime,
       problemPhotoBase64: firstProblem?.prepared.base64,
       problemPhotoMimeType: firstProblem?.prepared.mime,
+      mediaItems: stored.map((photo) => ({
+        kind: photo.kind,
+        mimeType: photo.prepared.mime,
+        base64: photo.prepared.base64,
+      })),
     });
 
     return ok({
