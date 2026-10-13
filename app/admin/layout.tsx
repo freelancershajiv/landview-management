@@ -1,4 +1,4 @@
-import ManagementShellV2 from "@/components/management-shell-v2";
+import ManagementShellV3 from "@/components/management-shell-v3";
 import AdminMobileDock from "@/components/admin-mobile-dock";
 import PortalPreloader from "@/components/portal-preloader";
 import ProjectManagementEnhancements from "@/components/project-management-enhancements";
@@ -19,13 +19,12 @@ import "../dual-mode-navigation.css";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
   const role = String(session.user?.role || session.user?.Role || "").trim().toLowerCase();
-  // Navigation is handled by ManagementShellV2; Estimates is intentionally a direct link.
   return <>
     <PortalPreloader portal="admin"/>
     <ProjectManagementEnhancements />
     <AdminProjectMapDrawer />
     <ManagementRolePolicyEnforcer role={role} />
-    <ManagementShellV2 initialUser={session.user}>{children}</ManagementShellV2>
+    <ManagementShellV3 initialUser={session.user}>{children}</ManagementShellV3>
     <AdminMobileDock />
   </>;
 }
