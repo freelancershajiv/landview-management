@@ -89,12 +89,45 @@ function rateLimitResponse(request: NextRequest, path: string) {
   );
 }
 
+function billingCompatibilityRewrite(request: NextRequest) {
+  if (request.method !== "GET") return null;
+  const url = request.nextUrl.clone();
+
+  if (url.pathname === "/api/project-billing") {
+    url.pathname = "/api/project-billing-compatible";
+    return NextResponse.rewrite(url);
+  }
+
+  if (url.pathname !== "/api/landview") return null;
+  const action = url.searchParams.get("action");
+
+  if (action === "getBillingBook") {
+    url.pathname = "/api/billing/book-compatible";
+    url.searchParams.delete("action");
+    return NextResponse.rewrite(url);
+  }
+
+  if (action === "getProjectBilling") {
+    const projectId = url.searchParams.get("projectId") || url.searchParams.get("Project_ID") || "";
+    url.pathname = "/api/project-billing-compatible";
+    url.searchParams.delete("action");
+    url.searchParams.set("response", "summary");
+    if (projectId) url.searchParams.set("projectId", projectId);
+    return NextResponse.rewrite(url);
+  }
+
+  return null;
+}
+
 export function proxy(request: NextRequest) {
   const host = normalizeHost(request.headers.get("host"));
   const path = request.nextUrl.pathname;
 
   const limited = rateLimitResponse(request, path);
   if (limited) return limited;
+
+  const billingRewrite = billingCompatibilityRewrite(request);
+  if (billingRewrite) return billingRewrite;
 
   // Public content has one production URL; keep workspaces on the app host.
   if (host === "app.landview.com.bd" && (path === "/services" || path.startsWith("/services/") || path === "/projects" || path.startsWith("/projects/") || path === "/team" || path === "/contact")) {
