@@ -146,6 +146,13 @@ function belongsToAccount(row: Row, userKey: string, username: string, employeeC
   return candidates.has(text(row.user_id).toLowerCase()) || candidates.has(text(row.username).toLowerCase());
 }
 
+function sessionEmployeeIdentity(role: string, employeeCode: string) {
+  // Admin's EMP-0002 record is its display/profile identity only. The Admin login
+  // is still the separate `admin` authentication account and must never inherit
+  // EMP-0002 employee login sessions.
+  return role === "admin" ? "" : employeeCode;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const ctx = await accountContext(request);
@@ -163,8 +170,9 @@ export async function GET(request: NextRequest) {
     }
 
     const username = text(ctx.account?.username || ctx.user.username || ctx.user.Username || ctx.userKey);
+    const sessionEmployeeCode = sessionEmployeeIdentity(ctx.role, ctx.employeeCode);
     const allRows = await supabaseSessionAdmin<Row[]>("list");
-    const ownRows = (Array.isArray(allRows) ? allRows : []).filter((row) => belongsToAccount(row, ctx.userKey, username, ctx.employeeCode));
+    const ownRows = (Array.isArray(allRows) ? allRows : []).filter((row) => belongsToAccount(row, ctx.userKey, username, sessionEmployeeCode));
     const now = Date.now();
     const sessions = ownRows.map((row) => {
       const device = describeUserAgent(row.user_agent);
@@ -255,10 +263,11 @@ export async function POST(request: NextRequest) {
     if (sessionId === currentSessionId) return NextResponse.json({ success: false, error: "Use Sign out to end the current device session." }, { status: 400 });
 
     const username = text(ctx.account?.username || ctx.user.username || ctx.user.Username || ctx.userKey);
+    const sessionEmployeeCode = sessionEmployeeIdentity(ctx.role, ctx.employeeCode);
     const allRows = await supabaseSessionAdmin<Row[]>("list");
     const target = (Array.isArray(allRows) ? allRows : []).find((row) => text(row.session_key) === sessionId);
     if (!target) return NextResponse.json({ success: false, error: "Session not found." }, { status: 404 });
-    if (!belongsToAccount(target, ctx.userKey, username, ctx.employeeCode)) return NextResponse.json({ success: false, error: "You can terminate only your own sessions." }, { status: 403 });
+    if (!belongsToAccount(target, ctx.userKey, username, sessionEmployeeCode)) return NextResponse.json({ success: false, error: "You can terminate only your own sessions." }, { status: 403 });
 
     const result = await supabaseSessionAdmin<{ terminated: boolean; sessionId: string }>("terminate", { sessionId });
     return NextResponse.json({ success: true, data: result }, { headers: { "Cache-Control": "no-store", "X-Landview-Data": "supabase" } });
