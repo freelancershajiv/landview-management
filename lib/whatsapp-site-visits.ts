@@ -1,5 +1,12 @@
 import { normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
 
+type SiteVisitWhatsAppMedia = {
+  kind?: "visit" | "problem";
+  mimeType?: string;
+  base64?: string;
+  caption?: string;
+};
+
 type SiteVisitWhatsAppPayload = {
   visitId: string;
   projectId: string;
@@ -24,6 +31,7 @@ type SiteVisitWhatsAppPayload = {
   visitPhotoMimeType?: string;
   problemPhotoBase64?: string;
   problemPhotoMimeType?: string;
+  mediaItems?: SiteVisitWhatsAppMedia[];
 };
 
 export type SiteVisitWhatsAppResult = {
@@ -76,14 +84,37 @@ async function recordSiteVisitWhatsAppResult(
   return result;
 }
 
+function mediaCaption(payload: SiteVisitWhatsAppPayload, kind: "visit" | "problem", index: number, total: number) {
+  const label = kind === "problem" ? "Site Problem Photo" : "Site Visit Photo";
+  const icon = kind === "problem" ? "⚠️" : "📷";
+  const sequence = total > 1 ? ` · ${index + 1}/${total}` : "";
+  return `${icon} LAND VIEW ${label}${sequence} · ${text(payload.projectId, 80)} · ${text(payload.visitId, 120)}`.slice(0, 700);
+}
+
 function directMedia(payload: SiteVisitWhatsAppPayload) {
+  const provided = Array.isArray(payload.mediaItems)
+    ? payload.mediaItems.filter((item) => String(item?.base64 || "").trim())
+    : [];
+
+  if (provided.length) {
+    const total = provided.length;
+    return provided.slice(0, 8).map((item, index) => {
+      const kind = item.kind === "problem" ? "problem" : "visit";
+      return {
+        mimeType: text(item.mimeType || "image/jpeg", 80).toLowerCase(),
+        base64: String(item.base64 || "").trim(),
+        caption: text(item.caption, 700) || mediaCaption(payload, kind, index, total),
+      };
+    });
+  }
+
   const media: Array<{ mimeType: string; base64: string; caption: string }> = [];
   const visitBase64 = String(payload.visitPhotoBase64 || "").trim();
   if (visitBase64) {
     media.push({
       mimeType: text(payload.visitPhotoMimeType || "image/jpeg", 80).toLowerCase(),
       base64: visitBase64,
-      caption: `📷 LAND VIEW Site Visit Photo · ${text(payload.projectId, 80)} · ${text(payload.visitId, 120)}`.slice(0, 700),
+      caption: mediaCaption(payload, "visit", 0, 1),
     });
   }
   const problemBase64 = String(payload.problemPhotoBase64 || "").trim();
@@ -91,10 +122,10 @@ function directMedia(payload: SiteVisitWhatsAppPayload) {
     media.push({
       mimeType: text(payload.problemPhotoMimeType || "image/jpeg", 80).toLowerCase(),
       base64: problemBase64,
-      caption: `⚠️ LAND VIEW Site Problem Photo · ${text(payload.projectId, 80)} · ${text(payload.visitId, 120)}`.slice(0, 700),
+      caption: mediaCaption(payload, "problem", media.length, 2),
     });
   }
-  return media.slice(0, 2);
+  return media;
 }
 
 export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload) {
@@ -126,11 +157,12 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
     lines.push(`📍 https://maps.google.com/?q=${lat},${lon}`);
   }
 
-  if (!payload.visitPhotoBase64) {
+  const hasDirectMedia = directMedia(payload).length > 0;
+  if (!hasDirectMedia && !payload.visitPhotoBase64) {
     const visitPhotoUrl = text(payload.visitPhotoUrl, 1000);
     if (visitPhotoUrl) lines.push(`📷 *Site Photo:* ${visitPhotoUrl}`);
   }
-  if (!payload.problemPhotoBase64) {
+  if (!hasDirectMedia && !payload.problemPhotoBase64) {
     const problemPhotoUrl = text(payload.problemPhotoUrl, 1000);
     if (problemPhotoUrl) lines.push(`⚠️ *Problem Photo:* ${problemPhotoUrl}`);
   }
@@ -228,7 +260,6 @@ async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhats
     });
     await wakeBot(token, "/client/wake");
   } catch (error: any) {
-    // A missing/invalid client phone must never block the Site Visit.
     console.warn("[site-visit-client-whatsapp] queue skipped", {
       message: text(error?.message || "Client WhatsApp update could not be queued.", 500),
     });
@@ -257,9 +288,7 @@ async function waitForEmployeeWhatsApp(
       lastState = text(json?.connection, 80);
       lastError = text(json?.error || json?.lastError, 500);
 
-      if (response.ok && lastState === "open" && json?.paired !== false) {
-        return { ready: true };
-      }
+      if (response.ok && lastState === "open" && json?.paired !== false) return { ready: true };
       if (lastState === "pairing") {
         return { ready: false, reason: "WhatsApp needs to be linked from the employee dashboard before Site Visit updates can be sent." };
       }
@@ -294,9 +323,7 @@ async function sendFromEmployeeWhatsApp(
   if (!employeeId) return { status: "skipped", reason: "Employee ID is missing, so the WhatsApp sender cannot be selected." };
 
   const readiness = await waitForEmployeeWhatsApp(base, token, employeeId);
-  if (!readiness.ready) {
-    return { status: "skipped", reason: readiness.reason };
-  }
+  if (!readiness.ready) return { status: "skipped", reason: readiness.reason };
 
   const message = formatSiteVisitWhatsAppMessage(payload);
   const media = directMedia(payload);
@@ -310,14 +337,9 @@ async function sendFromEmployeeWhatsApp(
           "Content-Type": "application/json",
           "x-land-view-bot-token": token,
         },
-        body: JSON.stringify({
-          employeeId,
-          groupInviteCode,
-          message,
-          media,
-        }),
+        body: JSON.stringify({ employeeId, groupInviteCode, message, media }),
         cache: "no-store",
-        signal: AbortSignal.timeout(45_000),
+        signal: AbortSignal.timeout(60_000),
       });
       const json = await response.json().catch(() => null) as any;
 
@@ -337,14 +359,10 @@ async function sendFromEmployeeWhatsApp(
 
       lastReason = text(json?.error || `Employee WhatsApp service returned HTTP ${response.status}.`, 500);
       const retryable = [429, 502, 503, 504].includes(response.status);
-      if (!retryable || attempt === 3) {
-        return { status: "failed", reason: lastReason };
-      }
+      if (!retryable || attempt === 3) return { status: "failed", reason: lastReason };
     } catch (error: any) {
       lastReason = text(error?.message || "Employee WhatsApp send request failed.", 500);
-      if (attempt === 3) {
-        return { status: "failed", reason: lastReason };
-      }
+      if (attempt === 3) return { status: "failed", reason: lastReason };
     }
 
     await sleep(1_500 * attempt);
