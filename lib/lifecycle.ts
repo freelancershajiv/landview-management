@@ -24,18 +24,18 @@ export function isProjectLifecyclePhase(value: unknown): value is ProjectLifecyc
 }
 
 export function projectStageUpdates(phase: ProjectLifecyclePhase) {
+  // Only change the stage we are entering plus stages that are definitely behind us.
+  // Future stage statuses are intentionally preserved so a required Supervision stage
+  // cannot be accidentally marked Completed while moving Design -> Approval.
   if (phase === "Design Stage") {
     return {
       design_stage_status: "In Progress",
-      approval_stage_status: "Pending",
-      supervision_stage_status: "Completed",
     };
   }
   if (phase === "Approval Stage") {
     return {
       design_stage_status: "Completed",
       approval_stage_status: "In Progress",
-      supervision_stage_status: "Completed",
     };
   }
   if (phase === "Supervision / Construction Stage") {
