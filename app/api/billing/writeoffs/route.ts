@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
-import { employeeCodeOf, roleOf, selectRows, supabaseGateway } from "@/lib/supabase-data";
+import { employeeCodeOf, normalizeProjectCode, roleOf, selectRows, supabaseGateway } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,7 +71,8 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json() as Record<string, unknown>;
     const action = text(body.action, 40);
-    const projectCode = text(body.Project_ID || body.projectId, 60).toUpperCase();
+    const rawProjectCode = text(body.Project_ID || body.projectId, 60);
+    const projectCode = normalizeProjectCode(rawProjectCode);
     const category = text(body.Billing_Category || body.Category || body.category, 80);
     const amount = num(body.Amount || body.amount);
     const idempotencyKey = cleanKey(body.Idempotency_Key || body.idempotencyKey);
