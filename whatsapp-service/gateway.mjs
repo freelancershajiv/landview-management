@@ -26,6 +26,7 @@ if (!BOT_TOKEN) throw new Error('BOT_API_TOKEN is required.')
 let legacyProcess = null
 let shuttingDown = false
 let financeDrainTimer = null
+let financeDrainRunning = false
 
 function startLegacyService() {
   if (shuttingDown) return
@@ -346,7 +347,11 @@ async function legacyAdminRequest(path, init = {}) {
   const headers = new Headers(init.headers || {})
   headers.set('x-land-view-bot-token', BOT_TOKEN)
   if (init.body && !headers.has('content-type')) headers.set('content-type', 'application/json')
-  const response = await fetch(`http://127.0.0.1:${LEGACY_PORT}${path}`, { ...init, headers })
+  const response = await fetch(`http://127.0.0.1:${LEGACY_PORT}${path}`, {
+    ...init,
+    headers,
+    signal: init.signal || AbortSignal.timeout(30000),
+  })
   const raw = await response.text()
   let json = null
   try { json = raw ? JSON.parse(raw) : null } catch {}
@@ -408,16 +413,22 @@ async function processFinanceOutboxOnce() {
 }
 
 async function drainFinanceOutbox() {
-  if (FINANCE_EMPLOYEE_ID === ADMIN_EMPLOYEE_ID) {
-    const status = await sharedAdminStatus(FINANCE_EMPLOYEE_ID)
-    if (status.connection !== 'open' || !status.paired) return
-  } else {
-    const session = employeeSessionFor(FINANCE_EMPLOYEE_ID)
-    await session.connect()
-    if (!session.state.sock || session.state.connection !== 'open') return
-  }
-  for (let i = 0; i < 20; i += 1) {
-    if (!await processFinanceOutboxOnce()) break
+  if (financeDrainRunning) return
+  financeDrainRunning = true
+  try {
+    if (FINANCE_EMPLOYEE_ID === ADMIN_EMPLOYEE_ID) {
+      const status = await sharedAdminStatus(FINANCE_EMPLOYEE_ID)
+      if (status.connection !== 'open' || !status.paired) return
+    } else {
+      const session = employeeSessionFor(FINANCE_EMPLOYEE_ID)
+      await session.connect()
+      if (!session.state.sock || session.state.connection !== 'open') return
+    }
+    for (let i = 0; i < 20; i += 1) {
+      if (!await processFinanceOutboxOnce()) break
+    }
+  } finally {
+    financeDrainRunning = false
   }
 }
 
