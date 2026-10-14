@@ -92,7 +92,9 @@ function toLedgerRow(row: DbRow): LedgerRow {
   };
 }
 async function loadLedgerRows() {
-  const rows = await selectRows("transactions", { limit: 5000 });
+  // The gateway paginates in 1,000-row chunks. A stable unique order prevents
+  // any transaction from being skipped or duplicated between those pages.
+  const rows = await selectRows("transactions", { order: "id:asc", limit: 5000 });
   return rows.map(toLedgerRow).filter((row) => row.id && row.date && (row.debit > 0 || row.credit > 0) && isLedgerTransaction(row));
 }
 function buildState(rows: LedgerRow[], openingBalance = 0, statementDisplay = false) {
