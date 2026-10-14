@@ -296,7 +296,7 @@ async function proposalAction(user: Row, input: Row) {
 async function financeSheet(tab: string) {
   const now = new Date().toISOString();
   if (tab === "Transactions") {
-    const [transactions, projects, accounts] = await Promise.all([selectRows("transactions", { order: "transaction_date:asc", limit: 5000 }), selectRows("projects", { limit: 5000 }), selectRows("accounts", { limit: 1000 })]);
+    const [transactions, projects, accounts] = await Promise.all([selectRows("transactions", { order: "transaction_date:asc,id:asc", limit: 5000 }), selectRows("projects", { limit: 5000 }), selectRows("accounts", { limit: 1000 })]);
     const projectMap = new Map(projects.map(row => [row.id, row.project_code]));
     const accountMap = new Map(accounts.map(row => [row.id, row.account_name || row.account_code]));
     const headers = ["Transaction_ID","Transaction_Date","Transaction_Type","Source_Type","Source_ID","Project_ID","Account","Category","Description","Debit","Credit","Reference_No","Status","Direction","Amount","Payment_Method","Created_By"];
