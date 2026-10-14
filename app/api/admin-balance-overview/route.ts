@@ -78,7 +78,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
     }
 
-    const transactions = await selectRows("transactions", { order: "transaction_date:asc", limit: 5000 });
+    // The data gateway reads large result sets in 1,000-row pages. Always use
+    // a unique tiebreaker so rows sharing the same transaction date cannot be
+    // skipped or duplicated between pages.
+    const transactions = await selectRows("transactions", {
+      order: "transaction_date:asc,id:asc",
+      limit: 5000,
+    });
 
     let currentBalance = 0;
     let municipalityBalance = 0;
