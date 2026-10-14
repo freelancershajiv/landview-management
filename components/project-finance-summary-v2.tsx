@@ -35,7 +35,7 @@ function buildSnapshot(data: any): Snapshot {
   const fundsReceived = entries.reduce((sum: number, row: any) => sum + num(row.debit), 0);
   const expensesPaid = entries.reduce((sum: number, row: any) => sum + num(row.credit), 0);
   const chequeOnHold = entries.reduce((sum: number, row: any) => sum + num(row.cheque_on_hold), 0);
-  const cashInHand = Math.round((fundsReceived - expensesPaid) * 100) / 100;
+  const cashInHand = Math.round((fundsReceived - expensesPaid - chequeOnHold) * 100) / 100;
   const chronological = entries.slice().sort((a: any, b: any) => {
     const date = String(a.entry_date || "").localeCompare(String(b.entry_date || ""));
     if (date) return date;
@@ -157,7 +157,7 @@ export default function ProjectFinanceSummaryV2() {
         <div>
           <span className="pf-summary-v2-kicker">PROJECT CASH POSITION</span>
           <h2>Finance Snapshot</h2>
-          <p>Simple accounting: funds received − expenses = cash in hand. Held cheques are tracked separately.</p>
+          <p>Available cash = funds received − expenses paid − cheques still on hold.</p>
         </div>
         <div className={`pf-summary-v2-status ${reconciled ? "is-balanced" : "is-warning"}`}>
           <span>{reconciled ? "RECONCILED" : "CHECK REQUIRED"}</span>
@@ -181,17 +181,17 @@ export default function ProjectFinanceSummaryV2() {
         <article>
           <span>Cheque on Hold</span>
           <strong>{snapshot ? money(snapshot.chequeOnHold) : "—"}</strong>
-          <small>Tracked separately; not deducted from ledger cash</small>
+          <small>Excluded from available cash until released / cashed</small>
         </article>
         <article className="is-primary">
-          <span>Eng Shajiv · Cash in Hand</span>
+          <span>Eng Shajiv · Available Cash</span>
           <strong>{snapshot ? money(snapshot.cashInHand) : "—"}</strong>
-          <small>{snapshot ? `${snapshot.entries.toLocaleString("en-BD")} ledger entries · ${reconciled ? "matches running cash balance" : `ledger shows ${money(snapshot.ledgerCashInHand)}`}` : "Loading finance position…"}</small>
+          <small>{snapshot ? `${snapshot.entries.toLocaleString("en-BD")} ledger entries · ${reconciled ? "matches running available cash" : `ledger shows ${money(snapshot.ledgerCashInHand)}`}` : "Loading finance position…"}</small>
         </article>
       </div>
 
       <div className="pf-summary-v2-equation">
-        <span>Funds Received</span><b>−</b><span>Expenses</span><b>=</b><strong>Cash in Hand</strong>
+        <span>Funds Received</span><b>−</b><span>Expenses</span><b>−</b><span>Cheque on Hold</span><b>=</b><strong>Available Cash</strong>
       </div>
     </section>,
     mount,
