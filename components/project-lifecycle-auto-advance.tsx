@@ -52,6 +52,10 @@ export default function ProjectLifecycleAutoAdvance() {
     }
   }
 
+  function refreshWorkspaceSoon() {
+    window.setTimeout(() => window.location.reload(), 450);
+  }
+
   async function advanceReadyStage() {
     if (!projectId || busy) return;
     setBusy(true);
@@ -60,8 +64,10 @@ export default function ProjectLifecycleAutoAdvance() {
     try {
       const result = await requestAutomation(projectId, "POST", { projectId, action: "advanceReadyStage" });
       if (result?.state) setState(result.state);
-      if (!result?.noOp) setNotice(`${result.fromPhase} completed. Project moved to ${result.toPhase}.`);
-      window.dispatchEvent(new CustomEvent("landview:lifecycle-changed", { detail: { projectId } }));
+      if (!result?.noOp) {
+        setNotice(`${result.fromPhase} completed. Project moved to ${result.toPhase}.`);
+        refreshWorkspaceSoon();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not advance lifecycle.");
     } finally {
@@ -79,8 +85,10 @@ export default function ProjectLifecycleAutoAdvance() {
     try {
       const result = await requestAutomation(projectId, "POST", { projectId, action: "closeSupervision" });
       if (result?.state) setState(result.state);
-      if (!result?.noOp) setNotice("Supervision closed. Project moved to Handover.");
-      window.dispatchEvent(new CustomEvent("landview:lifecycle-changed", { detail: { projectId } }));
+      if (!result?.noOp) {
+        setNotice("Supervision closed. Project moved to Handover.");
+        refreshWorkspaceSoon();
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not close supervision.");
     } finally {
@@ -113,6 +121,8 @@ export default function ProjectLifecycleAutoAdvance() {
 
   const blockerCount = state?.blockers?.length || 0;
   const tone = error ? "bad" : state?.ready ? "good" : state?.requiresManualClose ? "warn" : "neutral";
+  const total = state?.total || 0;
+  const completed = state?.completed || 0;
 
   return <section className={`laa-shell ${tone}`}>
     <style>{`
@@ -133,7 +143,7 @@ export default function ProjectLifecycleAutoAdvance() {
         <div className="laa-detail">{error || state?.message || "Checking current stage requirements…"}</div>
       </div>
       <div className="laa-actions">
-        {state?.total > 0 && <span className="laa-pill">{state.completed}/{state.total} complete</span>}
+        {total > 0 && <span className="laa-pill">{completed}/{total} complete</span>}
         {state?.autoEligible && !state.ready && <span className="laa-pill">Auto handoff armed</span>}
         {state?.autoEligible && state.ready && <span className="laa-pill">{busy ? "Advancing…" : "Ready"}</span>}
         {state?.requiresManualClose && <button className="laa-btn primary" disabled={busy} onClick={() => void closeSupervision()}>{busy ? "Closing…" : "Close Supervision & Start Handover"}</button>}
