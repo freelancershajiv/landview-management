@@ -15,6 +15,13 @@ type ConversionPlan = {
   supervisionRequired: boolean;
 };
 
+type InitialLifecycle = {
+  phase: "Design Stage" | "Approval Stage" | "Supervision / Construction Stage" | "Handover";
+  designStatus: string;
+  approvalStatus: string;
+  supervisionStatus: string;
+};
+
 function text(value: unknown, max = 1000) {
   return String(value ?? "").trim().slice(0, max);
 }
@@ -64,7 +71,11 @@ async function conversionUser(request: NextRequest) {
 }
 
 function normalizeService(item: Row) {
-  return `${text(item.service)} ${text(item.description)} ${text(item.category)}`.toLowerCase().replace(/[-_/]+/g, " ").replace(/\s+/g, " ").trim();
+  return `${text(item.service)} ${text(item.description)} ${text(item.category)}`
+    .toLowerCase()
+    .replace(/[-_/]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function designDefinition(item: Row) {
@@ -98,7 +109,9 @@ function taskDefinition(item: Row) {
     const detail = text(item.description);
     return { title: detail ? `Soil Test - ${detail}` : "Soil Test", description: "Proposal service carried into the project workflow." };
   }
-  if (/site visit/.test(value)) return { title: text(item.service) || "Site Visit", description: text(item.description) || "Proposal service carried into the project workflow." };
+  if (/site visit/.test(value)) {
+    return { title: text(item.service) || "Site Visit", description: text(item.description) || "Proposal service carried into the project workflow." };
+  }
   return null;
 }
 
@@ -122,6 +135,39 @@ function buildPlan(items: Row[]): ConversionPlan {
   return { design, approvals, tasks, supervisionRequired };
 }
 
+function initialLifecycle(plan: ConversionPlan): InitialLifecycle {
+  if (plan.design.length) {
+    return {
+      phase: "Design Stage",
+      designStatus: "In Progress",
+      approvalStatus: plan.approvals.length ? "Pending" : "Completed",
+      supervisionStatus: plan.supervisionRequired ? "Pending" : "Completed",
+    };
+  }
+  if (plan.approvals.length) {
+    return {
+      phase: "Approval Stage",
+      designStatus: "Completed",
+      approvalStatus: "In Progress",
+      supervisionStatus: plan.supervisionRequired ? "Pending" : "Completed",
+    };
+  }
+  if (plan.supervisionRequired) {
+    return {
+      phase: "Supervision / Construction Stage",
+      designStatus: "Completed",
+      approvalStatus: "Completed",
+      supervisionStatus: "In Progress",
+    };
+  }
+  return {
+    phase: "Handover",
+    designStatus: "Completed",
+    approvalStatus: "Completed",
+    supervisionStatus: "Completed",
+  };
+}
+
 async function nextProjectNumber() {
   const rows = await selectRows("projects", { limit: 5000 });
   let max = 0;
@@ -140,8 +186,11 @@ async function proposalData(proposalCode: string) {
   const rows = await selectRows("proposals", { filters: { proposal_code: proposalCode }, limit: 1 });
   if (!rows.length) throw new Error("Proposal not found.");
   const proposal = rows[0];
-  const items = await selectRows("proposal_items", { filters: { proposal_code: proposalCode }, order: "sort_order:asc", limit: 1000 });
-  return { proposal, items };
+  const [items, prospects] = await Promise.all([
+    selectRows("proposal_items", { filters: { proposal_code: proposalCode }, order: "sort_order:asc", limit: 1000 }),
+    proposal.prospect_code ? selectRows("prospective_clients", { filters: { prospect_code: proposal.prospect_code }, limit: 1 }) : Promise.resolve([]),
+  ]);
+  return { proposal, items, prospect: prospects[0] || null };
 }
 
 function billingCategory(item: Row) {
@@ -162,12 +211,15 @@ function allocateBills(items: Row[], proposal: Row) {
   const gross = active.reduce((sum, entry) => sum + entry.amount, 0);
   const proposalDiscount = Math.max(0, numberOf(proposal.discount));
   const acceptedNet = Math.max(0, numberOf(proposal.net_amount));
-  const targetDiscount = gross > 0 ? Math.min(gross, proposalDiscount || Math.max(0, gross - acceptedNet)) : 0;
+  const inferredDiscount = acceptedNet > 0 && acceptedNet <= gross ? Math.max(0, gross - acceptedNet) : 0;
+  const targetDiscount = gross > 0 ? Math.min(gross, proposalDiscount || inferredDiscount) : 0;
   let allocated = 0;
 
   return active.map((entry, index) => {
     const isLast = index === active.length - 1;
-    const share = isLast ? Math.max(0, targetDiscount - allocated) : Math.round((targetDiscount * entry.amount / gross) * 100) / 100;
+    const share = isLast
+      ? Math.round(Math.max(0, targetDiscount - allocated) * 100) / 100
+      : Math.round((targetDiscount * entry.amount / gross) * 100) / 100;
     allocated += share;
     const category = billingCategory(entry.item);
     const service = text(entry.item.service) || text(entry.item.description) || "Service";
@@ -186,6 +238,7 @@ function allocateBills(items: Row[], proposal: Row) {
 async function preview(proposalCode: string) {
   const { proposal, items } = await proposalData(proposalCode);
   const plan = buildPlan(items);
+  const lifecycle = initialLifecycle(plan);
   const alreadyConverted = text(proposal.converted_project_code);
   const nextNumber = await nextProjectNumber();
   return {
@@ -193,6 +246,7 @@ async function preview(proposalCode: string) {
     status: text(proposal.status) || "Draft",
     alreadyConvertedProjectId: alreadyConverted,
     nextProjectId: alreadyConverted || projectCodeFor(nextNumber),
+    initialLifecyclePhase: lifecycle.phase,
     netAmount: numberOf(proposal.net_amount),
     discount: numberOf(proposal.discount),
     designDeliverables: plan.design.map((row) => row.title),
@@ -225,7 +279,7 @@ export async function POST(request: NextRequest) {
     proposalId = text(input.proposalId || input.Proposal_ID, 200);
     if (!proposalId) throw new Error("Proposal ID is required.");
 
-    const { proposal, items } = await proposalData(proposalId);
+    const { proposal, items, prospect } = await proposalData(proposalId);
     const existingConverted = text(proposal.converted_project_code);
     if (existingConverted) {
       const project = await selectRows("projects", { filters: { project_code: existingConverted }, limit: 1 });
@@ -236,6 +290,7 @@ export async function POST(request: NextRequest) {
     const actor = userIdOf(user) || text(user.employeeId || user.Employee_ID || user.username || user.Username, 200);
     const now = new Date().toISOString();
     const plan = buildPlan(items);
+    const lifecycle = initialLifecycle(plan);
     const billPlan = allocateBills(items, proposal);
     let sequence = await nextProjectNumber();
     let projectCode = "";
@@ -254,28 +309,49 @@ export async function POST(request: NextRequest) {
         phone_number_snapshot: text(proposal.phone) || null,
         client_email_snapshot: text(proposal.email) || null,
         client_address_snapshot: text(proposal.address) || null,
-        referred_by: text(proposal.referred_by) || null,
-        ref_contact: text(proposal.ref_contact) || null,
+        referred_by: text(proposal.referred_by || prospect?.referred_by) || null,
+        ref_contact: text(proposal.ref_contact || prospect?.ref_contact) || null,
         project_type: text(proposal.project_type) || null,
         location: text(proposal.project_location) || null,
+        location_tag: text(proposal.location_tag) || null,
         plot_area: plot !== null && plot >= 0 ? plot : null,
         floors: floors !== null && floors >= 0 ? floors : null,
         project_area_text: rawPlot || null,
         number_of_stories_text: rawFloors || null,
-        start_date: now.slice(0, 10),
+        start_date: text(proposal.start_date) || now.slice(0, 10),
         design_bill: 0,
         status: "Running",
         notes: `Converted automatically from proposal ${proposalId}${text(proposal.notes) ? `\n${text(proposal.notes)}` : ""}`,
         public_display: false,
         record_type: "project",
         reclassified_proposal_code: proposalId,
-        lifecycle_phase: "Design Stage",
+        lifecycle_phase: lifecycle.phase,
         lifecycle_changed_at: now,
         lifecycle_changed_by: actor || null,
-        design_stage_status: plan.design.length ? "In Progress" : "Not Required",
-        approval_stage_status: plan.approvals.length ? "Pending" : "Not Required",
-        supervision_stage_status: plan.supervisionRequired ? "Pending" : "Not Required",
+        design_stage_status: lifecycle.designStatus,
+        approval_stage_status: lifecycle.approvalStatus,
+        supervision_stage_status: lifecycle.supervisionStatus,
         project_management_enabled: false,
+        site_latitude: proposal.site_latitude ?? null,
+        site_longitude: proposal.site_longitude ?? null,
+        site_location_accuracy_m: proposal.site_location_accuracy_m ?? null,
+        site_location_captured_at: proposal.site_location_captured_at || null,
+        site_notes: text(proposal.site_notes) || null,
+        site_geofence_radius_m: proposal.site_geofence_radius_m ?? 100,
+        division: text(proposal.division) || null,
+        district: text(proposal.district) || null,
+        upazila_thana: text(proposal.upazila_thana) || null,
+        local_body_type: text(proposal.local_body_type) || null,
+        local_body_name: text(proposal.local_body_name) || null,
+        ward_no: text(proposal.ward_no) || null,
+        village_area: text(proposal.village_area) || null,
+        road_holding: text(proposal.road_holding) || null,
+        mouza: text(proposal.mouza) || null,
+        jl_no: text(proposal.jl_no) || null,
+        dag_no: text(proposal.dag_no) || null,
+        khatian_no: text(proposal.khatian_no) || null,
+        source_lead_id: proposal.source_lead_id || null,
+        source_lead_code: text(proposal.source_lead_code) || null,
         created_at: now,
         updated_at: now,
       };
@@ -380,7 +456,7 @@ export async function POST(request: NextRequest) {
       project_id: project.id,
       project_code: projectCode,
       from_phase: "Project Registered",
-      to_phase: "Design Stage",
+      to_phase: lifecycle.phase,
       transition_type: "registration",
       reason: `Project registered from accepted proposal ${proposalId}.`,
       changed_by: actor || null,
@@ -397,7 +473,9 @@ export async function POST(request: NextRequest) {
       lifecycle_changed_by: actor || null,
       updated_at: now,
     });
-    if (text(proposal.prospect_code)) await updateRows("prospective_clients", { prospect_code: proposal.prospect_code }, { status: "Converted", updated_at: now });
+    if (text(proposal.prospect_code)) {
+      await updateRows("prospective_clients", { prospect_code: proposal.prospect_code }, { status: "Converted", updated_at: now });
+    }
 
     const prior = await selectRows("proposal_activity", { filters: { proposal_code: proposalId, action: "Converted to Project", reference: projectCode }, limit: 1 });
     if (!prior.length) {
@@ -417,6 +495,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    const billedNet = Math.round(billPlan.reduce((sum, row) => sum + row.netAmount, 0) * 100) / 100;
     await recordAuditEvent({
       user,
       request,
@@ -426,11 +505,11 @@ export async function POST(request: NextRequest) {
       after: {
         proposalId,
         projectId: projectCode,
-        lifecyclePhase: "Design Stage",
+        lifecyclePhase: lifecycle.phase,
         designDeliverables: plan.design.length,
         approvalRequirements: plan.approvals.length,
         workflowTasks: plan.tasks.length,
-        billedNet: billPlan.reduce((sum, row) => sum + row.netAmount, 0),
+        billedNet,
       },
       source: "proposal-auto-conversion",
     });
@@ -438,17 +517,28 @@ export async function POST(request: NextRequest) {
     return json({ success: true, data: {
       projectId: projectCode,
       proposalId,
-      lifecyclePhase: "Design Stage",
+      lifecyclePhase: lifecycle.phase,
       designDeliverables: plan.design.length,
       approvalRequirements: plan.approvals.length,
       workflowTasks: plan.tasks.length,
       billingLines: billPlan.length,
-      billedNet: billPlan.reduce((sum, row) => sum + row.netAmount, 0),
+      billedNet,
       supervisionRequired: plan.supervisionRequired,
     } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not convert proposal.";
-    if (user) await recordAuditEvent({ user, request, action: "proposal_auto_conversion", entityType: "proposal", entityId: proposalId, outcome: "failure", details: { error: message }, source: "proposal-auto-conversion" });
+    if (user) {
+      await recordAuditEvent({
+        user,
+        request,
+        action: "proposal_auto_conversion",
+        entityType: "proposal",
+        entityId: proposalId,
+        outcome: "failure",
+        details: { error: message },
+        source: "proposal-auto-conversion",
+      });
+    }
     const status = /session/i.test(message) ? 401 : /permission/i.test(message) ? 403 : /not found/i.test(message) ? 404 : 400;
     return json({ success: false, error: message }, status);
   }
