@@ -320,7 +320,6 @@ export async function POST(request: NextRequest) {
         number_of_stories_text: rawFloors || null,
         start_date: text(proposal.start_date) || now.slice(0, 10),
         design_bill: 0,
-        status: "Running",
         notes: `Converted automatically from proposal ${proposalId}${text(proposal.notes) ? `\n${text(proposal.notes)}` : ""}`,
         public_display: false,
         record_type: "project",
