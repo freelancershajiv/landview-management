@@ -70,7 +70,6 @@ export default function ProjectFinanceReportPage(){
     return {selectedMonth,start,end,period,opening,deposits,expenses,net:deposits-expenses,closing};
   },[entries,month,availableMonths]);
 
-  const summary=data?.summary||{};
   const availableProjects=data?.projects||[];
   const period=statement.period;
 
@@ -80,7 +79,7 @@ export default function ProjectFinanceReportPage(){
   const isSattapurSupplier=(contract:any)=>
     String(contract?.party_type||"").trim().toLowerCase()==="supplier" &&
     String(contract?.category||"").trim().toLowerCase()==="bricks" &&
-    String(contract?.contractor_name||"").trim().toLowerCase().replace(/\\s+/g," ").trim()==="sattapur";
+    String(contract?.contractor_name||"").trim().toLowerCase().replace(/\s+/g," ").trim()==="sattapur";
 
   const monthlySupplierAdvance=useMemo(()=>{
     const contracts=Array.isArray(data?.contractorBills?.contracts)?data.contractorBills.contracts:[];
@@ -96,7 +95,8 @@ export default function ProjectFinanceReportPage(){
       const paidToDate=(Array.isArray(contract?.payments)?contract.payments:[])
         .filter((payment:any)=>isBeforeMonthEnd(payment?.date))
         .reduce((s:number,payment:any)=>s+num(payment?.amount),0);
-      return sum+Math.max(0,certifiedToDate-paidToDate);
+      // Supplier advance is cash already paid ahead of certified/delivered value.
+      return sum+Math.max(0,paidToDate-certifiedToDate);
     },0);
   },[data,monthEnd]);
 
@@ -115,7 +115,9 @@ export default function ProjectFinanceReportPage(){
   const monthEndCredit=useMemo(()=>entries
     .filter((r:any)=>isBeforeMonthEnd(r.entry_date))
     .reduce((s:number,r:any)=>s+num(r.credit),0),[entries,monthEnd]);
-  const monthEndEngShajivBalance=monthEndDebit-monthEndCredit-monthlySupplierAdvance-monthlyChequeOnHold;
+  // Supplier payments are already included in project expenses, so supplier
+  // advance is informational and must not be deducted a second time.
+  const monthEndEngShajivBalance=monthEndDebit-monthEndCredit-monthlyChequeOnHold;
 
   function chooseProject(code:string){
     const normalized=String(code||"").trim();
@@ -240,7 +242,7 @@ export default function ProjectFinanceReportPage(){
         </section>
 
         <section className="rpt-reconciliation">
-          <div><div><span>MONTH-END RECONCILIATION SNAPSHOT</span><strong>Items tracked outside the ledger balance</strong></div><p>Supplier advance and cheque on hold are separate from the bank-statement running balance. The figures below are calculated from project activity and reconciliation items up to the end of the selected month.</p></div>
+          <div><div><span>MONTH-END RECONCILIATION SNAPSHOT</span><strong>Available cash and tracked reconciliation items</strong></div><p>Supplier advance is shown for control purposes only because the cash payment is already included in project expenses. Cheques still on hold are excluded from Eng Shajiv available cash until released or cashed.</p></div>
           <div className="rpt-recon-values">
             <div><span>Supplier Advance (Month End)</span><strong>{money(monthlySupplierAdvance)}</strong></div>
             <div><span>Cheque on Hold (Month End)</span><strong>{money(monthlyChequeOnHold)}</strong></div>
@@ -298,7 +300,7 @@ export default function ProjectFinanceReportPage(){
           <div>
             <span>FINANCE CONTROL NOTE</span>
             <strong>Supplier advances and cheques on hold</strong>
-            <p>Supplier Advance and Cheque on Hold are tracked separately from the ledger running balance and are reflected in the Project Management reconciliation summary.</p>
+            <p>Supplier Advance is informational because the supplier payment is already part of project expenses. Cheque on Hold is deducted from Eng Shajiv available cash until the cheque is released or cashed.</p>
           </div>
           <div className="rpt-note-values">
             <div><span>Supplier Advance (Month End)</span><strong>{money(monthlySupplierAdvance)}</strong></div>
@@ -349,6 +351,7 @@ const styles = `
   .no-print,.rpt-screen-toolbar{display:none!important}
   .rpt-page{background:#fff;padding:0}
   .rpt-shell{max-width:none}
+  .rpt-loading{display:none!important}
   .rpt-letterhead{grid-template-columns:1fr 1.35fr auto;gap:14px}
   .rpt-letterhead,.rpt-project-card,.rpt-account-bar,.rpt-summary-grid>div,.rpt-reconciliation,.rpt-statement,.rpt-note-box,.rpt-signoff{box-shadow:none}
   .rpt-letterhead{border-radius:0;border:1px solid #cfd8d4;border-left:5px solid #1d6b52;padding:10px 12px}
@@ -364,61 +367,59 @@ const styles = `
   .rpt-closing{margin-top:5px;border-radius:0;padding:7px 9px}.rpt-closing span{font-size:6px}.rpt-closing strong{font-size:7px}.rpt-closing .formula{font-size:7px}
   .rpt-note-box{margin-top:5px;border-radius:0;padding:7px 9px;display:flex;flex-direction:row}.rpt-note-box span{font-size:6px}.rpt-note-box strong{font-size:7px}.rpt-note-box p{font-size:5.5px}.rpt-note-values{grid-template-columns:repeat(3,minmax(100px,1fr));gap:0}.rpt-note-values>div{padding:0 9px;border-left:1px solid #e4dbc0;border-top:0;margin-top:0}.rpt-note-values strong{font-size:7px}.rpt-signoff{gap:18px;margin-top:8px;padding-top:7px}.rpt-signoff span{font-size:6px}.rpt-signoff strong{font-size:7px;margin-top:7px}.rpt-signoff i{font-size:5.5px}.rpt-footer{margin-top:6px;padding-top:5px;font-size:5.5px}
 }
-  @media print{
-    .rpt-page{min-height:0!important;background:#fff!important}
-    .rpt-shell{min-height:0!important}
-    .rpt-letterhead,.rpt-project-card,.rpt-account-bar,.rpt-controls,.rpt-summary-grid,.rpt-closing,.rpt-note-box,.rpt-signoff,.rpt-footer,.rpt-statement-head{display:none!important}
-    .rpt-page{background:#fff!important;padding:0!important}
-    .rpt-shell{max-width:none!important}
-    .rpt-statement{position:static!important;margin-top:3mm!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}
-    .print-only{display:block!important}
-    .print-ledger-header{border-bottom:.7mm solid #d61f26!important;padding:0 0 3.8mm!important;margin:0 0 3mm!important}
-    .print-brand-row{display:grid!important;grid-template-columns:1.05fr 1.15fr .95fr!important;gap:4.5mm!important;align-items:start!important}
-    .print-brand{display:flex!important;align-items:center!important;gap:2.6mm!important;min-width:0!important}
-    .print-brand img{display:block!important;width:15mm!important;height:15mm!important;object-fit:contain!important;flex:0 0 15mm!important}
-    .print-brand strong{display:block!important;font-size:15pt!important;line-height:.95!important;letter-spacing:-.4px!important;color:#111!important;white-space:nowrap!important}
-    .print-brand strong span{color:#d61f26!important}
-    .print-brand small{display:block!important;margin-top:1.2mm!important;font-size:5.8pt!important;letter-spacing:.75px!important;color:#666!important;white-space:nowrap!important}
-    .print-contact{font-size:6.4pt!important;line-height:1.45!important;color:#333!important;padding-top:.8mm!important}
-    .print-contact strong{display:block!important;font-size:6.7pt!important;color:#111!important;margin-bottom:.4mm!important}
-    .print-title{text-align:right!important;min-width:0!important}
-    .print-title small{display:block!important;font-size:5.9pt!important;color:#666!important;line-height:1.35!important}
-    .print-title b{display:block!important;margin-top:1.1mm!important;font-size:10.5pt!important;color:#d61f26!important;line-height:1.05!important}
-    .print-title strong{display:block!important;margin-top:1.2mm!important;font-size:12pt!important;color:#111!important;line-height:1.05!important}
-    .print-project-line{display:flex!important;justify-content:space-between!important;gap:4mm!important;margin:0 0 3mm!important;padding:2.2mm 2.8mm!important;border:.3mm solid #cfd5d9!important;background:#f6f7f8!important;font-size:6.3pt!important;color:#333!important}
-    .print-summary{display:grid!important;grid-template-columns:repeat(3,1fr)!important;border:.35mm solid #cfd5d9!important;margin:0 0 3.8mm!important;background:#fff!important}
-    .print-summary div{min-height:14mm!important;padding:2.5mm 3mm!important;border-right:.3mm solid #cfd5d9!important;border-bottom:.3mm solid #cfd5d9!important;display:flex!important;flex-direction:column!important;justify-content:center!important;box-sizing:border-box!important}
-    .print-summary div:nth-child(3n){border-right:0!important}.print-summary div:nth-last-child(-n+3){border-bottom:0!important}
-    .print-summary span{display:block!important;font-size:6.5pt!important;color:#555!important;text-transform:uppercase!important;letter-spacing:.35px!important}
-    .print-summary strong{display:block!important;margin-top:1.2mm!important;font-size:10.2pt!important;color:#111!important;font-variant-numeric:tabular-nums!important}
-    .print-summary .closing{background:#d61f26!important}.print-summary .closing span,.print-summary .closing strong{color:#fff!important}
-    .rpt-table-wrap{overflow:visible!important}
-    .rpt-statement table{width:100%!important;min-width:0!important;border-collapse:collapse!important;table-layout:fixed!important}
-    .rpt-statement thead{display:table-header-group!important}
-    .rpt-statement tfoot{display:none!important}
-    .rpt-statement tbody{background:#fff!important}
-    .print-month-total{display:grid!important;grid-template-columns:1fr 1fr 1fr 1fr!important;margin-top:3mm!important;border:.3mm solid #cfd5d9!important;background:#fff!important;break-inside:avoid!important;page-break-inside:avoid!important;break-before:avoid-page!important;page-break-before:avoid!important}
-    .print-month-total>*{padding:2mm 2.5mm!important;border-right:.3mm solid #cfd5d9!important;font-size:6.5pt!important;color:#111!important;box-sizing:border-box!important}
-    .print-month-total>*:last-child{border-right:0!important}.print-month-total span{display:block!important;font-weight:900!important;letter-spacing:.3px!important}.print-month-total small{display:block!important;margin-top:.5mm!important;color:#666!important;font-size:5.3pt!important}.print-month-total strong{text-align:right!important;font-variant-numeric:tabular-nums!important}
-    .print-page-number{display:block!important;position:fixed!important;right:0!important;bottom:-5mm!important;font-size:6pt!important;color:#666!important}
-    .print-page-number:after{content:"Page " counter(page)!important}
-    .rpt-statement th{position:static!important;background:#34393d!important;color:#fff!important;font-size:6.5pt!important;padding:1.75mm 1.35mm!important;border:.25mm solid #34393d!important;line-height:1.05!important;vertical-align:middle!important}
-    .rpt-statement td{font-size:6.55pt!important;color:#111!important;background:#fff!important;padding:1.55mm 1.35mm!important;border:.25mm solid #cfd5d9!important;line-height:1.18!important;vertical-align:top!important;overflow-wrap:break-word!important}
-    .rpt-statement tbody tr:nth-child(even) td{background:#f7f8f9!important}
-    .rpt-statement tr{break-inside:avoid!important;page-break-inside:avoid!important}
-    .rpt-statement th:nth-child(1),.rpt-statement td:nth-child(1){width:13%!important}
-    .rpt-statement th:nth-child(2),.rpt-statement td:nth-child(2){width:49%!important}
-    .rpt-statement th:nth-child(3),.rpt-statement td:nth-child(3){width:13%!important}
-    .rpt-statement th:nth-child(4),.rpt-statement td:nth-child(4){width:13%!important}
-    .rpt-statement th:nth-child(5),.rpt-statement td:nth-child(5){width:12%!important}
-    .rpt-statement td.num,.rpt-statement th.num{text-align:right!important;white-space:nowrap!important;font-variant-numeric:tabular-nums!important}
-    .rpt-statement td strong{font-size:6.6pt!important;color:#111!important;font-weight:700!important}.rpt-statement td small{font-size:5.5pt!important;color:#555!important;margin-top:.5mm!important}
-    .rpt-statement td.balance{font-weight:800!important;color:#111!important;background:#eef3f1!important}
-    .ledger-total-row>td:first-child span{font-size:6.1pt!important}.ledger-total-row>td:first-child small{font-size:5.3pt!important;color:#c9d0d4!important}
-    .opening-line td{background:#f1f3f4!important;font-weight:800!important}
-    .opening-line td.balance{background:#eef3f1!important}
-    .print-ledger-footer{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:5mm!important;margin-top:3mm!important;border-top:.45mm solid #d61f26!important;padding:1.8mm .8mm 0!important;font-size:6pt!important;line-height:1.25!important;color:#555!important;background:#fff!important;box-sizing:border-box!important;break-inside:avoid!important;page-break-inside:avoid!important;break-before:avoid-page!important;page-break-before:avoid!important}
-    .print-ledger-footer strong{color:#111!important;font-weight:800!important}
-    *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  }
+@media print{
+  .rpt-page{min-height:0!important;background:#fff!important;padding:0!important}
+  .rpt-shell{min-height:0!important;max-width:none!important}
+  .rpt-letterhead,.rpt-project-card,.rpt-account-bar,.rpt-controls,.rpt-summary-grid,.rpt-closing,.rpt-note-box,.rpt-signoff,.rpt-footer,.rpt-statement-head{display:none!important}
+  .rpt-statement{position:static!important;margin-top:3mm!important;border:0!important;border-radius:0!important;box-shadow:none!important;overflow:visible!important}
+  .print-only{display:block!important}
+  .print-ledger-header{border-bottom:.7mm solid #d61f26!important;padding:0 0 3.8mm!important;margin:0 0 3mm!important}
+  .print-brand-row{display:grid!important;grid-template-columns:1.05fr 1.15fr .95fr!important;gap:4.5mm!important;align-items:start!important}
+  .print-brand{display:flex!important;align-items:center!important;gap:2.6mm!important;min-width:0!important}
+  .print-brand img{display:block!important;width:15mm!important;height:15mm!important;object-fit:contain!important;flex:0 0 15mm!important}
+  .print-brand strong{display:block!important;font-size:15pt!important;line-height:.95!important;letter-spacing:-.4px!important;color:#111!important;white-space:nowrap!important}
+  .print-brand strong span{color:#d61f26!important}
+  .print-brand small{display:block!important;margin-top:1.2mm!important;font-size:5.8pt!important;letter-spacing:.75px!important;color:#666!important;white-space:nowrap!important}
+  .print-contact{font-size:6.4pt!important;line-height:1.45!important;color:#333!important;padding-top:.8mm!important}
+  .print-contact strong{display:block!important;font-size:6.7pt!important;color:#111!important;margin-bottom:.4mm!important}
+  .print-title{text-align:right!important;min-width:0!important}
+  .print-title small{display:block!important;font-size:5.9pt!important;color:#666!important;line-height:1.35!important}
+  .print-title b{display:block!important;margin-top:1.1mm!important;font-size:10.5pt!important;color:#d61f26!important;line-height:1.05!important}
+  .print-title strong{display:block!important;margin-top:1.2mm!important;font-size:12pt!important;color:#111!important;line-height:1.05!important}
+  .print-project-line{display:flex!important;justify-content:space-between!important;gap:4mm!important;margin:0 0 3mm!important;padding:2.2mm 2.8mm!important;border:.3mm solid #cfd5d9!important;background:#f6f7f8!important;font-size:6.3pt!important;color:#333!important}
+  .print-summary{display:grid!important;grid-template-columns:repeat(3,1fr)!important;border:.35mm solid #cfd5d9!important;margin:0 0 3.8mm!important;background:#fff!important}
+  .print-summary div{min-height:14mm!important;padding:2.5mm 3mm!important;border-right:.3mm solid #cfd5d9!important;border-bottom:.3mm solid #cfd5d9!important;display:flex!important;flex-direction:column!important;justify-content:center!important;box-sizing:border-box!important}
+  .print-summary div:nth-child(3n){border-right:0!important}.print-summary div:nth-last-child(-n+3){border-bottom:0!important}
+  .print-summary span{display:block!important;font-size:6.5pt!important;color:#555!important;text-transform:uppercase!important;letter-spacing:.35px!important}
+  .print-summary strong{display:block!important;margin-top:1.2mm!important;font-size:10.2pt!important;color:#111!important;font-variant-numeric:tabular-nums!important}
+  .print-summary .closing{background:#d61f26!important}.print-summary .closing span,.print-summary .closing strong{color:#fff!important}
+  .rpt-table-wrap{overflow:visible!important}
+  .rpt-statement table{width:100%!important;min-width:0!important;border-collapse:collapse!important;table-layout:fixed!important}
+  .rpt-statement thead{display:table-header-group!important}
+  .rpt-statement tfoot{display:none!important}
+  .rpt-statement tbody{background:#fff!important}
+  .print-month-total{display:grid!important;grid-template-columns:1fr 1fr 1fr 1fr!important;margin-top:3mm!important;border:.3mm solid #cfd5d9!important;background:#fff!important;break-inside:avoid!important;page-break-inside:avoid!important;break-before:avoid-page!important;page-break-before:avoid!important}
+  .print-month-total>*{padding:2mm 2.5mm!important;border-right:.3mm solid #cfd5d9!important;font-size:6.5pt!important;color:#111!important;box-sizing:border-box!important}
+  .print-month-total>*:last-child{border-right:0!important}.print-month-total span{display:block!important;font-weight:900!important;letter-spacing:.3px!important}.print-month-total small{display:block!important;margin-top:.5mm!important;color:#666!important;font-size:5.3pt!important}.print-month-total strong{text-align:right!important;font-variant-numeric:tabular-nums!important}
+  .print-page-number{display:block!important;position:fixed!important;right:0!important;bottom:-5mm!important;font-size:6pt!important;color:#666!important}
+  .print-page-number:after{content:"Page " counter(page)!important}
+  .rpt-statement th{position:static!important;background:#34393d!important;color:#fff!important;font-size:6.5pt!important;padding:1.75mm 1.35mm!important;border:.25mm solid #34393d!important;line-height:1.05!important;vertical-align:middle!important}
+  .rpt-statement td{font-size:6.55pt!important;color:#111!important;background:#fff!important;padding:1.55mm 1.35mm!important;border:.25mm solid #cfd5d9!important;line-height:1.18!important;vertical-align:top!important;overflow-wrap:break-word!important}
+  .rpt-statement tbody tr:nth-child(even) td{background:#f7f8f9!important}
+  .rpt-statement tr{break-inside:avoid!important;page-break-inside:avoid!important}
+  .rpt-statement th:nth-child(1),.rpt-statement td:nth-child(1){width:13%!important}
+  .rpt-statement th:nth-child(2),.rpt-statement td:nth-child(2){width:49%!important}
+  .rpt-statement th:nth-child(3),.rpt-statement td:nth-child(3){width:13%!important}
+  .rpt-statement th:nth-child(4),.rpt-statement td:nth-child(4){width:13%!important}
+  .rpt-statement th:nth-child(5),.rpt-statement td:nth-child(5){width:12%!important}
+  .rpt-statement td.num,.rpt-statement th.num{text-align:right!important;white-space:nowrap!important;font-variant-numeric:tabular-nums!important}
+  .rpt-statement td strong{font-size:6.6pt!important;color:#111!important;font-weight:700!important}.rpt-statement td small{font-size:5.5pt!important;color:#555!important;margin-top:.5mm!important}
+  .rpt-statement td.balance{font-weight:800!important;color:#111!important;background:#eef3f1!important}
+  .ledger-total-row>td:first-child span{font-size:6.1pt!important}.ledger-total-row>td:first-child small{font-size:5.3pt!important;color:#c9d0d4!important}
+  .opening-line td{background:#f1f3f4!important;font-weight:800!important}
+  .opening-line td.balance{background:#eef3f1!important}
+  .print-ledger-footer{display:flex!important;align-items:flex-start!important;justify-content:space-between!important;gap:5mm!important;margin-top:3mm!important;border-top:.45mm solid #d61f26!important;padding:1.8mm .8mm 0!important;font-size:6pt!important;line-height:1.25!important;color:#555!important;background:#fff!important;box-sizing:border-box!important;break-inside:avoid!important;page-break-inside:avoid!important;break-before:avoid-page!important;page-break-before:avoid!important}
+  .print-ledger-footer strong{color:#111!important;font-weight:800!important}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
 `;
