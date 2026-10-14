@@ -49,12 +49,12 @@ async function employeeRecord(user: Row) {
   return rows[0];
 }
 
-function enrichTasks(tasks: Row[], projects: Row[], employees: Row[]) {
+function enrichTasks(tasks: Row[], projects: Row[], employees: Row[]): Row[] {
   const projectById = new Map(projects.map((row) => [text(row.id), row]));
   const employeeById = new Map(employees.map((row) => [text(row.id), row]));
   const byCode = new Map(tasks.map((row) => [text(row.task_code), row]));
   const now = today();
-  return tasks.map((row) => {
+  return tasks.map((row): Row => {
     const project = projectById.get(text(row.project_id));
     const employee = employeeById.get(text(row.assigned_employee_id));
     const dependency = row.dependency_task_code ? byCode.get(text(row.dependency_task_code)) : null;
@@ -107,9 +107,9 @@ async function loadCenter(user: Row, request: NextRequest) {
   let tasks = project ? allTasks.filter((row) => text(row.project_id) === text(project.id)) : allTasks;
   const me = await employeeRecord(user);
   if (me) tasks = tasks.filter((row) => text(row.assigned_employee_id) === text(me.id));
-  const enriched = enrichTasks(tasks, projects, employees);
+  const enriched: Row[] = enrichTasks(tasks, projects, employees);
   const grouped = buckets(enriched);
-  const open = enriched.filter((row) => !row.is_closed);
+  const open: Row[] = enriched.filter((row) => !row.is_closed);
   return {
     role: roleOf(user),
     employee: me ? { id: me.id, employeeCode: me.employee_code, name: me.name, designation: me.designation } : null,
@@ -123,7 +123,7 @@ async function loadCenter(user: Row, request: NextRequest) {
       overdue: grouped.overdue.length,
       blocked: grouped.blocked.length,
       unassigned: grouped.unassigned.length,
-      requiredOpen: open.filter((row) => row.is_required).length,
+      requiredOpen: open.filter((row: Row) => row.is_required === true).length,
     },
     employees: employees.filter((row) => text(row.status).toLowerCase() !== "former").map((row) => ({ id: row.id, employeeCode: row.employee_code, name: row.name, designation: row.designation, status: row.status })),
     projects: projects.map((row) => ({ id: row.id, projectCode: row.project_code, projectName: row.project_name || row.client_name_snapshot, lifecyclePhase: row.lifecycle_phase })),
@@ -156,7 +156,7 @@ async function syncProjectTasks(projectCode: string, actor: string) {
     for (const template of templates) {
       const automationKey = responsibilityAutomationKey(projectCode, service, template.key);
       if (existingByKey.has(automationKey)) continue;
-      const row = {
+      const row: Row = {
         task_code: codeByTemplate.get(template.key) || taskCode(projectCode),
         project_id: project.id,
         task_title: template.title,
