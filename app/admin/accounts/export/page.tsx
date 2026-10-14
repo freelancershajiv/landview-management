@@ -23,6 +23,7 @@ type LedgerRow = {
 };
 
 const LIVE_LEDGER_START = "2026-09-01";
+const LIVE_LEDGER_END = "2026-12-31";
 const DHAKA_DATE = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Dhaka",
   year: "numeric",
@@ -222,8 +223,8 @@ export default function LedgerExportPage() {
       if (!row.id || !row.date || (!row.debit && !row.credit)) return false;
       if (row.isHistory) return true;
       if (normalizeStatus(row.status) !== "posted") return false;
-      if (row.type === "transfer") return false;
-      return row.date >= LIVE_LEDGER_START;
+      if (["transfer", "personal income", "personal expense"].includes(row.type)) return false;
+      return row.date >= LIVE_LEDGER_START && row.date <= LIVE_LEDGER_END;
     }).sort(compareLedgerRows);
 
     let balance = 0;
