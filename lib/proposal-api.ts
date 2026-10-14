@@ -50,6 +50,32 @@ export type ProposalBundle = {
   activity?: Record<string, unknown>[];
 };
 
+export type ProposalConversionPreview = {
+  proposalId: string;
+  status: string;
+  alreadyConvertedProjectId: string;
+  nextProjectId: string;
+  netAmount: number;
+  discount: number;
+  designDeliverables: string[];
+  approvalRequirements: string[];
+  workflowTasks: string[];
+  supervisionRequired: boolean;
+};
+
+export type ProposalConversionResult = {
+  projectId: string;
+  proposalId?: string;
+  alreadyConverted?: boolean;
+  lifecyclePhase?: string;
+  designDeliverables?: number;
+  approvalRequirements?: number;
+  workflowTasks?: number;
+  billingLines?: number;
+  billedNet?: number;
+  supervisionRequired?: boolean;
+};
+
 async function parse(response: Response) {
   const json = await response.json().catch(() => null);
   if (!response.ok || !json?.success) throw new Error(String(json?.error || json?.message || "Proposal request failed."));
@@ -101,4 +127,20 @@ export async function updateProposalAction(id: string, op: "print" | "status" | 
     body: JSON.stringify({ action: "updateErpRecord", module: "proposalsV2", id, op, ...data }),
   });
   return parse(response);
+}
+
+export async function getProposalConversionPreview(id: string): Promise<ProposalConversionPreview> {
+  const url = new URL("/api/proposal-conversion", window.location.origin);
+  url.searchParams.set("proposalId", id);
+  return parse(await fetch(url.toString(), { credentials: "same-origin", cache: "no-store" }));
+}
+
+export async function convertAcceptedProposal(id: string): Promise<ProposalConversionResult> {
+  return parse(await fetch("/api/proposal-conversion", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ proposalId: id }),
+  }));
 }
