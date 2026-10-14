@@ -1,4 +1,5 @@
 import AccountsBankStatementPage from "@/components/accounts-bank-statement-page";
+import AccountsCanonicalBalanceBridge from "@/components/accounts-canonical-balance-bridge";
 import AccountsInlineEntryBridge from "@/components/accounts-inline-entry-bridge";
 import LedgerOrderEnhancer from "@/components/ledger-order-enhancer";
 
@@ -8,6 +9,7 @@ export default function AccountsPage() {
       <AccountsBankStatementPage />
       <AccountsInlineEntryBridge />
       <LedgerOrderEnhancer />
+      <AccountsCanonicalBalanceBridge />
     </>
   );
 }
