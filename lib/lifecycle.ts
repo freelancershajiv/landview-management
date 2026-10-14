@@ -12,6 +12,7 @@ export const PROJECT_LIFECYCLE_PHASES = [
   "Design Stage",
   "Approval Stage",
   "Supervision / Construction Stage",
+  "Handover",
   "Completed",
 ] as const;
 
