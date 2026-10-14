@@ -1,5 +1,5 @@
 import AdminMobileDock from "@/components/admin-mobile-dock";
-import ManagementShellV2 from "@/components/management-shell-v2";
+import ManagementShellV3 from "@/components/management-shell-v3";
 import ProjectFinanceAdminModule from "@/components/project-finance-admin-module";
 import ProjectFinanceRouteController from "@/components/project-finance-route-controller";
 import ProjectFinancePartyEnhancer from "@/components/project-finance-party-enhancer";
@@ -44,7 +44,7 @@ export default async function ProjectFinanceLayout({ children }: Readonly<{ chil
 
   return (
     <>
-      <ManagementShellV2 initialUser={session.user}>
+      <ManagementShellV3 initialUser={session.user}>
         <div className="pf-redesign pf-management-shell">
           <ProjectFinancePartyEnhancer />
           <ProjectFinanceRouteController />
@@ -56,7 +56,7 @@ export default async function ProjectFinanceLayout({ children }: Readonly<{ chil
           <ProjectFinanceAdminModule />
           {children}
         </div>
-      </ManagementShellV2>
+      </ManagementShellV3>
       <AdminMobileDock />
     </>
   );
