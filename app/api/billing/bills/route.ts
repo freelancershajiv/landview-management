@@ -50,7 +50,7 @@ export async function PATCH(request: NextRequest) {
     if (!billId) return NextResponse.json({ success: false, error: "Bill ID is required." }, { status: 400 });
     const projectCode = normalizeProjectCode(body.Project_ID || body.projectId || "");
     const lookup = await findBillForProject(billId, projectCode);
-    if (lookup.error) return lookup.error;
+    if ("error" in lookup) return lookup.error;
 
     const category = text(body.Billing_Category || body.Category || body.category, 80);
     if (!BILL_CATEGORIES.has(category)) return NextResponse.json({ success: false, error: "Choose a valid billing category." }, { status: 400 });
@@ -95,7 +95,7 @@ export async function DELETE(request: NextRequest) {
     if (!billId) return NextResponse.json({ success: false, error: "Bill ID is required." }, { status: 400 });
     const projectCode = normalizeProjectCode(body.Project_ID || body.projectId || "");
     const lookup = await findBillForProject(billId, projectCode);
-    if (lookup.error) return lookup.error;
+    if ("error" in lookup) return lookup.error;
 
     await deleteRows("bills", { bill_code: billId });
     const remaining = await selectRows("bills", { filters: { bill_code: billId }, limit: 1 });
