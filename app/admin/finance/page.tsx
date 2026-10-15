@@ -183,12 +183,14 @@ export default function BillingPage() {
       const target = categories[canonical] || { gross: 0, discount: 0, billed: 0, paid: 0, writtenOff: 0, due: 0 };
       target.gross += amount(raw.gross);
       target.discount += amount(raw.discount);
-      target.billed += amount(raw.billed);
       target.paid += amount(raw.paid);
       categories[canonical] = target;
     }
     for (const category of BILL_CATEGORIES) {
       const target = categories[category] || { gross: 0, discount: 0, billed: 0, paid: 0, writtenOff: 0, due: 0 };
+      // Finance is the receivables view, so derive net billing from canonical
+      // category totals instead of trusting stored/per-line net amounts.
+      target.billed = Math.max(0, target.gross - target.discount);
       const rawDue = Math.max(0, target.billed - target.paid);
       const activeWriteOff = Math.min(rawDue, writeOffBalances.get(categoryKey(row.projectId, category)) || 0);
       target.writtenOff = activeWriteOff;
@@ -197,7 +199,11 @@ export default function BillingPage() {
     }
     const meta = projectMeta.get(normalizeProjectId(row.projectId));
     const values = Object.values(categories);
-    return { ...row, categories, writtenOff: values.reduce((sum, value) => sum + value.writtenOff, 0), due: values.reduce((sum, value) => sum + value.due, 0), phone: meta?.phone || "", address: meta?.address || "" };
+    const gross = values.reduce((sum, value) => sum + value.gross, 0);
+    const discount = values.reduce((sum, value) => sum + value.discount, 0);
+    const billed = values.reduce((sum, value) => sum + value.billed, 0);
+    const paid = values.reduce((sum, value) => sum + value.paid, 0);
+    return { ...row, gross, discount, billed, paid, categories, writtenOff: values.reduce((sum, value) => sum + value.writtenOff, 0), due: values.reduce((sum, value) => sum + value.due, 0), phone: meta?.phone || "", address: meta?.address || "" };
   }), [book, projectMeta, writeOffBalances]);
 
   const totals = useMemo(() => adjustedProjects.reduce((sum, row) => ({ gross: sum.gross + row.gross, discount: sum.discount + row.discount, billed: sum.billed + row.billed, paid: sum.paid + row.paid, writtenOff: sum.writtenOff + row.writtenOff, due: sum.due + row.due }), { gross: 0, discount: 0, billed: 0, paid: 0, writtenOff: 0, due: 0 }), [adjustedProjects]);
