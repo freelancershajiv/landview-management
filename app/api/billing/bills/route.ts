@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
-import { normalizeProjectCode, roleOf, selectRows, updateRows } from "@/lib/supabase-data";
+import { deleteRows, normalizeProjectCode, roleOf, selectRows, updateRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const EDIT_ROLES = new Set(["admin", "manager", "accounts"]);
+const REMOVE_ROLES = new Set(["admin", "manager"]);
 const BILL_CATEGORIES = new Set(["Engineering Bill", "Design Books", "Supervision Bill", "Other Services Bill"]);
 
 function sameOrigin(request: NextRequest) {
@@ -23,6 +24,20 @@ function date(value: unknown) {
   return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "";
 }
 
+async function findBillForProject(billId: string, projectCode: string) {
+  const found = await selectRows("bills", { filters: { bill_code: billId }, limit: 1 });
+  if (!found.length) return { error: NextResponse.json({ success: false, error: "Bill was not found." }, { status: 404 }) };
+  const current = found[0];
+
+  if (projectCode) {
+    const projects = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
+    if (!projects.length || projects[0].id !== current.project_id) {
+      return { error: NextResponse.json({ success: false, error: "This bill does not belong to the selected project." }, { status: 409 }) };
+    }
+  }
+  return { current };
+}
+
 export async function PATCH(request: NextRequest) {
   try {
     if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
@@ -33,15 +48,9 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json() as Record<string, unknown>;
     const billId = text(body.Bill_ID || body.billId, 120);
     if (!billId) return NextResponse.json({ success: false, error: "Bill ID is required." }, { status: 400 });
-    const found = await selectRows("bills", { filters: { bill_code: billId }, limit: 1 });
-    if (!found.length) return NextResponse.json({ success: false, error: "Bill was not found." }, { status: 404 });
-    const current = found[0];
-
     const projectCode = normalizeProjectCode(body.Project_ID || body.projectId || "");
-    if (projectCode) {
-      const projects = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
-      if (!projects.length || projects[0].id !== current.project_id) return NextResponse.json({ success: false, error: "This bill does not belong to the selected project." }, { status: 409 });
-    }
+    const lookup = await findBillForProject(billId, projectCode);
+    if (lookup.error) return lookup.error;
 
     const category = text(body.Billing_Category || body.Category || body.category, 80);
     if (!BILL_CATEGORIES.has(category)) return NextResponse.json({ success: false, error: "Choose a valid billing category." }, { status: 400 });
@@ -70,6 +79,31 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ success: true, data: rows[0] || null }, { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not edit the bill.";
+    return NextResponse.json({ success: false, error: message }, { status: /session/i.test(message) ? 401 : 502, headers: { "Cache-Control": "no-store" } });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
+    const user = await requireLocalSession(request);
+    if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
+    if (!REMOVE_ROLES.has(roleOf(user))) return NextResponse.json({ success: false, error: "Admin or manager access is required to remove billed items." }, { status: 403 });
+
+    const body = await request.json().catch(() => ({})) as Record<string, unknown>;
+    const billId = text(body.Bill_ID || body.billId, 120);
+    if (!billId) return NextResponse.json({ success: false, error: "Bill ID is required." }, { status: 400 });
+    const projectCode = normalizeProjectCode(body.Project_ID || body.projectId || "");
+    const lookup = await findBillForProject(billId, projectCode);
+    if (lookup.error) return lookup.error;
+
+    await deleteRows("bills", { bill_code: billId });
+    const remaining = await selectRows("bills", { filters: { bill_code: billId }, limit: 1 });
+    if (remaining.length) throw new Error("Bill removal could not be verified.");
+
+    return NextResponse.json({ success: true, Bill_ID: billId }, { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Could not remove the bill.";
     return NextResponse.json({ success: false, error: message }, { status: /session/i.test(message) ? 401 : 502, headers: { "Cache-Control": "no-store" } });
   }
 }
