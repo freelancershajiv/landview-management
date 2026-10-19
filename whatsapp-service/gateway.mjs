@@ -374,6 +374,30 @@ async function sharedAdminStatus(employeeId = ADMIN_EMPLOYEE_ID) {
   }
 }
 
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+async function acknowledgeFinanceSent(row, messageId) {
+  let lastError = null
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    try {
+      await financeStore('sent', { id: row.id, messageId })
+      return true
+    } catch (error) {
+      lastError = error
+      if (attempt < 5) await wait(Math.min(4000, 500 * Math.pow(2, attempt - 1)))
+    }
+  }
+  logger.error({
+    financeOutboxId: row.id,
+    dedupeKey: row.dedupe_key,
+    messageId,
+    err: String(lastError?.message || lastError || 'Unknown acknowledgement error').slice(0, 1000),
+  }, 'Finance WhatsApp was delivered but outbox acknowledgement failed; message will not be immediately resent')
+  return false
+}
+
 async function processFinanceOutboxOnce() {
   const sharedAdmin = FINANCE_EMPLOYEE_ID === ADMIN_EMPLOYEE_ID
   let session = null
@@ -388,8 +412,9 @@ async function processFinanceOutboxOnce() {
 
   const row = await financeStore('next')
   if (!row?.id) return false
+
+  let messageId = ''
   try {
-    let messageId = ''
     if (sharedAdmin) {
       const sent = await legacyAdminRequest('/admin/send-group', {
         method: 'POST',
@@ -401,13 +426,17 @@ async function processFinanceOutboxOnce() {
       const sent = await session.state.sock.sendMessage(jid, { text: String(row.message || '').slice(0, 4000) })
       messageId = String(sent?.key?.id || '')
     }
-    await financeStore('sent', { id: row.id, messageId })
-    logger.info({ financeOutboxId: row.id, dedupeKey: row.dedupe_key, messageId, sharedAdmin }, 'Finance WhatsApp message sent')
   } catch (error) {
     const reason = String(error?.message || error).slice(0, 1000)
     await financeStore('retry', { id: row.id, attemptCount: row.attempt_count, error: reason }).catch(() => null)
     if (session) session.state.lastError = reason
     logger.error({ financeOutboxId: row.id, err: reason, sharedAdmin }, 'Finance WhatsApp send failed')
+    return true
+  }
+
+  const acknowledged = await acknowledgeFinanceSent(row, messageId)
+  if (acknowledged) {
+    logger.info({ financeOutboxId: row.id, dedupeKey: row.dedupe_key, messageId, sharedAdmin }, 'Finance WhatsApp message sent')
   }
   return true
 }
