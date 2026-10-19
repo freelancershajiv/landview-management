@@ -140,7 +140,10 @@ export async function GET(request: NextRequest) {
     },
     sattapurBricks: emptySupplierWorkspace(),
     categories: categoriesFrom(entries),
-    contractorBills: { contracts: [], bills: [], totals: { contractValue: 0, certifiedAmount: 0, paidAmount: 0, advance: 0, balancePayable: 0, remainingContract: 0, overCertified: 0, configuredContractCount: 0, unconfiguredContractCount: 0 } },
+    // Keep the live supplier/contract master returned by the legacy workspace.
+    // LV-157 cash calculations above remain ledger-only; restoring this list only
+    // makes saved suppliers/contractors available to Add Expense and billing UI.
+    contractorBills: payload.data.contractorBills || { contracts: [], bills: [], totals: { contractValue: 0, certifiedAmount: 0, paidAmount: 0, advance: 0, balancePayable: 0, remainingContract: 0, overCertified: 0, configuredContractCount: 0, unconfiguredContractCount: 0 } },
   };
 
   return NextResponse.json(payload, { status: legacyResponse.status, headers: jsonHeaders });
