@@ -129,16 +129,14 @@ function directMedia(payload: SiteVisitWhatsAppPayload) {
 }
 
 export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload) {
-  const lines: string[] = ["🏗️ *LAND VIEW — SITE VISIT UPDATE*"];
+  const projectCode = text(payload.projectId, 80) || "Project";
+  const lines: string[] = [`🏗️ *Site Visit | ${projectCode}*`, ""];
 
-  addLine(lines, "Visit ID", payload.visitId, 120);
-  addLine(lines, "Project", [text(payload.projectId, 80), text(payload.projectName, 220)].filter(Boolean).join(" — "), 320);
-  addLine(lines, "Project Location", payload.projectLocation, 300);
+  addLine(lines, "Date", payload.visitDate, 40);
   addLine(lines, "Visited By", [text(payload.employeeName, 180), text(payload.employeeId, 80)].filter(Boolean).join(" · "), 280);
-  addLine(lines, "Visit Date", payload.visitDate, 40);
   addLine(lines, "Purpose", payload.purpose, 500);
-  addLine(lines, "Observation / Problem", payload.problemDetails, 750);
-  addLine(lines, "Action Required", payload.actionRequired, 750);
+  addLine(lines, "Problem", payload.problemDetails, 750);
+  addLine(lines, "Action", payload.actionRequired, 750);
   addLine(lines, "Notes", payload.notes, 600);
 
   const verification = text(payload.locationVerificationStatus, 80);
@@ -146,10 +144,10 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
   const accuracy = Number(payload.locationAccuracyM);
   const locationParts = [
     verification === "VERIFIED" ? "✅ Verified" : verification,
-    Number.isFinite(distance) ? `${Math.round(distance)} m from registered site` : "",
+    Number.isFinite(distance) ? `${Math.round(distance)} m from site` : "",
     Number.isFinite(accuracy) ? `GPS ±${Math.round(accuracy)} m` : "",
   ].filter(Boolean);
-  if (locationParts.length) addLine(lines, "Location Verification", locationParts.join(" · "), 300);
+  if (locationParts.length) addLine(lines, "Location", locationParts.join(" · "), 300);
 
   if (Number.isFinite(Number(payload.locationLatitude)) && Number.isFinite(Number(payload.locationLongitude))) {
     const lat = Number(payload.locationLatitude);
@@ -160,14 +158,13 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
   const hasDirectMedia = directMedia(payload).length > 0;
   if (!hasDirectMedia && !payload.visitPhotoBase64) {
     const visitPhotoUrl = text(payload.visitPhotoUrl, 1000);
-    if (visitPhotoUrl) lines.push(`📷 *Site Photo:* ${visitPhotoUrl}`);
+    if (visitPhotoUrl) lines.push(`📷 Site Photo: ${visitPhotoUrl}`);
   }
   if (!hasDirectMedia && !payload.problemPhotoBase64) {
     const problemPhotoUrl = text(payload.problemPhotoUrl, 1000);
-    if (problemPhotoUrl) lines.push(`⚠️ *Problem Photo:* ${problemPhotoUrl}`);
+    if (problemPhotoUrl) lines.push(`⚠️ Problem Photo: ${problemPhotoUrl}`);
   }
 
-  lines.push("_Sent via the LAND VIEW Site Visit system._");
   return lines.join("\n").slice(0, 4000);
 }
 
