@@ -1,12 +1,5 @@
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
-import AdminActionCenter from "@/components/admin-action-center";
-import AdminBalanceOverview from "@/components/admin-balance-overview";
 import AdminCommandCenter from "@/components/admin-command-center";
-import AdminControlLinks from "@/components/admin-control-links";
-import AdminDailyBrief from "@/components/admin-daily-brief";
-import AdminSystemHealth from "@/components/admin-system-health";
-import AdminWorkloadIntelligence from "@/components/admin-workload-intelligence";
-import NewSiteDashboardCard from "@/components/new-site-dashboard-card";
 import { requirePortalSession } from "@/lib/server-auth";
 
 function isEmp0001(user: Record<string, unknown>) {
@@ -23,21 +16,14 @@ function isEmp0001(user: Record<string, unknown>) {
   return candidates.some((value) => String(value ?? "").trim().toUpperCase() === "EMP-0001");
 }
 
-export default async function DashboardPage(){
-  const { role, user } = await requirePortalSession(["admin", "manager", "accounts", "employee"]);
-  const workspaceRole = String(role || "").toLowerCase();
+export default async function DashboardPage() {
+  const { user } = await requirePortalSession(["admin", "manager", "accounts", "employee"]);
   const chairman = isEmp0001(user as Record<string, unknown>);
-  const financeRole = ["admin", "manager", "accounts"].includes(workspaceRole);
-  const canSiteEntry = workspaceRole === "admin" || workspaceRole === "manager";
-  return <>
-    {canSiteEntry && <AdminControlLinks/>}
-    {canSiteEntry && <AdminActionCenter compact/>}
-    {canSiteEntry && <AdminDailyBrief/>}
-    {canSiteEntry && <AdminWorkloadIntelligence/>}
-    {canSiteEntry && <NewSiteDashboardCard mode="management"/>}
-    {chairman && <ChairmanExpenseApproval/>}
-    {financeRole && <AdminBalanceOverview/>}
-    {canSiteEntry && <AdminSystemHealth/>}
-    <AdminCommandCenter/>
-  </>;
+
+  return (
+    <>
+      <AdminCommandCenter />
+      {chairman && <ChairmanExpenseApproval />}
+    </>
+  );
 }
