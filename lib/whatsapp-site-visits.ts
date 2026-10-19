@@ -45,6 +45,15 @@ function text(value: unknown, max = 600) {
   return String(value ?? "").trim().replace(/\s+/g, " ").slice(0, max);
 }
 
+function displayDate(value: unknown) {
+  const raw = text(value, 40);
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return raw;
+  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+  if (!Number.isFinite(date.getTime())) return raw;
+  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
 function addLine(lines: string[], label: string, value: unknown, max = 600) {
   const cleaned = text(value, max);
   if (cleaned) lines.push(`*${label}:* ${cleaned}`);
@@ -132,7 +141,7 @@ export function formatSiteVisitWhatsAppMessage(payload: SiteVisitWhatsAppPayload
   const projectCode = text(payload.projectId, 80) || "Project";
   const lines: string[] = [`🏗️ *Site Visit | ${projectCode}*`, ""];
 
-  addLine(lines, "Date", payload.visitDate, 40);
+  addLine(lines, "Date", displayDate(payload.visitDate), 40);
   addLine(lines, "Visited By", [text(payload.employeeName, 180), text(payload.employeeId, 80)].filter(Boolean).join(" · "), 280);
   addLine(lines, "Purpose", payload.purpose, 500);
   addLine(lines, "Problem", payload.problemDetails, 750);
@@ -173,7 +182,7 @@ function formatClientSiteVisitMessage(payload: SiteVisitWhatsAppPayload) {
     "🏗️ *LAND VIEW — PROJECT UPDATE*",
     `A new Site Visit has been recorded for *${text(payload.projectId, 80)}${payload.projectName ? ` — ${text(payload.projectName, 180)}` : ""}*.`,
   ];
-  addLine(lines, "Visit Date", payload.visitDate, 40);
+  addLine(lines, "Visit Date", displayDate(payload.visitDate), 40);
   addLine(lines, "Purpose", payload.purpose, 400);
   addLine(lines, "Observation", payload.problemDetails, 600);
   addLine(lines, "Action Required", payload.actionRequired, 600);
