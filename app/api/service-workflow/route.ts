@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
-import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
+import { selectRows, updateRows } from "@/lib/supabase-data";
 import { canonicalProjectService } from "@/lib/project-task-templates";
 import {
   ENGINEERING_SERVICE_STATUSES,
@@ -108,23 +108,22 @@ async function projectWorkflow() {
 }
 
 async function billingProjects() {
-  const projects = await selectRows("projects", { order: "project_code:desc", limit: 5000 });
-  const rows = [];
-  for (const project of projects) {
-    const code = text(project.project_code, 80); if (!code) continue;
-    try {
-      const snapshot = await getProjectServiceFinancials(code);
-      if (!snapshot.services.length) continue;
-      rows.push({
-        projectId: code,
-        ownerName: project.client_name_snapshot || project.project_name || "",
-        story: project.number_of_stories_text || project.floors || "",
-        location: project.location || "",
-        categories: snapshot.categoryTotals,
-      });
-    } catch {}
-  }
-  return rows;
+  const [projects, bills] = await Promise.all([
+    selectRows("projects", { order: "project_code:desc", limit: 5000 }),
+    selectRows("bills", { order: "bill_date:desc", limit: 20000 }),
+  ]);
+  const billedProjectIds = new Set(
+    bills
+      .filter((bill) => !["void", "voided", "cancelled", "canceled", "rejected"].includes(text(bill.status).toLowerCase()) && num(bill.amount) > 0)
+      .map((bill) => text(bill.project_id))
+      .filter(Boolean),
+  );
+  return projects.filter((project) => billedProjectIds.has(text(project.id))).map((project) => ({
+    projectId: text(project.project_code, 80),
+    ownerName: project.client_name_snapshot || project.project_name || "",
+    story: project.number_of_stories_text || project.floors || "",
+    location: project.location || "",
+  })).filter((project) => project.projectId);
 }
 
 export async function GET(request: NextRequest) {
