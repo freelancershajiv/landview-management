@@ -9,6 +9,7 @@ type AlertRow = {
   severity: "critical" | "warning" | "info";
   title: string;
   detail: string;
+  entity_type?: string | null;
   href?: string | null;
   status: "open" | "acknowledged" | "resolved" | "dismissed";
   assigned_to?: string | null;
@@ -25,7 +26,29 @@ type Data = {
   generatedAt?: string;
 };
 
+type DetailRow = { primary: string; secondary?: string; amount?: string };
+
 const label = (value: unknown) => String(value ?? "").trim();
+const number = (value: unknown) => {
+  const parsed = Number(String(value ?? 0).replace(/,/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+const money = (value: unknown) => `৳ ${number(value).toLocaleString("en-BD", { maximumFractionDigits: 2 })}`;
+
+function areaLabel(value: unknown) {
+  const category = label(value).toLowerCase();
+  if (category === "finance") return "Finance";
+  if (category === "delivery") return "Project Delivery";
+  if (category === "communications") return "Communications";
+  if (category === "workforce") return "Team";
+  if (category === "workflow") return "Workflow";
+  if (category === "clients") return "CRM";
+  return category ? category.replace(/\b\w/g, (char) => char.toUpperCase()) : "Operations";
+}
+
+function domId(value: string) {
+  return `alert-${value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
+}
 
 function relative(value?: string) {
   if (!value) return "now";
@@ -35,6 +58,56 @@ function relative(value?: string) {
   if (minutes < 60) return `${minutes}m ago`;
   if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`;
   return `${Math.floor(minutes / 1440)}d ago`;
+}
+
+function detailRows(item: AlertRow): DetailRow[] {
+  const meta = item.metadata || {};
+  const sample = Array.isArray(meta.sample) ? meta.sample as Record<string, unknown>[] : [];
+  const projects = Array.isArray(meta.projects) ? meta.projects as Record<string, unknown>[] : [];
+  const codes = Array.isArray(meta.codes) ? meta.codes.map(label).filter(Boolean) : [];
+
+  if (item.entity_type === "payment") {
+    return sample.slice(0, 20).map((row) => ({
+      primary: label(row.code) || "Payment",
+      secondary: [label(row.date), label(row.paymentFor || row.payment_for), label(row.receivedFrom || row.received_from)].filter(Boolean).join(" · "),
+      amount: row.amount !== undefined ? money(row.amount) : undefined,
+    }));
+  }
+  if (item.entity_type === "account") {
+    return sample.slice(0, 12).map((row) => ({
+      primary: [label(row.code), label(row.name)].filter(Boolean).join(" · ") || "Account",
+      secondary: "Snapshot vs calculated ledger balance",
+      amount: row.difference !== undefined ? `${number(row.difference) >= 0 ? "+" : "−"}${money(Math.abs(number(row.difference)))}` : undefined,
+    }));
+  }
+  if (item.entity_type === "project") {
+    return projects.slice(0, 12).map((row) => ({
+      primary: label(row.code) || "Project",
+      secondary: label(row.name),
+    }));
+  }
+  if (item.entity_type === "bill") {
+    if (sample.length) return sample.slice(0, 16).map((row) => ({
+      primary: label(row.code) || "Bill",
+      secondary: row.expected !== undefined ? `Stored ${money(row.net)} · Expected ${money(row.expected)}` : "Net amount mismatch",
+      amount: row.difference !== undefined ? `${number(row.difference) >= 0 ? "+" : "−"}${money(Math.abs(number(row.difference)))}` : undefined,
+    }));
+    return codes.slice(0, 16).map((code) => ({ primary: code, secondary: "Net amount mismatch" }));
+  }
+  if (item.entity_type === "whatsapp_outbox") {
+    return sample.slice(0, 12).map((row) => ({
+      primary: [label(row.channel), label(row.id)].filter(Boolean).join(" · ") || "WhatsApp message",
+      secondary: label(row.error),
+    }));
+  }
+  if (item.entity_type === "task") {
+    return sample.slice(0, 12).map((row) => ({
+      primary: label(row.code) || "Task",
+      secondary: [label(row.title), label(row.dueDate)].filter(Boolean).join(" · "),
+    }));
+  }
+  if (codes.length) return codes.slice(0, 16).map((code) => ({ primary: code }));
+  return [];
 }
 
 export default function AdminActionCenter({ compact = false }: { compact?: boolean }) {
@@ -97,8 +170,10 @@ export default function AdminActionCenter({ compact = false }: { compact?: boole
         .lv-action-center{border:1px solid var(--lv-border);border-radius:16px;background:var(--lv-surface-1);color:var(--lv-text);overflow:hidden;box-shadow:var(--lv-shadow-sm)}
         .lv-action-center *{box-sizing:border-box}.lv-action-center a{text-decoration:none}.lv-action-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start;padding:18px 20px;border-bottom:1px solid var(--lv-border);background:linear-gradient(135deg,var(--lv-surface-1),var(--lv-surface-2))}.lv-action-kicker{display:block;color:var(--lv-accent);font-size:9px;font-weight:900;letter-spacing:.16em;text-transform:uppercase}.lv-action-head h2{margin:5px 0 4px;font-size:20px;color:var(--lv-text-strong)}.lv-action-head p{margin:0;max-width:650px;color:var(--lv-text-muted);font-size:10px;line-height:1.55}.lv-action-score{display:grid;place-items:center;min-width:68px;height:58px;border:1px solid var(--lv-border);border-radius:12px;background:var(--lv-surface-2)}.lv-action-score strong{font-size:20px;color:var(--lv-text-strong)}.lv-action-score small{font-size:8px;color:var(--lv-text-muted);text-transform:uppercase;font-weight:900}
         .lv-action-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:12px 14px;border-bottom:1px solid var(--lv-border)}.lv-action-stat{min-width:0;padding:10px;border:1px solid var(--lv-border);border-radius:10px;background:var(--lv-surface-2);cursor:pointer;color:var(--lv-text);text-align:left}.lv-action-stat.active{border-color:var(--lv-accent)}.lv-action-stat small{display:block;color:var(--lv-text-muted);font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}.lv-action-stat strong{display:block;margin-top:5px;font-size:16px}.lv-action-stat.critical strong{color:var(--lv-danger)}.lv-action-stat.warning strong{color:var(--lv-warning)}.lv-action-stat.info strong{color:var(--lv-info)}
-        .lv-action-list{display:grid;gap:8px;padding:12px 14px}.lv-action-item{display:grid;grid-template-columns:6px minmax(0,1fr) auto;gap:11px;align-items:start;padding:12px;border:1px solid var(--lv-border);border-radius:11px;background:var(--lv-surface-2)}.lv-action-bar{width:6px;align-self:stretch;min-height:42px;border-radius:8px;background:var(--lv-info)}.lv-action-item.critical .lv-action-bar{background:var(--lv-danger)}.lv-action-item.warning .lv-action-bar{background:var(--lv-warning)}.lv-action-copy{min-width:0}.lv-action-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px}.lv-action-chip{padding:3px 6px;border-radius:999px;border:1px solid var(--lv-border);color:var(--lv-text-muted);font-size:7px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}.lv-action-copy strong{display:block;color:var(--lv-text-strong);font-size:11px}.lv-action-copy p{margin:4px 0 0;color:var(--lv-text-muted);font-size:9px;line-height:1.45}.lv-action-buttons{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.lv-action-btn{min-height:32px;padding:0 9px;border:1px solid var(--lv-border);border-radius:7px;background:var(--lv-surface-1);color:var(--lv-text);font-size:8px;font-weight:900;cursor:pointer}.lv-action-btn:hover{border-color:var(--lv-accent)}.lv-action-btn.primary{border-color:var(--lv-accent);color:var(--lv-accent)}.lv-action-btn:disabled{opacity:.5;cursor:wait}.lv-action-empty,.lv-action-error{margin:12px 14px;padding:14px;border:1px dashed var(--lv-border);border-radius:10px;color:var(--lv-text-muted);font-size:10px}.lv-action-error{border-style:solid;border-color:color-mix(in srgb,var(--lv-danger) 45%,var(--lv-border));color:var(--lv-danger)}.lv-action-foot{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--lv-border);color:var(--lv-text-muted);font-size:8px}.lv-action-foot a,.lv-action-foot button{color:var(--lv-accent);font-weight:900;background:none;border:0;cursor:pointer;font-size:8px}.lv-action-center.compact{margin:14px 0}.lv-action-center.full{margin-bottom:24px}
-        @media(max-width:760px){.lv-action-head{padding:15px;align-items:center}.lv-action-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.lv-action-stat:last-child{grid-column:1/-1}.lv-action-item{grid-template-columns:5px minmax(0,1fr)}.lv-action-buttons{grid-column:2;justify-content:flex-start}.lv-action-score{min-width:58px}.lv-action-center.compact .lv-action-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+        .lv-action-list{display:grid;gap:10px;padding:12px 14px}.lv-action-item{display:grid;grid-template-columns:6px minmax(0,1fr) auto;gap:11px;align-items:start;padding:13px;border:1px solid var(--lv-border);border-radius:11px;background:var(--lv-surface-2);scroll-margin-top:86px}.lv-action-bar{width:6px;align-self:stretch;min-height:42px;border-radius:8px;background:var(--lv-info)}.lv-action-item.critical .lv-action-bar{background:var(--lv-danger)}.lv-action-item.warning .lv-action-bar{background:var(--lv-warning)}.lv-action-copy{min-width:0}.lv-action-meta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px}.lv-action-chip{padding:3px 6px;border-radius:999px;border:1px solid var(--lv-border);color:var(--lv-text-muted);font-size:7px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}.lv-action-copy strong{display:block;color:var(--lv-text-strong);font-size:11px}.lv-action-copy p{margin:4px 0 0;color:var(--lv-text-muted);font-size:9px;line-height:1.45}.lv-action-buttons{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}.lv-action-btn{min-height:32px;padding:0 9px;border:1px solid var(--lv-border);border-radius:7px;background:var(--lv-surface-1);color:var(--lv-text);font-size:8px;font-weight:900;cursor:pointer}.lv-action-btn:hover{border-color:var(--lv-accent)}.lv-action-btn.primary{border-color:var(--lv-accent);color:var(--lv-accent)}.lv-action-btn:disabled{opacity:.5;cursor:wait}
+        .lv-action-details{grid-column:2/-1;display:grid;gap:6px;margin-top:2px;padding-top:10px;border-top:1px solid var(--lv-border)}.lv-action-details-head{display:flex;justify-content:space-between;gap:10px;color:var(--lv-text-muted);font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}.lv-action-detail-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:7px 9px;border:1px solid var(--lv-border);border-radius:8px;background:var(--lv-surface-1)}.lv-action-detail-row strong{display:block;font-size:9px;color:var(--lv-text-strong)}.lv-action-detail-row small{display:block;margin-top:2px;color:var(--lv-text-muted);font-size:8px;line-height:1.35}.lv-action-detail-row b{font-size:9px;color:var(--lv-text-strong);white-space:nowrap}.lv-action-more{color:var(--lv-text-muted);font-size:8px}
+        .lv-action-empty,.lv-action-error{margin:12px 14px;padding:14px;border:1px dashed var(--lv-border);border-radius:10px;color:var(--lv-text-muted);font-size:10px}.lv-action-error{border-style:solid;border-color:color-mix(in srgb,var(--lv-danger) 45%,var(--lv-border));color:var(--lv-danger)}.lv-action-foot{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 14px;border-top:1px solid var(--lv-border);color:var(--lv-text-muted);font-size:8px}.lv-action-foot a,.lv-action-foot button{color:var(--lv-accent);font-weight:900;background:none;border:0;cursor:pointer;font-size:8px}.lv-action-center.compact{margin:14px 0}.lv-action-center.full{margin-bottom:24px}
+        @media(max-width:760px){.lv-action-head{padding:15px;align-items:center}.lv-action-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.lv-action-stat:last-child{grid-column:1/-1}.lv-action-item{grid-template-columns:5px minmax(0,1fr)}.lv-action-buttons{grid-column:2;justify-content:flex-start}.lv-action-details{grid-column:2}.lv-action-score{min-width:58px}.lv-action-center.compact .lv-action-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
       `}</style>
 
       <div className="lv-action-head">
@@ -123,18 +198,28 @@ export default function AdminActionCenter({ compact = false }: { compact?: boole
         <div className="lv-action-list">
           {visible.map((item) => {
             const isBusy = busy.startsWith(item.alert_key);
-            return <article key={item.alert_key} className={`lv-action-item ${item.severity}`}>
+            const rows = detailRows(item);
+            const affectedCount = Math.max(number(item.metadata?.count), rows.length);
+            return <article id={domId(item.alert_key)} key={item.alert_key} className={`lv-action-item ${item.severity}`}>
               <span className="lv-action-bar" />
               <div className="lv-action-copy">
-                <div className="lv-action-meta"><span className="lv-action-chip">{item.category}</span><span className="lv-action-chip">{item.severity}</span>{item.status === "acknowledged" && <span className="lv-action-chip">Acknowledged</span>}<span className="lv-action-chip">{relative(item.last_detected_at)}</span></div>
+                <div className="lv-action-meta"><span className="lv-action-chip">{areaLabel(item.category)}</span><span className="lv-action-chip">{item.severity}</span>{item.status === "acknowledged" && <span className="lv-action-chip">Acknowledged</span>}<span className="lv-action-chip">{relative(item.last_detected_at)}</span></div>
                 <strong>{item.title}</strong><p>{item.detail}</p>
               </div>
               <div className="lv-action-buttons">
-                {item.href && <Link className="lv-action-btn primary" href={item.href}>OPEN</Link>}
+                {item.href && <Link className="lv-action-btn primary" href={item.href}>OPEN MODULE</Link>}
                 {item.status !== "acknowledged" && <button className="lv-action-btn" disabled={isBusy} onClick={() => void mutate(item.alert_key, "acknowledge")}>ACKNOWLEDGE</button>}
                 <button className="lv-action-btn" disabled={isBusy} onClick={() => void mutate(item.alert_key, "resolve")}>MARK HANDLED</button>
                 {!compact && <button className="lv-action-btn" disabled={isBusy} onClick={() => void mutate(item.alert_key, "dismiss")}>DISMISS</button>}
               </div>
+              {!compact && rows.length > 0 && <div className="lv-action-details">
+                <div className="lv-action-details-head"><span>Affected records</span><span>{affectedCount} total</span></div>
+                {rows.map((row, index) => <div className="lv-action-detail-row" key={`${item.alert_key}-${index}`}>
+                  <span><strong>{row.primary}</strong>{row.secondary && <small>{row.secondary}</small>}</span>
+                  {row.amount && <b>{row.amount}</b>}
+                </div>)}
+                {affectedCount > rows.length && <span className="lv-action-more">+ {affectedCount - rows.length} more affected records</span>}
+              </div>}
             </article>;
           })}
         </div>
