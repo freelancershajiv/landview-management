@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
 import { selectRows } from "@/lib/supabase-data";
+import { formatProjectOwnerStory } from "@/lib/project-identity";
 import {
   GET as legacyGET,
   POST as legacyPOST,
@@ -100,6 +101,35 @@ function categoriesFrom(entries: Row[]) {
   });
 }
 
+async function applyProjectIdentity(payload: any) {
+  if (!payload?.success || !payload?.data) return payload;
+  const list = Array.isArray(payload.data.projects) ? payload.data.projects : [];
+  const selected = payload.data.selectedProject || null;
+  const codes = Array.from(new Set([
+    ...list.map((item: any) => clean(item?.projectCode, 80)),
+    clean(selected?.projectCode, 80),
+  ].filter(Boolean)));
+  if (!codes.length) return payload;
+
+  const rows = await selectRows("projects", { inFilters: { project_code: codes }, limit: Math.max(100, codes.length + 20) });
+  const byCode = new Map(rows.map((row: Row) => [clean(row.project_code, 80), row]));
+  const decorate = (item: any) => {
+    if (!item) return item;
+    const row = byCode.get(clean(item.projectCode, 80));
+    if (!row) return item;
+    return {
+      ...item,
+      projectName: formatProjectOwnerStory(row, item.projectName || row.project_name || row.project_code || "Project"),
+      clientName: row.client_name_snapshot || item.clientName || "",
+      ownerName: row.client_name_snapshot || item.clientName || "",
+      story: row.number_of_stories_text || row.floors || "",
+    };
+  };
+  payload.data.projects = list.map(decorate);
+  payload.data.selectedProject = decorate(selected);
+  return payload;
+}
+
 export async function GET(request: NextRequest) {
   const legacyResponse = await legacyGET(request);
   let payload: any;
@@ -108,6 +138,8 @@ export async function GET(request: NextRequest) {
   } catch {
     return legacyResponse;
   }
+
+  try { payload = await applyProjectIdentity(payload); } catch {}
 
   const selected = payload?.data?.selectedProject;
   if (!legacyResponse.ok || !payload?.success || clean(selected?.projectCode, 40) !== "LV-157") {
