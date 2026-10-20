@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { ACTING_USER_COOKIE, QUICK_USER_COOKIE, SESSION_COOKIE, readSignedActingWorkspaceUser } from "@/lib/local-session";
 import { hasCapability, type Capability } from "@/lib/permissions";
 
-export type PortalRole = "admin" | "manager" | "accounts" | "employee" | "client";
+export type PortalRole = "admin" | "manager" | "employee" | "client";
 
 type SessionUser = {
   role?: string;
@@ -62,7 +62,7 @@ function roleOf(user: SessionUser | null | undefined) {
 function redirectForRole(role: PortalRole): never {
   if (role === "employee") redirect("/employee");
   if (role === "client") redirect("/client");
-  if (role === "admin" || role === "manager" || role === "accounts") redirect("/admin");
+  if (role === "admin" || role === "manager") redirect("/admin");
   loginRedirect();
 }
 
@@ -87,7 +87,7 @@ function readSignedWorkspaceUser(value: string | undefined): SessionUser | null 
   try {
     const user = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SessionUser;
     const role = roleOf(user);
-    return ["admin", "manager", "accounts", "employee", "client"].includes(role) ? user : null;
+    return ["admin", "manager", "employee", "client"].includes(role) ? user : null;
   } catch {
     return null;
   }
@@ -202,7 +202,7 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
  * protected pages instead of checking role names directly in page code.
  */
 export async function requirePortalCapability(capability: Capability) {
-  const session = await requirePortalSession(["admin", "manager", "accounts", "employee", "client"]);
+  const session = await requirePortalSession(["admin", "manager", "employee", "client"]);
   if (!hasCapability(session.user, capability)) redirectForRole(session.role);
   return session;
 }
