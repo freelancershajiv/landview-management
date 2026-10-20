@@ -36,7 +36,18 @@
 
 @media screen and (min-width: 981px) {
   /* Client rail used sticky positioning, which can move with its containing
-     page. Pin it directly to the viewport and reserve its width in the stage. */
+     page. Pin it directly to the viewport and reserve its width in the stage.
+
+     The sidebar is fixed, so it no longer participates in the shell grid.
+     Collapse the shell to one full-width grid track first; otherwise the only
+     in-flow child (the stage) is auto-placed into the old 278px sidebar track
+     and its width calculation collapses the client workspace. */
+  html body .lv-client-shell {
+    grid-template-columns: 1fr !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
   html body .lv-client-shell .lv-client-side {
     position: fixed !important;
     top: 0 !important;
