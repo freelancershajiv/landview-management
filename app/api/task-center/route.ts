@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
 import { employeeCodeOf, insertRows, normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
+import { formatProjectOwnerStory } from "@/lib/project-identity";
 import {
   canonicalProjectService,
   isTaskClosedStatus,
@@ -67,7 +68,9 @@ function enrichTasks(tasks: Row[], projects: Row[], employees: Row[]): Row[] {
     return {
       ...row,
       project_code: text(project?.project_code),
-      project_name: text(project?.project_name || project?.client_name_snapshot),
+      project_name: project ? formatProjectOwnerStory(project, text(project.project_name || project.client_name_snapshot) || "Project") : "",
+      project_owner_name: text(project?.client_name_snapshot),
+      project_story: text(project?.number_of_stories_text || project?.floors),
       employee_code: text(employee?.employee_code),
       employee_name: text(employee?.name),
       employee_designation: text(employee?.designation),
@@ -113,7 +116,14 @@ async function loadCenter(user: Row, request: NextRequest) {
   return {
     role: roleOf(user),
     employee: me ? { id: me.id, employeeCode: me.employee_code, name: me.name, designation: me.designation } : null,
-    project: project ? { id: project.id, projectCode: project.project_code, projectName: project.project_name || project.client_name_snapshot, lifecyclePhase: project.lifecycle_phase } : null,
+    project: project ? {
+      id: project.id,
+      projectCode: project.project_code,
+      projectName: formatProjectOwnerStory(project, project.project_name || project.client_name_snapshot || "Project"),
+      ownerName: project.client_name_snapshot || "",
+      story: project.number_of_stories_text || project.floors || "",
+      lifecyclePhase: project.lifecycle_phase,
+    } : null,
     tasks: enriched,
     buckets: grouped,
     metrics: {
@@ -126,7 +136,14 @@ async function loadCenter(user: Row, request: NextRequest) {
       requiredOpen: open.filter((row: Row) => row.is_required === true).length,
     },
     employees: employees.filter((row) => text(row.status).toLowerCase() !== "former").map((row) => ({ id: row.id, employeeCode: row.employee_code, name: row.name, designation: row.designation, status: row.status })),
-    projects: projects.map((row) => ({ id: row.id, projectCode: row.project_code, projectName: row.project_name || row.client_name_snapshot, lifecyclePhase: row.lifecycle_phase })),
+    projects: projects.map((row) => ({
+      id: row.id,
+      projectCode: row.project_code,
+      projectName: formatProjectOwnerStory(row, row.project_name || row.client_name_snapshot || "Project"),
+      ownerName: row.client_name_snapshot || "",
+      story: row.number_of_stories_text || row.floors || "",
+      lifecyclePhase: row.lifecycle_phase,
+    })),
   };
 }
 
