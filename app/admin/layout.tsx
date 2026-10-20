@@ -18,6 +18,7 @@ import "./admin-color-harmony.css";
 import "../dual-mode-navigation.css";
 import "./admin-module-sidebar.css";
 import "./admin-sidebar-neutral.css";
+import "./admin-color-final.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
