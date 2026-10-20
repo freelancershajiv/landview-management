@@ -13,6 +13,14 @@ const clientAutoReplyMarker = "if (inbound?.conversation?.humanHandoff) continue
 const gatewayParserMarker = "const employeeJson = express.json({ limit: '64kb' })"
 
 const directMediaHelpers = String.raw`
+async function stableWhatsAppMessageId(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw)))
+  const hex = Array.from(digest.slice(0, 9)).map((byte) => byte.toString(16).padStart(2, '0')).join('').toUpperCase()
+  return '3EB0' + hex
+}
+
 function directImageMedia(value) {
   const items = Array.isArray(value) ? value.slice(0, 2) : []
   return items.map((item, index) => {
@@ -33,17 +41,21 @@ function directImageMedia(value) {
   })
 }
 
-async function sendDirectGroupPayload(sock, jid, message, mediaValue) {
+async function sendDirectGroupPayload(sock, jid, message, mediaValue, idempotencyKey = '') {
   const media = directImageMedia(mediaValue)
   const messageIds = []
+  const baseKey = String(idempotencyKey || '').trim()
   if (message) {
-    const sent = await sock.sendMessage(jid, { text: message })
-    const id = String(sent?.key?.id || '')
+    const messageId = baseKey ? await stableWhatsAppMessageId('text:' + baseKey) : ''
+    const sent = await sock.sendMessage(jid, { text: message }, messageId ? { messageId } : undefined)
+    const id = String(sent?.key?.id || messageId || '')
     if (id) messageIds.push(id)
   }
-  for (const item of media) {
-    const sent = await sock.sendMessage(jid, { image: item.image, caption: item.caption })
-    const id = String(sent?.key?.id || '')
+  for (let index = 0; index < media.length; index += 1) {
+    const item = media[index]
+    const messageId = baseKey ? await stableWhatsAppMessageId('media:' + index + ':' + baseKey) : ''
+    const sent = await sock.sendMessage(jid, { image: item.image, caption: item.caption }, messageId ? { messageId } : undefined)
+    const id = String(sent?.key?.id || messageId || '')
     if (id) messageIds.push(id)
   }
   return { messageIds, mediaCount: media.length }
@@ -101,6 +113,30 @@ app.post('/client/send-document', express.raw({ type: 'application/pdf', limit: 
 })
 `.trim()
 
+const siteOutboxSendMarker = String.raw`    const jid = await ensureGroup(row.group_invite_code)
+    const sent = await siteSession.state.sock.sendMessage(jid, { text: String(row.message || '').slice(0, 4000) })
+    const messageId = String(sent?.key?.id || '')`
+
+const siteOutboxSendReplacement = String.raw`    const jid = await ensureGroup(row.group_invite_code)
+    const messageIdHint = await stableWhatsAppMessageId('site-outbox:' + String(row.dedupe_key || row.id || ''))
+    const sent = await siteSession.state.sock.sendMessage(
+      jid,
+      { text: String(row.message || '').slice(0, 4000) },
+      messageIdHint ? { messageId: messageIdHint } : undefined,
+    )
+    const messageId = String(sent?.key?.id || messageIdHint || '')`
+
+const clientOutboxSendMarker = String.raw`    const sent = await sock.sendMessage(String(row.to_jid), { text: String(row.message || '').slice(0, 4000) })
+    const messageId = String(sent?.key?.id || '')`
+
+const clientOutboxSendReplacement = String.raw`    const messageIdHint = await stableWhatsAppMessageId('client-outbox:' + String(row.dedupe_key || row.id || ''))
+    const sent = await sock.sendMessage(
+      String(row.to_jid),
+      { text: String(row.message || '').slice(0, 4000) },
+      messageIdHint ? { messageId: messageIdHint } : undefined,
+    )
+    const messageId = String(sent?.key?.id || messageIdHint || '')`
+
 const adminSendMarker = String.raw`app.post('/admin/send-group', async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   const sock = siteSession.state.sock
@@ -133,7 +169,9 @@ app.post('/admin/send-group', async (req, res) => {
   if (!message && !media.length) return res.status(400).json({ ok: false, error: 'WhatsApp message and media are empty.' })
   try {
     const jid = await ensureGroup(req.body?.groupInviteCode)
-    const sent = await sendDirectGroupPayload(sock, jid, message, media)
+    const requestedKey = String(req.body?.idempotencyKey || '').trim().slice(0, 500)
+    const fallbackKey = 'admin:' + String(req.body?.groupInviteCode || '') + ':' + message
+    const sent = await sendDirectGroupPayload(sock, jid, message, media, requestedKey || fallbackKey)
     return res.json({
       ok: true,
       sent: true,
@@ -148,6 +186,40 @@ app.post('/admin/send-group', async (req, res) => {
     return res.status(500).json({ ok: false, error: reason })
   }
 })`
+
+const financeSendMarker = String.raw`    if (sharedAdmin) {
+      const sent = await legacyAdminRequest('/admin/send-group', {
+        method: 'POST',
+        body: JSON.stringify({ groupInviteCode: row.group_invite_code, message: String(row.message || '').slice(0, 4000) }),
+      })
+      messageId = String(sent?.messageId || '')
+    } else {
+      const jid = await ensureEmployeeGroup(session, row.group_invite_code)
+      const sent = await session.state.sock.sendMessage(jid, { text: String(row.message || '').slice(0, 4000) })
+      messageId = String(sent?.key?.id || '')
+    }`
+
+const financeSendReplacement = String.raw`    const idempotencyKey = 'finance:' + String(row.dedupe_key || row.id || '')
+    const messageIdHint = await stableWhatsAppMessageId(idempotencyKey)
+    if (sharedAdmin) {
+      const sent = await legacyAdminRequest('/admin/send-group', {
+        method: 'POST',
+        body: JSON.stringify({
+          groupInviteCode: row.group_invite_code,
+          message: String(row.message || '').slice(0, 4000),
+          idempotencyKey,
+        }),
+      })
+      messageId = String(sent?.messageId || messageIdHint || '')
+    } else {
+      const jid = await ensureEmployeeGroup(session, row.group_invite_code)
+      const sent = await session.state.sock.sendMessage(
+        jid,
+        { text: String(row.message || '').slice(0, 4000) },
+        messageIdHint ? { messageId: messageIdHint } : undefined,
+      )
+      messageId = String(sent?.key?.id || messageIdHint || '')
+    }`
 
 const employeeSendMarker = String.raw`app.post('/employee/send', employeeJson, async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
@@ -197,10 +269,13 @@ app.post('/employee/send', employeeJson, async (req, res) => {
     const media = Array.isArray(req.body?.media) ? req.body.media.slice(0, 2) : []
     if (!message && !media.length) return res.status(400).json({ ok: false, error: 'WhatsApp message and media are empty.' })
 
+    const requestedKey = String(req.body?.idempotencyKey || '').trim().slice(0, 500)
+    const idempotencyKey = requestedKey || ('employee:' + employeeId + ':' + String(req.body?.groupInviteCode || '') + ':' + message)
+
     if (isSharedAdminEmployee(employeeId)) {
       const sent = await legacyAdminRequest('/admin/send-group', {
         method: 'POST',
-        body: JSON.stringify({ groupInviteCode: req.body?.groupInviteCode, message, media }),
+        body: JSON.stringify({ groupInviteCode: req.body?.groupInviteCode, message, media, idempotencyKey }),
       })
       return res.json({ ...sent, employeeId, sharedWithAdmin: true, senderType: 'admin-shared' })
     }
@@ -215,7 +290,7 @@ app.post('/employee/send', employeeJson, async (req, res) => {
       })
     }
     const jid = await ensureEmployeeGroup(session, req.body?.groupInviteCode)
-    const sent = await sendDirectGroupPayload(session.state.sock, jid, message, media)
+    const sent = await sendDirectGroupPayload(session.state.sock, jid, message, media, idempotencyKey)
     return res.json({
       ok: true,
       sent: true,
@@ -234,6 +309,8 @@ await mkdir(runtimeDir, { recursive: true })
 const source = await readFile(sourcePath, 'utf8')
 if (!source.includes(parserMarker)) throw new Error('Could not prepare the WhatsApp invoice document endpoint: server parser marker was not found.')
 if (!source.includes(clientAutoReplyMarker)) throw new Error('Could not disable client WhatsApp auto replies: inbound handler marker was not found.')
+if (!source.includes(siteOutboxSendMarker)) throw new Error('Could not enable Site Visit retry idempotency: Site Visit outbox marker was not found.')
+if (!source.includes(clientOutboxSendMarker)) throw new Error('Could not enable client retry idempotency: client outbox marker was not found.')
 if (!source.includes(adminSendMarker)) throw new Error('Could not enable direct Site Visit media: Admin group send route marker was not found.')
 const withDocumentRoute = source.includes("app.post('/client/send-document'")
   ? source
@@ -244,14 +321,18 @@ let patchedServer = withDocumentRoute.replace(
 )
 patchedServer = patchedServer
   .replace(parserMarker, "app.use(express.json({ limit: '16mb' }))")
+  .replace(siteOutboxSendMarker, siteOutboxSendReplacement)
+  .replace(clientOutboxSendMarker, clientOutboxSendReplacement)
   .replace(adminSendMarker, adminSendReplacement)
 await writeFile(runtimeServerPath, patchedServer, 'utf8')
 
 const gatewaySource = await readFile(gatewaySourcePath, 'utf8')
 if (!gatewaySource.includes(gatewayParserMarker)) throw new Error('Could not enable direct Site Visit media: employee JSON parser marker was not found.')
+if (!gatewaySource.includes(financeSendMarker)) throw new Error('Could not enable finance retry idempotency: finance send marker was not found.')
 if (!gatewaySource.includes(employeeSendMarker)) throw new Error('Could not enable direct Site Visit media: employee send route marker was not found.')
 const patchedGateway = gatewaySource
   .replace(gatewayParserMarker, "const employeeJson = express.json({ limit: '16mb' })")
+  .replace(financeSendMarker, financeSendReplacement)
   .replace(employeeSendMarker, employeeSendReplacement)
 await writeFile(runtimeGatewayPath, patchedGateway, 'utf8')
 
