@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { employeeCodeOf, handleLandviewDataAction, roleOf, supabaseGateway, updateRows } from "@/lib/supabase-data";
+import { syncResponsibilityTasksForProject } from "@/lib/project-task-sync";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -82,12 +83,27 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let workflowSync: { projectId: string; createdCount: number; services: string[] } | null = null;
+    if (action === "saveBill") {
+      const projectCode = text(body.Project_ID || body.projectId || body.Project_Code, 60).toUpperCase();
+      if (projectCode) {
+        try {
+          const actor = employeeCodeOf(user) || text((user as Record<string, unknown>)?.username || (user as Record<string, unknown>)?.Username, 120) || "LAND VIEW";
+          const synced = await syncResponsibilityTasksForProject(projectCode, actor);
+          workflowSync = { projectId: projectCode, createdCount: synced.createdCount, services: synced.services };
+        } catch (workflowError) {
+          console.error("LAND VIEW workflow auto-sync failed after billing save:", workflowError);
+        }
+      }
+    }
+
     const masterAdmin = role === "admin";
     return NextResponse.json({
       success: true,
       data: masterAdmin && action === "savePayment"
         ? { ...(data as Record<string, unknown>), Approval_Status: "Approved", Acknowledgement_Status: "Unseen" }
         : data,
+      ...(workflowSync ? { workflowSync } : {}),
       ...(masterAdmin && action === "savePayment" ? {
         autoApproved: true,
         acknowledgementRequiredBy: "EMP-0001",
