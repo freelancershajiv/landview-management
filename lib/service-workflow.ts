@@ -87,6 +87,7 @@ function serviceRank(name: string) {
   if (name === "Soil Test") return 100;
   if (name === "Digital Survey") return 110;
   if (name === "Municipality Approval Contract") return 120;
+  if (name === "Site Supervision") return 130;
   return 200;
 }
 
@@ -108,7 +109,8 @@ export async function getProjectServiceFinancials(projectCode: string) {
     if (!serviceKey) continue;
     const gross = Math.max(0, num(bill.amount));
     const discount = Math.max(0, num(bill.discount));
-    const net = Math.max(0, num(bill.net_amount) || gross - discount);
+    const hasStoredNet = bill.net_amount !== null && bill.net_amount !== undefined && String(bill.net_amount) !== "";
+    const net = Math.max(0, hasStoredNet ? num(bill.net_amount) : gross - discount);
     const existing = map.get(serviceKey) || {
       serviceName,
       serviceKey,
@@ -139,10 +141,11 @@ export async function getProjectServiceFinancials(projectCode: string) {
   }
 
   const approvedPayments = payments.filter(effectivePayment);
-  const engineeringPaidTotal = approvedPayments
-    .filter((row) => norm(row.payment_for || row.income_category).includes("engineering"))
+  const categoryPaid = (needle: string) => approvedPayments
+    .filter((row) => norm(row.payment_for || row.income_category).includes(needle))
     .reduce((sum, row) => sum + Math.max(0, num(row.amount)), 0);
-  let legacyEngineeringPool = Math.max(0, engineeringPaidTotal - explicitEngineering);
+  let legacyEngineeringPool = Math.max(0, categoryPaid("engineering") - explicitEngineering);
+  let supervisionPool = categoryPaid("supervision");
 
   const rows = Array.from(map.values()).sort((a, b) => serviceRank(a.serviceName) - serviceRank(b.serviceName) || a.serviceName.localeCompare(b.serviceName));
   for (const service of rows) {
@@ -152,6 +155,11 @@ export async function getProjectServiceFinancials(projectCode: string) {
       const legacyApplied = Math.min(remaining, legacyEngineeringPool);
       paid += legacyApplied;
       legacyEngineeringPool -= legacyApplied;
+    } else if (service.billingCategory === "Supervision Bill") {
+      const remaining = Math.max(0, service.net - paid);
+      const applied = Math.min(remaining, supervisionPool);
+      paid += applied;
+      supervisionPool -= applied;
     } else {
       const directPaid = approvedPayments
         .filter((payment) => {
