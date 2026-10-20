@@ -1,5 +1,5 @@
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
-import AdminCommandCenter from "@/components/admin-command-center-v2";
+import AdminCommandCenter from "@/components/admin-command-center-v3";
 import { requirePortalSession } from "@/lib/server-auth";
 
 function isEmp0001(user: Record<string, unknown>) {
