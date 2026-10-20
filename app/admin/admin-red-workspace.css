@@ -1,0 +1,156 @@
+/* LAND VIEW admin red / white workspace chrome.
+   Loaded last so routing, permissions and existing module layouts remain unchanged. */
+@media screen {
+  .portal-admin .primary-nav,
+  .portal-admin .sidebar,
+  .portal-admin .sidebar-brand,
+  .portal-admin .sidebar-footer {
+    background:
+      radial-gradient(circle at 18% 4%, rgba(255,255,255,.16), transparent 24%),
+      linear-gradient(165deg, #de1821 0%, #bd1018 50%, #90080d 100%) !important;
+    border-color: rgba(255,255,255,.13) !important;
+    color: #fff !important;
+  }
+
+  .portal-admin .sidebar-brand {
+    border-bottom: 1px solid rgba(255,255,255,.12) !important;
+    box-shadow: none !important;
+  }
+  .portal-admin .sidebar-brand img {
+    filter: brightness(0) invert(1) !important;
+  }
+  .portal-admin .sidebar-brand strong,
+  .portal-admin .sidebar-user strong {
+    color: #fff !important;
+  }
+  .portal-admin .sidebar-brand small,
+  .portal-admin .sidebar-user small,
+  .portal-admin .sidebar-section-label {
+    color: rgba(255,255,255,.64) !important;
+  }
+
+  .portal-admin .primary-nav a::before {
+    display: none !important;
+  }
+
+  .portal-admin .primary-nav .lv-nav-direct,
+  .portal-admin .primary-nav .lv-nav-group-button,
+  .portal-admin .primary-nav .lv-nav-children > a {
+    color: rgba(255,255,255,.88) !important;
+    background: transparent !important;
+    border-color: transparent !important;
+    box-shadow: none !important;
+  }
+
+  .portal-admin .primary-nav .lv-nav-direct:hover,
+  .portal-admin .primary-nav .lv-nav-group-button:hover,
+  .portal-admin .primary-nav .lv-nav-children > a:hover {
+    color: #fff !important;
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.06) !important;
+  }
+
+  .portal-admin .primary-nav .lv-nav-direct.active,
+  .portal-admin .primary-nav .lv-nav-direct[aria-current="page"] {
+    color: #b50d14 !important;
+    background: #fff !important;
+    border-color: rgba(255,255,255,.95) !important;
+    box-shadow: 0 10px 24px rgba(84,0,4,.18) !important;
+  }
+
+  .portal-admin .primary-nav .lv-nav-group-button.active {
+    color: #fff !important;
+    background: rgba(255,255,255,.12) !important;
+  }
+
+  .portal-admin .primary-nav .lv-nav-children > a.active,
+  .portal-admin .primary-nav .lv-nav-children > a[aria-current="page"] {
+    color: #fff !important;
+    background: rgba(255,255,255,.17) !important;
+    border-color: rgba(255,255,255,.08) !important;
+    box-shadow: inset 3px 0 #fff !important;
+  }
+
+  .portal-admin .primary-nav :is(.nav-icon,.lv-nav-chevron) {
+    color: currentColor !important;
+  }
+
+  .portal-admin .lv-nav-divider {
+    background: rgba(255,255,255,.13) !important;
+  }
+
+  .portal-admin .sidebar-footer {
+    border-top-color: rgba(255,255,255,.13) !important;
+  }
+  .portal-admin .sidebar-footer-account {
+    color: rgba(255,255,255,.9) !important;
+  }
+  .portal-admin .sidebar-footer-account:hover {
+    background: rgba(255,255,255,.10) !important;
+  }
+  .portal-admin .sidebar-footer .utility-avatar {
+    background: rgba(255,255,255,.15) !important;
+    border-color: rgba(255,255,255,.25) !important;
+    color: #fff !important;
+  }
+
+  .portal-admin .primary-nav-inner {
+    scrollbar-color: rgba(255,255,255,.28) transparent !important;
+  }
+  .portal-admin .primary-nav-inner::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,.24) !important;
+  }
+  .portal-admin .primary-nav-inner::-webkit-scrollbar-thumb:hover {
+    background: rgba(255,255,255,.36) !important;
+  }
+
+  .portal-admin .utility-bar {
+    background: rgba(255,255,255,.97) !important;
+    border-bottom: 1px solid #e7e9ed !important;
+    box-shadow: 0 3px 18px rgba(34,39,45,.05) !important;
+    backdrop-filter: blur(14px);
+  }
+  .portal-admin .global-search,
+  .portal-admin .notification-button,
+  .portal-admin .utility-logout {
+    background: #f7f8fa !important;
+    border-color: #e4e6ea !important;
+    color: #252b33 !important;
+  }
+  .portal-admin .global-search input {
+    background: transparent !important;
+    color: #252b33 !important;
+  }
+  .portal-admin .global-search input::placeholder {
+    color: #8d949d !important;
+  }
+  .portal-admin .utility-avatar {
+    background: #fff0f1 !important;
+    border-color: #f0c9cc !important;
+    color: #c8141b !important;
+  }
+
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main,
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    background: #f7f8fa !important;
+  }
+}
+
+@media screen and (max-width: 900px) {
+  .portal-admin .primary-nav.open {
+    background:
+      radial-gradient(circle at 18% 4%, rgba(255,255,255,.16), transparent 24%),
+      linear-gradient(165deg, #de1821 0%, #bd1018 50%, #90080d 100%) !important;
+  }
+  .portal-admin .admin-mobile-account {
+    border-top-color: rgba(255,255,255,.15) !important;
+  }
+  .portal-admin .admin-mobile-account button,
+  .portal-admin .admin-mobile-account a {
+    background: rgba(255,255,255,.10) !important;
+    border-color: rgba(255,255,255,.15) !important;
+    color: #fff !important;
+  }
+}

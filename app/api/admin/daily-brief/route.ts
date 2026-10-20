@@ -76,6 +76,10 @@ export async function GET(request: NextRequest) {
       health.counts.critical > 0 ? "⚠ Critical items are waiting in Action Required." : "✓ No critical Action Required items detected.",
     ];
 
+    const activeAlerts = (health.alerts || [])
+      .filter((alert) => !["resolved", "dismissed"].includes(text(alert.status).toLowerCase()))
+      .slice(0, 20);
+
     return NextResponse.json({
       success: true,
       data: {
@@ -90,7 +94,12 @@ export async function GET(request: NextRequest) {
           tasksDue: openDueTasks.length,
           websiteEnquiries: newLeads.length,
         },
-        actionCenter: { score: health.score, status: health.status, counts: health.counts },
+        actionCenter: {
+          score: health.score,
+          status: health.status,
+          counts: health.counts,
+          alerts: activeAlerts,
+        },
         message: lines.join("\n"),
         generatedAt: new Date().toISOString(),
       },

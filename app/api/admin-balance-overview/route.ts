@@ -41,6 +41,17 @@ function dateKey(value: unknown) {
   }).format(parsed);
 }
 
+function dhakaYearMonth() {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value || String(new Date().getFullYear());
+  const month = parts.find((part) => part.type === "month")?.value || "01";
+  return { year, month: Number(month) || 1 };
+}
+
 function transactionAmounts(row: Row) {
   const transactionType = normalizeStatus(row.transaction_type);
   const direction = text(row.direction).toUpperCase();
@@ -68,6 +79,18 @@ function includedInMainLedger(row: Row) {
   return date >= LEDGER_LIVE_START && date <= LEDGER_END;
 }
 
+function transactionDescription(row: Row) {
+  return text(
+    row.description ||
+    row.particulars ||
+    row.purpose ||
+    row.category ||
+    row.notes ||
+    row.transaction_code ||
+    "Ledger transaction"
+  );
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = (await requireLocalSession(request)) as Row | null;
@@ -90,6 +113,17 @@ export async function GET(request: NextRequest) {
     let municipalityBalance = 0;
     let mainEntries = 0;
     let municipalityEntries = 0;
+    let totalIncome = 0;
+    let totalExpenses = 0;
+
+    const monthly = new Map<string, { income: number; expenses: number }>();
+    const recentMain: Array<{
+      id: string;
+      date: string;
+      description: string;
+      type: "income" | "expense";
+      amount: number;
+    }> = [];
 
     for (const row of transactions) {
       const { debit, credit } = transactionAmounts(row);
@@ -97,11 +131,43 @@ export async function GET(request: NextRequest) {
         municipalityBalance += credit - debit;
         if (debit > 0 || credit > 0) municipalityEntries += 1;
       }
+
       if (includedInMainLedger(row)) {
         currentBalance += credit - debit;
         mainEntries += 1;
+        totalIncome += credit;
+        totalExpenses += debit;
+
+        const day = dateKey(row.transaction_date);
+        const monthKey = day.slice(0, 7);
+        if (/^\d{4}-\d{2}$/.test(monthKey)) {
+          const bucket = monthly.get(monthKey) || { income: 0, expenses: 0 };
+          bucket.income += credit;
+          bucket.expenses += debit;
+          monthly.set(monthKey, bucket);
+        }
+
+        recentMain.push({
+          id: text(row.transaction_code || row.id),
+          date: day,
+          description: transactionDescription(row),
+          type: credit > 0 ? "income" : "expense",
+          amount: credit > 0 ? credit : debit,
+        });
       }
     }
+
+    const { year, month } = dhakaYearMonth();
+    const monthlySeries = Array.from({ length: month }, (_, index) => {
+      const monthNumber = index + 1;
+      const key = `${year}-${String(monthNumber).padStart(2, "0")}`;
+      const values = monthly.get(key) || { income: 0, expenses: 0 };
+      const label = new Intl.DateTimeFormat("en", { month: "short", timeZone: "Asia/Dhaka" })
+        .format(new Date(`${key}-01T00:00:00+06:00`));
+      return { key, label, income: values.income, expenses: values.expenses };
+    });
+
+    const recentTransactions = recentMain.slice(-6).reverse();
 
     return NextResponse.json({
       success: true,
@@ -110,6 +176,10 @@ export async function GET(request: NextRequest) {
         municipalityBalance,
         mainEntries,
         municipalityEntries,
+        totalIncome,
+        totalExpenses,
+        monthlySeries,
+        recentTransactions,
         generatedAt: new Date().toISOString(),
       },
     }, {
