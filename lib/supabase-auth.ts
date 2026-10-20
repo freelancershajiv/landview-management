@@ -4,6 +4,7 @@ const AUTH_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview
 const AUDIENCE = "https://supabase.landview.internal";
 const CLOCK_SKEW_RETRY_MS = 2500;
 const FUTURE_JWT_ERROR = /jwt\s+issued\s+at\s+future|iat.*future/i;
+const SUPPORTED_ROLES = new Set(["admin", "manager", "employee", "client"]);
 
 export type LandviewAuthUser = Record<string, unknown>;
 
@@ -15,6 +16,15 @@ type AuthGatewayResponse<T> = {
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function assertSupportedProvisioningRole(action: string, input: Record<string, unknown>) {
+  if (action !== "createUser") return;
+  const record = input.user && typeof input.user === "object"
+    ? input.user as Record<string, unknown>
+    : input;
+  const role = String(record.Role ?? record.role ?? "employee").trim().toLowerCase();
+  if (!SUPPORTED_ROLES.has(role)) throw new Error("Invalid LAND VIEW role.");
 }
 
 async function callAuthGateway<T>(oidc: string, action: string, input: Record<string, unknown>) {
@@ -33,6 +43,8 @@ async function callAuthGateway<T>(oidc: string, action: string, input: Record<st
 }
 
 export async function supabaseAuthGateway<T = any>(action: string, input: Record<string, unknown> = {}): Promise<T> {
+  assertSupportedProvisioningRole(action, input);
+
   const oidc = await getVercelOidcToken({ audience: AUDIENCE });
   if (!oidc) throw new Error("Vercel OIDC token is unavailable.");
 
