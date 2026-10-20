@@ -1,0 +1,363 @@
+/* LAND VIEW admin sidebar refinement.
+   Neutral navigation chrome with restrained brand-red accents.
+   Loaded after admin-module-sidebar.css so this is the final sidebar pass. */
+
+@media screen {
+  html body .portal-admin .primary-nav.lv-module-nav {
+    --lv-nav-bg:#ffffff;
+    --lv-nav-panel:#f7f8fa;
+    --lv-nav-hover:#f3f5f7;
+    --lv-nav-text:#4b5565;
+    --lv-nav-strong:#171c24;
+    --lv-nav-muted:#8a93a1;
+    --lv-nav-line:#e6e9ee;
+    --lv-nav-accent:#b4232c;
+    --lv-nav-accent-soft:#fbf2f3;
+    background:var(--lv-nav-bg) !important;
+    color:var(--lv-nav-text) !important;
+    border-right:1px solid var(--lv-nav-line) !important;
+    box-shadow:8px 0 26px rgba(15,23,42,.035) !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-brand,
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-footer,
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-rail {
+    background:var(--lv-nav-bg) !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-brand {
+    min-height:76px !important;
+    height:76px !important;
+    flex-basis:76px !important;
+    padding:13px 15px !important;
+    gap:10px !important;
+    border-bottom:1px solid var(--lv-nav-line) !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-brand img {
+    width:40px !important;
+    height:40px !important;
+    flex-basis:40px !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-brand strong {
+    color:var(--lv-nav-strong) !important;
+    font-size:14px !important;
+    letter-spacing:.01em !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-brand small {
+    color:var(--lv-nav-muted) !important;
+    font-size:6.5px !important;
+  }
+
+  .portal-admin .lv-module-layout {
+    background:var(--lv-nav-bg) !important;
+    scrollbar-color:#c8ced7 transparent !important;
+    scrollbar-width:thin !important;
+  }
+
+  .portal-admin .lv-module-layout::-webkit-scrollbar { width:6px; }
+  .portal-admin .lv-module-layout::-webkit-scrollbar-track { background:transparent; }
+  .portal-admin .lv-module-layout::-webkit-scrollbar-thumb { background:#c8ced7; border-radius:999px; }
+
+  .portal-admin .lv-module-rail {
+    padding:9px 9px 7px !important;
+    gap:3px !important;
+  }
+
+  .portal-admin .lv-module-button {
+    min-height:40px !important;
+    grid-template-columns:28px minmax(0,1fr) 18px !important;
+    gap:7px !important;
+    padding:0 10px !important;
+    border:1px solid transparent !important;
+    border-radius:8px !important;
+    background:transparent !important;
+    color:var(--lv-nav-text) !important;
+    font-size:10.5px !important;
+    font-weight:760 !important;
+    letter-spacing:0 !important;
+    box-shadow:none !important;
+  }
+
+  .portal-admin .lv-module-button > span:nth-child(2) {
+    min-width:0 !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+    white-space:nowrap !important;
+  }
+
+  .portal-admin .lv-module-button::after {
+    color:#a4acb8 !important;
+    font-size:13px !important;
+  }
+
+  .portal-admin .lv-module-button:hover {
+    background:var(--lv-nav-hover) !important;
+    border-color:transparent !important;
+    color:var(--lv-nav-strong) !important;
+  }
+
+  /* Selected module stays neutral; red is now only a small brand cue. */
+  .portal-admin .lv-module-button.selected {
+    background:#f3f5f7 !important;
+    border-color:#e7eaf0 !important;
+    color:var(--lv-nav-strong) !important;
+    box-shadow:none !important;
+  }
+
+  .portal-admin .lv-module-button.selected .lv-module-icon {
+    color:var(--lv-nav-accent) !important;
+    background:var(--lv-nav-accent-soft) !important;
+  }
+
+  .portal-admin .lv-module-button.selected::after {
+    color:#707a89 !important;
+  }
+
+  .portal-admin .lv-module-button.current::before {
+    content:"" !important;
+    position:absolute !important;
+    left:0 !important;
+    top:9px !important;
+    bottom:9px !important;
+    width:3px !important;
+    border-radius:0 3px 3px 0 !important;
+    background:var(--lv-nav-accent) !important;
+  }
+
+  .portal-admin .lv-module-button.current i {
+    display:none !important;
+  }
+
+  .portal-admin .lv-module-icon {
+    width:26px !important;
+    height:26px !important;
+    border-radius:7px !important;
+    background:transparent !important;
+    color:#687385 !important;
+    font-size:14px !important;
+  }
+
+  /* Sub-navigation reads as a lightweight secondary level instead of a red card. */
+  .portal-admin .lv-module-context {
+    margin:0 9px 10px 36px !important;
+    border:0 !important;
+    border-left:1px solid #e0e4ea !important;
+    border-radius:0 !important;
+    background:transparent !important;
+    box-shadow:none !important;
+  }
+
+  .portal-admin .lv-module-context-head {
+    grid-template-columns:1fr !important;
+    padding:5px 8px 6px 12px !important;
+    border:0 !important;
+    background:transparent !important;
+  }
+
+  .portal-admin .lv-module-context-icon {
+    display:none !important;
+  }
+
+  .portal-admin .lv-module-context-head strong {
+    color:#778190 !important;
+    font-size:8px !important;
+    line-height:1.1 !important;
+    font-weight:850 !important;
+    letter-spacing:.09em !important;
+    text-transform:uppercase !important;
+  }
+
+  .portal-admin .lv-module-links {
+    padding:0 0 3px 7px !important;
+    gap:1px !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links a {
+    min-height:34px !important;
+    grid-template-columns:22px minmax(0,1fr) !important;
+    gap:6px !important;
+    padding:0 8px !important;
+    border:0 !important;
+    border-radius:7px !important;
+    background:transparent !important;
+    color:#657084 !important;
+    box-shadow:none !important;
+    font-size:9.5px !important;
+    font-weight:720 !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links a span:last-child {
+    min-width:0 !important;
+    overflow:hidden !important;
+    text-overflow:ellipsis !important;
+    white-space:nowrap !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links a:hover {
+    background:#f5f6f8 !important;
+    color:var(--lv-nav-strong) !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links a.active,
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links a[aria-current="page"] {
+    background:#f1f3f5 !important;
+    color:#1c2430 !important;
+    border:0 !important;
+    box-shadow:none !important;
+    font-weight:820 !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links a.active::after,
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links a[aria-current="page"]::after {
+    content:"" !important;
+    position:absolute !important;
+    right:8px !important;
+    width:5px !important;
+    height:5px !important;
+    border-radius:50% !important;
+    background:var(--lv-nav-accent) !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links .nav-icon {
+    width:22px !important;
+    height:22px !important;
+    color:#7b8594 !important;
+    font-size:11px !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links a.active .nav-icon,
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links a[aria-current="page"] .nav-icon {
+    color:var(--lv-nav-accent) !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-footer {
+    padding:7px 9px !important;
+    border-top:1px solid var(--lv-nav-line) !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-footer-account {
+    min-height:42px !important;
+    padding:5px 6px !important;
+    border-radius:8px !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-footer-account:hover {
+    background:#f5f6f8 !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-user strong {
+    color:var(--lv-nav-strong) !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .sidebar-user small {
+    color:var(--lv-nav-muted) !important;
+  }
+
+  /* Tone down the dashboard's repeated red accents without removing the brand. */
+  .portal-admin .lv-clean-dashboard {
+    --red:#b4232c !important;
+    --red2:#8f1d24 !important;
+    --redsoft:#fbf3f4 !important;
+  }
+
+  .portal-admin .lv-clean-kpi-icon,
+  .portal-admin .lv-clean-title i {
+    background:#f5f6f8 !important;
+    color:#596577 !important;
+  }
+
+  .portal-admin .lv-clean-title i {
+    background:transparent !important;
+  }
+
+  .portal-admin .lv-workflow-step:first-child .lv-workflow-icon {
+    background:#f3f5f7 !important;
+    border-color:#dfe3e8 !important;
+    color:var(--lv-nav-accent) !important;
+    box-shadow:none !important;
+  }
+}
+
+@media screen and (min-width:901px) {
+  .portal-admin {
+    --lv-sidebar-width:258px !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav {
+    width:258px !important;
+  }
+}
+
+@media screen and (max-width:900px) {
+  .portal-admin .primary-nav.lv-module-nav.open {
+    left:0 !important;
+    right:auto !important;
+    width:min(88vw,340px) !important;
+    max-width:340px !important;
+    border-right:1px solid var(--lv-nav-line,#e6e9ee) !important;
+    box-shadow:18px 0 44px rgba(15,23,42,.18) !important;
+  }
+
+  .portal-admin .mobile-nav-overlay {
+    background:rgba(15,23,42,.34) !important;
+  }
+
+  .portal-admin .lv-module-rail {
+    padding:9px !important;
+    gap:3px !important;
+  }
+
+  .portal-admin .lv-module-button {
+    min-height:44px !important;
+    font-size:11.5px !important;
+  }
+
+  .portal-admin .lv-module-context {
+    margin:0 9px 10px 36px !important;
+  }
+
+  html body .portal-admin .primary-nav.lv-module-nav .lv-module-links a {
+    min-height:40px !important;
+    font-size:11px !important;
+  }
+
+  .portal-admin .admin-mobile-account {
+    margin:10px 10px 14px !important;
+  }
+}
+
+html[data-theme="dark"] body .portal-admin .primary-nav.lv-module-nav {
+  --lv-nav-bg:#111419;
+  --lv-nav-panel:#171b20;
+  --lv-nav-hover:#1a1f25;
+  --lv-nav-text:#c2c8d0;
+  --lv-nav-strong:#f2f4f7;
+  --lv-nav-muted:#8d96a3;
+  --lv-nav-line:#292f37;
+  --lv-nav-accent:#e05a62;
+  --lv-nav-accent-soft:#28191b;
+  background:var(--lv-nav-bg) !important;
+  border-right-color:var(--lv-nav-line) !important;
+}
+
+html[data-theme="dark"] body .portal-admin .primary-nav.lv-module-nav .sidebar-brand,
+html[data-theme="dark"] body .portal-admin .primary-nav.lv-module-nav .sidebar-footer,
+html[data-theme="dark"] body .portal-admin .primary-nav.lv-module-nav .lv-module-rail {
+  background:var(--lv-nav-bg) !important;
+}
+
+html[data-theme="dark"] body .portal-admin .lv-module-button.selected,
+html[data-theme="dark"] body .portal-admin .lv-module-links a.active,
+html[data-theme="dark"] body .portal-admin .lv-module-links a[aria-current="page"] {
+  background:#1a1f25 !important;
+  border-color:#2d343d !important;
+  color:#f2f4f7 !important;
+}
+
+html[data-theme="dark"] body .portal-admin .lv-module-context {
+  background:transparent !important;
+  border-left-color:#343b44 !important;
+}
