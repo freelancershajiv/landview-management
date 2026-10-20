@@ -17,7 +17,7 @@ function isEmp0001(user: Record<string, unknown>) {
 }
 
 export default async function DashboardPage() {
-  const { user } = await requirePortalSession(["admin", "manager", "accounts", "employee"]);
+  const { user } = await requirePortalSession(["admin", "manager", "employee"]);
   const chairman = isEmp0001(user as Record<string, unknown>);
 
   return (
