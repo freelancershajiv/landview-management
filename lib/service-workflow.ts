@@ -103,8 +103,9 @@ export async function getProjectServiceFinancials(projectCode: string) {
 
   const map = new Map<string, ServiceFinancial>();
   for (const bill of bills.filter(effectiveBill)) {
+    const category = billCategory(bill);
     const raw = rawBillService(bill);
-    const serviceName = workflowServiceName(raw || bill.billing_category || bill.category);
+    const serviceName = category === "Supervision Bill" ? "Site Supervision" : workflowServiceName(raw || bill.billing_category || bill.category);
     const serviceKey = workflowServiceKey(serviceName);
     if (!serviceKey) continue;
     const gross = Math.max(0, num(bill.amount));
@@ -114,7 +115,7 @@ export async function getProjectServiceFinancials(projectCode: string) {
     const existing = map.get(serviceKey) || {
       serviceName,
       serviceKey,
-      billingCategory: billCategory(bill),
+      billingCategory: category,
       workflowType: workflowTypeForService(serviceName),
       gross: 0,
       discount: 0,
