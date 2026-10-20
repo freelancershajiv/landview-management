@@ -1,4 +1,4 @@
-import ManagementShellV4 from "@/components/management-shell-v4";
+import ManagementShellV3 from "@/components/management-shell-v3";
 import AdminMobileDock from "@/components/admin-mobile-dock";
 import PortalPreloader from "@/components/portal-preloader";
 import ProjectManagementEnhancements from "@/components/project-management-enhancements";
@@ -16,9 +16,6 @@ import "./admin-mobile-shell-final.css";
 import "./admin-dashboard-light.css";
 import "./admin-color-harmony.css";
 import "../dual-mode-navigation.css";
-import "./admin-module-sidebar.css";
-import "./admin-sidebar-neutral.css";
-import "./admin-color-final.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
@@ -28,7 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <ProjectManagementEnhancements />
     <AdminProjectMapDrawer />
     <ManagementRolePolicyEnforcer role={role} />
-    <ManagementShellV4 initialUser={session.user}>{children}</ManagementShellV4>
+    <ManagementShellV3 initialUser={session.user}>{children}</ManagementShellV3>
     {role === "manager" && <AccountShortcut label="My Account" mobileDock />}
     <AdminMobileDock />
   </>;
