@@ -1,6 +1,5 @@
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
 import AdminCommandCenter from "@/components/admin-command-center-v3";
-import WhatsAppHealthCard from "@/components/whatsapp-health-card";
 import { requirePortalSession } from "@/lib/server-auth";
 
 function isEmp0001(user: Record<string, unknown>) {
@@ -23,7 +22,6 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <WhatsAppHealthCard />
       <AdminCommandCenter />
       {chairman && <ChairmanExpenseApproval />}
     </>
