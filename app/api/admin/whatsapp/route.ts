@@ -6,6 +6,8 @@ export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
 
+const DEFAULT_WHATSAPP_OPS_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-ops";
+
 function deny(message: string, status = 403) {
   return NextResponse.json(
     { success: false, error: message },
@@ -38,12 +40,52 @@ function botConfig() {
   return { base, token };
 }
 
+function opsConfig() {
+  const token = String(process.env.WHATSAPP_BOT_API_TOKEN || "").trim();
+  const url = String(process.env.WHATSAPP_OPS_URL || DEFAULT_WHATSAPP_OPS_URL).trim();
+  if (!url || !token) throw new Error("WhatsApp operations service is not configured.");
+  return { url, token };
+}
+
 function retriableBotStatus(status: number) {
   return status === 408 || status === 425 || status === 429 || status === 502 || status === 503 || status === 504;
 }
 
 function retryDelay(attempt: number) {
   return Math.min(4_000, 1_000 * (attempt + 1));
+}
+
+async function opsRequest(action: string, input: Row = {}) {
+  const { url, token } = opsConfig();
+  const response = await fetch(url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-land-view-bot-token": token,
+    },
+    body: JSON.stringify({ action, ...input }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(20_000),
+  });
+  const json = await response.json().catch(() => null) as any;
+  if (!response.ok || !json?.success) {
+    const error = new Error(String(json?.error || `WhatsApp operations returned HTTP ${response.status}.`));
+    (error as Error & { status?: number }).status = response.status;
+    throw error;
+  }
+  return json.data;
+}
+
+async function wakeQueue(queue: string) {
+  const { base, token } = botConfig();
+  const path = queue === "finance" ? "/finance/wake" : queue === "client" ? "/client/wake" : "/wake";
+  await fetch(`${base}${path}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-land-view-bot-token": token },
+    body: "{}",
+    cache: "no-store",
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => null);
 }
 
 async function pairingState() {
@@ -161,14 +203,18 @@ export async function GET(request: NextRequest) {
       const groups = await groupsState();
       return NextResponse.json({ success: true, data: groups }, { headers: { "Cache-Control": "no-store" } });
     }
+    if (mode === "ops" || mode === "operations") {
+      const data = await opsRequest("state");
+      return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store, max-age=0" } });
+    }
     const state = await pairingState();
     return NextResponse.json(
       { success: true, data: state },
       { headers: { "Cache-Control": "no-store, max-age=0" } },
     );
   } catch (error: any) {
-    const message = String(error?.message || "Could not load WhatsApp pairing status.");
-    const status = /session expired/i.test(message) ? 401 : /Admin or Manager/i.test(message) ? 403 : 500;
+    const message = String(error?.message || "Could not load WhatsApp status.");
+    const status = /session expired/i.test(message) ? 401 : /Admin or Manager/i.test(message) ? 403 : Number(error?.status) || 500;
     return deny(message, status);
   }
 }
@@ -178,9 +224,52 @@ export async function POST(request: NextRequest) {
   try {
     await requireAdminOrManager(request);
     const body = (await request.json().catch(() => ({}))) as Row;
-    if (String(body?.action || "").trim().toLowerCase() !== "reset") {
-      return deny("Unsupported action.", 400);
+    const action = String(body?.action || "").trim().toLowerCase();
+
+    if (action === "retry") {
+      const queue = String(body?.queue || "").trim().toLowerCase();
+      const data = await opsRequest("retry", { queue, id: body?.id });
+      await wakeQueue(queue);
+      return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store" } });
     }
+
+    if (action === "retry_all_failed") {
+      const data = await opsRequest("retryAll");
+      await Promise.all([wakeQueue("finance"), wakeQueue("site"), wakeQueue("client")]);
+      return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (action === "update_rule") {
+      const data = await opsRequest("updateRule", {
+        eventKey: body?.eventKey,
+        enabled: body?.enabled,
+        priority: body?.priority,
+        recipientGroupSlug: body?.recipientGroupSlug,
+        templateKey: body?.templateKey,
+      });
+      return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (action === "update_template") {
+      const data = await opsRequest("updateTemplate", {
+        templateKey: body?.templateKey,
+        body: body?.body,
+        enabled: body?.enabled,
+      });
+      return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (action === "update_group") {
+      const data = await opsRequest("updateGroup", {
+        slug: body?.slug,
+        target: body?.target,
+        enabled: body?.enabled,
+        senderEmployeeId: body?.senderEmployeeId,
+      });
+      return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    if (action !== "reset") return deny("Unsupported action.", 400);
 
     // Warm a sleeping Render instance before issuing the non-idempotent reset.
     await pairingState().catch(() => null);
@@ -206,8 +295,8 @@ export async function POST(request: NextRequest) {
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error: any) {
-    const message = String(error?.message || "Could not reset WhatsApp pairing.");
-    const status = /session expired/i.test(message) ? 401 : /Admin or Manager/i.test(message) ? 403 : 500;
+    const message = String(error?.message || "Could not update WhatsApp.");
+    const status = /session expired/i.test(message) ? 401 : /Admin or Manager/i.test(message) ? 403 : Number(error?.status) || 500;
     return deny(message, status);
   }
 }
