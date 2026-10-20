@@ -4,7 +4,7 @@
    pages, API routes and components. UI hiding is never an authorization
    boundary; server/API code should call hasCapability / require helpers. */
 
-export type WorkspaceRole = "admin" | "manager" | "accounts" | "employee" | "client";
+export type WorkspaceRole = "admin" | "manager" | "employee" | "client";
 
 export type Capability =
   | "dashboard.view"
@@ -134,21 +134,6 @@ const ROLE_CAPABILITIES: Record<WorkspaceRole, ReadonlySet<Capability>> = {
     "analytics.view",
   ]),
 
-  // Legacy finance-focused role retained for compatibility while role
-  // consolidation is completed. It is intentionally narrow.
-  accounts: new Set<Capability>([
-    "dashboard.view",
-    "projects.view",
-    "proposals.view",
-    "billing.view",
-    "billing.edit",
-    "accounts.view",
-    "accounts.createEntry",
-    "accounts.edit",
-    "municipalityAccounts.view",
-    "municipalityAccounts.edit",
-  ]),
-
   employee: new Set<Capability>([
     "dashboard.view",
     "projects.view",
@@ -174,7 +159,7 @@ const ROLE_CAPABILITIES: Record<WorkspaceRole, ReadonlySet<Capability>> = {
 
 export function normalizeWorkspaceRole(value: unknown): WorkspaceRole | null {
   const role = String(value ?? "").trim().toLowerCase();
-  return role === "admin" || role === "manager" || role === "accounts" || role === "employee" || role === "client"
+  return role === "admin" || role === "manager" || role === "employee" || role === "client"
     ? role
     : null;
 }
