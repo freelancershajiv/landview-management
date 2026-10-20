@@ -25,6 +25,11 @@ export function projectStoryOf(project: ProjectLike) {
   return first(project, ["story", "numberOfStories", "number_of_stories_text", "Number_of_Stories", "Story", "floors", "Floors"]);
 }
 
+export function formatProjectOwnerStory(project: ProjectLike, fallback = "Project") {
+  const parts = [projectOwnerOf(project), projectStoryOf(project)].filter(Boolean);
+  return parts.length ? parts.join(" · ") : fallback;
+}
+
 export function formatProjectIdentity(project: ProjectLike, fallback = "Project") {
   const parts = [projectIdOf(project), projectOwnerOf(project), projectStoryOf(project)].filter(Boolean);
   return parts.length ? parts.join(" · ") : fallback;
