@@ -1,0 +1,230 @@
+@page {
+  size: A4 portrait;
+  margin: 7mm 7mm 8mm;
+}
+
+@media print {
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-ledger-header {
+    padding: 0 0 1.5mm !important;
+    margin: 0 0 1.2mm !important;
+    border-bottom-width: .45mm !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-brand-row {
+    grid-template-columns: 1fr 1.12fr .95fr !important;
+    gap: 2.2mm !important;
+    align-items: start !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-brand {
+    gap: 1.4mm !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-brand img {
+    width: 8.5mm !important;
+    height: 8.5mm !important;
+    flex: 0 0 8.5mm !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-brand strong {
+    font-size: 10pt !important;
+    line-height: .95 !important;
+    letter-spacing: -.15px !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-brand small {
+    margin-top: .4mm !important;
+    font-size: 4.3pt !important;
+    line-height: 1 !important;
+    letter-spacing: .45px !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-contact {
+    padding-top: 0 !important;
+    font-size: 4.6pt !important;
+    line-height: 1.18 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-contact strong {
+    margin-bottom: .15mm !important;
+    font-size: 4.9pt !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-title small {
+    font-size: 4.35pt !important;
+    line-height: 1.12 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-title b {
+    margin-top: .35mm !important;
+    font-size: 7pt !important;
+    line-height: 1 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-title strong {
+    margin-top: .35mm !important;
+    font-size: 8.3pt !important;
+    line-height: 1 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-summary {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    margin: 0 0 1.35mm !important;
+    border-width: .25mm !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-summary div,
+  .ledger-export-page .ledger-export-report .print-summary div:nth-child(2n),
+  .ledger-export-page .ledger-export-report .print-summary div:nth-last-child(-n + 2) {
+    min-height: 7.5mm !important;
+    padding: .75mm .9mm !important;
+    border-right: .2mm solid #cfd5d9 !important;
+    border-bottom: 0 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-summary div:last-child {
+    border-right: 0 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-summary span {
+    font-size: 4pt !important;
+    line-height: 1 !important;
+    letter-spacing: .04px !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-summary strong {
+    margin-top: .3mm !important;
+    font-size: 5.75pt !important;
+    line-height: 1.02 !important;
+    white-space: nowrap !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table-wrap {
+    overflow: visible !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table thead {
+    display: table-header-group !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table th {
+    position: static !important;
+    font-size: 5pt !important;
+    padding: .7mm .7mm !important;
+    line-height: 1 !important;
+    vertical-align: middle !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table td {
+    font-size: 5.05pt !important;
+    padding: .52mm .7mm !important;
+    line-height: 1.04 !important;
+    vertical-align: top !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table th:nth-child(1),
+  .ledger-export-page .ledger-export-report .export-table td:nth-child(1) {
+    width: 11% !important;
+    white-space: nowrap !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table th:nth-child(2),
+  .ledger-export-page .ledger-export-report .export-table td:nth-child(2) {
+    width: 20% !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table th:nth-child(3),
+  .ledger-export-page .ledger-export-report .export-table td:nth-child(3) {
+    width: 36% !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table th:nth-child(4),
+  .ledger-export-page .ledger-export-report .export-table td:nth-child(4) {
+    width: 11% !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table th:nth-child(5),
+  .ledger-export-page .ledger-export-report .export-table td:nth-child(5) {
+    width: 11% !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table th:nth-child(6),
+  .ledger-export-page .ledger-export-report .export-table td:nth-child(6) {
+    width: 11% !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table .tx {
+    display: inline !important;
+    font-size: 5pt !important;
+    line-height: 1.04 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table .project-tag {
+    display: inline-block !important;
+    margin: 0 0 0 .65mm !important;
+    padding: .25mm .65mm !important;
+    border-width: .18mm !important;
+    border-radius: 1.5mm !important;
+    font-size: 4.25pt !important;
+    line-height: 1 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table td:nth-child(2) > .sub {
+    display: inline !important;
+    margin: 0 0 0 .65mm !important;
+    font-size: 4.25pt !important;
+    line-height: 1 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table .detail-main {
+    display: block !important;
+    font-size: 5.1pt !important;
+    line-height: 1.04 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table td:nth-child(3) > .sub {
+    display: inline !important;
+    margin: .18mm 0 0 !important;
+    font-size: 4.2pt !important;
+    line-height: 1.02 !important;
+    color: #555 !important;
+  }
+
+  .ledger-export-page .ledger-export-report .export-table td:nth-child(3) > .sub + .sub::before {
+    content: " · " !important;
+  }
+
+  .ledger-export-page .ledger-export-report .opening-line td {
+    padding-top: .6mm !important;
+    padding-bottom: .6mm !important;
+    vertical-align: middle !important;
+  }
+
+  .ledger-export-page .ledger-export-report .print-ledger-footer {
+    min-height: 0 !important;
+    margin-top: 1.2mm !important;
+    padding: .65mm .3mm 0 !important;
+    border-top-width: .3mm !important;
+    gap: 3mm !important;
+    font-size: 4.35pt !important;
+    line-height: 1.08 !important;
+  }
+}
