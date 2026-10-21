@@ -145,8 +145,12 @@ export async function getProjectServiceFinancials(projectCode: string) {
   const categoryPaid = (needle: string) => approvedPayments
     .filter((row) => norm(row.payment_for || row.income_category).includes(needle))
     .reduce((sum, row) => sum + Math.max(0, num(row.amount)), 0);
+  const otherPayments = approvedPayments.filter((row) => norm(row.payment_for || row.income_category).includes("other"));
   let legacyEngineeringPool = Math.max(0, categoryPaid("engineering") - explicitEngineering);
   let supervisionPool = categoryPaid("supervision");
+  let legacyOtherPool = otherPayments
+    .filter((payment) => !text(payment.service_type, 300))
+    .reduce((sum, payment) => sum + Math.max(0, num(payment.amount)), 0);
 
   const rows = Array.from(map.values()).sort((a, b) => serviceRank(a.serviceName) - serviceRank(b.serviceName) || a.serviceName.localeCompare(b.serviceName));
   for (const service of rows) {
@@ -162,15 +166,20 @@ export async function getProjectServiceFinancials(projectCode: string) {
       paid += applied;
       supervisionPool -= applied;
     } else {
-      const directPaid = approvedPayments
+      const directPaid = otherPayments
         .filter((payment) => {
-          const pCategory = norm(payment.payment_for || payment.income_category);
-          if (!pCategory.includes("other")) return false;
-          const serviceType = workflowServiceName(payment.service_type || "");
+          const rawServiceType = text(payment.service_type, 300);
+          if (!rawServiceType) return false;
+          const serviceType = workflowServiceName(rawServiceType);
           return workflowServiceKey(serviceType) === service.serviceKey;
         })
         .reduce((sum, payment) => sum + Math.max(0, num(payment.amount)), 0);
       paid = Math.max(paid, directPaid);
+
+      const remaining = Math.max(0, service.net - paid);
+      const legacyApplied = Math.min(remaining, legacyOtherPool);
+      paid += legacyApplied;
+      legacyOtherPool -= legacyApplied;
     }
     service.paid = Math.min(service.net, paid);
     service.due = Math.max(0, service.net - service.paid);
