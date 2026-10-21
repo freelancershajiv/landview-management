@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
-import { selectRows, updateRows } from "@/lib/supabase-data";
+import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
 import { canonicalProjectService } from "@/lib/project-task-templates";
 import {
   ENGINEERING_SERVICE_STATUSES,
@@ -191,6 +191,53 @@ export async function POST(request: NextRequest) {
       const updated = await updateRows("project_service_workflows", { id }, changes);
       await recordAuditEvent({ user, request, action: "project_service_workflow_status", entityType: "project_service_workflow", entityId: id, before: { status: rows[0].status }, after: { status }, details: { projectId: rows[0].project_code, service: rows[0].service_name }, source: "service-workflow" });
       return json({ success: true, data: updated[0] || { ...rows[0], ...changes } });
+    }
+
+    if (action === "markprojectcomplete") {
+      const projectId = text(input.projectId, 80).toUpperCase();
+      if (!projectId) throw new Error("Project ID is required.");
+      const projectRows = await selectRows("projects", { filters: { project_code: projectId }, limit: 1 });
+      if (!projectRows.length) throw new Error(`Project ${projectId} was not found.`);
+      const project = projectRows[0];
+      const now = new Date().toISOString();
+      const serviceRows = await selectRows("project_service_workflows", { filters: { project_id: project.id }, limit: 5000 });
+      let servicesClosed = 0;
+      for (const service of serviceRows) {
+        const statuses = workflowStatusesForService(service.service_name);
+        const finalStatus = statuses[statuses.length - 1] || service.status;
+        if (text(service.status) === finalStatus) continue;
+        await updateRows("project_service_workflows", { id: service.id }, { status: finalStatus, updated_by: who, updated_at: now });
+        servicesClosed += 1;
+      }
+      const projectChanges = {
+        lifecycle_phase: "Completed",
+        design_stage_status: "Completed",
+        approval_stage_status: "Completed",
+        supervision_stage_status: "Completed",
+        lifecycle_changed_at: now,
+        lifecycle_changed_by: who,
+        updated_at: now,
+      };
+      const updatedProjects = await updateRows("projects", { project_code: projectId }, projectChanges);
+      await insertRows("project_lifecycle_transitions", {
+        project_id: project.id,
+        project_code: projectId,
+        from_phase: text(project.lifecycle_phase) || null,
+        to_phase: "Completed",
+        transition_type: "legacy_close",
+        reason: text(input.reason, 1000) || "Manually marked complete from Project Workflow for legacy project close-out.",
+        changed_by: who,
+        changed_by_role: roleOf(user),
+        source: "service-workflow",
+        created_at: now,
+      });
+      await recordAuditEvent({
+        user, request, action: "project_manual_complete", entityType: "project", entityId: projectId,
+        before: { lifecycle_phase: project.lifecycle_phase, design_stage_status: project.design_stage_status, approval_stage_status: project.approval_stage_status, supervision_stage_status: project.supervision_stage_status },
+        after: projectChanges,
+        details: { servicesClosed, reason: text(input.reason, 1000) || "Legacy/manual close from Project Workflow" }, source: "service-workflow",
+      });
+      return json({ success: true, data: { project: updatedProjects[0] || { ...project, ...projectChanges }, servicesClosed } });
     }
 
     if (action === "redistributeengineeringdiscount") {
