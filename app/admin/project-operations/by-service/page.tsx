@@ -51,6 +51,14 @@ function finalStatus(row: Row) {
   return statuses.length > 0 && String(row.status || "") === String(statuses[statuses.length - 1] || "");
 }
 
+function reopenedPhase(row: Row) {
+  const workflowType = String(row.workflowType || "").toLowerCase();
+  const serviceName = String(row.serviceName || "").toLowerCase();
+  if (workflowType === "municipality") return "Approval Stage";
+  if (serviceName.includes("supervision")) return "Supervision / Construction Stage";
+  return "Design Stage";
+}
+
 function sortProjectDesc(a: Row, b: Row) {
   return String(b.projectId || "").localeCompare(String(a.projectId || ""), undefined, { numeric: true });
 }
@@ -84,10 +92,20 @@ export default function ByServiceOperationsPage() {
     if (busy) return;
     setBusy(`S:${row.id}`); setError(""); setMessage("");
     try {
-      await post({ action: "updateProjectServiceStatus", id: row.id, status });
-      await load();
-      const final = String((row.statuses || [])[Math.max(0, (row.statuses || []).length - 1)] || "");
+      const updated = await post({ action: "updateProjectServiceStatus", id: row.id, status });
+      const statuses: string[] = row.statuses || [];
+      const final = String(statuses[statuses.length - 1] || "");
       const reopened = String(row.lifecyclePhase || "") === "Completed" && status !== final;
+      const nextPhase = reopened ? reopenedPhase(row) : String(row.lifecyclePhase || "");
+      const updatedAt = updated?.updated_at || new Date().toISOString();
+      setData((current) => ({
+        ...current,
+        workflows: (current.workflows || []).map((item: Row) => {
+          if (item.projectId !== row.projectId) return item;
+          const projectUpdate = reopened ? { lifecyclePhase: nextPhase } : {};
+          return item.id === row.id ? { ...item, ...projectUpdate, status, updatedAt } : { ...item, ...projectUpdate };
+        }),
+      }));
       setMessage(`${row.projectId} · ${row.serviceName} moved to ${status}.${reopened ? " The completed project was reopened automatically for correction." : ""}`);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not update service."); }
     finally { setBusy(""); }
