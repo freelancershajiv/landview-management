@@ -148,6 +148,21 @@ export async function getProjectServiceFinancials(projectCode: string) {
   let legacyEngineeringPool = Math.max(0, categoryPaid("engineering") - explicitEngineering);
   let supervisionPool = categoryPaid("supervision");
 
+  const directOtherPaidByService = new Map<string, number>();
+  let directlyAssignedOtherTotal = 0;
+  for (const payment of approvedPayments) {
+    const pCategory = norm(payment.payment_for || payment.income_category);
+    if (!pCategory.includes("other")) continue;
+    const rawServiceType = text(payment.service_type, 120);
+    if (!rawServiceType) continue;
+    const key = workflowServiceKey(rawServiceType);
+    const amount = Math.max(0, num(payment.amount));
+    if (!key || amount <= 0) continue;
+    directOtherPaidByService.set(key, (directOtherPaidByService.get(key) || 0) + amount);
+    directlyAssignedOtherTotal += amount;
+  }
+  let legacyOtherPool = Math.max(0, categoryPaid("other") - directlyAssignedOtherTotal);
+
   const rows = Array.from(map.values()).sort((a, b) => serviceRank(a.serviceName) - serviceRank(b.serviceName) || a.serviceName.localeCompare(b.serviceName));
   for (const service of rows) {
     let paid = explicitByService.get(service.serviceKey) || 0;
@@ -162,15 +177,11 @@ export async function getProjectServiceFinancials(projectCode: string) {
       paid += applied;
       supervisionPool -= applied;
     } else {
-      const directPaid = approvedPayments
-        .filter((payment) => {
-          const pCategory = norm(payment.payment_for || payment.income_category);
-          if (!pCategory.includes("other")) return false;
-          const serviceType = workflowServiceName(payment.service_type || "");
-          return workflowServiceKey(serviceType) === service.serviceKey;
-        })
-        .reduce((sum, payment) => sum + Math.max(0, num(payment.amount)), 0);
-      paid = Math.max(paid, directPaid);
+      paid = Math.max(paid, directOtherPaidByService.get(service.serviceKey) || 0);
+      const remaining = Math.max(0, service.net - paid);
+      const legacyApplied = Math.min(remaining, legacyOtherPool);
+      paid += legacyApplied;
+      legacyOtherPool -= legacyApplied;
     }
     service.paid = Math.min(service.net, paid);
     service.due = Math.max(0, service.net - service.paid);
