@@ -42,6 +42,14 @@ function serviceProgress(row: Row) {
   return Math.round((index / (statuses.length - 1)) * 100);
 }
 
+function reopenedPhase(row: Row) {
+  const workflowType = String(row.workflowType || "").toLowerCase();
+  const serviceName = String(row.serviceName || "").toLowerCase();
+  if (workflowType === "municipality") return "Approval Stage";
+  if (serviceName.includes("supervision")) return "Supervision / Construction Stage";
+  return "Design Stage";
+}
+
 export default function ByProjectOperationsPage() {
   const [data, setData] = useState<Row>({});
   const [loading, setLoading] = useState(true);
@@ -65,9 +73,20 @@ export default function ByProjectOperationsPage() {
     if (busy) return;
     setBusy(`S:${row.id}`); setError(""); setMessage("");
     try {
-      await post({ action: "updateProjectServiceStatus", id: row.id, status });
-      await load();
-      const reopened = String(row.lifecyclePhase || "") === "Completed" && !((row.statuses || [])[Math.max(0, (row.statuses || []).length - 1)] === status);
+      const updated = await post({ action: "updateProjectServiceStatus", id: row.id, status });
+      const statuses: string[] = row.statuses || [];
+      const final = String(statuses[statuses.length - 1] || "");
+      const reopened = String(row.lifecyclePhase || "") === "Completed" && status !== final;
+      const nextPhase = reopened ? reopenedPhase(row) : String(row.lifecyclePhase || "");
+      const updatedAt = updated?.updated_at || new Date().toISOString();
+      setData((current) => ({
+        ...current,
+        workflows: (current.workflows || []).map((item: Row) => {
+          if (item.projectId !== row.projectId) return item;
+          const projectUpdate = reopened ? { lifecyclePhase: nextPhase } : {};
+          return item.id === row.id ? { ...item, ...projectUpdate, status, updatedAt } : { ...item, ...projectUpdate };
+        }),
+      }));
       setMessage(`${row.projectId} · ${row.serviceName} moved to ${status}.${reopened ? " The completed project was reopened automatically for correction." : ""}`);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not update service."); }
     finally { setBusy(""); }
@@ -80,7 +99,15 @@ export default function ByProjectOperationsPage() {
     setBusy(`C:${projectId}`); setError(""); setMessage("");
     try {
       const result = await post({ action: "markProjectComplete", projectId, reason: "Manually marked complete from Project Operations · By Project." });
-      await load();
+      const updatedAt = new Date().toISOString();
+      setData((current) => ({
+        ...current,
+        workflows: (current.workflows || []).map((item: Row) => {
+          if (item.projectId !== projectId) return item;
+          const statuses: string[] = item.statuses || [];
+          return { ...item, status: statuses[statuses.length - 1] || item.status, lifecyclePhase: "Completed", updatedAt };
+        }),
+      }));
       setMessage(`${projectId} marked Completed. ${Number(result?.servicesClosed || 0)} open service workflow${Number(result?.servicesClosed || 0) === 1 ? " was" : "s were"} closed.`);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not complete project."); }
     finally { setBusy(""); }
