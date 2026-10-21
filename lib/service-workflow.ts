@@ -17,7 +17,7 @@ const ENGINEERING_ORDER = [
   "Re-Design Fees",
 ];
 
-export const ENGINEERING_SERVICE_STATUSES = ["Working", "Ready", "Sent", "Approved"] as const;
+export const ENGINEERING_SERVICE_STATUSES = ["Working", "Ready", "Sent", "Approved", "Ready to Print", "Printed", "Delivered"] as const;
 export const OTHER_SERVICE_STATUSES = ["Working", "Report Ready", "Delivered"] as const;
 export const MUNICIPALITY_SERVICE_STATUSES = [
   "Payment Received",
