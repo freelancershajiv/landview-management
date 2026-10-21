@@ -5,15 +5,14 @@ import { usePathname } from "next/navigation";
 
 const operationLinks = [
   {
-    href: "/admin/project-operations/proposal-workflow",
-    label: "Proposal Workflow",
-    description: "Architectural Design during proposal stage",
+    href: "/admin/project-operations/by-project",
+    label: "By Project",
+    description: "Projects first, expand to see only their actual services",
   },
   {
-    href: "/admin/project-operations/project-workflow?mode=project",
-    match: "/admin/project-operations/project-workflow",
-    label: "Project Workflow",
-    description: "Paid project services from billing",
+    href: "/admin/project-operations/by-service",
+    label: "By Service",
+    description: "Choose a service and see every project currently using it",
   },
 ];
 
@@ -33,7 +32,7 @@ export default function ProjectOperationsLayout({ children }: { children: React.
         .project-operations-nav a strong{display:block;font-size:10px}
         .project-operations-nav a span{display:block;margin-top:3px;font-size:7px;color:var(--lv-text-muted)}
         .project-operations-nav a.active{border-color:var(--lv-brand-border);background:var(--lv-brand-primary);color:var(--lv-text-inverse)}
-        .project-operations-nav a.active span{color:var(--lv-text-inverse);opacity:.78}
+        .project-operations-nav a.active span{color:var(--lv-text-inverse);opacity:.8}
         .project-operations-shell .wf-switch{display:none!important}
         @media(max-width:650px){.project-operations-heading{align-items:flex-start;flex-direction:column}.project-operations-nav{grid-template-columns:1fr}}
       `}</style>
@@ -42,14 +41,13 @@ export default function ProjectOperationsLayout({ children }: { children: React.
         <div>
           <small>LAND VIEW · PROJECT OPERATIONS</small>
           <h1>Project Operations</h1>
-          <p>Proposal work and active project service work are managed separately.</p>
+          <p>Manage active work either project-by-project or service-by-service without a wide workflow matrix.</p>
         </div>
       </header>
 
-      <nav className="project-operations-nav" aria-label="Project Operations">
+      <nav className="project-operations-nav" aria-label="Project Operations views">
         {operationLinks.map((item) => {
-          const match = item.match || item.href;
-          const active = pathname.startsWith(match);
+          const active = pathname.startsWith(item.href);
           return (
             <Link key={item.href} href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
               <strong>{item.label}</strong>
