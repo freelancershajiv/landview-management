@@ -131,7 +131,7 @@ export default function ByServiceOperationsPage() {
   const runningRows = useMemo(() => rows.filter((row) => !finalStatus(row)).sort(sortProjectDesc), [rows]);
   const completedRows = useMemo(() => rows.filter(finalStatus).sort(sortCompleted), [rows]);
 
-  const counts = useMemo(() => Object.fromEntries(availableGroups.map((group) => [group.key, workflows.filter((row) => group.matches(String(row.serviceName || ""))).length])), [availableGroups, workflows]);
+  const counts = useMemo(() => Object.fromEntries(availableGroups.map((group) => [group.key, workflows.filter((row) => group.matches(String(row.serviceName || "")) && !finalStatus(row)).length])), [availableGroups, workflows]);
 
   function renderRows(sectionRows: Row[], emptyLabel: string) {
     return <>
