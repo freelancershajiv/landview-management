@@ -168,7 +168,7 @@ export default function ByServiceOperationsPage() {
       `}</style>
 
       <header className="bys-head">
-        <div><h2>By Service</h2><p>Select one service. Running files stay open at the top; delivered or approved files move into the collapsed completed section below. Completed files can still be corrected.</p></div>
+        <div><h2>By Service</h2><p>Select one service. Running files stay open at the top; only final delivered files move into the collapsed completed section below. Completed files can still be corrected.</p></div>
         <div className="bys-actions"><Link className="bys-btn" href="/admin/finance/service-payments">Pay / Allocate Services</Link><Link className="bys-btn primary" href="/admin/projects">Open Projects</Link></div>
       </header>
 
@@ -179,7 +179,7 @@ export default function ByServiceOperationsPage() {
       <section className="bys-summary">
         <div className="bys-kpi"><span>Selected Service</span><strong>{activeGroup?.label || "—"}</strong></div>
         <div className="bys-kpi"><span>Running</span><strong>{runningRows.length}</strong></div>
-        <div className="bys-kpi"><span>Delivered / Approved</span><strong>{completedRows.length}</strong></div>
+        <div className="bys-kpi"><span>Completed / Delivered</span><strong>{completedRows.length}</strong></div>
       </section>
 
       <input className="bys-search" type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder={`Search ${activeGroup?.label || "service"} projects by ID, owner, story, location or status…`} />
@@ -196,10 +196,10 @@ export default function ByServiceOperationsPage() {
 
         <details className="bys-completed">
           <summary>
-            <div className="bys-completed-title"><span className="bys-chevron">›</span><div><strong>Delivered / Approved</strong><small>Completed files are kept at the bottom and collapsed by default.</small></div></div>
+            <div className="bys-completed-title"><span className="bys-chevron">›</span><div><strong>Completed / Delivered</strong><small>Final delivered files are kept at the bottom and collapsed by default.</small></div></div>
             <span className="bys-count">{completedRows.length}</span>
           </summary>
-          {serviceTable(completedRows, `No delivered or approved ${activeGroup.label} files yet.`)}
+          {serviceTable(completedRows, `No completed ${activeGroup.label} files yet.`)}
         </details>
       </>}
     </main>
