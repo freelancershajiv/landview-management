@@ -199,7 +199,9 @@ export async function syncPaidServiceWorkflows(projectCode: string, actor = "") 
   const now = new Date().toISOString();
 
   for (const service of snapshot.services) {
-    if (!service.fullyPaid) continue;
+    // Project Operations should start as soon as a billed service has received any payment.
+    // A remaining due balance is financial information, not a reason to hide an active service.
+    if (service.net <= 0 || service.paid <= 0) continue;
     const prior = byKey.get(service.serviceKey);
     const changes = {
       project_code: projectCode,
