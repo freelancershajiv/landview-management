@@ -67,8 +67,13 @@ export default function WorkflowPage() {
     if (busy) return;
     setBusy(key); setError(""); setMessage("");
     try {
-      await post({ action: "updateProposalStatus", proposalCode: row.proposalCode, itemCode: row.architecturalItemCode, status });
-      await load("proposal");
+      const updated = await post({ action: "updateProposalStatus", proposalCode: row.proposalCode, itemCode: row.architecturalItemCode, status });
+      setData((current) => ({
+        ...current,
+        proposals: (current.proposals || []).map((item: Row) => item.proposalCode === row.proposalCode
+          ? { ...item, workflowStatus: status, updatedAt: updated?.updated_at || item.updatedAt }
+          : item),
+      }));
       setMessage(`${row.proposalCode} · Architectural Design moved to ${status}.`);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not update proposal workflow."); }
     finally { setBusy(""); }
@@ -79,8 +84,13 @@ export default function WorkflowPage() {
     if (busy) return;
     setBusy(key); setError(""); setMessage("");
     try {
-      await post({ action: "updateProjectServiceStatus", id: row.id, status });
-      await load("project");
+      const updated = await post({ action: "updateProjectServiceStatus", id: row.id, status });
+      setData((current) => ({
+        ...current,
+        workflows: (current.workflows || []).map((item: Row) => item.id === row.id
+          ? { ...item, status, updatedAt: updated?.updated_at || item.updatedAt }
+          : item),
+      }));
       setMessage(`${row.projectId} · ${row.serviceName} moved to ${status}.`);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not update project service workflow."); }
     finally { setBusy(""); }
