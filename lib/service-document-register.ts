@@ -17,8 +17,19 @@ const STATUS_RANK = new Map<string, number>(DOCUMENT_WORKFLOW_STATUSES.map((stat
 
 function text(value: unknown, max = 1000) { return String(value ?? "").trim().slice(0, max); }
 function num(value: unknown) { const n = Number(String(value ?? 0).replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; }
+function statusOf(row: Row) { return text(row.workflow_status || row.status, 80) || "Working"; }
 function rank(value: unknown) { return STATUS_RANK.get(text(value, 80)) ?? 0; }
 function active(rows: Row[]) { return rows.filter((row) => !row.archived_at); }
+function registerDocument(row: Row) {
+  return {
+    ...row,
+    document_name: row.document_name || row.title || "Document",
+    status: statusOf(row),
+    file_url: row.file_url || row.drive_file_url || "",
+    created_by: row.created_by || row.created_by_text || "",
+    updated_by: row.updated_by || row.updated_by_text || "",
+  };
+}
 
 export type DocumentTemplate = { name: string; paperSize?: string; required?: boolean };
 
@@ -71,19 +82,19 @@ export function documentTemplatesForService(serviceValue: unknown): DocumentTemp
 }
 
 export function documentStats(rowsValue: Row[]) {
-  const rows = active(rowsValue);
+  const rows = active(rowsValue).filter((row) => row.service_workflow_id);
   const required = rows.filter((row) => row.is_required !== false);
   const base = required.length ? required : rows;
-  const atLeast = (status: string) => base.filter((row) => rank(row.status) >= rank(status)).length;
+  const atLeast = (status: string) => base.filter((row) => rank(statusOf(row)) >= rank(status)).length;
   return {
     total: rows.length,
     required: required.length,
-    working: rows.filter((row) => row.status === "Working").length,
+    working: rows.filter((row) => statusOf(row) === "Working").length,
     approved: atLeast("Approved"),
     readyToPrint: atLeast("Ready to Print"),
     printed: atLeast("Printed"),
     delivered: atLeast("Delivered"),
-    pending: base.filter((row) => row.status !== "Delivered").length,
+    pending: base.filter((row) => statusOf(row) !== "Delivered").length,
     printQuantity: rows.reduce((sum, row) => sum + Math.max(0, num(row.print_quantity)), 0),
     deliveredQuantity: rows.reduce((sum, row) => sum + Math.max(0, num(row.delivered_quantity)), 0),
   };
@@ -93,9 +104,9 @@ export async function documentRegisterSnapshot(workflowId: string) {
   const workflowRows = await selectRows("project_service_workflows", { filters: { id: workflowId }, limit: 1 });
   if (!workflowRows.length) throw new Error("Service workflow was not found.");
   const workflow = workflowRows[0];
-  const [projectRows, documents, designBooks, drawings] = await Promise.all([
+  const [projectRows, rawDocuments, designBooks, drawings] = await Promise.all([
     selectRows("projects", { filters: { id: workflow.project_id }, limit: 1 }),
-    selectRows("project_service_documents", { filters: { service_workflow_id: workflowId }, order: "updated_at:desc", limit: 1000 }),
+    selectRows("documents", { filters: { service_workflow_id: workflowId }, order: "updated_at:desc", limit: 1000 }),
     selectRows("design_book_register", { filters: { project_id: workflow.project_id }, order: "updated_at:desc", limit: 500 }),
     selectRows("drawing_submissions", { filters: { project_code: workflow.project_code }, order: "created_at:desc", limit: 1000 }),
   ]);
@@ -119,7 +130,8 @@ export async function documentRegisterSnapshot(workflowId: string) {
     const fromTitle = workflowServiceName(row.drawing_title);
     return fromDiscipline === service || fromTitle === service;
   });
-  const current = active(documents);
+  const currentRaw = active(rawDocuments);
+  const current = currentRaw.map(registerDocument);
   return {
     workflow: {
       id: workflow.id,
@@ -137,8 +149,8 @@ export async function documentRegisterSnapshot(workflowId: string) {
       paidAmount: num(workflow.paid_amount),
     },
     documents: current,
-    archivedDocuments: documents.filter((row) => row.archived_at),
-    stats: documentStats(current),
+    archivedDocuments: rawDocuments.filter((row) => row.archived_at).map(registerDocument),
+    stats: documentStats(currentRaw),
     templates: documentTemplatesForService(service),
     legacy: { designBooks: matchingBooks, drawings: matchingDrawings },
   };
@@ -153,23 +165,30 @@ export async function initializeDocumentChecklist(workflowId: string, actor = ""
   const rows = templates.filter((template) => !existingNames.has(template.name.toLowerCase())).map((template) => ({
     document_code: `WDR-${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`,
     project_id: snapshot.workflow.projectUuid,
-    project_code: snapshot.workflow.projectId,
+    title: template.name,
+    document_type: "Workflow Deliverable",
+    drive_file_id: null,
+    drive_file_url: null,
+    storage_path: null,
+    document_date: null,
+    client_visible: false,
     service_workflow_id: workflowId,
     service_key: snapshot.workflow.serviceKey,
     service_name: snapshot.workflow.serviceName,
-    document_name: template.name,
+    drawing_no: null,
     revision_no: "R0",
+    revision_date: null,
     paper_size: template.paperSize || null,
-    status: "Working",
+    workflow_status: "Working",
     is_required: template.required !== false,
     print_quantity: 0,
     delivered_quantity: 0,
-    created_by: actor || null,
-    updated_by: actor || null,
+    created_by_text: actor || null,
+    updated_by_text: actor || null,
     created_at: now,
     updated_at: now,
   }));
-  if (rows.length) await insertRows("project_service_documents", rows);
+  if (rows.length) await insertRows("documents", rows);
   if (rows.length) await syncWorkflowFromDocuments(workflowId, actor);
   return { inserted: rows.length, snapshot: await documentRegisterSnapshot(workflowId) };
 }
@@ -178,23 +197,23 @@ export async function syncWorkflowFromDocuments(workflowId: string, actor = "") 
   const workflowRows = await selectRows("project_service_workflows", { filters: { id: workflowId }, limit: 1 });
   if (!workflowRows.length) throw new Error("Service workflow was not found.");
   const workflow = workflowRows[0];
-  const documents = active(await selectRows("project_service_documents", { filters: { service_workflow_id: workflowId }, limit: 1000 }));
+  const documents = active(await selectRows("documents", { filters: { service_workflow_id: workflowId }, limit: 1000 }));
   const required = documents.filter((row) => row.is_required !== false);
   if (!required.length) return workflow;
 
   const type = text(workflow.workflow_type).toLowerCase() || workflowTypeForService(workflow.service_name);
-  const allDelivered = required.every((row) => row.status === "Delivered");
+  const allDelivered = required.every((row) => statusOf(row) === "Delivered");
   let nextStatus = text(workflow.status, 120);
 
   if (type === "engineering") {
-    const lowest = required.reduce((min, row) => Math.min(min, rank(row.status)), DOCUMENT_WORKFLOW_STATUSES.length - 1);
+    const lowest = required.reduce((min, row) => Math.min(min, rank(statusOf(row))), DOCUMENT_WORKFLOW_STATUSES.length - 1);
     nextStatus = DOCUMENT_WORKFLOW_STATUSES[lowest];
   } else if (type === "municipality") {
     if (allDelivered) nextStatus = "Delivered to Client";
     else if (nextStatus === "Delivered to Client") nextStatus = "Working";
   } else {
     if (allDelivered) nextStatus = "Delivered";
-    else if (required.every((row) => rank(row.status) >= rank("Approved"))) nextStatus = "Report Ready";
+    else if (required.every((row) => rank(statusOf(row)) >= rank("Approved"))) nextStatus = "Report Ready";
     else nextStatus = "Working";
   }
 
