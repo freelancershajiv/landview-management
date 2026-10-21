@@ -84,12 +84,11 @@ export default function ByServiceOperationsPage() {
     if (busy) return;
     setBusy(`S:${row.id}`); setError(""); setMessage("");
     try {
-      const updated = await post({ action: "updateProjectServiceStatus", id: row.id, status });
-      setData((current) => ({
-        ...current,
-        workflows: (current.workflows || []).map((item: Row) => item.id === row.id ? { ...item, status, updatedAt: updated?.updated_at || new Date().toISOString() } : item),
-      }));
-      setMessage(`${row.projectId} · ${row.serviceName} moved to ${status}.`);
+      await post({ action: "updateProjectServiceStatus", id: row.id, status });
+      await load();
+      const final = String((row.statuses || [])[Math.max(0, (row.statuses || []).length - 1)] || "");
+      const reopened = String(row.lifecyclePhase || "") === "Completed" && status !== final;
+      setMessage(`${row.projectId} · ${row.serviceName} moved to ${status}.${reopened ? " The completed project was reopened automatically for correction." : ""}`);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not update service."); }
     finally { setBusy(""); }
   }
@@ -124,7 +123,7 @@ export default function ByServiceOperationsPage() {
         <td className="bys-service"><strong>{row.serviceName}</strong><span>{row.billingCategory}</span></td>
         <td><span className={`bys-status ${finalStatus(row) ? "done" : ""}`}>{row.status}</span></td>
         <td className="bys-money">Paid / Net<strong>{money(row.paidAmount)} / {money(row.netAmount)}</strong></td>
-        <td><select value={row.status} disabled={String(row.lifecyclePhase || "") === "Completed" || busy === `S:${row.id}`} onChange={(e) => void updateService(row, e.target.value)}>{(row.statuses || []).map((status: string) => <option key={status}>{status}</option>)}</select></td>
+        <td><select value={row.status} disabled={busy === `S:${row.id}`} onChange={(e) => void updateService(row, e.target.value)}>{(row.statuses || []).map((status: string) => <option key={status}>{status}</option>)}</select></td>
         <td><Link className="bys-open" href={`/admin/projects/${encodeURIComponent(row.projectId)}`}>Open →</Link></td>
       </tr>)}
       {!sectionRows.length && <tr><td colSpan={7}><div className="bys-empty">{emptyLabel}</div></td></tr>}
@@ -151,7 +150,7 @@ export default function ByServiceOperationsPage() {
       `}</style>
 
       <header className="bys-head">
-        <div><h2>By Service</h2><p>Select one service. Running files stay open at the top; delivered or approved files move into the collapsed completed section below.</p></div>
+        <div><h2>By Service</h2><p>Select one service. Running files stay open at the top; delivered or approved files move into the collapsed completed section below. Completed files can still be corrected.</p></div>
         <div className="bys-actions"><Link className="bys-btn" href="/admin/finance/service-payments">Pay / Allocate Services</Link><Link className="bys-btn primary" href="/admin/projects">Open Projects</Link></div>
       </header>
 
