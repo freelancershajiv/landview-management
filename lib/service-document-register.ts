@@ -3,24 +3,43 @@ import { workflowServiceName, workflowStatusesForService, workflowTypeForService
 
 type Row = Record<string, any>;
 
-export const DOCUMENT_WORKFLOW_STATUSES = [
-  "Working",
-  "Ready",
-  "Sent",
-  "Approved",
-  "Ready to Print",
-  "Printed",
-  "Delivered",
-] as const;
-
+export const DOCUMENT_WORKFLOW_STATUSES = ["Working", "Ready", "Sent", "Approved", "Ready to Print", "Printed", "Delivered"] as const;
 const STATUS_RANK = new Map<string, number>(DOCUMENT_WORKFLOW_STATUSES.map((status, index) => [status, index]));
+
+type DocumentTemplate = { name: string; paperSize?: string; required?: boolean };
+const TEMPLATES: Record<string, DocumentTemplate[]> = {
+  "Architectural Design": [
+    { name: "Floor Plan", paperSize: "A3" }, { name: "Elevation", paperSize: "A3" }, { name: "Section", paperSize: "A3" },
+    { name: "Door / Window Schedule", paperSize: "A3" }, { name: "Final Architectural Set", paperSize: "A3" },
+  ],
+  "Structural Design": [
+    { name: "Foundation Design", paperSize: "A3" }, { name: "Column Layout", paperSize: "A3" }, { name: "Beam / Slab Layout", paperSize: "A3" },
+    { name: "Stair / Roof Details", paperSize: "A3" }, { name: "Final Structural Set", paperSize: "A3" },
+  ],
+  "3D Design - Exterior": [{ name: "Exterior 3D Views", paperSize: "A3" }],
+  "3D Design - Interior": [{ name: "Interior 3D Views", paperSize: "A3" }],
+  "Electrical Design": [{ name: "Electrical Layout", paperSize: "A3" }, { name: "SLD / DB Schedule", paperSize: "A3" }, { name: "Final Electrical Set", paperSize: "A3" }],
+  "Fire Safety Design": [{ name: "Fire Safety Layout", paperSize: "A3" }, { name: "Final Fire Safety Set", paperSize: "A3" }],
+  "Plumbing Design": [{ name: "Water Supply Layout", paperSize: "A3" }, { name: "Sanitary / Drainage Layout", paperSize: "A3" }, { name: "Final Plumbing Set", paperSize: "A3" }],
+  "Plan Approval Design": [{ name: "Approval Drawing Set", paperSize: "A1" }],
+  "Estimate & Costing": [{ name: "BOQ / Estimate", paperSize: "A4" }],
+  "Design Books": [{ name: "Design Book Set", paperSize: "A4" }],
+  "Re-Design Fees": [{ name: "Revised Drawing Set", paperSize: "A3" }],
+  "Soil Test": [{ name: "Soil Test Report", paperSize: "A4" }],
+  "Digital Survey": [{ name: "Digital Survey Report", paperSize: "A3" }],
+  "Municipality Approval Contract": [
+    { name: "Application Documents", paperSize: "A4" }, { name: "Bank Draft / Fees", paperSize: "A4" },
+    { name: "Submitted Drawing Set", paperSize: "A1" }, { name: "Approval Sheet / File", paperSize: "A1" },
+  ],
+  "Site Supervision": [{ name: "Site Supervision Report", paperSize: "A4" }],
+};
 
 function text(value: unknown, max = 1000) { return String(value ?? "").trim().slice(0, max); }
 function num(value: unknown) { const n = Number(String(value ?? 0).replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; }
 function statusOf(row: Row) { return text(row.workflow_status || row.status, 80) || "Working"; }
 function rank(value: unknown) { return STATUS_RANK.get(text(value, 80)) ?? 0; }
 function active(rows: Row[]) { return rows.filter((row) => !row.archived_at); }
-function registerDocument(row: Row) {
+function registerDocument(row: Row): Row {
   return {
     ...row,
     document_name: row.document_name || row.title || "Document",
@@ -31,54 +50,8 @@ function registerDocument(row: Row) {
   };
 }
 
-export type DocumentTemplate = { name: string; paperSize?: string; required?: boolean };
-
 export function documentTemplatesForService(serviceValue: unknown): DocumentTemplate[] {
-  const service = workflowServiceName(serviceValue);
-  if (service === "Architectural Design") return [
-    { name: "Floor Plan", paperSize: "A3" },
-    { name: "Elevation", paperSize: "A3" },
-    { name: "Section", paperSize: "A3" },
-    { name: "Door / Window Schedule", paperSize: "A3" },
-    { name: "Final Architectural Set", paperSize: "A3" },
-  ];
-  if (service === "Structural Design") return [
-    { name: "Foundation Design", paperSize: "A3" },
-    { name: "Column Layout", paperSize: "A3" },
-    { name: "Beam / Slab Layout", paperSize: "A3" },
-    { name: "Stair / Roof Details", paperSize: "A3" },
-    { name: "Final Structural Set", paperSize: "A3" },
-  ];
-  if (service === "3D Design - Exterior") return [{ name: "Exterior 3D Views", paperSize: "A3" }];
-  if (service === "3D Design - Interior") return [{ name: "Interior 3D Views", paperSize: "A3" }];
-  if (service === "Electrical Design") return [
-    { name: "Electrical Layout", paperSize: "A3" },
-    { name: "SLD / DB Schedule", paperSize: "A3" },
-    { name: "Final Electrical Set", paperSize: "A3" },
-  ];
-  if (service === "Fire Safety Design") return [
-    { name: "Fire Safety Layout", paperSize: "A3" },
-    { name: "Final Fire Safety Set", paperSize: "A3" },
-  ];
-  if (service === "Plumbing Design") return [
-    { name: "Water Supply Layout", paperSize: "A3" },
-    { name: "Sanitary / Drainage Layout", paperSize: "A3" },
-    { name: "Final Plumbing Set", paperSize: "A3" },
-  ];
-  if (service === "Plan Approval Design") return [{ name: "Approval Drawing Set", paperSize: "A1" }];
-  if (service === "Estimate & Costing") return [{ name: "BOQ / Estimate", paperSize: "A4" }];
-  if (service === "Design Books") return [{ name: "Design Book Set", paperSize: "A4" }];
-  if (service === "Re-Design Fees") return [{ name: "Revised Drawing Set", paperSize: "A3" }];
-  if (service === "Soil Test") return [{ name: "Soil Test Report", paperSize: "A4" }];
-  if (service === "Digital Survey") return [{ name: "Digital Survey Report", paperSize: "A3" }];
-  if (service === "Municipality Approval Contract") return [
-    { name: "Application Documents", paperSize: "A4" },
-    { name: "Bank Draft / Fees", paperSize: "A4" },
-    { name: "Submitted Drawing Set", paperSize: "A1" },
-    { name: "Approval Sheet / File", paperSize: "A1" },
-  ];
-  if (service === "Site Supervision") return [{ name: "Site Supervision Report", paperSize: "A4" }];
-  return [];
+  return TEMPLATES[workflowServiceName(serviceValue)] ? [...TEMPLATES[workflowServiceName(serviceValue)]] : [];
 }
 
 export function documentStats(rowsValue: Row[]) {
@@ -125,13 +98,9 @@ export async function documentRegisterSnapshot(workflowId: string) {
     if (service === "Municipality Approval Contract" && /municipality|approval/i.test(text(row.book_type))) return true;
     return candidate === service;
   });
-  const matchingDrawings = drawings.filter((row) => {
-    const fromDiscipline = workflowServiceName(row.discipline);
-    const fromTitle = workflowServiceName(row.drawing_title);
-    return fromDiscipline === service || fromTitle === service;
-  });
+  const matchingDrawings = drawings.filter((row) => workflowServiceName(row.discipline) === service || workflowServiceName(row.drawing_title) === service);
   const currentRaw = active(rawDocuments);
-  const current = currentRaw.map(registerDocument);
+  const current: Row[] = currentRaw.map(registerDocument);
   return {
     workflow: {
       id: workflow.id,
@@ -149,7 +118,7 @@ export async function documentRegisterSnapshot(workflowId: string) {
       paidAmount: num(workflow.paid_amount),
     },
     documents: current,
-    archivedDocuments: rawDocuments.filter((row) => row.archived_at).map(registerDocument),
+    archivedDocuments: rawDocuments.filter((row) => row.archived_at).map(registerDocument) as Row[],
     stats: documentStats(currentRaw),
     templates: documentTemplatesForService(service),
     legacy: { designBooks: matchingBooks, drawings: matchingDrawings },
@@ -158,11 +127,10 @@ export async function documentRegisterSnapshot(workflowId: string) {
 
 export async function initializeDocumentChecklist(workflowId: string, actor = "") {
   const snapshot = await documentRegisterSnapshot(workflowId);
-  const templates = snapshot.templates;
-  if (!templates.length) return { inserted: 0, snapshot };
+  if (!snapshot.templates.length) return { inserted: 0, snapshot };
   const existingNames = new Set(snapshot.documents.map((row: Row) => text(row.document_name, 300).toLowerCase()));
   const now = new Date().toISOString();
-  const rows = templates.filter((template) => !existingNames.has(template.name.toLowerCase())).map((template) => ({
+  const rows = snapshot.templates.filter((template) => !existingNames.has(template.name.toLowerCase())).map((template) => ({
     document_code: `WDR-${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`,
     project_id: snapshot.workflow.projectUuid,
     title: template.name,
@@ -204,7 +172,6 @@ export async function syncWorkflowFromDocuments(workflowId: string, actor = "") 
   const type = text(workflow.workflow_type).toLowerCase() || workflowTypeForService(workflow.service_name);
   const allDelivered = required.every((row) => statusOf(row) === "Delivered");
   let nextStatus = text(workflow.status, 120);
-
   if (type === "engineering") {
     const lowest = required.reduce((min, row) => Math.min(min, rank(statusOf(row))), DOCUMENT_WORKFLOW_STATUSES.length - 1);
     nextStatus = DOCUMENT_WORKFLOW_STATUSES[lowest];
@@ -219,10 +186,6 @@ export async function syncWorkflowFromDocuments(workflowId: string, actor = "") 
 
   const valid = workflowStatusesForService(workflow.service_name);
   if (!valid.includes(nextStatus as never) || nextStatus === workflow.status) return workflow;
-  const updated = await updateRows("project_service_workflows", { id: workflowId }, {
-    status: nextStatus,
-    updated_by: actor || null,
-    updated_at: new Date().toISOString(),
-  });
+  const updated = await updateRows("project_service_workflows", { id: workflowId }, { status: nextStatus, updated_by: actor || null, updated_at: new Date().toISOString() });
   return updated[0] || { ...workflow, status: nextStatus };
 }
