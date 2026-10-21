@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
     if (!user) throw new Error("Session expired.");
     if (!["admin", "manager", "accounts", "employee"].includes(roleOf(user))) throw new Error("Document Register access is not available for this role.");
 
-    const documents = await selectRows("project_service_documents", { order: "updated_at:desc", limit: 20000 });
+    const documents = await selectRows("documents", { order: "updated_at:desc", limit: 20000 });
     const grouped = new Map<string, Row[]>();
     for (const row of documents) {
       const workflowId = String(row.service_workflow_id || "").trim();
