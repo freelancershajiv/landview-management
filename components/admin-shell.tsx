@@ -14,7 +14,7 @@ import {
 const nav = [
   { href: "/admin", label: "Dashboard", accounts: true },
   { href: "/admin/projects", label: "Projects", accounts: true },
-  { href: "/admin/workflow", label: "Workflow" },
+  { href: "/admin/project-operations/proposal-workflow", label: "Project Operations" },
   { href: "/admin/employees", label: "Employees" },
   { href: "/admin/certificate-requests", label: "Requests" },
   { href: "/admin/certificates", label: "Certificates" },
