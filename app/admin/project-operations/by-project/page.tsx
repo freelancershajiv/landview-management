@@ -65,12 +65,10 @@ export default function ByProjectOperationsPage() {
     if (busy) return;
     setBusy(`S:${row.id}`); setError(""); setMessage("");
     try {
-      const updated = await post({ action: "updateProjectServiceStatus", id: row.id, status });
-      setData((current) => ({
-        ...current,
-        workflows: (current.workflows || []).map((item: Row) => item.id === row.id ? { ...item, status, updatedAt: updated?.updated_at || item.updatedAt } : item),
-      }));
-      setMessage(`${row.projectId} · ${row.serviceName} moved to ${status}.`);
+      await post({ action: "updateProjectServiceStatus", id: row.id, status });
+      await load();
+      const reopened = String(row.lifecyclePhase || "") === "Completed" && !((row.statuses || [])[Math.max(0, (row.statuses || []).length - 1)] === status);
+      setMessage(`${row.projectId} · ${row.serviceName} moved to ${status}.${reopened ? " The completed project was reopened automatically for correction." : ""}`);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not update service."); }
     finally { setBusy(""); }
   }
@@ -159,12 +157,12 @@ export default function ByProjectOperationsPage() {
                 <td><div className="byp-row-action"><button className="byp-small primary" type="button" onClick={() => setExpanded(open ? null : projectId)}>{open ? "Hide" : "View"}</button><Link className="byp-small" href={`/admin/projects/${encodeURIComponent(projectId)}`}>Project</Link></div></td>
               </tr>
               {open && <tr className="byp-expand" key={`${projectId}:detail`}><td colSpan={6}><div className="byp-detail">
-                <div className="byp-detail-head"><strong>{projectId} · {first.ownerName || "Owner"} · {first.story || "Story —"}</strong><div className="byp-detail-actions">{projectCompleted ? <span className="byp-done">✓ Project Completed</span> : <button className="byp-complete" disabled={busy === `C:${projectId}`} onClick={() => void markProjectComplete(projectId, first.ownerName || "")}>{busy === `C:${projectId}` ? "Completing…" : "✓ Mark Project Complete"}</button>}</div></div>
+                <div className="byp-detail-head"><strong>{projectId} · {first.ownerName || "Owner"} · {first.story || "Story —"}</strong><div className="byp-detail-actions">{projectCompleted ? <span className="byp-done">✓ Project Completed · editable for corrections</span> : <button className="byp-complete" disabled={busy === `C:${projectId}`} onClick={() => void markProjectComplete(projectId, first.ownerName || "")}>{busy === `C:${projectId}` ? "Completing…" : "✓ Mark Project Complete"}</button>}</div></div>
                 <div className="byp-services">{rows.map((row) => <div className="byp-service" key={row.id}>
                   <div className="byp-service-name"><strong>{row.serviceName}</strong><span>{row.billingCategory}</span></div>
                   <span className="byp-status">{row.status}</span>
                   <div className="byp-money">Paid / Net<strong>{money(row.paidAmount)} / {money(row.netAmount)}</strong></div>
-                  <select value={row.status} disabled={projectCompleted || busy === `S:${row.id}`} onChange={(e) => void updateService(row, e.target.value)}>{(row.statuses || []).map((status: string) => <option key={status}>{status}</option>)}</select>
+                  <select value={row.status} disabled={busy === `S:${row.id}`} onChange={(e) => void updateService(row, e.target.value)}>{(row.statuses || []).map((status: string) => <option key={status}>{status}</option>)}</select>
                 </div>)}</div>
               </div></td></tr>}
             </>;
