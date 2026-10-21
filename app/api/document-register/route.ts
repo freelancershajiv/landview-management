@@ -97,83 +97,90 @@ export async function POST(request: NextRequest) {
       const duplicate = sameName.some((row: Row) => text(row.revision_no, 80).toLowerCase() === revisionNo.toLowerCase());
       if (duplicate) throw new Error(`${documentName} ${revisionNo} already exists. Use a new revision number.`);
       for (const prior of sameName.filter((row: Row) => row.is_required !== false)) {
-        await updateRows("project_service_documents", { id: prior.id }, { is_required: false, updated_by: who, updated_at: new Date().toISOString() });
+        await updateRows("documents", { id: prior.id }, { is_required: false, updated_by_text: who, updated_at: new Date().toISOString() });
       }
 
       const now = new Date().toISOString();
-      const rows = await insertRows("project_service_documents", {
+      const revisionDate = cleanDate(input.revisionDate);
+      const rows = await insertRows("documents", {
         document_code: `WDR-${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`,
         project_id: snapshot.workflow.projectUuid,
-        project_code: snapshot.workflow.projectId,
+        title: documentName,
+        document_type: "Workflow Deliverable",
+        drive_file_id: null,
+        drive_file_url: cleanUrl(input.fileUrl),
+        storage_path: null,
+        document_date: revisionDate,
+        client_visible: false,
         service_workflow_id: workflowId,
         service_key: snapshot.workflow.serviceKey,
         service_name: snapshot.workflow.serviceName,
-        document_name: documentName,
         drawing_no: text(input.drawingNo, 120) || null,
         revision_no: revisionNo,
-        revision_date: cleanDate(input.revisionDate),
+        revision_date: revisionDate,
         paper_size: text(input.paperSize, 80) || null,
-        status,
+        workflow_status: status,
         is_required: bool(input.isRequired, true),
         print_quantity: Math.max(0, Math.trunc(num(input.printQuantity))),
         delivered_quantity: Math.max(0, Math.trunc(num(input.deliveredQuantity))),
         delivered_to: text(input.deliveredTo, 300) || null,
         delivered_by: text(input.deliveredBy, 300) || null,
-        file_url: cleanUrl(input.fileUrl),
         remarks: text(input.remarks, 2000) || null,
         ...statusTimestamps(status),
-        created_by: who,
-        updated_by: who,
+        created_by_text: who,
+        updated_by_text: who,
         created_at: now,
         updated_at: now,
       });
       await syncWorkflowFromDocuments(workflowId, who);
-      await recordAuditEvent({ user, request, action: "workflow_document_create", entityType: "project_service_document", entityId: text(rows[0]?.id || rows[0]?.document_code), after: { workflowId, documentName, revisionNo, status }, source: "document-register" });
+      await recordAuditEvent({ user, request, action: "workflow_document_create", entityType: "document", entityId: text(rows[0]?.id || rows[0]?.document_code), after: { workflowId, documentName, revisionNo, status }, source: "document-register" });
       return json({ success: true, data: await documentRegisterSnapshot(workflowId) });
     }
 
     if (action === "updatedocument") {
       const id = text(input.id, 100);
       if (!id) throw new Error("Document record is required.");
-      const existing = await selectRows("project_service_documents", { filters: { id, service_workflow_id: workflowId }, limit: 1 });
+      const existing = await selectRows("documents", { filters: { id, service_workflow_id: workflowId }, limit: 1 });
       if (!existing.length || existing[0].archived_at) throw new Error("Document record was not found.");
       const before = existing[0];
-      const status = text(input.status, 80) || text(before.status, 80) || "Working";
+      const status = text(input.status, 80) || text(before.workflow_status, 80) || "Working";
       if (!DOCUMENT_WORKFLOW_STATUSES.includes(status as never)) throw new Error("Choose a valid document status.");
-      const documentName = text(input.documentName, 300) || text(before.document_name, 300);
+      const documentName = text(input.documentName, 300) || text(before.title, 300);
       if (!documentName) throw new Error("Document / drawing name is required.");
+      const revisionDate = cleanDate(input.revisionDate);
       const changes = {
-        document_name: documentName,
+        title: documentName,
         drawing_no: text(input.drawingNo, 120) || null,
         revision_no: text(input.revisionNo, 80) || "R0",
-        revision_date: cleanDate(input.revisionDate),
+        revision_date: revisionDate,
+        document_date: revisionDate,
         paper_size: text(input.paperSize, 80) || null,
-        status,
+        workflow_status: status,
         is_required: bool(input.isRequired, before.is_required !== false),
         print_quantity: Math.max(0, Math.trunc(num(input.printQuantity))),
         delivered_quantity: Math.max(0, Math.trunc(num(input.deliveredQuantity))),
         delivered_to: text(input.deliveredTo, 300) || null,
         delivered_by: text(input.deliveredBy, 300) || null,
-        file_url: cleanUrl(input.fileUrl),
+        drive_file_url: cleanUrl(input.fileUrl),
         remarks: text(input.remarks, 2000) || null,
-        ...(status !== before.status ? statusTimestamps(status) : {}),
-        updated_by: who,
+        ...(status !== before.workflow_status ? statusTimestamps(status) : {}),
+        updated_by_text: who,
         updated_at: new Date().toISOString(),
       };
-      await updateRows("project_service_documents", { id }, changes);
+      await updateRows("documents", { id }, changes);
       await syncWorkflowFromDocuments(workflowId, who);
-      await recordAuditEvent({ user, request, action: "workflow_document_update", entityType: "project_service_document", entityId: id, before: { status: before.status, revisionNo: before.revision_no }, after: { status, revisionNo: changes.revision_no }, source: "document-register" });
+      await recordAuditEvent({ user, request, action: "workflow_document_update", entityType: "document", entityId: id, before: { status: before.workflow_status, revisionNo: before.revision_no }, after: { status, revisionNo: changes.revision_no }, source: "document-register" });
       return json({ success: true, data: await documentRegisterSnapshot(workflowId) });
     }
 
     if (action === "archivedocument") {
       const id = text(input.id, 100);
       if (!id) throw new Error("Document record is required.");
-      const rows = await selectRows("project_service_documents", { filters: { id, service_workflow_id: workflowId }, limit: 1 });
+      const rows = await selectRows("documents", { filters: { id, service_workflow_id: workflowId }, limit: 1 });
       if (!rows.length) throw new Error("Document record was not found.");
-      await updateRows("project_service_documents", { id }, { archived_at: new Date().toISOString(), is_required: false, updated_by: who, updated_at: new Date().toISOString() });
+      await updateRows("documents", { id }, { archived_at: new Date().toISOString(), is_required: false, updated_by_text: who, updated_at: new Date().toISOString() });
       await syncWorkflowFromDocuments(workflowId, who);
-      await recordAuditEvent({ user, request, action: "workflow_document_archive", entityType: "project_service_document", entityId: id, before: { status: rows[0].status }, source: "document-register" });
+      await recordAuditEvent({ user, request, action: "workflow_document_archive", entityType: "document", entityId: id, before: { status: rows[0].workflow_status }, source: "document-register" });
       return json({ success: true, data: await documentRegisterSnapshot(workflowId) });
     }
 
