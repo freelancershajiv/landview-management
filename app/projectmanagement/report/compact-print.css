@@ -1,0 +1,185 @@
+@page {
+  size: A4 portrait;
+  margin: 7mm 7mm 8mm;
+}
+
+@media print {
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .rpt-page .rpt-shell .print-ledger-header {
+    padding: 0 0 1.6mm !important;
+    margin: 0 0 1.2mm !important;
+    border-bottom-width: .45mm !important;
+  }
+
+  .rpt-page .rpt-shell .print-brand-row {
+    grid-template-columns: 1fr 1.12fr .95fr !important;
+    gap: 2.2mm !important;
+  }
+
+  .rpt-page .rpt-shell .print-brand {
+    gap: 1.4mm !important;
+  }
+
+  .rpt-page .rpt-shell .print-brand img {
+    width: 8.5mm !important;
+    height: 8.5mm !important;
+    flex: 0 0 8.5mm !important;
+  }
+
+  .rpt-page .rpt-shell .print-brand strong {
+    font-size: 10pt !important;
+    letter-spacing: -.15px !important;
+  }
+
+  .rpt-page .rpt-shell .print-brand small {
+    margin-top: .4mm !important;
+    font-size: 4.3pt !important;
+    letter-spacing: .45px !important;
+  }
+
+  .rpt-page .rpt-shell .print-contact {
+    padding-top: 0 !important;
+    font-size: 4.7pt !important;
+    line-height: 1.2 !important;
+  }
+
+  .rpt-page .rpt-shell .print-contact strong {
+    font-size: 5pt !important;
+    margin-bottom: .15mm !important;
+  }
+
+  .rpt-page .rpt-shell .print-title small {
+    font-size: 4.4pt !important;
+    line-height: 1.15 !important;
+  }
+
+  .rpt-page .rpt-shell .print-title b {
+    margin-top: .4mm !important;
+    font-size: 7.1pt !important;
+  }
+
+  .rpt-page .rpt-shell .print-title strong {
+    margin-top: .4mm !important;
+    font-size: 8.4pt !important;
+  }
+
+  .rpt-page .rpt-shell .print-project-line {
+    margin: 0 0 1.1mm !important;
+    padding: .8mm 1.2mm !important;
+    font-size: 5pt !important;
+    line-height: 1.1 !important;
+  }
+
+  .rpt-page .rpt-shell .print-summary {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    margin: 0 0 1.4mm !important;
+  }
+
+  .rpt-page .rpt-shell .print-summary div {
+    min-height: 7.7mm !important;
+    padding: .8mm .9mm !important;
+    border-right: .2mm solid #cfd5d9 !important;
+    border-bottom: 0 !important;
+  }
+
+  .rpt-page .rpt-shell .print-summary div:nth-child(3n) {
+    border-right: .2mm solid #cfd5d9 !important;
+  }
+
+  .rpt-page .rpt-shell .print-summary div:last-child {
+    border-right: 0 !important;
+  }
+
+  .rpt-page .rpt-shell .print-summary span {
+    font-size: 4pt !important;
+    line-height: 1.02 !important;
+    letter-spacing: .05px !important;
+  }
+
+  .rpt-page .rpt-shell .print-summary strong {
+    margin-top: .35mm !important;
+    font-size: 5.8pt !important;
+    line-height: 1.05 !important;
+    white-space: nowrap !important;
+    font-variant-numeric: tabular-nums !important;
+  }
+
+  .rpt-page .rpt-shell .rpt-statement {
+    margin-top: 1mm !important;
+  }
+
+  .rpt-page .rpt-statement table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+  }
+
+  .rpt-page .rpt-statement thead {
+    display: table-header-group !important;
+  }
+
+  .rpt-page .rpt-statement th {
+    font-size: 5pt !important;
+    padding: .7mm .75mm !important;
+    line-height: 1 !important;
+  }
+
+  .rpt-page .rpt-statement td {
+    font-size: 5.05pt !important;
+    padding: .55mm .75mm !important;
+    line-height: 1.05 !important;
+  }
+
+  .rpt-page .rpt-statement td strong {
+    display: inline !important;
+    font-size: 5.15pt !important;
+    line-height: 1.05 !important;
+  }
+
+  .rpt-page .rpt-statement tbody td:nth-child(2) small {
+    display: inline !important;
+    margin: 0 0 0 .9mm !important;
+    font-size: 4.2pt !important;
+    line-height: 1 !important;
+    color: #666 !important;
+  }
+
+  .rpt-page .rpt-statement tbody td:nth-child(2) small::before {
+    content: "· " !important;
+  }
+
+  .rpt-page .rpt-statement tr {
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
+  }
+
+  .rpt-page .rpt-shell .print-month-total {
+    margin-top: 1.2mm !important;
+  }
+
+  .rpt-page .rpt-shell .print-month-total > * {
+    padding: .8mm 1mm !important;
+    font-size: 4.9pt !important;
+  }
+
+  .rpt-page .rpt-shell .print-month-total small {
+    margin-top: .15mm !important;
+    font-size: 4.1pt !important;
+  }
+
+  .rpt-page .rpt-shell .print-ledger-footer {
+    margin-top: 1.2mm !important;
+    padding: .7mm .4mm 0 !important;
+    font-size: 4.4pt !important;
+    line-height: 1.1 !important;
+  }
+
+  .rpt-page .rpt-shell .print-page-number {
+    font-size: 5pt !important;
+  }
+}
