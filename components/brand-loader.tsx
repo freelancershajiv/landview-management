@@ -6,25 +6,14 @@ import { useEffect, useRef, useState } from "react";
 
 const INITIAL_MIN_MS = 720;
 const ROUTE_MIN_MS = 420;
-const PUBLIC_PREFIXES = ["/services", "/projects", "/team", "/contact", "/feni", "/bn"];
-
-function isPublicMarketingPath(pathname: string) {
-  if (pathname === "/") return true;
-  return PUBLIC_PREFIXES.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-}
 
 export default function BrandLoader() {
   const pathname = usePathname();
   const firstPath = useRef(pathname);
   const [visible, setVisible] = useState(true);
   const [phase, setPhase] = useState<"boot" | "route">("boot");
-  const publicMarketingPage = isPublicMarketingPath(pathname || "/");
 
   useEffect(() => {
-    if (publicMarketingPage) {
-      setVisible(false);
-      return;
-    }
     const started = performance.now();
     const finish = () => {
       const remaining = Math.max(0, INITIAL_MIN_MS - (performance.now() - started));
@@ -43,22 +32,16 @@ export default function BrandLoader() {
       window.removeEventListener("load", finish);
       window.clearTimeout(fallback);
     };
-  }, [publicMarketingPage]);
+  }, []);
 
   useEffect(() => {
     if (pathname === firstPath.current) return;
     firstPath.current = pathname;
-    if (publicMarketingPage) {
-      setVisible(false);
-      return;
-    }
     setPhase("route");
     setVisible(true);
     const timer = window.setTimeout(() => setVisible(false), ROUTE_MIN_MS);
     return () => window.clearTimeout(timer);
-  }, [pathname, publicMarketingPage]);
-
-  if (publicMarketingPage) return null;
+  }, [pathname]);
 
   return (
     <div
