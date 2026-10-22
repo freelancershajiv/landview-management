@@ -87,21 +87,31 @@ export default function EmployeePortalShell() {
       .portal-employee>.portal-navigation{display:none!important}
       .portal-employee .tmg-admin-main{width:100%!important;max-width:none!important;margin:0!important}
       .portal-employee .tmg-content-wrap{width:100%!important;max-width:none!important;margin:0!important;padding:0!important}
-      .employee-workspace-root{width:100%;max-width:none;margin:0;padding:0 0 48px;color:var(--lv-text-primary);background:var(--lv-surface-page);min-height:calc(100vh - 82px)}
+      .employee-workspace-root{width:100%;max-width:none;margin:0;padding:0 0 48px;color:var(--lv-text-primary);background:var(--lv-surface-page);min-height:calc(100vh - 82px);font-size:14px}
       .employee-workspace-nav-wrap{position:sticky;top:0;z-index:25;width:100%;border-bottom:1px solid var(--lv-border-default);background:color-mix(in srgb,var(--lv-surface-panel) 96%,transparent);backdrop-filter:blur(14px);box-shadow:var(--lv-shadow-sm)}
       .employee-workspace-nav{display:flex;gap:2px;width:100%;padding:0 28px;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
       .employee-workspace-nav::-webkit-scrollbar{display:none}
-      .employee-workspace-tab{position:relative;flex:0 0 auto;border:0;background:transparent;color:var(--lv-text-secondary);padding:17px 16px 15px;font-size:12px;font-weight:800;cursor:pointer;white-space:nowrap;transition:background var(--lv-motion-fast),color var(--lv-motion-fast)}
+      .employee-workspace-tab{position:relative;flex:0 0 auto;border:0;background:transparent;color:var(--lv-text-secondary);padding:18px 17px 16px;font-size:14px;font-weight:850;cursor:pointer;white-space:nowrap;transition:background var(--lv-motion-fast),color var(--lv-motion-fast)}
       .employee-workspace-tab:hover{color:var(--lv-text-strong);background:var(--lv-surface-muted)}
       .employee-workspace-tab.active{color:var(--lv-text-strong);background:var(--lv-brand-soft)}
       .employee-workspace-tab.active:after{content:"";position:absolute;left:14px;right:14px;bottom:0;height:3px;border-radius:3px 3px 0 0;background:var(--lv-brand-primary)}
-      .employee-workspace-body{width:100%;max-width:none;padding:28px 32px 0}
+      .employee-workspace-body{width:100%;max-width:none;padding:28px 32px 0;font-size:14px;line-height:1.5}
       .employee-workspace-body>section,.employee-workspace-body>div{width:100%;max-width:none}
       .employee-workspace-body .ec-section{scroll-margin-top:100px}
       .employee-workspace-body table{width:100%}
-      .employee-dashboard-stack{display:grid;gap:14px}
-      @media(max-width:1100px){.employee-workspace-nav{padding:0 18px}.employee-workspace-body{padding:22px 20px 0}.employee-workspace-tab{padding:15px 13px 13px}}
-      @media(max-width:700px){.employee-workspace-nav-wrap{top:0}.employee-workspace-nav{padding:0 8px}.employee-workspace-body{padding:12px 9px 0}.employee-workspace-tab{min-height:46px;padding:13px 11px 12px;font-size:11px}.employee-workspace-root{padding-bottom:28px}.employee-dashboard-stack{gap:10px}}
+      .employee-dashboard-stack{display:grid;gap:16px}
+      .employee-workspace-body p{font-size:13px!important;line-height:1.55!important}
+      .employee-workspace-body small{font-size:11px!important;line-height:1.45!important}
+      .employee-workspace-body button,.employee-workspace-body input,.employee-workspace-body select,.employee-workspace-body textarea{font-size:12px!important}
+      .employee-workspace-body table th{font-size:11px!important}
+      .employee-workspace-body table td{font-size:12px!important}
+      .employee-workspace-body .sv-hero small,.employee-workspace-body .sv-step>span,.employee-workspace-body .sv-card-head small,.employee-workspace-body .sv-location-copy small,.employee-workspace-body .sv-upload-box small,.employee-workspace-body .sv-helper,.employee-workspace-body .sv-gps-test,.employee-workspace-body .sv-row small,.employee-workspace-body .sv-empty{font-size:11px!important}
+      .employee-workspace-body .sv-card-head strong,.employee-workspace-body .sv-location-copy strong,.employee-workspace-body .sv-upload-box strong,.employee-workspace-body .sv-row strong{font-size:13px!important;line-height:1.4!important}
+      .employee-workspace-body .sv-row p{font-size:12px!important}
+      .employee-workspace-body .sv-location-btn,.employee-workspace-body .sv-submit,.employee-workspace-body .sv-refresh,.employee-workspace-body .sv-wa-retry{font-size:11px!important}
+      .employee-workspace-body .sv-status,.employee-workspace-body .sv-wa{font-size:10px!important}
+      @media(max-width:1100px){.employee-workspace-nav{padding:0 18px}.employee-workspace-body{padding:22px 20px 0}.employee-workspace-tab{padding:16px 14px 14px}}
+      @media(max-width:700px){.employee-workspace-nav-wrap{top:0}.employee-workspace-nav{padding:0 8px}.employee-workspace-body{padding:13px 10px 0;font-size:14px}.employee-workspace-tab{min-height:48px;padding:14px 12px 13px;font-size:13px}.employee-workspace-root{padding-bottom:28px}.employee-dashboard-stack{gap:12px}.employee-workspace-body p{font-size:12px!important}.employee-workspace-body small{font-size:11px!important}.employee-workspace-body button,.employee-workspace-body input,.employee-workspace-body select,.employee-workspace-body textarea{font-size:12px!important}}
     `}</style>
 
     <div className="employee-workspace-nav-wrap">
@@ -112,7 +122,7 @@ export default function EmployeePortalShell() {
 
     <div className="employee-workspace-body">
       {active === "dashboard" && <div className="employee-dashboard-stack">
-        <EmployeeSiteVisitAssignments />
+        <EmployeeSiteVisitAssignments showRecordButton />
         <EmployeeCommandCenter view="dashboard" />
       </div>}
       {active === "visits" && <EmployeeSiteVisitAssignments />}
