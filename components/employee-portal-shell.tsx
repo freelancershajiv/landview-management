@@ -5,22 +5,20 @@ import { landViewApi } from "@/lib/api";
 import EmployeeCommandCenter, { type EmployeeCommandView } from "@/components/employee-command-center";
 import EmployeeTaskCenter from "@/components/employee-task-center";
 import EmployeeSiteVisitAssignments from "@/components/employee-site-visit-assignments";
-import EmployeeWhatsAppConnect from "@/components/employee-whatsapp-connect";
 import EmployeeProjectStageStrip from "@/components/employee-project-stage-strip";
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
 import EmployeeExpenseCenter from "@/components/employee-expense-center";
 import EmployeeCertificateCenter from "@/components/employee-certificate-center";
 import EmployeeSiteVisitCenter from "@/components/employee-site-visit-center";
 import NewSiteEntryCenter from "@/components/new-site-entry-center";
-import NewSiteDashboardCard from "@/components/new-site-dashboard-card";
 
-type TabId = "dashboard" | "tasks" | "visits" | "projects" | "workflow" | "new-site" | "records" | "expenses" | "approvals" | "certificates";
+type TabId = "dashboard" | "visits" | "tasks" | "projects" | "workflow" | "new-site" | "records" | "expenses" | "approvals" | "certificates";
 type Tab = { id: TabId; label: string };
 
 const BASE_TABS: Tab[] = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "tasks", label: "Tasks" },
   { id: "visits", label: "Site Visits" },
+  { id: "tasks", label: "Tasks" },
   { id: "projects", label: "Projects" },
   { id: "workflow", label: "Workflow" },
   { id: "new-site", label: "New Site" },
@@ -114,18 +112,15 @@ export default function EmployeePortalShell() {
 
     <div className="employee-workspace-body">
       {active === "dashboard" && <div className="employee-dashboard-stack">
-        <EmployeeCommandCenter view="dashboard" />
         <EmployeeSiteVisitAssignments />
-        <NewSiteDashboardCard mode="employee" />
-        <EmployeeProjectStageStrip />
-        <EmployeeWhatsAppConnect />
+        <EmployeeCommandCenter view="dashboard" />
       </div>}
-      {active === "tasks" && <EmployeeTaskCenter />}
-      {commandView && <EmployeeCommandCenter view={commandView} />}
-      {active === "new-site" && <NewSiteEntryCenter />}
       {active === "visits" && <EmployeeSiteVisitAssignments />}
       {active === "visits" && <EmployeeProjectStageStrip visitMode />}
       {active === "visits" && <EmployeeSiteVisitCenter />}
+      {active === "tasks" && <EmployeeTaskCenter />}
+      {commandView && <EmployeeCommandCenter view={commandView} />}
+      {active === "new-site" && <NewSiteEntryCenter />}
       {active === "expenses" && <EmployeeExpenseCenter />}
       {active === "approvals" && isChairman && <ChairmanExpenseApproval />}
       {active === "certificates" && <EmployeeCertificateCenter />}
