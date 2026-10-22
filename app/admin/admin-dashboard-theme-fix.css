@@ -1,0 +1,149 @@
+/* Final theme bridge for the current /admin dashboard.
+   AdminDashboardClean injects component-local light-first styles at render time,
+   so these selectors intentionally carry higher specificity and !important. */
+@media screen {
+  html:not([data-theme="dark"]) .portal-admin .lv-clean-dashboard {
+    --red: var(--lv-action-primary, #96383e);
+    --red2: var(--lv-action-primary-hover, #812f34);
+    --redsoft: var(--lv-brand-soft, #fff1f2);
+    --ink: var(--lv-text-primary, #182131);
+    --muted: var(--lv-text-secondary, #66717c);
+    --line: var(--lv-border-default, #d9e0e7);
+    --panel: var(--lv-surface-panel, #ffffff);
+    --bg: var(--lv-surface-page, #f5f7fa);
+    background: var(--lv-surface-page, #f5f7fa) !important;
+    color: var(--lv-text-primary, #182131) !important;
+  }
+
+  html[data-theme="dark"] .portal-admin .lv-clean-dashboard {
+    --red: var(--lv-action-primary, #a14a4e);
+    --red2: var(--lv-action-primary-hover, #b25358);
+    --redsoft: color-mix(in srgb, var(--lv-action-primary, #a14a4e) 16%, transparent);
+    --ink: var(--lv-text-primary, #f2f3f5);
+    --muted: var(--lv-text-secondary, #a8b0ba);
+    --line: var(--lv-border-default, #303740);
+    --panel: var(--lv-surface-panel, #171a1f);
+    --bg: var(--lv-surface-page, #101216);
+    background: var(--lv-surface-page, #101216) !important;
+    color: var(--lv-text-primary, #f2f3f5) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-btn:not(.primary), .lv-clean-kpi, .lv-clean-card, .lv-today-item) {
+    background: var(--lv-surface-panel, var(--panel)) !important;
+    border-color: var(--lv-border-default, var(--line)) !important;
+    color: var(--lv-text-primary, var(--ink)) !important;
+    box-shadow: var(--lv-shadow-sm, 0 4px 16px rgba(15, 23, 42, .08)) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-clean-btn:not(.primary):hover,
+  .portal-admin .lv-clean-dashboard .lv-today-item:hover {
+    background: var(--lv-surface-muted, #f2f4f6) !important;
+    border-color: var(--lv-border-strong, var(--lv-border-default, var(--line))) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(h1, h2, h3, .lv-clean-kpi strong, .lv-finance-summary strong, .lv-activity-copy strong, .lv-project-copy strong, .lv-calendar-head strong, .lv-priority-copy strong) {
+    color: var(--lv-text-primary, var(--ink)) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-head p, .lv-clean-kpi span, .lv-clean-kpi small, .lv-workflow-step small, .lv-finance-summary span, .lv-chart-label, .lv-chart-legend, .lv-activity-copy small, .lv-activity-date, .lv-project-copy small, .lv-calendar-week span, .lv-calendar-day:not(.today), .lv-today-item span, .lv-priority-copy small, .lv-empty) {
+    color: var(--lv-text-secondary, var(--muted)) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-link, .lv-priority-open) {
+    color: var(--lv-action-primary, var(--red)) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-finance-summary > div, .lv-chart, .lv-activity-row, .lv-project-row, .lv-today-summary, .lv-priority-row) {
+    border-color: var(--lv-border-soft, var(--lv-border-default, var(--line))) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-workflow-icon {
+    background: var(--lv-surface-muted, #f7f8fa) !important;
+    border-color: var(--lv-border-default, var(--line)) !important;
+    color: var(--lv-text-secondary, var(--muted)) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-workflow-step:first-child .lv-workflow-icon,
+  .portal-admin .lv-clean-dashboard .lv-clean-btn.primary,
+  .portal-admin .lv-clean-dashboard .lv-calendar-day.today {
+    background: var(--lv-action-primary, var(--red)) !important;
+    border-color: var(--lv-action-primary, var(--red)) !important;
+    color: #ffffff !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-progress-track {
+    background: var(--lv-surface-muted, #edf0f3) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-chart-bar {
+    background: var(--lv-action-primary, var(--red)) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-chart-bar.expense,
+  .portal-admin .lv-clean-dashboard .lv-chart-legend i.exp {
+    background: color-mix(in srgb, var(--lv-danger, #c94a52) 45%, var(--lv-surface-panel, #ffffff)) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-activity-icon {
+    background: color-mix(in srgb, #4e7fbd 16%, var(--lv-surface-panel, #ffffff)) !important;
+    color: #5f8fd0 !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-activity-icon.red {
+    background: color-mix(in srgb, var(--lv-danger, #c94a52) 14%, var(--lv-surface-panel, #ffffff)) !important;
+    color: var(--lv-danger, var(--red)) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-activity-icon.green {
+    background: color-mix(in srgb, var(--lv-success, #24905a) 14%, var(--lv-surface-panel, #ffffff)) !important;
+    color: var(--lv-success, #24905a) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-project-avatar {
+    background: color-mix(in srgb, var(--lv-action-primary, var(--red)) 10%, var(--lv-surface-muted, #f7f8fa)) !important;
+    border-color: var(--lv-border-default, var(--line)) !important;
+    color: var(--lv-action-primary, var(--red)) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-project-status.completed, .lv-project-status.ontrack) {
+    background: color-mix(in srgb, var(--lv-success, #24905a) 14%, var(--lv-surface-panel, #ffffff)) !important;
+    color: var(--lv-success, #24905a) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-project-status.progress {
+    background: color-mix(in srgb, #4e7fbd 14%, var(--lv-surface-panel, #ffffff)) !important;
+    color: #5f8fd0 !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-project-status.early {
+    background: color-mix(in srgb, var(--lv-warning, #d29422) 14%, var(--lv-surface-panel, #ffffff)) !important;
+    color: var(--lv-warning, #d29422) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-quick a {
+    background: color-mix(in srgb, var(--lv-action-primary, var(--red)) 9%, var(--lv-surface-panel, #ffffff)) !important;
+    border-color: color-mix(in srgb, var(--lv-action-primary, var(--red)) 26%, var(--lv-border-default, var(--line))) !important;
+    color: var(--lv-action-primary, var(--red)) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-quick a b {
+    background: color-mix(in srgb, var(--lv-action-primary, var(--red)) 16%, var(--lv-surface-panel, #ffffff)) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-dashboard-error {
+    background: color-mix(in srgb, var(--lv-danger, #c94a52) 11%, var(--lv-surface-panel, #ffffff)) !important;
+    border-color: color-mix(in srgb, var(--lv-danger, #c94a52) 30%, var(--lv-border-default, var(--line))) !important;
+    color: var(--lv-danger, #c94a52) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-dashboard-loading span {
+    background: linear-gradient(90deg, var(--lv-surface-muted, #eceff2), var(--lv-surface-panel, #ffffff), var(--lv-surface-muted, #eceff2)) !important;
+    background-size: 220% 100% !important;
+  }
+
+  html[data-theme="dark"] .portal-admin .lv-clean-dashboard :is(.lv-clean-kpi, .lv-clean-card, .lv-clean-btn:not(.primary), .lv-today-item) {
+    background: var(--lv-surface-panel, #171a1f) !important;
+    border-color: var(--lv-border-default, #303740) !important;
+  }
+
+  html[data-theme="dark"] .portal-admin .lv-clean-dashboard .lv-today-item,
+  html[data-theme="dark"] .portal-admin .lv-clean-dashboard .lv-workflow-icon {
+    background: var(--lv-surface-muted, #20242a) !important;
+  }
+
+  html[data-theme="dark"] .portal-admin .lv-clean-dashboard .lv-clean-btn:not(.primary):hover,
+  html[data-theme="dark"] .portal-admin .lv-clean-dashboard .lv-today-item:hover {
+    background: var(--lv-surface-elevated, #252a31) !important;
+  }
+}
