@@ -96,12 +96,14 @@ async function loadAssignments(user: Row, date: string) {
   const assignments = taskRows.map((row) => {
     const employee = employeeById.get(text(row.assigned_employee_id));
     const project = projectById.get(text(row.project_id));
+    const ownerName = project?.client_name_snapshot || "";
     return {
       Task_Code: row.task_code,
       Visit_Date: row.due_date,
       Project_ID: project?.project_code || "",
-      Project_Name: project?.project_name || project?.client_name_snapshot || "",
-      Client_Name: project?.client_name_snapshot || "",
+      Project_Name: project?.project_name || "",
+      Owner_Name: ownerName,
+      Client_Name: ownerName,
       Location: project?.location || "",
       Employee_ID: employee?.employee_code || "",
       Employee_Name: employee?.name || "",
@@ -128,7 +130,14 @@ async function loadAssignments(user: Row, date: string) {
     projects: management
       ? projects
           .filter(supervisionActive)
-          .map((row) => ({ id: row.id, Project_ID: row.project_code, Project_Name: row.project_name || row.client_name_snapshot || "", Client_Name: row.client_name_snapshot || "", Location: row.location || "" }))
+          .map((row) => ({
+            id: row.id,
+            Project_ID: row.project_code,
+            Project_Name: row.project_name || "",
+            Owner_Name: row.client_name_snapshot || "",
+            Client_Name: row.client_name_snapshot || "",
+            Location: row.location || "",
+          }))
       : [],
   };
 }
@@ -211,7 +220,7 @@ export async function POST(request: NextRequest) {
       due_date: tomorrow,
       completed_at: null,
       progress: 0,
-      project_name_snapshot: text(projectRows[0].project_name || projectRows[0].client_name_snapshot, 300) || projectCode,
+      project_name_snapshot: text(projectRows[0].project_name, 300) || projectCode,
       source_created_at: now,
       source_created_by: actor || null,
       source_updated_at: now,
