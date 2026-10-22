@@ -126,7 +126,7 @@ export default function SiteVisitAssignmentsAdmin() {
     `}</style>
 
     <div className="sva-head">
-      <div><div className="sva-kicker">Next-day planning</div><h2>Tomorrow&apos;s Site Visits</h2><p>Assign the next working day&apos;s supervision visits. Employees receive these as required tasks, and a matching Site Visit submission automatically completes the assignment.</p></div>
+      <div><div className="sva-kicker">Next-day planning</div><h2>Tomorrow&apos;s Site Visits</h2><p>Assign the next working day&apos;s supervision visits. Project Name and Owner Name are shown separately so the correct site is easy to identify.</p></div>
       <div className="sva-date">{loading ? "Loading…" : dateLabel(data?.date || "")}</div>
     </div>
 
@@ -141,7 +141,7 @@ export default function SiteVisitAssignmentsAdmin() {
 
     <form className="sva-form" onSubmit={assign}>
       <label className="sva-field"><span>Employee</span><select value={employeeId} onChange={(e) => setEmployeeId(e.target.value)} required disabled={loading || saving}><option value="">Select employee</option>{(data?.employees || []).map((row) => <option key={row.id} value={row.id}>{text(row.Employee_ID, "")} · {text(row.Employee_Name, "")}{row.Designation ? ` · ${row.Designation}` : ""}</option>)}</select></label>
-      <label className="sva-field"><span>Project</span><select value={projectId} onChange={(e) => setProjectId(e.target.value)} required disabled={loading || saving}><option value="">Select supervision project</option>{(data?.projects || []).map((row) => <option key={row.id} value={row.id}>{text(row.Project_ID, "")} · {text(row.Project_Name, "")}{row.Location ? ` · ${row.Location}` : ""}</option>)}</select></label>
+      <label className="sva-field"><span>Project</span><select value={projectId} onChange={(e) => setProjectId(e.target.value)} required disabled={loading || saving}><option value="">Select supervision project</option>{(data?.projects || []).map((row) => <option key={row.id} value={row.id}>{text(row.Project_ID, "")} · {text(row.Project_Name, "Project name not set")} · Owner: {text(row.Owner_Name, "Owner not set")}</option>)}</select></label>
       <label className="sva-field"><span>Priority</span><select value={priority} onChange={(e) => setPriority(e.target.value)} disabled={saving}>{["Normal", "High", "Urgent", "Low"].map((item) => <option key={item}>{item}</option>)}</select></label>
       <label className="sva-field instructions"><span>Instructions</span><input value={instructions} onChange={(e) => setInstructions(e.target.value)} maxLength={1800} placeholder="What should the engineer inspect or follow up?" disabled={saving} /></label>
       <button className="sva-assign" type="submit" disabled={loading || saving || !employeeId || !projectId}>{saving ? "Assigning…" : "Assign Visit"}</button>
@@ -154,7 +154,7 @@ export default function SiteVisitAssignmentsAdmin() {
         const closed = isClosed(status);
         return <div className="sva-row" key={row.Task_Code}>
           <div className="sva-person"><strong>{text(row.Employee_Name)}</strong><span>{text(row.Employee_ID)}</span></div>
-          <div className="sva-project"><strong>{text(row.Project_ID)} · {text(row.Project_Name)}</strong><span>{text(row.Location, "No location text")}</span></div>
+          <div className="sva-project"><strong>{text(row.Project_ID)} · {text(row.Project_Name, "Project name not set")}</strong><span>Owner: {text(row.Owner_Name, "Owner not set")}</span><span>{text(row.Location, "No location text")}</span></div>
           <div className="sva-note">{text(row.Instructions, "No special instruction")}</div>
           <div><span className={`sva-badge ${["urgent", "high"].includes(String(row.Priority || "").toLowerCase()) ? "urgent" : ""}`}>{text(row.Priority, "Normal")}</span></div>
           <div><span className={`sva-badge ${String(status).toLowerCase() === "completed" ? "done" : String(status).toLowerCase().includes("cancel") ? "cancelled" : ""}`}>{status}</span></div>
