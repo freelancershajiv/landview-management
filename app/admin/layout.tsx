@@ -1,4 +1,4 @@
-import ManagementShellV3 from "@/components/management-shell-v3";
+import ManagementShellV5 from "@/components/management-shell-v5";
 import AdminMobileDock from "@/components/admin-mobile-dock";
 import PortalPreloader from "@/components/portal-preloader";
 import ProjectManagementEnhancements from "@/components/project-management-enhancements";
@@ -25,7 +25,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <ProjectManagementEnhancements />
     <AdminProjectMapDrawer />
     <ManagementRolePolicyEnforcer role={role} />
-    <ManagementShellV3 initialUser={session.user}>{children}</ManagementShellV3>
+    <ManagementShellV5 initialUser={session.user}>{children}</ManagementShellV5>
     {role === "manager" && <AccountShortcut label="My Account" mobileDock />}
     <AdminMobileDock />
   </>;
