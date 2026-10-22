@@ -43,6 +43,11 @@ function dhakaDate(offsetDays = 0) {
   return date.toISOString().slice(0, 10);
 }
 
+function validDate(value: unknown) {
+  const date = text(value, 20);
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
+}
+
 function activeAssignmentStatus(value: unknown) {
   return !["completed", "cancelled", "canceled", "closed", "done"].includes(text(value, 80).toLowerCase());
 }
@@ -119,6 +124,7 @@ async function loadAssignments(user: Row, date: string) {
 
   return {
     date,
+    today: dhakaDate(0),
     tomorrow: dhakaDate(1),
     role,
     assignments,
@@ -145,8 +151,8 @@ async function loadAssignments(user: Row, date: string) {
 export async function GET(request: NextRequest) {
   try {
     const user = await sessionUser(request);
-    const requested = text(request.nextUrl.searchParams.get("date"), 20);
-    const date = /^\d{4}-\d{2}-\d{2}$/.test(requested) ? requested : dhakaDate(1);
+    const requested = validDate(request.nextUrl.searchParams.get("date"));
+    const date = requested || dhakaDate(1);
     return json({ success: true, data: await loadAssignments(user, date) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load Site Visit assignments.";
@@ -163,7 +169,6 @@ export async function POST(request: NextRequest) {
 
     const input = await request.json() as Row;
     const action = text(input.action, 60).toLowerCase();
-    const tomorrow = dhakaDate(1);
     const now = new Date().toISOString();
 
     if (action === "cancel") {
@@ -184,8 +189,12 @@ export async function POST(request: NextRequest) {
 
     const employeeId = text(input.employeeId, 80);
     const projectId = text(input.projectId, 80);
+    const visitDate = validDate(input.visitDate || input.date);
+    const today = dhakaDate(0);
     if (!employeeId) throw new Error("Choose an employee.");
     if (!projectId) throw new Error("Choose a project.");
+    if (!visitDate) throw new Error("Choose a valid Site Visit date.");
+    if (visitDate < today) throw new Error("Site Visit date cannot be in the past.");
 
     const [employeeRows, projectRows] = await Promise.all([
       selectRows("employees", { filters: { id: employeeId }, limit: 1 }),
@@ -196,11 +205,11 @@ export async function POST(request: NextRequest) {
     if (!supervisionActive(projectRows[0])) throw new Error("Site Visits can only be assigned to projects in the Supervision / Construction stage.");
 
     const existing = await selectRows("tasks", {
-      filters: { task_type: "Site Visit", project_id: projectId, assigned_employee_id: employeeId, due_date: tomorrow },
+      filters: { task_type: "Site Visit", project_id: projectId, assigned_employee_id: employeeId, due_date: visitDate },
       limit: 50,
     });
     if (existing.some((row) => activeAssignmentStatus(row.status))) {
-      throw new Error("This employee is already assigned to this project for tomorrow.");
+      throw new Error(`This employee is already assigned to this project on ${visitDate}.`);
     }
 
     const projectCode = text(projectRows[0].project_code, 80) || "PROJECT";
@@ -212,12 +221,12 @@ export async function POST(request: NextRequest) {
       task_code: taskCode,
       project_id: projectId,
       task_title: `Site Visit · ${projectCode}`,
-      description: instructions || `Next-day Site Visit assigned to ${employeeCode}.`,
+      description: instructions || `Site Visit scheduled for ${visitDate} and assigned to ${employeeCode}.`,
       assigned_employee_id: employeeId,
       priority: ["Urgent", "High", "Normal", "Low"].includes(text(input.priority, 40)) ? text(input.priority, 40) : "Normal",
       status: "Pending",
-      start_date: tomorrow,
-      due_date: tomorrow,
+      start_date: visitDate,
+      due_date: visitDate,
       completed_at: null,
       progress: 0,
       project_name_snapshot: text(projectRows[0].project_name, 300) || projectCode,
@@ -246,7 +255,7 @@ export async function POST(request: NextRequest) {
     return json({ success: true, data: inserted[0] || row }, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not save Site Visit assignment.";
-    const status = /session/i.test(message) ? 401 : /access|required/i.test(message) ? 403 : /already assigned|only be assigned/i.test(message) ? 409 : /choose|unsupported|code is required/i.test(message) ? 400 : /not found/i.test(message) ? 404 : 500;
+    const status = /session/i.test(message) ? 401 : /access|required/i.test(message) ? 403 : /already assigned|only be assigned/i.test(message) ? 409 : /choose|unsupported|code is required|past/i.test(message) ? 400 : /not found/i.test(message) ? 404 : 500;
     return json({ success: false, error: message }, status);
   }
 }
