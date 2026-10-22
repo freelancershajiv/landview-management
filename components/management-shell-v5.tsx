@@ -332,6 +332,7 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
   }
 
   const navStyles = `
+    .admin-mobile-account{display:none}
     .lv-nav-direct{display:grid!important;grid-template-columns:26px 1fr!important;align-items:center!important;gap:8px!important;min-height:44px!important;padding:0 12px!important;text-decoration:none!important;border-radius:8px!important;color:inherit!important;font-size:12px!important;font-weight:850!important;letter-spacing:.02em!important}
     .lv-nav-direct:hover,.lv-nav-direct.active{background:var(--lv-brand-soft)!important;color:var(--lv-brand-text)!important}
     .lv-nav-stack{display:grid;gap:5px;width:100%}
@@ -353,6 +354,8 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
       .portal-admin .tmg-mobile-menu{position:relative!important;z-index:220!important;pointer-events:auto!important;touch-action:manipulation!important}
       .portal-admin .primary-nav.open{display:block!important;position:fixed!important;z-index:210!important;top:64px!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:calc(100dvh - 64px)!important;max-height:calc(100dvh - 64px)!important;overflow-y:auto!important;overflow-x:hidden!important;padding:14px 14px max(24px,env(safe-area-inset-bottom))!important;box-sizing:border-box!important;visibility:visible!important;opacity:1!important;transform:none!important}
       .portal-admin .primary-nav.open .primary-nav-inner{display:grid!important;grid-template-columns:1fr!important;width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;padding:0!important;margin:0!important;gap:4px!important}
+      .portal-admin .admin-mobile-account{display:grid;gap:8px;margin:0;padding:12px;border-top:1px solid var(--lv-border-default)}
+      .portal-admin .admin-mobile-account button,.portal-admin .admin-mobile-account a{min-height:44px;padding:10px 14px;text-align:left;border:1px solid var(--lv-border-default);border-radius:9px;background:var(--lv-surface-panel);color:var(--lv-text-primary);font-size:12px;cursor:pointer;text-decoration:none}
     }
     .primary-nav{position:relative;z-index:90;overflow:visible!important}
     .primary-nav-inner{position:relative;z-index:91;display:grid;gap:4px;overflow:visible!important;padding:3px 0}
@@ -405,6 +408,14 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
               </section>;
             })}
           </div>
+        </div>
+
+        <div className="admin-mobile-account">
+          {isAdmin && <Link href="/admin/account" onClick={() => setMobileOpen(false)}>My Account</Link>}
+          {isAdmin && <button type="button" onClick={switchToEmployeeMode} disabled={roleSwitchBusy}>{roleSwitchBusy ? "Switching..." : "Switch to EMP-0002 workspace"}</button>}
+          {(isAdmin || isManager) && quickConfigured && <button type="button" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `Trusted device · ${daysLeft} days` : "Trust this device"}</button>}
+          {(isAdmin || isManager) && <button type="button" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN lock" : "Set PIN"}</button>}
+          <button type="button" onClick={logout}>Sign out</button>
         </div>
 
         <div className="sidebar-footer">
