@@ -7,6 +7,9 @@ export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
 
+const WHATSAPP_PROJECT_QUEUE_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-project-queue";
+const EMPLOYEE_PORTAL_URL = "https://app.landview.com.bd/employee";
+
 function text(value: unknown, max = 2000) {
   return String(value ?? "").trim().slice(0, max);
 }
@@ -48,6 +51,14 @@ function validDate(value: unknown) {
   return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : "";
 }
 
+function displayDate(value: unknown) {
+  const raw = validDate(value);
+  if (!raw) return text(value, 40);
+  const [year, month, day] = raw.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric", timeZone: "UTC" });
+}
+
 function activeAssignmentStatus(value: unknown) {
   return !["completed", "cancelled", "canceled", "closed", "done"].includes(text(value, 80).toLowerCase());
 }
@@ -58,6 +69,96 @@ function supervisionActive(project: Row) {
 
 function actorOf(user: Row) {
   return userIdOf(user) || employeeCodeOf(user) || text(user?.name || user?.Name || user?.username || user?.Username, 200);
+}
+
+function assignmentWorkItems(value: unknown) {
+  const raw = text(value, 1800);
+  if (!raw) return ["Complete the scheduled Site Visit and record the current site condition."];
+  const items = raw
+    .split(/\r?\n|;|\s+&\s+/g)
+    .map((item) => item.trim().replace(/^[-•]+\s*/, ""))
+    .filter(Boolean)
+    .slice(0, 8);
+  return items.length ? items : [raw];
+}
+
+function formatAssignmentWhatsAppMessage(employee: Row, project: Row, visitDate: string, priority: string, instructions: string) {
+  const projectCode = text(project?.project_code, 80) || "Project";
+  const projectName = text(project?.project_name, 240);
+  const ownerName = text(project?.client_name_snapshot, 240);
+  const employeeName = text(employee?.name, 180) || "Employee";
+  const employeeCode = text(employee?.employee_code, 80);
+  const designation = text(employee?.designation, 120);
+  const assignedTo = [employeeName, employeeCode].filter(Boolean).join(" · ");
+  const lines = [
+    `🏗️ *Site Visit Assignment | ${projectCode}*`,
+    "",
+    `*Date:* ${displayDate(visitDate)}`,
+  ];
+  if (projectName) lines.push(`*Project:* ${projectName}`);
+  if (ownerName) lines.push(`*Owner:* ${ownerName}`);
+  lines.push(`*Assigned To:* ${assignedTo}`);
+  if (designation) lines.push(`*Designation:* ${designation}`);
+  lines.push(`*Priority:* ${text(priority, 40).toUpperCase() || "NORMAL"}`);
+  lines.push("", "🔧 *Site Visit Works*");
+  for (const item of assignmentWorkItems(instructions)) lines.push(`• ${item}`);
+  lines.push(
+    "",
+    "📸 Complete the visit with GPS verification and upload the required site photos, observations and any problems found through the LAND VIEW Employee Portal.",
+    `🔗 ${EMPLOYEE_PORTAL_URL}`,
+    "",
+    "_LAND VIEW Architects & Engineers_",
+  );
+  return lines.join("\n").slice(0, 4000);
+}
+
+async function queueEmployeeAssignmentWhatsApp(employee: Row, project: Row, taskCode: string, visitDate: string, priority: string, instructions: string) {
+  const phoneNumber = text(employee?.phone_number || employee?.mobile_number || employee?.phone || employee?.contact_number, 100);
+  if (!phoneNumber) return { status: "skipped", reason: "Employee WhatsApp number is missing." };
+  const token = text(process.env.WHATSAPP_BOT_API_TOKEN, 600);
+  if (!token) return { status: "skipped", reason: "Admin WhatsApp token is not configured." };
+
+  const response = await fetch(WHATSAPP_PROJECT_QUEUE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-land-view-bot-token": token,
+    },
+    body: JSON.stringify({
+      action: "directQueue",
+      phoneNumber,
+      message: formatAssignmentWhatsAppMessage(employee, project, visitDate, priority, instructions),
+      dedupeKey: `employee-site-visit-assignment:${taskCode}`,
+      source: "site-visit-assignment",
+      eventKey: "site.assignment",
+      priority: ["urgent", "high"].includes(priority.toLowerCase()) ? "important" : "routine",
+      recipientGroup: "employee",
+      templateKey: "site_visit_assignment",
+    }),
+    cache: "no-store",
+    signal: AbortSignal.timeout(12_000),
+  });
+  const payload = await response.json().catch(() => null) as any;
+  if (!response.ok || !payload?.success) {
+    throw new Error(text(payload?.error || `WhatsApp queue returned HTTP ${response.status}.`, 600));
+  }
+
+  const base = text(process.env.WHATSAPP_BOT_URL, 600).replace(/\/+$/, "");
+  if (base) {
+    await fetch(`${base}/client/wake`, {
+      method: "POST",
+      headers: { "x-land-view-bot-token": token },
+      cache: "no-store",
+      signal: AbortSignal.timeout(5_000),
+    }).catch(() => null);
+  }
+
+  return {
+    status: text(payload?.data?.status, 40) || "pending",
+    queueId: text(payload?.data?.id, 120) || null,
+    providerMessageId: text(payload?.data?.provider_message_id, 300) || null,
+    reason: text(payload?.data?.last_error, 600) || null,
+  };
 }
 
 async function sessionUser(request: NextRequest) {
@@ -217,13 +318,14 @@ export async function POST(request: NextRequest) {
     const taskCode = `SVT-${projectCode.replace(/[^A-Z0-9]/gi, "")}-${crypto.randomUUID().replace(/-/g, "").slice(0, 8).toUpperCase()}`;
     const actor = actorOf(user);
     const instructions = text(input.instructions, 1800);
+    const taskPriority = ["Urgent", "High", "Normal", "Low"].includes(text(input.priority, 40)) ? text(input.priority, 40) : "Normal";
     const row = {
       task_code: taskCode,
       project_id: projectId,
       task_title: `Site Visit · ${projectCode}`,
       description: instructions || `Site Visit scheduled for ${visitDate} and assigned to ${employeeCode}.`,
       assigned_employee_id: employeeId,
-      priority: ["Urgent", "High", "Normal", "Low"].includes(text(input.priority, 40)) ? text(input.priority, 40) : "Normal",
+      priority: taskPriority,
       status: "Pending",
       start_date: visitDate,
       due_date: visitDate,
@@ -252,7 +354,18 @@ export async function POST(request: NextRequest) {
     };
 
     const inserted = await insertRows("tasks", row);
-    return json({ success: true, data: inserted[0] || row }, 201);
+    let whatsappNotification: Row;
+    try {
+      whatsappNotification = await queueEmployeeAssignmentWhatsApp(employeeRows[0], projectRows[0], taskCode, visitDate, taskPriority, instructions);
+    } catch (error) {
+      whatsappNotification = {
+        status: "failed",
+        reason: error instanceof Error ? text(error.message, 600) : "Employee WhatsApp notification could not be queued.",
+      };
+      console.warn("[site-visit-assignment-whatsapp] notification failed", { taskCode, reason: whatsappNotification.reason });
+    }
+
+    return json({ success: true, data: inserted[0] || row, notification: { whatsapp: whatsappNotification } }, 201);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not save Site Visit assignment.";
     const status = /session/i.test(message) ? 401 : /access|required/i.test(message) ? 403 : /already assigned|only be assigned/i.test(message) ? 409 : /choose|unsupported|code is required|past/i.test(message) ? 400 : /not found/i.test(message) ? 404 : 500;
