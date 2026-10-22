@@ -142,7 +142,7 @@ export default function NewProjectPage() {
       },
       geolocationError => {
         setLocationMessage(geolocationError.code === geolocationError.PERMISSION_DENIED
-          ? "Location access is blocked. Allow Location for LAND VIEW in your browser/site settings and try again."
+          ? "Location is blocked. Allow Location for LAND VIEW in your browser/site settings and try again."
           : geolocationError.code === geolocationError.POSITION_UNAVAILABLE
             ? "Your current location could not be determined. Check GPS and try again."
             : "Location request timed out. Check GPS and try again.");
@@ -195,7 +195,7 @@ export default function NewProjectPage() {
   return <>
     <style dangerouslySetInnerHTML={{__html:css}} />
     <div className="new-project-page">
-      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="New Project" description="Create a new Supabase project using the normal automatic LV number or intentionally reuse a genuinely unused historical gap." action={<div className="new-project-actions"><Link className="new-project-btn" href="/admin/projects">← Projects</Link><Link className="new-project-btn" href="/admin/projects/locations">Locations</Link><Link className="new-project-btn" href="/admin/projects/legacy">Legacy Projects</Link></div>} />
+      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="New Project" description="Create a new project with a distinct Project Name and Owner Name. Project Name describes the building/work; Owner Name identifies the client/owner." action={<div className="new-project-actions"><Link className="new-project-btn" href="/admin/projects">← Projects</Link><Link className="new-project-btn" href="/admin/projects/locations">Locations</Link><Link className="new-project-btn" href="/admin/projects/legacy">Legacy Projects</Link></div>} />
 
       <section className="new-project-card">
         <div className="new-project-head"><strong>Project ID method</strong><small>Automatic is the normal choice. Manual is for an intentionally unused LV number that you know will never belong to its original lost project.</small></div>
@@ -209,8 +209,8 @@ export default function NewProjectPage() {
 
         <form className="form-grid" onSubmit={submit}>
           {mode === "manual" && <label>Manual Project ID<input value={form.Project_ID} onChange={(e)=>setForm({...form,Project_ID:e.target.value})} placeholder="LV-072" required /><span style={{fontSize:10,color:manualExists?"#ff8f88":"#6f7d88"}}>{manualExists ? "This ID already exists." : "You may type 72, LV72 or LV-072; it will be stored as LV-072."}</span></label>}
-          <label className={mode === "automatic" ? "full" : ""}>Project Name<input value={form.Project_Name} onChange={(e)=>setForm({...form,Project_Name:e.target.value,Client_Name:form.Client_Name || e.target.value})} required /></label>
-          <label>Client Name<input value={form.Client_Name} onChange={(e)=>setForm({...form,Client_Name:e.target.value})} /></label>
+          <label className={mode === "automatic" ? "full" : ""}>Project Name<input value={form.Project_Name} onChange={(e)=>setForm({...form,Project_Name:e.target.value})} placeholder="e.g. 7 Storied Residential Building" required /></label>
+          <label>Owner Name<input value={form.Client_Name} onChange={(e)=>setForm({...form,Client_Name:e.target.value})} placeholder="Client / property owner name" required /></label>
           <label>Phone Number<input value={form.Phone_Number} onChange={(e)=>setForm({...form,Phone_Number:e.target.value})} /><WhatsAppNumberCheck phoneNumber={form.Phone_Number} /></label>
           <label>Referred By<input value={form.Referred_By} onChange={(e)=>setForm({...form,Referred_By:e.target.value})} placeholder="Referrer name / source" /></label>
           <label>Ref. Contact<input value={form.Ref_Contact} onChange={(e)=>setForm({...form,Ref_Contact:e.target.value})} placeholder="Referrer phone / contact" /></label>
@@ -230,7 +230,7 @@ export default function NewProjectPage() {
 
         {message && <div className={`message ${message.kind}`}>{message.text}{message.kind === "ok" && message.id && <div className="created-box"><Link className="new-project-btn primary" href={`/admin/projects/locations?project=${encodeURIComponent(message.id)}`}>Add Structured Address</Link><Link className="new-project-btn" href="/admin/projects">View Projects</Link><button className="new-project-btn" type="button" onClick={()=>router.push(`/admin/projects/${encodeURIComponent(message.id || "")}`)}>Open Project</button></div>}</div>}
         {!canManage && <div className="message err">Admin or manager access is required to create projects.</div>}
-        <div className="new-project-note">Manual gap reuse keeps the LV numbering sequence compact, but it does not materially reduce database storage. Use a manual ID only when you are certain the old number is permanently abandoned.</div>
+        <div className="new-project-note">Project Name and Owner Name are stored separately. Do not use the owner&apos;s name as the Project Name unless that is genuinely the project&apos;s official name.</div>
       </section>
     </div>
   </>;
