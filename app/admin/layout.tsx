@@ -1,3 +1,4 @@
+import Link from "next/link";
 import ManagementShellV3 from "@/components/management-shell-v3";
 import AdminMobileDock from "@/components/admin-mobile-dock";
 import PortalPreloader from "@/components/portal-preloader";
@@ -26,6 +27,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <AdminProjectMapDrawer />
     <ManagementRolePolicyEnforcer role={role} />
     <ManagementShellV3 initialUser={session.user}>{children}</ManagementShellV3>
+    <style>{`
+      .lv-action-center-shortcut{position:fixed;right:18px;bottom:18px;z-index:180;display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:0 14px;border:1px solid var(--lv-brand-text);border-radius:999px;background:var(--lv-surface-panel);color:var(--lv-brand-text);box-shadow:var(--lv-shadow-md);font-size:9px;font-weight:900;text-decoration:none;letter-spacing:.04em}
+      .lv-action-center-shortcut:hover{background:var(--lv-brand-soft)}
+      @media(max-width:900px){.lv-action-center-shortcut{display:none}}
+    `}</style>
+    <Link className="lv-action-center-shortcut" href="/admin/action-center" aria-label="Open Action Center"><span aria-hidden="true">⚑</span> ACTION CENTER</Link>
     {role === "manager" && <AccountShortcut label="My Account" mobileDock />}
     <AdminMobileDock />
   </>;
