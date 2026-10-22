@@ -1,3 +1,5 @@
+import { hasLegacyPermission, normalizeWorkspaceRole as canonicalRole } from "@/lib/permissions";
+
 export type WorkspaceRole = "admin" | "manager" | "employee" | "client";
 
 export type PermissionDefinition = {
@@ -8,6 +10,12 @@ export type PermissionDefinition = {
   adminOnly?: boolean;
 };
 
+/**
+ * Presentation metadata for Access Control.
+ * Role authority is defined only in lib/permissions.ts; these older permission
+ * keys are kept because existing permission override rows and navigation use
+ * them. roleDefaultPermissions resolves every key through the canonical map.
+ */
 export const PERMISSION_DEFINITIONS: PermissionDefinition[] = [
   { key: "dashboard.view", label: "Dashboard · View", group: "Workspace" },
   { key: "projects.view", label: "Projects · View", group: "Projects" },
@@ -82,35 +90,6 @@ export const PERMISSION_GROUP_ORDER = [
   "Administration",
 ];
 
-const MANAGER_DEFAULTS = new Set([
-  "dashboard.view",
-  "projects.view", "projects.edit",
-  "project_management.view", "project_management.edit",
-  "estimates.view", "estimates.edit",
-  "workflow.view", "workflow.edit", "workflow.assign",
-  "site.view", "site.edit",
-  "documents.view", "documents.edit",
-  "proposals.view", "proposals.create", "proposals.edit", "proposals.print", "proposals.view_all", "proposals.convert",
-  "certificates.view", "certificates.process",
-  "finance.view", "finance.edit",
-  "municipality.view", "municipality.expense_add",
-  "accounts.view", "ledger.view",
-  "expenses.view_all", "expenses.approve",
-  "employees.view", "attendance.view", "attendance.edit",
-  "public.view", "public.edit", "analytics.view",
-  "reports.view",
-]);
-
-const EMPLOYEE_DEFAULTS = new Set([
-  "dashboard.view",
-  "projects.view",
-  "workflow.view", "workflow.edit",
-  "site.view", "site.edit",
-  "documents.view",
-  "attendance.view",
-  "expenses.submit",
-]);
-
 export const ROLE_TEMPLATE_SUMMARIES: Array<{
   role: WorkspaceRole;
   label: string;
@@ -124,22 +103,15 @@ export const ROLE_TEMPLATE_SUMMARIES: Array<{
 ];
 
 export function normalizeWorkspaceRole(value: unknown): WorkspaceRole | "" {
-  const role = String(value ?? "").trim().toLowerCase();
-  if (role === "admin" || role === "manager" || role === "employee" || role === "client") return role;
-  return "";
+  return canonicalRole(value) || "";
 }
 
 export function roleDefaultPermissions(roleValue: unknown) {
   const role = normalizeWorkspaceRole(roleValue);
   const permissions: Record<string, boolean> = {};
   for (const item of PERMISSION_DEFINITIONS) {
-    permissions[item.key] = role === "admin"
-      ? true
-      : role === "manager"
-        ? MANAGER_DEFAULTS.has(item.key)
-        : role === "employee"
-          ? EMPLOYEE_DEFAULTS.has(item.key)
-          : false;
+    // Client portal capabilities are not management-workspace tab permissions.
+    permissions[item.key] = role === "client" ? false : hasLegacyPermission(role, item.key);
   }
   return permissions;
 }

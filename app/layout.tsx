@@ -32,6 +32,8 @@ import "./theme-consistency.css";
 import "./landview-color-harmony.css";
 // Navigation must independently honor light and dark mode.
 import "./dual-mode-navigation.css";
+// Final screen-only compatibility contract for legacy modules and embedded UI.
+import "./theme-stability.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 

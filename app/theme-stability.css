@@ -1,0 +1,220 @@
+/* LAND VIEW final screen-theme contract
+   ------------------------------------------------------------
+   Loaded after all legacy/theme layers. This file is intentionally screen-only:
+   invoices, reports and printable documents keep their existing print palette.
+
+   Goals:
+   - bridge legacy variables to the semantic design tokens;
+   - keep native controls, tables, dialogs and overlays in the selected mode;
+   - prevent late legacy CSS and embedded component styles from creating isolated
+     light surfaces in dark mode or dark surfaces in light mode;
+   - keep destructive/status colors semantic instead of decorative.
+*/
+
+@media screen {
+  :root,
+  html:not([data-theme="dark"]) {
+    color-scheme: light;
+    --lv-action-primary: #96383e;
+    --lv-action-primary-hover: #812f34;
+    --lv-action-primary-soft: rgba(150,56,62,.10);
+    --lv-action-primary-soft-strong: rgba(150,56,62,.16);
+    --lv-action-primary-border: rgba(150,56,62,.34);
+    --lv-action-primary-ring: rgba(150,56,62,.18);
+    --lv-action-text: #842f35;
+    --lv-on-action: #fff;
+  }
+
+  html[data-theme="dark"] {
+    color-scheme: dark;
+    --lv-action-primary: #a14a4e;
+    --lv-action-primary-hover: #b25358;
+    --lv-action-primary-soft: rgba(177,78,83,.11);
+    --lv-action-primary-soft-strong: rgba(177,78,83,.17);
+    --lv-action-primary-border: rgba(190,91,96,.34);
+    --lv-action-primary-ring: rgba(190,91,96,.17);
+    --lv-action-text: #d7868a;
+    --lv-on-action: #fff;
+  }
+
+  /* Legacy bridge: older modules now follow the semantic palette. */
+  :root,
+  html:not([data-theme="dark"]),
+  html[data-theme="dark"] {
+    --lv-paper: var(--lv-surface-page);
+    --lv-surface: var(--lv-surface-panel);
+    --lv-white: var(--lv-surface-panel);
+    --lv-text: var(--lv-text-primary);
+    --lv-muted: var(--lv-text-muted);
+    --lv-muted-2: var(--lv-text-faint);
+    --lv-border: var(--lv-border-default);
+    --lv-border-subtle: var(--lv-border-soft);
+    --lv-surface-input: var(--lv-control-bg);
+    --lv-accent: var(--lv-action-primary);
+    --lv-accent-dark: var(--lv-action-primary-hover);
+    --brand-red: var(--lv-action-primary);
+    --brand-red-hover: var(--lv-action-primary-hover);
+    --premium-gold: var(--lv-action-primary);
+    --premium-gold-2: var(--lv-action-text);
+    --app-gold: var(--lv-action-primary);
+    --app-gold-light: var(--lv-action-text);
+  }
+
+  html,
+  body {
+    background-color: var(--lv-surface-page) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  /* Native controls and browser-filled fields must match the active mode. */
+  :is(input, select, textarea) {
+    color-scheme: inherit;
+  }
+
+  :is(input, select, textarea):disabled {
+    background: var(--lv-control-disabled-bg) !important;
+    color: var(--lv-control-disabled-text) !important;
+    border-color: var(--lv-border-default) !important;
+  }
+
+  select option,
+  select optgroup {
+    background: var(--lv-control-bg);
+    color: var(--lv-text-primary);
+  }
+
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+    caret-color: var(--lv-text-primary);
+    box-shadow: 0 0 0 1000px var(--lv-control-bg) inset !important;
+    transition: background-color 9999s ease-out 0s;
+  }
+
+  /* Reassert the action palette after older harmony layers. */
+  :is(
+    .btn-accent,.btn-primary,.btn-dark,.login-submit,.public-btn-accent,
+    .public-employee-link,.public-header-cta,.lv-btn-gold,.cp-primary,
+    [data-variant="primary"]
+  ) {
+    background: var(--lv-action-primary) !important;
+    border-color: var(--lv-action-primary) !important;
+    color: var(--lv-on-action) !important;
+    box-shadow: 0 7px 18px var(--lv-action-primary-ring) !important;
+  }
+
+  :is(
+    .btn-accent,.btn-primary,.btn-dark,.login-submit,.public-btn-accent,
+    .public-employee-link,.public-header-cta,.lv-btn-gold,.cp-primary,
+    [data-variant="primary"]
+  ):hover:not(:disabled) {
+    background: var(--lv-action-primary-hover) !important;
+    border-color: var(--lv-action-primary-hover) !important;
+  }
+
+  /* Common app surfaces that frequently escaped the selected theme. */
+  :is(.portal-admin,.portal-employee,.portal-client) :is(
+    .card,.panel,.sheet,.drawer,.popover,.dropdown-menu,.menu-panel,
+    .modal,.modal-card,[role="dialog"],[role="listbox"]
+  ) {
+    color: var(--lv-text-primary);
+    border-color: var(--lv-border-default);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client) :is(
+    .modal,.modal-card,.sheet,.drawer,.popover,.dropdown-menu,.menu-panel,[role="dialog"]
+  ) {
+    background-color: var(--lv-surface-elevated);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client) :is(table,.table) {
+    color: var(--lv-text-primary);
+    border-color: var(--lv-border-default);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client) :is(table,.table) :is(th,td) {
+    border-color: var(--lv-border-soft);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client) :is(table,.table) th {
+    background: var(--lv-surface-muted);
+    color: var(--lv-text-secondary);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client) :is(table,.table) tbody tr:hover > * {
+    background-color: var(--lv-surface-hover);
+  }
+
+  /* Fixed mobile admin dock. */
+  .lv-mobile-dock {
+    background: color-mix(in srgb, var(--lv-surface-elevated) 94%, transparent) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-secondary) !important;
+    box-shadow: var(--lv-shadow-lg) !important;
+    backdrop-filter: blur(18px);
+  }
+
+  .lv-mobile-dock a {
+    color: var(--lv-text-muted) !important;
+  }
+
+  .lv-mobile-dock a:hover,
+  .lv-mobile-dock a.active,
+  .lv-mobile-dock a[aria-current="page"] {
+    background: var(--lv-action-primary-soft) !important;
+    color: var(--lv-action-text) !important;
+  }
+
+  /* Public-map admin drawer previously used a permanently dark embedded palette. */
+  .lv-map-fab {
+    background: var(--lv-surface-elevated) !important;
+    border-color: var(--lv-action-primary-border) !important;
+    color: var(--lv-text-strong) !important;
+    box-shadow: var(--lv-shadow-md) !important;
+  }
+  .lv-map-fab i { background: var(--lv-action-primary) !important; box-shadow: 0 0 0 4px var(--lv-action-primary-soft) !important; }
+  .lv-map-drawer-backdrop { background: var(--lv-surface-overlay) !important; }
+  .lv-map-drawer {
+    background: var(--lv-surface-elevated) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: var(--lv-shadow-lg) !important;
+  }
+  .lv-map-drawer-head { border-color: var(--lv-border-soft) !important; }
+  .lv-map-drawer-head span { color: var(--lv-action-text) !important; }
+  .lv-map-drawer-head h2,
+  .lv-map-privacy strong,
+  .lv-map-site strong { color: var(--lv-text-strong) !important; }
+  .lv-map-copy,
+  .lv-map-privacy,
+  .lv-map-site { color: var(--lv-text-muted) !important; }
+  .lv-map-close,
+  .lv-map-actions a {
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+    color: var(--lv-text-primary) !important;
+  }
+  .lv-map-close:hover,
+  .lv-map-actions a:hover { background: var(--lv-control-bg-hover) !important; border-color: var(--lv-action-primary-border) !important; }
+  .lv-map-warning { background: var(--lv-warning-soft) !important; border-color: var(--lv-warning-border) !important; color: var(--lv-warning) !important; }
+  .lv-map-auto { background: var(--lv-success-soft) !important; border-color: var(--lv-success-border) !important; color: var(--lv-success) !important; }
+  .lv-map-auto i { background: var(--lv-success) !important; box-shadow: 0 0 0 4px color-mix(in srgb, var(--lv-success) 14%, transparent) !important; }
+  .lv-map-privacy { background: var(--lv-surface-muted) !important; }
+  .lv-map-site { border-color: var(--lv-border-soft) !important; }
+  .lv-map-source { color: var(--lv-success) !important; }
+  .lv-map-source.fallback { color: var(--lv-warning) !important; }
+
+  /* Scrollbars should not remain bright in dark mode. */
+  * {
+    scrollbar-color: var(--lv-border-strong) transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--lv-border-strong);
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}

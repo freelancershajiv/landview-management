@@ -5,11 +5,11 @@
   z-index: 10000;
   width: min(420px, calc(100vw - 32px));
   padding: 18px;
-  border: 1px solid var(--theme-line-rgba_255_255_255_0_14_, rgba(255, 255, 255, 0.14));
+  border: 1px solid var(--lv-border-default);
   border-radius: 18px;
-  background: var(--theme-bg-rgba_13_18_24_0_96_, rgba(13, 18, 24, 0.96));
-  box-shadow: 0 20px 55px var(--theme-shadow-rgba_0_0_0_0_38_, rgba(0, 0, 0, 0.38));
-  color: var(--theme-ink-_f7f8fa, #f7f8fa);
+  background: color-mix(in srgb, var(--lv-surface-elevated) 96%, transparent);
+  box-shadow: var(--lv-shadow-lg);
+  color: var(--lv-text-primary);
   backdrop-filter: blur(18px);
 }
 
@@ -19,11 +19,12 @@
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--theme-ink-_f1c75b, #f1c75b);
+  color: var(--lv-action-text);
 }
 
 .title {
   margin: 0;
+  color: var(--lv-text-strong);
   font-size: 1.08rem;
   font-weight: 800;
   line-height: 1.35;
@@ -31,7 +32,7 @@
 
 .copy {
   margin: 8px 0 0;
-  color: var(--theme-ink-rgba_247_248_250_0_76_, rgba(247, 248, 250, 0.76));
+  color: var(--lv-text-secondary);
   font-size: 0.88rem;
   line-height: 1.55;
 }
@@ -56,14 +57,26 @@
 }
 
 .button {
-  background: #f1c75b;
-  color: #151515;
+  border-color: var(--lv-action-primary);
+  background: var(--lv-action-primary);
+  color: var(--lv-on-action);
+}
+
+.button:hover:not(:disabled) {
+  border-color: var(--lv-action-primary-hover);
+  background: var(--lv-action-primary-hover);
 }
 
 .secondaryButton {
-  border-color: var(--theme-line-rgba_255_255_255_0_16_, rgba(255, 255, 255, 0.16));
-  background: var(--theme-bg-rgba_255_255_255_0_06_, rgba(255, 255, 255, 0.06));
-  color: var(--theme-ink-_f7f8fa, #f7f8fa);
+  border-color: var(--lv-control-border);
+  background: var(--lv-control-bg);
+  color: var(--lv-text-primary);
+}
+
+.secondaryButton:hover:not(:disabled) {
+  border-color: var(--lv-action-primary-border);
+  background: var(--lv-control-bg-hover);
+  color: var(--lv-text-strong);
 }
 
 .button:disabled,
@@ -74,7 +87,7 @@
 
 .note {
   margin: 10px 0 0;
-  color: var(--theme-ink-rgba_247_248_250_0_56_, rgba(247, 248, 250, 0.56));
+  color: var(--lv-text-muted);
   font-size: 0.74rem;
   line-height: 1.45;
 }
