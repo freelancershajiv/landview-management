@@ -48,6 +48,8 @@
     --lv-muted: var(--lv-text-muted);
     --lv-muted-2: var(--lv-text-faint);
     --lv-border: var(--lv-border-default);
+    --lv-border-subtle: var(--lv-border-soft);
+    --lv-surface-input: var(--lv-control-bg);
     --lv-accent: var(--lv-action-primary);
     --lv-accent-dark: var(--lv-action-primary-hover);
     --brand-red: var(--lv-action-primary);
