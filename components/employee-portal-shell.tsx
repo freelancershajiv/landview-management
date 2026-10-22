@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
 import EmployeeCommandCenter, { type EmployeeCommandView } from "@/components/employee-command-center";
+import EmployeeTaskCenter from "@/components/employee-task-center";
+import EmployeeSiteVisitAssignments from "@/components/employee-site-visit-assignments";
 import EmployeeWhatsAppConnect from "@/components/employee-whatsapp-connect";
 import EmployeeProjectStageStrip from "@/components/employee-project-stage-strip";
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
@@ -12,15 +14,16 @@ import EmployeeSiteVisitCenter from "@/components/employee-site-visit-center";
 import NewSiteEntryCenter from "@/components/new-site-entry-center";
 import NewSiteDashboardCard from "@/components/new-site-dashboard-card";
 
-type TabId = "dashboard" | "projects" | "new-site" | "workflow" | "visits" | "records" | "expenses" | "approvals" | "certificates";
+type TabId = "dashboard" | "tasks" | "visits" | "projects" | "workflow" | "new-site" | "records" | "expenses" | "approvals" | "certificates";
 type Tab = { id: TabId; label: string };
 
 const BASE_TABS: Tab[] = [
   { id: "dashboard", label: "Dashboard" },
-  { id: "projects", label: "Projects" },
-  { id: "new-site", label: "New Site" },
-  { id: "workflow", label: "Workflow" },
+  { id: "tasks", label: "Tasks" },
   { id: "visits", label: "Site Visits" },
+  { id: "projects", label: "Projects" },
+  { id: "workflow", label: "Workflow" },
+  { id: "new-site", label: "New Site" },
   { id: "records", label: "Field & Files" },
   { id: "expenses", label: "Expenses" },
   { id: "certificates", label: "Certificates" },
@@ -29,6 +32,7 @@ const BASE_TABS: Tab[] = [
 function text(value: unknown) { return String(value ?? "").trim(); }
 function tabFromHash(hash: string): TabId {
   const value = String(hash || "").replace(/^#/, "").toLowerCase();
+  if (value === "tasks" || value === "my-tasks") return "tasks";
   if (value === "projects") return "projects";
   if (value === "new-site" || value === "newsite" || value === "site-entry") return "new-site";
   if (value === "workflow") return "workflow";
@@ -71,7 +75,7 @@ export default function EmployeePortalShell() {
   }, [isChairman]);
 
   const commandView: EmployeeCommandView | null =
-    active === "dashboard" || active === "projects" || active === "workflow" || active === "records" ? active : null;
+    active === "projects" || active === "workflow" || active === "records" ? active : null;
 
   function go(tab: TabId) {
     setActive(tab);
@@ -97,8 +101,9 @@ export default function EmployeePortalShell() {
       .employee-workspace-body>section,.employee-workspace-body>div{width:100%;max-width:none}
       .employee-workspace-body .ec-section{scroll-margin-top:100px}
       .employee-workspace-body table{width:100%}
+      .employee-dashboard-stack{display:grid;gap:14px}
       @media(max-width:1100px){.employee-workspace-nav{padding:0 18px}.employee-workspace-body{padding:22px 20px 0}.employee-workspace-tab{padding:15px 13px 13px}}
-      @media(max-width:700px){.employee-workspace-nav-wrap{top:0}.employee-workspace-nav{padding:0 8px}.employee-workspace-body{padding:14px 10px 0}.employee-workspace-tab{min-height:46px;padding:13px 11px 12px;font-size:11px}.employee-workspace-root{padding-bottom:28px}}
+      @media(max-width:700px){.employee-workspace-nav-wrap{top:0}.employee-workspace-nav{padding:0 8px}.employee-workspace-body{padding:12px 9px 0}.employee-workspace-tab{min-height:46px;padding:13px 11px 12px;font-size:11px}.employee-workspace-root{padding-bottom:28px}.employee-dashboard-stack{gap:10px}}
     `}</style>
 
     <div className="employee-workspace-nav-wrap">
@@ -108,11 +113,17 @@ export default function EmployeePortalShell() {
     </div>
 
     <div className="employee-workspace-body">
-      {active === "dashboard" && <NewSiteDashboardCard mode="employee" />}
-      {active === "dashboard" && <EmployeeProjectStageStrip />}
-      {active === "dashboard" && <EmployeeWhatsAppConnect />}
+      {active === "dashboard" && <div className="employee-dashboard-stack">
+        <EmployeeCommandCenter view="dashboard" />
+        <EmployeeSiteVisitAssignments />
+        <NewSiteDashboardCard mode="employee" />
+        <EmployeeProjectStageStrip />
+        <EmployeeWhatsAppConnect />
+      </div>}
+      {active === "tasks" && <EmployeeTaskCenter />}
       {commandView && <EmployeeCommandCenter view={commandView} />}
       {active === "new-site" && <NewSiteEntryCenter />}
+      {active === "visits" && <EmployeeSiteVisitAssignments />}
       {active === "visits" && <EmployeeProjectStageStrip visitMode />}
       {active === "visits" && <EmployeeSiteVisitCenter />}
       {active === "expenses" && <EmployeeExpenseCenter />}
