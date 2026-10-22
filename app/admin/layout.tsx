@@ -17,6 +17,7 @@ import "./admin-mobile-shell-final.css";
 import "./admin-dashboard-light.css";
 import "./admin-color-harmony.css";
 import "../dual-mode-navigation.css";
+import "./admin-dashboard-theme-fix.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
