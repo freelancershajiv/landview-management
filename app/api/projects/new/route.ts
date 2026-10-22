@@ -82,8 +82,9 @@ export async function POST(request: NextRequest) {
     const body = await request.json() as Record<string, unknown>;
     const mode = text(body.idMode || body.mode, 20).toLowerCase() === "manual" ? "manual" : "automatic";
     const projectName = text(body.Project_Name || body.projectName, 240);
-    const clientName = text(body.Client_Name || body.clientName, 240) || projectName;
+    const clientName = text(body.Client_Name || body.clientName || body.Owner_Name || body.ownerName, 240);
     if (!projectName) return NextResponse.json({ success: false, error: "Project name is required." }, { status: 400 });
+    if (!clientName) return NextResponse.json({ success: false, error: "Owner name is required." }, { status: 400 });
 
     const location = text(body.Location || body.location, 1000);
     let locationTag = text(body.Location_Tag || body.locationTag || body.location_tag, 1000);
