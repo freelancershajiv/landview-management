@@ -11,7 +11,9 @@
   }
 
   body:has(.lv-client-side.open),
-  body:has(.portal-employee .employee-sidebar.open) {
+  body:has(.portal-employee .employee-sidebar.open),
+  body:has(.public-header .public-nav.open),
+  body.lv-public-nav-open {
     overflow: hidden !important;
     overscroll-behavior: none;
   }
@@ -29,14 +31,111 @@
     max-height: calc(100dvh - 74px) !important;
     overflow-y: auto !important;
     overscroll-behavior: contain;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: calc(12px + env(safe-area-inset-bottom)) !important;
   }
 
   .public-header .public-menu-button,
   .public-header .public-header-login {
-    min-width: 44px;
-    min-height: 44px;
+    width: auto !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
     touch-action: manipulation;
+  }
+
+  /* Public lead modal and floating actions use the dynamic viewport. */
+  .lv-enquiry-overlay {
+    min-height: 100dvh !important;
+    padding-bottom: max(10px, env(safe-area-inset-bottom)) !important;
+  }
+
+  .lv-enquiry-modal {
+    max-height: calc(100dvh - 20px) !important;
+    overscroll-behavior: contain;
+  }
+
+  .lv-enquiry-close,
+  .lv-enquiry-submit-row button {
+    min-width: 44px !important;
+    min-height: 44px !important;
+  }
+
+  .lv-public-lead-actions {
+    right: max(12px, env(safe-area-inset-right)) !important;
+    bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .lv-public-lead-action {
+    min-width: 46px !important;
+    min-height: 46px !important;
+  }
+
+  /* The project portfolio can be large. Defer off-screen card painting while
+     preserving the full searchable/filterable data set. */
+  .portfolio-page {
+    min-height: 100dvh !important;
+  }
+
+  .portfolio-card {
+    content-visibility: auto;
+    contain-intrinsic-size: 620px;
+  }
+
+  .portfolio-search button,
+  .portfolio-filter {
+    min-height: 44px !important;
+  }
+
+  .lv-project-map-fab {
+    left: max(12px, env(safe-area-inset-left)) !important;
+    right: auto !important;
+    bottom: calc(72px + env(safe-area-inset-bottom)) !important;
+    min-height: 46px !important;
+  }
+
+  /* Public interactive project map */
+  .project-map-page {
+    min-height: 100dvh !important;
+  }
+
+  .project-map-search,
+  .project-map-select,
+  .project-map-reset,
+  .project-map-style-switch button,
+  .project-map-detail-close,
+  .project-map-detail-actions a,
+  .project-map-office-card,
+  .project-map-card {
+    min-height: 44px !important;
+    touch-action: manipulation;
+  }
+
+  .project-map-search,
+  .project-map-select {
+    font-size: 16px !important;
+  }
+
+  .project-map-detail-actions a,
+  .project-map-reset,
+  .project-map-style-switch button {
+    font-size: 10px !important;
+  }
+
+  /* Login */
+  .lv-login {
+    min-height: 100dvh !important;
+  }
+
+  .lv-login .field input,
+  .lv-login .pinfield {
+    font-size: 16px !important;
+  }
+
+  .lv-login .show,
+  .lv-login .pinbtn,
+  .lv-login .switch,
+  .lv-login .brand {
+    min-height: 44px !important;
   }
 
   /* Client portal */
@@ -64,7 +163,8 @@
     padding-right: max(14px, env(safe-area-inset-right)) !important;
   }
 
-  .lv-client-shell .lv-client-menu {
+  .lv-client-shell .lv-client-menu,
+  .lv-client-shell .lv-client-signout {
     min-width: 44px !important;
     min-height: 44px !important;
     touch-action: manipulation;
@@ -125,6 +225,31 @@
   }
 }
 
+@media screen and (max-width: 620px) {
+  .lv-enquiry-overlay {
+    align-items: end !important;
+  }
+
+  .lv-enquiry-modal {
+    width: 100% !important;
+    max-height: calc(100dvh - 10px) !important;
+    border-radius: 16px 16px 0 0 !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .project-map-wrap {
+    width: calc(100% - 20px) !important;
+  }
+
+  .project-map-canvas-wrap {
+    height: min(470px, 58dvh) !important;
+  }
+
+  .project-map-side {
+    height: min(480px, 58dvh) !important;
+  }
+}
+
 @media screen and (max-width: 560px) {
   .public-header .public-nav.open {
     grid-template-columns: 1fr !important;
@@ -132,5 +257,24 @@
 
   .lv-client-shell .lv-client-content {
     width: calc(100% - 18px) !important;
+  }
+
+  /* Keep sign-out reachable on small phones; it becomes the compact text
+     action next to the avatar instead of disappearing entirely. */
+  .lv-client-shell .lv-client-signout {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 0 10px !important;
+    font-size: 10px !important;
+    white-space: nowrap;
+  }
+
+  .lv-client-shell .lv-client-avatar {
+    display: none !important;
+  }
+
+  .portfolio-card {
+    contain-intrinsic-size: 700px;
   }
 }
