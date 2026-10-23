@@ -41,6 +41,8 @@ import "./color-system-authority.css";
 import "./public-color-authority.css";
 // Login carries its own embedded legacy coral styles; keep this as the final gateway authority.
 import "./login-color-authority.css";
+// User-requested darker LAND VIEW red. This intentionally wins over all previous palette layers.
+import "./darker-brand-red.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
