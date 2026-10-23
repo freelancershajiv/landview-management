@@ -1,0 +1,136 @@
+/* LAND VIEW shared mobile foundation.
+   This is the cross-portal authority for viewport, drawer, safe-area and touch behavior.
+   Keep portal-specific visual styling in the portal files; keep interaction geometry here. */
+
+@media screen and (max-width: 900px) {
+  html,
+  body {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  body:has(.lv-client-side.open),
+  body:has(.portal-employee .employee-sidebar.open) {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+
+  :where(input, select, textarea) {
+    font-size: 16px;
+  }
+
+  :where(button, [role="button"], a) {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Public website */
+  .public-header .public-nav.open {
+    max-height: calc(100dvh - 74px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .public-header .public-menu-button,
+  .public-header .public-header-login {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  /* Client portal */
+  .lv-client-shell {
+    min-height: 100dvh !important;
+  }
+
+  .lv-client-shell .lv-client-side,
+  .lv-client-shell .lv-client-side.open {
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+  }
+
+  .lv-client-shell .lv-client-overlay {
+    height: 100dvh !important;
+  }
+
+  .lv-client-shell .lv-client-top {
+    min-height: 64px !important;
+    height: auto !important;
+    padding-left: max(14px, env(safe-area-inset-left)) !important;
+    padding-right: max(14px, env(safe-area-inset-right)) !important;
+  }
+
+  .lv-client-shell .lv-client-menu {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    touch-action: manipulation;
+  }
+
+  .lv-client-shell .lv-client-content {
+    min-width: 0 !important;
+    padding-bottom: calc(34px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Employee portal */
+  .portal-employee {
+    min-height: 100dvh !important;
+  }
+
+  .portal-employee .employee-sidebar.open {
+    top: 64px !important;
+    height: calc(100dvh - 64px) !important;
+    max-height: calc(100dvh - 64px) !important;
+    overflow: hidden !important;
+  }
+
+  .portal-employee .employee-nav {
+    min-height: 0 !important;
+    overscroll-behavior: contain;
+  }
+
+  .portal-employee .employee-sidebar-footer {
+    padding-bottom: calc(15px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .portal-employee .employee-nav-overlay {
+    height: calc(100dvh - 64px) !important;
+  }
+
+  .portal-employee .employee-topbar-inner {
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
+  }
+
+  .portal-employee .employee-menu,
+  .portal-employee .employee-account,
+  .portal-employee .employee-action {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .portal-employee .employee-account-menu {
+    width: min(220px, calc(100vw - 24px)) !important;
+    max-height: calc(100dvh - 82px) !important;
+    overflow-y: auto !important;
+  }
+
+  .portal-employee .employee-content {
+    min-width: 0 !important;
+    padding-bottom: calc(34px + env(safe-area-inset-bottom)) !important;
+  }
+}
+
+@media screen and (max-width: 560px) {
+  .public-header .public-nav.open {
+    grid-template-columns: 1fr !important;
+  }
+
+  .lv-client-shell .lv-client-content {
+    width: calc(100% - 18px) !important;
+  }
+}
