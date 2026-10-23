@@ -1,6 +1,6 @@
 /* LAND VIEW Admin mobile authority.
-   Imported after legacy Admin styles. This file owns mobile shell geometry so
-   earlier generations of drawer/table/dock rules cannot fight one another. */
+   Imported after Admin styles. This file owns mobile shell geometry so
+   older page-level drawer/table/dock rules cannot fight one another. */
 
 @media screen and (max-width: 900px) {
   .portal-admin.portal-admin {
@@ -174,7 +174,8 @@
   }
 
   .portal-admin.portal-admin table td :where(.btn,button,a) {
-    min-height: 40px !important;
+    min-height: 44px !important;
+    touch-action: manipulation;
   }
 
   /* Detailed/Summary Estimate: keep the BOQ readable without retaining the
@@ -264,9 +265,11 @@
     bottom: max(8px, env(safe-area-inset-bottom)) !important;
   }
 
+  /* Hide the dock only for states that are definitely open. Avoid matching a
+     mounted-but-hidden role=dialog, which previously could hide the dock. */
   body:has(.portal-admin.portal-admin .primary-nav.open) .lv-mobile-dock,
   body:has(dialog[open]) .lv-mobile-dock,
-  body:has(.portal-admin [role="dialog"]) .lv-mobile-dock {
+  body:has(.portal-admin [role="dialog"][aria-modal="true"]:not([hidden])) .lv-mobile-dock {
     opacity: 0 !important;
     pointer-events: none !important;
     transform: translateY(110%) !important;
