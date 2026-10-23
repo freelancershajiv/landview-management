@@ -12,9 +12,9 @@ const css = `
 
   .lv-contact-location-section {
     padding: 72px 0 88px;
-    border-top: 1px solid var(--theme-line-rgba_215_154_23__18_, rgba(215,154,23,.18));
+    border-top: 1px solid var(--theme-line-rgba_215_154_23__18_, var(--lv-brand-ring));
     background: linear-gradient(125deg,var(--theme-bg-_09131d, #09131d),var(--theme-bg-_07101a, #07101a));
-    color: var(--theme-ink-_fff, #fff);
+    color: var(--lv-text-on-chrome);
   }
   .lv-contact-location-shell {
     width: min(100% - 44px, 1320px);
@@ -31,8 +31,8 @@ const css = `
   .lv-contact-location-head span {
     display: block;
     margin-bottom: 10px;
-    color: var(--theme-ink-_efb733, #efb733);
-    font-size: 8px;
+    color:var(--lv-brand-text);
+    font-size:10px;
     font-weight: 900;
     letter-spacing: .18em;
     text-transform: uppercase;
@@ -73,20 +73,20 @@ const css = `
   .lv-contact-info-item span {
     display: block;
     margin-bottom: 9px;
-    color: var(--theme-ink-_efb733, #efb733);
-    font-size: 7px;
+    color:var(--lv-brand-text);
+    font-size:10px;
     font-weight: 900;
     letter-spacing: .12em;
   }
   .lv-contact-info-item strong,
   .lv-contact-info-item a {
-    color: var(--theme-ink-_fff, #fff);
+    color: var(--lv-text-on-chrome);
     font-size: 11px;
   }
   .lv-contact-info-item p {
     margin: 7px 0 0;
     color: var(--theme-ink-_96a2ac, #96a2ac);
-    font-size: 9px;
+    font-size:11px;
     line-height: 1.6;
   }
 
@@ -97,7 +97,7 @@ const css = `
     align-items: flex-end;
     overflow: hidden;
     background:
-      radial-gradient(circle at 74% 35%, var(--theme-bg-rgba_215_154_23__17_, rgba(215,154,23,.17)), transparent 24%),
+      radial-gradient(circle at 74% 35%, var(--lv-brand-ring), transparent 24%),
       linear-gradient(135deg, var(--theme-bg-rgba_12_27_39__96_, rgba(12,27,39,.96)), var(--theme-bg-rgba_5_12_19__98_, rgba(5,12,19,.98)));
   }
   .lv-location-card::before {
@@ -118,9 +118,9 @@ const css = `
     right: 8%;
     top: 50%;
     transform: translateY(-50%);
-    border: 1px solid var(--theme-line-rgba_239_183_51__24_, rgba(239,183,51,.24));
+    border: 1px solid var(--theme-line-rgba_239_183_51__24_, var(--lv-brand-ring));
     border-radius: 50%;
-    box-shadow: 0 0 0 28px var(--theme-shadow-rgba_239_183_51__035_, rgba(239,183,51,.035)),0 0 0 56px var(--theme-shadow-rgba_239_183_51__02_, rgba(239,183,51,.02));
+    box-shadow: 0 0 0 28px var(--lv-brand-soft),0 0 0 56px var(--lv-brand-soft);
   }
   .lv-location-pin {
     position: absolute;
@@ -130,7 +130,7 @@ const css = `
     width: 46px;
     height: 46px;
     transform: translateY(-58%) rotate(45deg);
-    border: 2px solid var(--theme-line-_efb733, #efb733);
+    border: 2px solid var(--lv-brand-primary);
     border-radius: 50% 50% 50% 10px;
     background: var(--theme-bg-_0b151e, #0b151e);
     box-shadow: 0 14px 30px var(--theme-shadow-rgba_0_0_0__35_, rgba(0,0,0,.35));
@@ -144,7 +144,7 @@ const css = `
     top: 50%;
     transform: translate(-50%,-50%);
     border-radius: 50%;
-    background: #efb733;
+    background:var(--lv-brand-primary);
   }
   .lv-location-copy {
     position: relative;
@@ -155,14 +155,14 @@ const css = `
   .lv-location-kicker {
     display: block;
     margin-bottom: 10px;
-    color: var(--theme-ink-_efb733, #efb733);
-    font-size: 8px;
+    color:var(--lv-brand-text);
+    font-size:10px;
     font-weight: 900;
     letter-spacing: .16em;
   }
   .lv-location-copy h3 {
     margin: 0;
-    color: var(--theme-ink-_fff, #fff);
+    color: var(--lv-text-on-chrome);
     font: 500 25px/1.15 Georgia,"Times New Roman",serif;
   }
   .lv-location-copy p {
@@ -178,17 +178,17 @@ const css = `
     justify-content: center;
     margin-top: 20px;
     padding: 0 16px;
-    border: 1px solid var(--theme-line-_d79a17, #d79a17);
+    border: 1px solid var(--lv-brand-primary);
     border-radius: 5px;
-    background: linear-gradient(180deg,#e6aa27,#c98709);
-    color: #101820 !important;
-    font-size: 7px !important;
+    background:var(--lv-brand-primary);
+    color: var(--lv-text-on-chrome) !important;
+    font-size:10px !important;
     font-weight: 900;
     letter-spacing: .08em;
     text-transform: uppercase;
     box-shadow: 0 8px 20px var(--theme-shadow-rgba_0_0_0__24_, rgba(0,0,0,.24));
   }
-  .lv-location-button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .lv-location-button:hover { background:var(--lv-brand-primary-hover); border-color:var(--lv-brand-primary-hover); filter:none; transform:translateY(-1px); }
 
   @media(max-width:850px){
     .lv-contact-location-head{align-items:flex-start;flex-direction:column;gap:16px}
