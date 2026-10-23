@@ -36,7 +36,7 @@ const headerCss = `
     display: inline-flex;
     align-items: center;
     gap: 13px;
-    color: var(--theme-ink-white, white);
+    color: var(--lv-text-on-chrome);
   }
   .public-brand img {
     width: 60px !important;
@@ -50,10 +50,10 @@ const headerCss = `
     font-size: 21px !important;
     line-height: 1;
     letter-spacing: .12em !important;
-    color: var(--theme-ink-_fff, #fff);
+    color: var(--lv-text-on-chrome);
     white-space: nowrap;
   }
-  .public-brand-copy strong em { color: #ef4a50; font-style: normal; }
+  .public-brand-copy strong em { color:var(--lv-brand-text); font-style: normal; }
   .public-brand-copy span {
     margin-top: 6px !important;
     color: var(--theme-ink-_f1f1f1, #f1f1f1) !important;
@@ -79,9 +79,9 @@ const headerCss = `
     right: 12px !important;
     bottom: 18px !important;
     height: 2px !important;
-    background: #ef4a50 !important;
+    background:var(--lv-brand-primary) !important;
   }
-  .public-nav a:hover { background: transparent !important; color: #ef4a50 !important; }
+  .public-nav a:hover { background: transparent !important; color:var(--lv-brand-text) !important; }
   .public-header-actions { display: flex; align-items: center; gap: 9px; margin-left: 8px; }
   .public-header-login {
     min-height: 40px;
@@ -90,9 +90,9 @@ const headerCss = `
     justify-content: center;
     gap: 8px;
     padding: 0 14px;
-    border: 1px solid var(--theme-line-rgba_214_31_38__55_, rgba(214,31,38,.55));
+    border: 1px solid var(--theme-line-rgba_214_31_38__55_, var(--lv-brand-border));
     border-radius: 7px;
-    background: var(--theme-bg-rgba_214_31_38__03_, rgba(214,31,38,.03));
+    background: var(--lv-brand-soft);
     color: var(--theme-ink-_f4f5f6, #f4f5f6) !important;
     font-size: 12px;
     font-weight: 900;
@@ -101,11 +101,11 @@ const headerCss = `
     white-space: nowrap;
     transition: .18s ease;
   }
-  .public-header-login b { color: #ef4a50; font-size: 12px; }
+  .public-header-login b { color:var(--lv-brand-text); font-size: 12px; }
   .public-header-login:hover {
-    border-color: var(--theme-line-_ef4a50, #ef4a50);
-    color: #ef4a50 !important;
-    background: var(--theme-bg-rgba_214_31_38__08_, rgba(214,31,38,.08));
+    border-color:var(--lv-brand-text);
+    color:var(--lv-brand-text) !important;
+    background: var(--lv-brand-soft);
     transform: translateY(-1px);
   }
   .public-header-cta {
@@ -114,10 +114,10 @@ const headerCss = `
     align-items: center;
     justify-content: center;
     padding: 0 18px;
-    border: 1px solid var(--theme-line-_ef4a50, #ef4a50);
+    border: 1px solid var(--lv-brand-primary);
     border-radius: 7px;
-    background: linear-gradient(180deg, #d61f26, #ad171d);
-    color: #fff;
+    background:var(--lv-brand-primary);
+    color:var(--lv-text-on-chrome);
     font-size: 12px;
     font-weight: 900;
     letter-spacing: .04em;
@@ -162,17 +162,17 @@ const headerCss = `
     line-height: .94 !important;
     letter-spacing: -.035em !important;
     font-weight: 400 !important;
-    color: var(--theme-ink-_fff, #fff) !important;
+    color: var(--lv-text-on-chrome) !important;
   }
   .public-site .lv-hero h1 em {
-    color: #ef4a50 !important;
+    color:var(--lv-brand-text) !important;
     font-style: normal !important;
   }
   .public-site .lv-gold-rule {
     width: 84px !important;
     height: 3px !important;
     margin: 26px 0 20px !important;
-    background: #ef4a50 !important;
+    background:var(--lv-brand-primary) !important;
   }
   .public-site .lv-hero-copy p {
     max-width: 550px !important;
@@ -194,14 +194,14 @@ const headerCss = `
     letter-spacing: .03em !important;
   }
   .public-site .lv-btn-gold {
-    background: linear-gradient(180deg,#d61f26,#ad171d) !important;
-    color: #fff !important;
-    border-color: var(--theme-line-_ef4a50, #ef4a50) !important;
+    background:var(--lv-brand-primary) !important;
+    color:var(--lv-text-on-chrome) !important;
+    border-color:var(--lv-brand-text) !important;
   }
   .public-site .lv-btn-outline {
-    color: var(--theme-ink-_fff, #fff) !important;
+    color: var(--lv-text-on-chrome) !important;
     background: transparent !important;
-    border-color: var(--theme-line-_ef4a50, #ef4a50) !important;
+    border-color:var(--lv-brand-text) !important;
   }
   .public-site .lv-hero-visual {
     min-height: 570px !important;
@@ -219,13 +219,13 @@ const headerCss = `
     width: 250px !important;
     max-width: calc(100% - 40px) !important;
     padding: 14px 16px !important;
-    border-left: 3px solid var(--theme-line-_ef4a50, #ef4a50) !important;
+    border-left: 3px solid var(--lv-brand-primary) !important;
     border-radius: 0 !important;
     background: var(--theme-bg-rgba_5_10_15__90_, rgba(5,10,15,.90)) !important;
     backdrop-filter: blur(10px) !important;
   }
   .public-site .lv-project-badge small {
-    color: #ef4a50 !important;
+    color:var(--lv-brand-text) !important;
     font-size: 12px !important;
     font-weight: 900 !important;
     letter-spacing: .12em !important;
@@ -260,11 +260,11 @@ const headerCss = `
   }
   .public-site .lv-hero-services article:last-child { border-right: 0 !important; }
   .public-site .lv-hero-services b {
-    color: #ef4a50 !important;
+    color:var(--lv-brand-text) !important;
     font-size: 24px !important;
   }
   .public-site .lv-hero-services strong {
-    color: var(--theme-ink-_fff, #fff) !important;
+    color: var(--lv-text-on-chrome) !important;
     font-size: 12px !important;
     font-weight: 900 !important;
     letter-spacing: .02em !important;
