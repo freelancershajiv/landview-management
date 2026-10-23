@@ -46,7 +46,9 @@ const privateRoutePatterns = [
   "/employee/:path*",
   "/login",
   "/login/:path*",
+  "/owner-access/:path*",
   "/projectmanagement/:path*",
+  "/verify/:path*",
 ];
 
 const nextConfig: NextConfig = {
