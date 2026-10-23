@@ -24,10 +24,12 @@ import "./project-finance-dual-mode-polish.css";
 import "./project-finance-party-dropdown.css";
 import "./project-finance-readable-summary.css";
 import "./project-finance-summary-v2.css";
-// Project Management now shares the same authoritative Admin mobile shell as /admin.
+// Project Management shares the same authoritative Admin mobile shell as /admin.
 import "../admin/admin-mobile-authority.css";
-// Route-specific finance geometry is last so wide ledgers/forms stay usable on phones.
+// Route-specific finance geometry remains authoritative for narrow screens.
 import "./project-finance-mobile-authority.css";
+// Re-assert shared contrast/brightness tokens after finance-specific legacy layers.
+import "../color-system-authority.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
