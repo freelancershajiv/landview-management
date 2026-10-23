@@ -1,0 +1,230 @@
+/* LAND VIEW Admin mobile authority.
+   Imported after legacy Admin styles. This file owns mobile shell geometry so
+   earlier generations of drawer/table/dock rules cannot fight one another. */
+
+@media screen and (max-width: 900px) {
+  .portal-admin.portal-admin {
+    --lv-mobile-topbar: 64px;
+    --lv-mobile-dock: 68px;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100dvh !important;
+    padding-bottom: calc(var(--lv-mobile-dock) + 18px + env(safe-area-inset-bottom)) !important;
+    overflow-x: clip !important;
+  }
+
+  .portal-admin.portal-admin .masthead,
+  .portal-admin.portal-admin .utility-bar,
+  .portal-admin.portal-admin .utility-inner {
+    min-height: var(--lv-mobile-topbar) !important;
+    height: var(--lv-mobile-topbar) !important;
+  }
+
+  .portal-admin.portal-admin .utility-inner {
+    padding-left: max(10px, env(safe-area-inset-left)) !important;
+    padding-right: max(10px, env(safe-area-inset-right)) !important;
+  }
+
+  .portal-admin.portal-admin .mobile-menu,
+  .portal-admin.portal-admin .tmg-mobile-menu,
+  .portal-admin.portal-admin .notification-button {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    touch-action: manipulation;
+  }
+
+  /* One drawer model only: off-canvas when closed, bounded drawer when open. */
+  .portal-admin.portal-admin .primary-nav,
+  .portal-admin.portal-admin .primary-nav.open,
+  .portal-admin.portal-admin .primary-nav:not(.open) {
+    position: fixed !important;
+    z-index: 420 !important;
+    top: var(--lv-mobile-topbar) !important;
+    left: 0 !important;
+    right: auto !important;
+    bottom: 0 !important;
+    width: min(88vw, 360px) !important;
+    height: calc(100dvh - var(--lv-mobile-topbar)) !important;
+    max-height: calc(100dvh - var(--lv-mobile-topbar)) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+    transition: transform .2s ease, visibility .2s ease !important;
+  }
+
+  .portal-admin.portal-admin .primary-nav:not(.open) {
+    visibility: hidden !important;
+    pointer-events: none !important;
+    transform: translateX(-104%) !important;
+  }
+
+  .portal-admin.portal-admin .primary-nav.open {
+    visibility: visible !important;
+    pointer-events: auto !important;
+    transform: translateX(0) !important;
+  }
+
+  .portal-admin.portal-admin .primary-nav .primary-nav-inner,
+  .portal-admin.portal-admin .primary-nav.open .primary-nav-inner {
+    display: block !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    width: 100% !important;
+    max-height: none !important;
+    padding: 12px 12px 18px !important;
+    margin: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+  }
+
+  .portal-admin.portal-admin .mobile-nav-overlay {
+    position: fixed !important;
+    z-index: 410 !important;
+    inset: var(--lv-mobile-topbar) 0 0 0 !important;
+    width: auto !important;
+    height: auto !important;
+  }
+
+  body:has(.portal-admin.portal-admin .primary-nav.open) {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+
+  .portal-admin.portal-admin .admin-main,
+  .portal-admin.portal-admin .tmg-admin-main,
+  .portal-admin.portal-admin .content-wrap,
+  .portal-admin.portal-admin .tmg-content-wrap {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow-x: visible !important;
+  }
+
+  .portal-admin.portal-admin .content-wrap,
+  .portal-admin.portal-admin .tmg-content-wrap {
+    width: calc(100% - 20px) !important;
+    margin: 0 10px !important;
+    padding-bottom: calc(var(--lv-mobile-dock) + 32px + env(safe-area-inset-bottom)) !important;
+  }
+
+  /* Standard mobile form geometry. */
+  .portal-admin.portal-admin :where(input, select, textarea) {
+    width: 100%;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 46px;
+    font-size: 16px !important;
+  }
+
+  .portal-admin.portal-admin :where(button, .btn, [role="button"], a[class*="button" i]) {
+    min-height: 44px;
+    touch-action: manipulation;
+  }
+
+  .portal-admin.portal-admin :where(.form-grid,.filter-grid,.summary-grid,[class*="formGrid"],[class*="form-grid"],[class*="filterGrid"],[class*="filter-grid"]) {
+    grid-template-columns: minmax(0, 1fr) !important;
+    min-width: 0 !important;
+  }
+
+  /* Tables: let a container scroll; preserve actual table layout/column alignment. */
+  .portal-admin.portal-admin :where(.table-scroll,.table-card,[class*="table-wrap" i],[class*="table-container" i],[class*="table-scroll" i]) {
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .portal-admin.portal-admin table {
+    display: table !important;
+    width: max-content !important;
+    min-width: 100% !important;
+    max-width: none !important;
+    table-layout: auto !important;
+  }
+
+  .portal-admin.portal-admin table :where(th,td) {
+    min-width: 0 !important;
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+  }
+
+  .portal-admin.portal-admin table td :where(.btn,button,a) {
+    min-height: 40px !important;
+  }
+
+  /* Dialogs must sit above the dock and never exceed the dynamic viewport. */
+  .portal-admin.portal-admin :where(dialog,[role="dialog"],[class*="modal" i]) {
+    z-index: 600 !important;
+    width: min(100% - 20px, 720px) !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 20px) !important;
+    overflow: auto !important;
+    overscroll-behavior: contain;
+  }
+
+  .lv-mobile-dock {
+    z-index: 180 !important;
+    left: max(8px, env(safe-area-inset-left)) !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    bottom: max(8px, env(safe-area-inset-bottom)) !important;
+  }
+
+  body:has(.portal-admin.portal-admin .primary-nav.open) .lv-mobile-dock,
+  body:has(dialog[open]) .lv-mobile-dock,
+  body:has(.portal-admin [role="dialog"]) .lv-mobile-dock {
+    opacity: 0 !important;
+    pointer-events: none !important;
+    transform: translateY(110%) !important;
+  }
+
+  /* Manager account shortcut becomes a compact utility button above the dock. */
+  .portal-admin ~ .lv-account-shortcut {
+    left: auto !important;
+    right: max(12px, env(safe-area-inset-right)) !important;
+    bottom: calc(var(--lv-mobile-dock) + 20px + env(safe-area-inset-bottom)) !important;
+    width: 48px !important;
+    height: 48px !important;
+    min-height: 48px !important;
+    padding: 5px !important;
+    border-radius: 50% !important;
+    display: grid !important;
+    place-items: center !important;
+    z-index: 190 !important;
+  }
+
+  .portal-admin ~ .lv-account-shortcut .lv-account-shortcut-copy,
+  .portal-admin ~ .lv-account-shortcut .lv-account-shortcut-meta,
+  .portal-admin ~ .lv-account-shortcut .lv-account-shortcut-action {
+    display: none !important;
+  }
+
+  .portal-admin ~ .lv-account-shortcut .lv-account-shortcut-head {
+    display: grid !important;
+    place-items: center !important;
+  }
+
+  .portal-admin ~ .lv-account-shortcut .lv-account-shortcut-icon {
+    width: 36px !important;
+    height: 36px !important;
+    flex-basis: 36px !important;
+    border-radius: 50% !important;
+  }
+}
+
+@media screen and (max-width: 520px) {
+  .portal-admin.portal-admin .content-wrap,
+  .portal-admin.portal-admin .tmg-content-wrap {
+    width: calc(100% - 16px) !important;
+    margin: 0 8px !important;
+  }
+
+  .portal-admin.portal-admin .primary-nav,
+  .portal-admin.portal-admin .primary-nav.open,
+  .portal-admin.portal-admin .primary-nav:not(.open) {
+    width: min(92vw, 340px) !important;
+  }
+}
