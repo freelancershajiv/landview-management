@@ -15,6 +15,7 @@ import "./admin-dashboard-light.css";
 import "./admin-color-harmony.css";
 import "../dual-mode-navigation.css";
 import "./admin-dashboard-theme-fix.css";
+import "./public-portfolio-nav-cleanup.css";
 // Authoritative mobile geometry. Keep this after legacy page styles.
 import "./admin-mobile-authority.css";
 // Re-assert the shared palette after every Admin-specific override.
