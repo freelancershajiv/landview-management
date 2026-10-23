@@ -32,6 +32,8 @@ import "./theme-consistency.css";
 import "./landview-color-harmony.css";
 // Navigation must independently honor light and dark mode.
 import "./dual-mode-navigation.css";
+// Shared mobile interaction geometry across public, employee and client surfaces.
+import "./mobile-foundation.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
