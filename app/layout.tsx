@@ -35,6 +35,12 @@ import "./landview-color-harmony.css";
 import "./dual-mode-navigation.css";
 // Shared mobile interaction geometry across public, employee and client surfaces.
 import "./mobile-foundation.css";
+// Final color/brightness authority. Keep last so legacy theme layers cannot reintroduce drift.
+import "./color-system-authority.css";
+// Public components still contain historical inline accent styles; normalize them last.
+import "./public-color-authority.css";
+// Login carries its own embedded legacy coral styles; keep this as the final gateway authority.
+import "./login-color-authority.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 

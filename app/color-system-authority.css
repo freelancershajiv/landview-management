@@ -1,0 +1,325 @@
+/* LAND VIEW authoritative screen color system
+   ------------------------------------------------------------
+   Loaded after legacy/global and route-specific theme layers.
+   Purpose:
+   - one calm LAND VIEW red across public + app surfaces
+   - lower-glare light surfaces with preserved depth
+   - accessible muted text
+   - separate semantic foreground colors from solid button colors
+   - consistent graphite navigation chrome across all portals
+   Print/PDF styles are intentionally untouched. */
+
+@media screen {
+  :root,
+  html:not([data-theme="dark"]) {
+    color-scheme: light;
+
+    /* Surface hierarchy: deliberately off-white except true elevation/controls. */
+    --lv-surface-page: #eef2f5;
+    --lv-surface-panel: #fbfcfd;
+    --lv-surface-elevated: #ffffff;
+    --lv-surface-muted: #f5f7f9;
+    --lv-surface-subtle: #e9eef2;
+    --lv-surface-inset: #edf1f4;
+    --lv-surface-hover: #f1f4f6;
+    --lv-surface-chrome: #10151b;
+    --lv-surface-chrome-2: #0b0f13;
+
+    /* Readable neutral hierarchy. Both muted levels remain usable for normal text. */
+    --lv-text-strong: #15202b;
+    --lv-text-primary: #26323e;
+    --lv-text-secondary: #566472;
+    --lv-text-muted: #667582;
+    --lv-text-faint: #6a7682;
+    --lv-text-on-chrome: #eef2f5;
+    --lv-text-on-chrome-muted: #a7b1ba;
+
+    --lv-border-soft: #dfe5ea;
+    --lv-border-default: #d2dae1;
+    --lv-border-strong: #bdc8d1;
+    --lv-divider: #dfe5ea;
+    --lv-control-bg: #ffffff;
+    --lv-control-bg-hover: #f4f7f9;
+    --lv-control-border: #c8d2da;
+    --lv-control-placeholder: #687683;
+
+    /* LAND VIEW action red: calm enough for long sessions and AA with white text. */
+    --lv-brand-primary: #96383e;
+    --lv-brand-primary-hover: #812f34;
+    --lv-brand-soft: rgba(150, 56, 62, .09);
+    --lv-brand-soft-strong: rgba(150, 56, 62, .15);
+    --lv-brand-border: rgba(150, 56, 62, .32);
+    --lv-brand-ring: rgba(150, 56, 62, .18);
+    --lv-brand-text: #842f35;
+
+    /* Semantic foreground colors. */
+    --lv-success: #2d7350;
+    --lv-warning: #7d5c1b;
+    --lv-danger: #a92c33;
+    --lv-info: #2f648e;
+
+    /* Semantic SOLID colors: safe behind white text. Never reuse bright foreground tokens. */
+    --lv-success-solid: #2d7350;
+    --lv-warning-solid: #755414;
+    --lv-danger-solid: #a92c33;
+    --lv-info-solid: #28587c;
+  }
+
+  html[data-theme="dark"] {
+    color-scheme: dark;
+
+    --lv-surface-page: #0b0f13;
+    --lv-surface-panel: #11171d;
+    --lv-surface-elevated: #161d24;
+    --lv-surface-muted: #0f141a;
+    --lv-surface-subtle: #1a222a;
+    --lv-surface-inset: #0d1217;
+    --lv-surface-hover: #182028;
+    --lv-surface-chrome: #0d1116;
+    --lv-surface-chrome-2: #090c10;
+
+    --lv-text-strong: #f4f6f8;
+    --lv-text-primary: #dfe5e9;
+    --lv-text-secondary: #aeb8c1;
+    --lv-text-muted: #96a2ad;
+    --lv-text-faint: #84909b;
+    --lv-text-on-chrome: #f2f5f7;
+    --lv-text-on-chrome-muted: #9ca7b1;
+
+    --lv-control-placeholder: #84909b;
+
+    /* Dark-mode red remains restrained and passes AA with white button text. */
+    --lv-brand-primary: #a14a4e;
+    --lv-brand-primary-hover: #b25358;
+    --lv-brand-soft: rgba(161, 74, 78, .11);
+    --lv-brand-soft-strong: rgba(161, 74, 78, .18);
+    --lv-brand-border: rgba(190, 91, 96, .36);
+    --lv-brand-ring: rgba(190, 91, 96, .18);
+    --lv-brand-text: #d7868a;
+
+    /* Bright semantic colors are foreground-only in dark mode. */
+    --lv-success: #7bc79b;
+    --lv-warning: #e7c36e;
+    --lv-danger: #ff9aa0;
+    --lv-info: #8dbce4;
+
+    /* Dark semantic solids stay dark enough for white text. */
+    --lv-success-solid: #2f6f50;
+    --lv-warning-solid: #6f5117;
+    --lv-danger-solid: #9c2930;
+    --lv-info-solid: #2f6289;
+  }
+
+  /* Normalize every historical LAND VIEW action alias to the same source. */
+  :root,
+  html:not([data-theme="dark"]),
+  html[data-theme="dark"] {
+    --lv-action-primary: var(--lv-brand-primary);
+    --lv-action-primary-hover: var(--lv-brand-primary-hover);
+    --lv-action-primary-soft: var(--lv-brand-soft);
+    --lv-action-primary-soft-strong: var(--lv-brand-soft-strong);
+    --lv-action-primary-border: var(--lv-brand-border);
+    --lv-action-primary-ring: var(--lv-brand-ring);
+    --lv-action-text: var(--lv-brand-text);
+    --brand-red: var(--lv-brand-primary);
+    --brand-red-hover: var(--lv-brand-primary-hover);
+    --lv-accent: var(--lv-brand-primary);
+    --lv-accent-dark: var(--lv-brand-primary-hover);
+    --premium-gold: var(--lv-brand-primary);
+    --premium-gold-2: var(--lv-brand-text);
+    --app-gold: var(--lv-brand-primary);
+    --app-gold-light: var(--lv-brand-text);
+    --app-navy: var(--lv-surface-page);
+    --app-navy-2: var(--lv-surface-muted);
+    --app-panel: var(--lv-surface-panel);
+    --app-panel-2: var(--lv-surface-hover);
+    --app-text: var(--lv-text-primary);
+    --app-muted: var(--lv-text-muted);
+    --app-line: var(--lv-border-default);
+    --premium-bg: var(--lv-surface-page);
+    --premium-bg-2: var(--lv-surface-muted);
+    --premium-panel: var(--lv-surface-panel);
+    --premium-panel-2: var(--lv-surface-hover);
+    --premium-line: var(--lv-border-default);
+    --premium-text: var(--lv-text-primary);
+    --premium-muted: var(--lv-text-muted);
+    --lv-paper: var(--lv-surface-page);
+    --lv-surface: var(--lv-surface-panel);
+    --lv-white: var(--lv-surface-elevated);
+    --lv-text: var(--lv-text-primary);
+    --lv-muted: var(--lv-text-muted);
+    --lv-muted-2: var(--lv-text-faint);
+  }
+
+  .public-site {
+    --public-accent: var(--lv-brand-primary) !important;
+    --public-accent-dark: var(--lv-brand-primary-hover) !important;
+    --public-paper: var(--lv-surface-page) !important;
+    --public-ink: var(--lv-text-primary) !important;
+    --public-muted: var(--lv-text-muted) !important;
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell) {
+    --portal-accent: var(--lv-brand-primary) !important;
+    --portal-accent-text: var(--lv-brand-text) !important;
+    --portal-ink: var(--lv-text-primary) !important;
+    --portal-muted: var(--lv-text-muted) !important;
+    --portal-panel: var(--lv-surface-panel) !important;
+    --portal-panel-2: var(--lv-surface-muted) !important;
+    --portal-line: var(--lv-border-default) !important;
+    --portal-input: var(--lv-control-bg) !important;
+  }
+
+  .pf-redesign {
+    --pf-bg: var(--lv-surface-page) !important;
+    --pf-surface: var(--lv-surface-panel) !important;
+    --pf-surface-soft: var(--lv-surface-muted) !important;
+    --pf-surface-strong: var(--lv-surface-chrome) !important;
+    --pf-ink: var(--lv-text-primary) !important;
+    --pf-muted: var(--lv-text-muted) !important;
+    --pf-line: var(--lv-border-default) !important;
+    --pf-line-strong: var(--lv-border-strong) !important;
+    --pf-brand: var(--lv-brand-primary) !important;
+    --pf-brand-dark: var(--lv-brand-primary-hover) !important;
+  }
+
+  /* Low-glare light canvas: legacy components may still ask for pure white aliases. */
+  html:not([data-theme="dark"]) :is(
+    body,.public-site,.portal-admin,.portal-employee,.portal-client,.lv-client-shell,
+    .admin-main,.tmg-admin-main,.employee-main,.employee-content,.lv-client-stage,
+    .lv-client-content,.pf-redesign,.login-page
+  ) {
+    background-color: var(--lv-surface-page) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) :is(
+    .card,.panel,.form-card,.project-card,.employee-card,.stat-card,.summary-card,
+    .table-card,.data-card,.finance-mini,.project-summary,.record-card,.metric-card,
+    .public-service-card,.public-project-card,.public-team-card,.public-about-card,
+    .public-team-empty,.public-contact-details,.public-process,.public-process-grid article
+  ) {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+  }
+
+  html:not([data-theme="dark"]) :is(
+    .toolbar,.table-card>.section-title,.section-title,.pm-toolbar,.pm-category-bar,
+    .pm-finance-summary-head,.pm-overview-history-head,.pm-sattapur-head,.pm-parties-head
+  ) {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+  }
+
+  /* Primary actions: one LAND VIEW red everywhere. */
+  :is(
+    .btn-accent,.btn-primary,.btn-dark,.login-submit,.public-btn-accent,
+    .public-employee-link,.public-header-cta,.lv-btn-gold,.cp-primary,
+    .pm-btn-primary,.lv-clean-btn.primary,.nsdc-button,[data-variant="primary"]
+  ) {
+    background: var(--lv-brand-primary) !important;
+    border-color: var(--lv-brand-primary) !important;
+    color: #fff !important;
+    box-shadow: 0 7px 18px var(--lv-brand-ring) !important;
+  }
+
+  :is(
+    .btn-accent,.btn-primary,.btn-dark,.login-submit,.public-btn-accent,
+    .public-employee-link,.public-header-cta,.lv-btn-gold,.cp-primary,
+    .pm-btn-primary,.lv-clean-btn.primary,.nsdc-button,[data-variant="primary"]
+  ):hover:not(:disabled) {
+    background: var(--lv-brand-primary-hover) !important;
+    border-color: var(--lv-brand-primary-hover) !important;
+  }
+
+  /* Semantic solid actions use dedicated AA-safe backgrounds. */
+  :is(.pm-btn-income,.btn-success-solid,[data-variant="success-solid"]) {
+    background: var(--lv-success-solid) !important;
+    border-color: var(--lv-success-solid) !important;
+    color: #fff !important;
+  }
+  :is(.btn-warning-solid,[data-variant="warning-solid"]) {
+    background: var(--lv-warning-solid) !important;
+    border-color: var(--lv-warning-solid) !important;
+    color: #fff !important;
+  }
+  :is(.btn-info-solid,[data-variant="info-solid"]) {
+    background: var(--lv-info-solid) !important;
+    border-color: var(--lv-info-solid) !important;
+    color: #fff !important;
+  }
+  :is(.btn-danger-solid,[data-variant="danger-solid"]) {
+    background: var(--lv-danger-solid) !important;
+    border-color: var(--lv-danger-solid) !important;
+    color: #fff !important;
+  }
+
+  /* Muted/faint text is never allowed to fall back to washed-out legacy values. */
+  :is(.muted,.text-muted,.subtle,.toolbar-count) { color: var(--lv-text-muted) !important; }
+  :is(input,textarea)::placeholder { color: var(--lv-control-placeholder) !important; opacity: 1; }
+
+  /* Consistent graphite brand chrome in light and dark modes. */
+  :is(
+    .public-site .public-utility,.public-site .public-nav-wrap,.public-site .public-header,
+    .public-site .public-footer,.portal-admin .primary-nav,.portal-admin .sidebar,
+    .portal-admin .sidebar-brand,.portal-admin .sidebar-footer,
+    .portal-employee .employee-sidebar,.portal-employee .employee-brand,
+    .portal-employee .employee-sidebar-footer,.lv-client-side
+  ) {
+    background:
+      radial-gradient(circle at 28% 0%, var(--lv-brand-soft-strong), transparent 30%),
+      linear-gradient(180deg, var(--lv-surface-chrome), var(--lv-surface-chrome-2)) !important;
+    border-color: var(--lv-border-chrome) !important;
+    color: var(--lv-text-on-chrome) !important;
+  }
+
+  :is(
+    .portal-admin .sidebar-brand strong,.portal-admin .sidebar-user strong,
+    .portal-employee .employee-brand strong,.portal-employee .employee-profile-copy strong,
+    .lv-client-brand,.lv-client-brand strong
+  ) { color: var(--lv-text-on-chrome) !important; }
+
+  :is(
+    .portal-admin .sidebar-brand small,.portal-admin .sidebar-user small,.portal-admin .sidebar-section-label,
+    .portal-employee .employee-brand small,.portal-employee .employee-nav-label,.portal-employee .employee-profile-copy small,
+    .lv-client-brand small,.lv-client-foot,.lv-client-help p
+  ) { color: var(--lv-text-on-chrome-muted) !important; }
+
+  :is(.portal-admin .primary-nav a,.portal-employee .employee-nav-button,.lv-client-nav a) {
+    color: var(--lv-text-on-chrome-muted) !important;
+    background: transparent !important;
+    border-color: transparent !important;
+  }
+
+  :is(.portal-admin .primary-nav a,.portal-employee .employee-nav-button,.lv-client-nav a):hover {
+    background: rgba(255,255,255,.055) !important;
+    border-color: rgba(255,255,255,.08) !important;
+    color: #fff !important;
+  }
+
+  :is(
+    .portal-admin .primary-nav a.active,.portal-admin .primary-nav a[aria-current="page"],
+    .portal-employee .employee-nav-button[aria-current="location"],
+    .lv-client-nav a[aria-current="location"]
+  ) {
+    background: linear-gradient(90deg, var(--lv-brand-soft-strong), rgba(150,56,62,.045)) !important;
+    border-color: var(--lv-brand-border) !important;
+    box-shadow: inset 3px 0 0 var(--lv-brand-primary) !important;
+    color: #fff !important;
+  }
+
+  /* Accent icons/labels use the same non-fluorescent text red. */
+  :is(
+    .brand-eyebrow,.brand-content h1 span,.sidebar-caption,.eyebrow,.card-kicker,
+    .public-team-label,.public-section-kicker,.public-team-designation,.public-service-card>a,
+    .public-project-link,.public-text-link,.public-panel-kicker,.pf-admin-eyebrow,.pm-label
+  ) { color: var(--lv-brand-text) !important; }
+
+  /* Focus is visible without an over-bright halo. */
+  :is(input,select,textarea):focus,
+  :is(.portal-admin,.portal-employee,.portal-client,.pf-redesign) :focus-visible {
+    border-color: var(--lv-brand-primary) !important;
+    outline-color: var(--lv-brand-primary) !important;
+    box-shadow: 0 0 0 3px var(--lv-brand-ring) !important;
+  }
+}

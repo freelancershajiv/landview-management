@@ -15,9 +15,10 @@ import "./admin-dashboard-light.css";
 import "./admin-color-harmony.css";
 import "../dual-mode-navigation.css";
 import "./admin-dashboard-theme-fix.css";
-// Authoritative mobile geometry. Keep this last so legacy page styles cannot
-// re-introduce full-screen drawers, table misalignment or dock collisions.
+// Authoritative mobile geometry. Keep this after legacy page styles.
 import "./admin-mobile-authority.css";
+// Re-assert the shared palette after every Admin-specific override.
+import "../color-system-authority.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
