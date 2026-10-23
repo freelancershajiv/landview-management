@@ -1,0 +1,111 @@
+/* Project Management project-selection surfaces.
+   This layer intentionally overrides the component-local styled-jsx chooser colors. */
+@media screen {
+  .pf-redesign .pf-admin-project-chip {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: none !important;
+  }
+
+  .pf-redesign .pf-admin-project-chip small {
+    color: var(--lv-text-muted) !important;
+  }
+
+  .pf-redesign .pf-admin-project-chip strong {
+    color: var(--lv-text-strong) !important;
+  }
+
+  .pf-redesign .pm-chooser-shell {
+    color: var(--lv-text-primary) !important;
+  }
+
+  .pf-redesign .pm-chooser {
+    background:
+      linear-gradient(145deg, var(--lv-brand-soft), transparent 32%),
+      var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: var(--lv-shadow-md) !important;
+  }
+
+  .pf-redesign .pm-chooser-kicker {
+    color: var(--lv-brand-text) !important;
+  }
+
+  .pf-redesign .pm-chooser h1 {
+    color: var(--lv-text-strong) !important;
+  }
+
+  .pf-redesign .pm-chooser > p {
+    color: var(--lv-text-muted) !important;
+  }
+
+  .pf-redesign .pm-project-option {
+    background: var(--lv-surface-elevated) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: none !important;
+  }
+
+  .pf-redesign .pm-project-option:hover,
+  .pf-redesign .pm-project-option:focus-visible {
+    background: var(--lv-surface-hover) !important;
+    border-color: var(--lv-brand-border) !important;
+    box-shadow: 0 0 0 3px var(--lv-brand-ring) !important;
+    outline: 0 !important;
+  }
+
+  .pf-redesign .pm-option-code,
+  .pf-redesign .pm-option-open {
+    color: var(--lv-brand-text) !important;
+  }
+
+  .pf-redesign .pm-option-name {
+    color: var(--lv-text-strong) !important;
+  }
+
+  .pf-redesign .pm-option-meta,
+  .pf-redesign .pm-option-footer {
+    color: var(--lv-text-muted) !important;
+  }
+
+  .pf-redesign .pm-option-footer {
+    border-top-color: var(--lv-border-default) !important;
+  }
+
+  .pf-redesign .pm-status-dot {
+    background: var(--lv-text-faint) !important;
+  }
+
+  .pf-redesign .pm-status-dot.active {
+    background: var(--lv-success-solid) !important;
+  }
+
+  .pf-redesign .pm-status-dot.configured {
+    background: var(--lv-warning-solid) !important;
+  }
+
+  .pf-redesign .pm-no-projects {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-strong) !important;
+    color: var(--lv-text-muted) !important;
+  }
+
+  /* Prevent the unused last grid slot from appearing as a mismatched solid block. */
+  .pf-redesign .pf-admin-module-grid {
+    background: var(--lv-surface-panel) !important;
+    gap: 1px !important;
+  }
+
+  .pf-redesign .pf-admin-module-card {
+    border-right: 1px solid var(--lv-border-default) !important;
+    border-bottom: 1px solid var(--lv-border-default) !important;
+  }
+
+  html[data-theme="dark"] .pf-redesign .pm-chooser {
+    background:
+      radial-gradient(circle at 12% 0%, var(--lv-brand-soft-strong), transparent 30%),
+      var(--lv-surface-panel) !important;
+  }
+}
