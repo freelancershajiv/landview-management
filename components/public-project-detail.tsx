@@ -11,6 +11,7 @@ type PublicProject = {
   title?: string;
   category?: string;
   location?: string;
+  district?: string;
   currentStage?: string;
   area?: string;
   stories?: string;
@@ -19,18 +20,24 @@ type PublicProject = {
   coverImageUrl?: string;
   galleryImages?: string[];
   services?: string[];
+  mapEnabled?: boolean;
 };
 
-function imageUrl(url?: string) {
+type Props = {
+  initialProject: PublicProject | null;
+  relatedProjects?: PublicProject[];
+};
+
+function imageUrl(url?: string, size = "w1800") {
   const value = String(url || "").trim();
   if (!value) return "";
   const fileMatch = value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);
-  if (fileMatch?.[1]) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileMatch[1])}&sz=w1800`;
+  if (fileMatch?.[1]) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileMatch[1])}&sz=${size}`;
   try {
     const parsed = new URL(value);
     if (parsed.hostname === "drive.google.com") {
       const id = parsed.searchParams.get("id");
-      if (id) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w1800`;
+      if (id) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=${size}`;
     }
   } catch {}
   return value;
@@ -49,15 +56,16 @@ function serviceHref(serviceName: string) {
 }
 
 function overview(project: PublicProject) {
-  const subject = project.title || project.category || "This LAND VIEW project";
+  const subject = project.title || project.projectId || "This LAND VIEW project";
   const location = project.location ? ` in ${project.location}` : "";
-  const building = project.stories ? ` The published project data records ${project.stories} stories` : "";
-  const area = project.area ? `${building ? " and" : " The published project data records"} an area of ${project.area}` : "";
-  const scope = project.services?.length ? ` LAND VIEW's published scope includes ${project.services.join(", ")}.` : "";
-  return `${subject}${location} is part of the LAND VIEW public architecture and engineering portfolio.${building}${area}.${scope}`.replace("..", ".");
+  const category = project.category ? ` The published project category is ${project.category}.` : "";
+  const building = project.stories ? ` The public record lists ${project.stories} storeys.` : "";
+  const area = project.area ? ` The published area is ${project.area}.` : "";
+  const stage = project.currentStage ? ` Its current published stage is ${project.currentStage}.` : "";
+  return `${subject}${location} is part of the LAND VIEW public architecture and engineering portfolio.${category}${building}${area}${stage}`;
 }
 
-export default function PublicProjectDetailPage({ initialProject }: { initialProject: PublicProject | null }) {
+export default function PublicProjectDetailPage({ initialProject, relatedProjects = [] }: Props) {
   const params = useParams<{ projectId: string }>();
   const projectId = decodeURIComponent(String(params.projectId || ""));
   const [project, setProject] = useState<PublicProject | null>(initialProject);
@@ -74,12 +82,12 @@ export default function PublicProjectDetailPage({ initialProject }: { initialPro
         const rows = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
         if (!cancelled) setProject(rows.find((item: PublicProject) => String(item.projectId || "") === projectId) || null);
       } catch {
-        // Preserve the unavailable state when the public backend cannot respond.
+        // Keep the unavailable state if the public backend cannot respond.
       } finally {
         if (!cancelled) setLoading(false);
       }
     }
-    load();
+    void load();
     return () => { cancelled = true; };
   }, [projectId, initialProject]);
 
@@ -87,9 +95,7 @@ export default function PublicProjectDetailPage({ initialProject }: { initialPro
     if (!fullImage) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setFullImage(null);
-    };
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") setFullImage(null); };
     window.addEventListener("keydown", onKeyDown);
     return () => {
       document.body.style.overflow = previousOverflow;
@@ -97,100 +103,88 @@ export default function PublicProjectDetailPage({ initialProject }: { initialPro
     };
   }, [fullImage]);
 
-  if (loading) return <main className="public-site"><PublicHeader /><section className="public-section"><div className="public-container"><div className="public-team-empty">Loading project...</div></div></section></main>;
-  if (!project) return <main className="public-site"><PublicHeader /><section className="public-section"><div className="public-container"><div className="public-team-empty">Project not found or not available for public display.<br/><br/><Link href="/projects">← Back to Projects</Link></div></div></section></main>;
+  if (loading) return <main className="project-detail-v2"><PublicHeader /><section className="pv2-content"><div className="pv2-wrap"><div className="pv2-empty"><div><strong>Loading project…</strong><span>Retrieving the public LAND VIEW project record.</span></div></div></div></section></main>;
+  if (!project) return <main className="project-detail-v2"><PublicHeader /><section className="pv2-content"><div className="pv2-wrap"><div className="pv2-empty"><div><strong>Project not available.</strong><span>This project was not found or is not approved for public display.</span><div style={{ marginTop: 18 }}><Link className="pv2-btn" href="/projects">← Back to Projects</Link></div></div></div></div></section></main>;
 
   const cover = imageUrl(project.coverImageUrl);
-  const gallery = (project.galleryImages || []).map(imageUrl).filter(Boolean);
-  const openImage = (src: string, alt: string) => setFullImage({ src, alt });
-  const projectAlt = [project.title || "LAND VIEW project", project.category, project.location].filter(Boolean).join(" — ");
+  const gallery = Array.from(new Set((project.galleryImages || []).map((item) => imageUrl(item)).filter(Boolean))).filter((src) => src !== cover);
+  const altBase = [project.title || project.projectId || "LAND VIEW project", project.category, project.district || project.location].filter(Boolean).join(" — ");
+  const displayOverview = project.description || overview(project);
+  const whatsappMessage = `Hello LAND VIEW, I would like to discuss a project similar to ${project.projectId || project.title || "a project on your website"}. My project location: ____. Proposed building type/floors: ____. Services needed: ____.`;
+  const whatsappUrl = `https://wa.me/8801902500400?text=${encodeURIComponent(whatsappMessage)}`;
 
   return (
-    <main className="public-site">
+    <main className="project-detail-v2">
       <PublicHeader />
-      <section className="public-section public-projects" style={{ paddingTop: 88 }}>
-        <div className="public-container">
-          <nav aria-label="Breadcrumb" style={{ marginBottom: 18 }}><Link href="/" className="public-text-link">Home</Link><span aria-hidden="true"> / </span><Link href="/projects" className="public-text-link">Projects</Link><span aria-hidden="true"> / </span><span>{project.title || project.projectId}</span></nav>
-          <div className="public-section-head" style={{ marginTop: 28 }}>
-            <div><span className="public-section-kicker">{project.category || "LAND VIEW PROJECT"}</span><h1 style={{ margin: 0, fontSize: "clamp(42px, 6vw, 76px)", lineHeight: .95, letterSpacing: "-.05em" }}>{project.title || project.projectId}</h1></div>
-            <p>{project.description || overview(project)}</p>
-          </div>
 
-          {cover && (
-            <figure style={{ width: "100%", margin: "0 0 34px", display: "flex", flexDirection: "column", gap: 10 }}>
-              <img
-                src={cover}
-                alt={projectAlt}
-                onClick={() => openImage(cover, projectAlt)}
-                title="Click to view full screen"
-                style={{ width: "100%", height: "auto", maxHeight: 900, objectFit: "contain", objectPosition: "center", borderRadius: 18, display: "block", cursor: "zoom-in" }}
-              />
-              <figcaption style={{ color: "var(--theme-ink-_8d99a3, #8d99a3)", fontSize: 12 }}>{project.title || "LAND VIEW project"}{project.location ? ` · ${project.location}` : ""}</figcaption>
-            </figure>
-          )}
-
-          <section aria-labelledby="project-overview" style={{ marginBottom: 46, padding: "28px", border: "1px solid var(--theme-line-_2b3843, #2b3843)", background: "var(--theme-bg-_101a24, #101a24)", borderRadius: 14 }}>
-            <span className="public-section-kicker">PROJECT CASE STUDY</span>
-            <h2 id="project-overview" style={{ marginTop: 8 }}>Project overview</h2>
-            <p style={{ maxWidth: 900, color: "var(--theme-ink-_b5bec6, #b5bec6)", lineHeight: 1.8 }}>{overview(project)}</p>
-            {project.description ? <p style={{ maxWidth: 900, color: "var(--theme-ink-_b5bec6, #b5bec6)", lineHeight: 1.8 }}>{project.description}</p> : null}
-          </section>
-
-          <div className="public-project-grid" style={{ marginBottom: 40 }}>
-            <article className="public-project-card"><div className="public-project-copy"><small>PROJECT ID</small><h3>{project.projectId}</h3><p>{project.location || "Location not published"}</p></div></article>
-            <article className="public-project-card"><div className="public-project-copy"><small>BUILDING</small><h3>{project.stories ? `${project.stories} Stories` : project.category || "Project"}</h3><p>{project.area || "Project area not published"}</p></div></article>
-            <article className="public-project-card"><div className="public-project-copy"><small>CURRENT STAGE / YEAR</small><h3>{project.currentStage || "—"}</h3><p>{project.completionYear || "Year not published"}</p></div></article>
-          </div>
-
-          {project.services?.length ? <section style={{ marginBottom: 48 }}>
-            <span className="public-section-kicker">LAND VIEW CONSULTANCY SCOPE</span>
-            <h2 style={{ marginBottom: 18 }}>Services published for this project</h2>
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>{project.services.map((service) => <Link key={service} href={serviceHref(service)} style={{ padding: "11px 14px", border: "1px solid var(--theme-line-rgba_239_74_80__5_, rgba(239,74,80,.5))", borderRadius: 8, color: "var(--theme-ink-_fff, #fff)", background: "var(--theme-bg-_0d1721, #0d1721)", fontSize: 13 }}>{service} →</Link>)}</div>
-          </section> : null}
-
-          {gallery.length ? (
-            <section aria-labelledby="project-gallery">
-              <span className="public-section-kicker">PROJECT GALLERY</span>
-              <h2 id="project-gallery" style={{ marginBottom: 22 }}>Published project images</h2>
-              <div className="public-project-grid">
-                {gallery.map((src, index) => {
-                  const alt = `${projectAlt} — project image ${index + 1}`;
-                  return (
-                    <figure className="public-project-card" key={src + index} style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", overflow: "hidden", margin: 0 }}>
-                      <img
-                        src={src}
-                        alt={alt}
-                        onClick={() => openImage(src, alt)}
-                        title="Click to view full screen"
-                        style={{ width: "100%", height: "auto", maxHeight: 760, objectFit: "contain", objectPosition: "center", display: "block", cursor: "zoom-in" }}
-                      />
-                    </figure>
-                  );
-                })}
+      <section className="pdv2-hero">
+        <div className="pv2-wrap">
+          <nav className="pdv2-breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link><span>/</span><Link href="/projects">Projects</Link><span>/</span><span>{project.projectId || project.title}</span></nav>
+          <div className="pdv2-head">
+            <div>
+              <span className="pv2-kicker">{project.category || "LAND VIEW PROJECT"}</span>
+              <h1>{project.title || project.projectId || "LAND VIEW Project"}</h1>
+              <p>{displayOverview}</p>
+              <div className="pdv2-actions">
+                <a className="pv2-btn pv2-btn-primary" href={whatsappUrl} target="_blank" rel="noopener noreferrer">Discuss on WhatsApp →</a>
+                {project.mapEnabled ? <Link className="pv2-btn" href="/projects/map">View Project Map</Link> : null}
+                <Link className="pv2-btn" href="/projects">All Projects</Link>
               </div>
-            </section>
-          ) : null}
-
-          <section style={{ marginTop: 54, paddingTop: 30, borderTop: "1px solid var(--theme-line-_2b3843, #2b3843)" }}>
-            <span className="public-section-kicker">PLANNING A PROJECT?</span>
-            <h2>Discuss architecture and engineering consultancy with LAND VIEW.</h2>
-            <p style={{ maxWidth: 760, color: "var(--theme-ink-_9ba6af, #9ba6af)", lineHeight: 1.75 }}>Share your project location, building type and required services. LAND VIEW can confirm an appropriate consultancy scope and whether site attendance is practical for the location.</p>
-            <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 20 }}><Link href="/contact" className="public-text-link">Contact LAND VIEW →</Link><Link href="/services" className="public-text-link">Explore services →</Link><Link href="/bn" className="public-text-link">বাংলায় পড়ুন →</Link></div>
-          </section>
+            </div>
+            <aside className="pdv2-head-aside">
+              <small>PROJECT IDENTIFICATION</small>
+              <strong>{project.projectId || "LAND VIEW"}</strong>
+              <span>{project.currentStage || "Project stage not published"}</span>
+              <span>{project.location || project.district || "Location not published"}</span>
+            </aside>
+          </div>
         </div>
       </section>
 
-      {fullImage && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Full screen project image"
-          onClick={() => setFullImage(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 99999, background: "var(--theme-bg-rgba_0_0_0__94_, rgba(0,0,0,.94))", display: "flex", alignItems: "center", justifyContent: "center", padding: "clamp(12px, 2vw, 28px)", cursor: "zoom-out" }}
-        >
-          <img src={fullImage.src} alt={fullImage.alt} onClick={() => setFullImage(null)} style={{ width: "auto", height: "auto", maxWidth: "100%", maxHeight: "100%", objectFit: "contain", objectPosition: "center", display: "block", cursor: "zoom-out", userSelect: "none" }} />
+      {cover ? <section className="pdv2-visual"><div className="pv2-wrap"><figure className="pdv2-cover"><button type="button" aria-label="Open project cover image full screen" onClick={() => setFullImage({ src: cover, alt: altBase })}><img src={cover} alt={altBase} /></button><figcaption className="pdv2-cover-caption"><span>{project.title || project.projectId || "LAND VIEW Project"}</span><span>Click image to enlarge</span></figcaption></figure></div></section> : null}
+
+      <section className="pdv2-main">
+        <div className="pv2-wrap pdv2-layout">
+          <div className="pdv2-stack">
+            <article className="pdv2-panel">
+              <span className="pv2-kicker">PROJECT OVERVIEW</span>
+              <h2>Published project information</h2>
+              <p>{overview(project)}</p>
+              {project.description ? <p style={{ marginTop: 14 }}>{project.description}</p> : null}
+            </article>
+
+            <article className="pdv2-panel">
+              <span className="pv2-kicker">PROJECT DATA</span>
+              <h2>At a glance</h2>
+              <div className="pdv2-facts">
+                <div className="pdv2-fact"><small>Project ID</small><strong>{project.projectId || "Not published"}</strong></div>
+                <div className="pdv2-fact"><small>Category</small><strong>{project.category || "Not published"}</strong></div>
+                <div className="pdv2-fact"><small>Current Stage</small><strong>{project.currentStage || "Not published"}</strong></div>
+                <div className="pdv2-fact"><small>District</small><strong>{project.district || "Not published"}</strong></div>
+                <div className="pdv2-fact"><small>Storeys</small><strong>{project.stories || "Not published"}</strong></div>
+                <div className="pdv2-fact"><small>Area</small><strong>{project.area || "Not published"}</strong></div>
+                <div className="pdv2-fact"><small>Completion Year</small><strong>{project.completionYear || "Not published"}</strong></div>
+                <div className="pdv2-fact"><small>Map</small><strong>{project.mapEnabled ? "Available" : "Not published"}</strong></div>
+              </div>
+            </article>
+
+            {project.services?.length ? <article className="pdv2-panel"><span className="pv2-kicker">LAND VIEW CONSULTANCY SCOPE</span><h2>Services published for this project</h2><p style={{ marginBottom: 18 }}>Open a service to understand its typical scope, deliverables and preparation requirements.</p><div className="pdv2-service-list">{project.services.map((service) => <Link key={service} href={serviceHref(service)}>{service} →</Link>)}</div></article> : null}
+          </div>
+
+          <aside className="pdv2-side">
+            <div className="pdv2-panel"><span className="pv2-kicker">LOCATION</span><h2>Project location</h2><p>{project.location || project.district || "A detailed public location has not been published for this project."}</p>{project.mapEnabled ? <div className="pdv2-side-links"><Link href="/projects/map">Open public project map <span>→</span></Link></div> : null}</div>
+            <div className="pdv2-panel"><span className="pv2-kicker">EXPLORE LAND VIEW</span><h2>Continue exploring</h2><div className="pdv2-side-links"><Link href="/projects">All projects <span>→</span></Link><Link href="/services">Architecture & engineering services <span>→</span></Link><Link href="/team">Meet the team <span>→</span></Link><Link href="/contact">Contact LAND VIEW <span>→</span></Link></div></div>
+          </aside>
         </div>
-      )}
+      </section>
+
+      {gallery.length ? <section className="pdv2-gallery"><div className="pv2-wrap"><div className="pdv2-gallery-head"><div><span className="pv2-kicker">PROJECT GALLERY</span><h2>Published project images</h2></div><p>These images come from the public project record. Select an image to view it full screen.</p></div><div className="pdv2-gallery-grid">{gallery.map((src, index) => { const alt = `${altBase} — image ${index + 1}`; return <button type="button" className="pdv2-gallery-item" key={`${src}-${index}`} onClick={() => setFullImage({ src, alt })} aria-label={`Open project image ${index + 1} full screen`}><img src={src} alt={alt} loading="lazy" /></button>; })}</div></div></section> : null}
+
+      {relatedProjects.length ? <section className="pdv2-related"><div className="pv2-wrap"><div className="pdv2-related-head"><div><span className="pv2-kicker">RELATED PROJECTS</span><h2>Continue through the portfolio</h2></div><p>Related projects are selected from shared category, location, stage and LAND VIEW service information.</p></div><div className="pdv2-related-grid">{relatedProjects.map((item, index) => { const id = String(item.projectId || "").trim(); const image = imageUrl(item.coverImageUrl, "w1000"); return <Link href={id ? `/projects/${encodeURIComponent(id)}` : "/projects"} className="pdv2-related-card" key={id || `${item.title}-${index}`}><div className="pdv2-related-image">{image ? <img src={image} alt={`${item.title || id || "LAND VIEW project"} preview`} loading="lazy" /> : null}</div><div className="pdv2-related-copy"><small>{id || item.category || "LAND VIEW PROJECT"}</small><h3>{item.title || id || "LAND VIEW Project"}</h3><span>{[item.category, item.district, item.currentStage].filter(Boolean).join(" · ")}</span></div></Link>; })}</div></div></section> : null}
+
+      <section className="pdv2-cta"><div className="pv2-wrap"><div className="pdv2-cta-card"><div><span className="pv2-kicker">PLANNING YOUR OWN PROJECT?</span><h2>Use the portfolio as a starting point, not a template.</h2><p>Every site and building brief needs its own architecture and engineering decisions. Share your location, intended use, approximate floor count and required services so LAND VIEW can define an appropriate consultancy scope.</p></div><div className="pdv2-cta-actions"><a className="pv2-btn pv2-btn-primary" href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp 01902 500 400 →</a><Link className="pv2-btn" href="/contact">Contact Details</Link></div></div></div></section>
+
+      {fullImage ? <div className="pdv2-modal" role="dialog" aria-modal="true" aria-label="Full screen project image" onClick={() => setFullImage(null)}><img src={fullImage.src} alt={fullImage.alt} /></div> : null}
     </main>
   );
 }
