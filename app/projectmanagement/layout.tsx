@@ -30,8 +30,8 @@ import "../admin/admin-mobile-authority.css";
 import "./project-finance-mobile-authority.css";
 // Re-assert shared contrast/brightness tokens after finance-specific legacy layers.
 import "../color-system-authority.css";
-// Nested Project Management CSS can otherwise reset the user-selected deeper LAND VIEW red.
-import "../darker-brand-red.css";
+// Phase 3 replaces the separate darker-red hotfix with one shared compatibility bridge.
+import "../color-system-compatibility.css";
 // Final Project Management-only authority: surfaces, active states, controls and finance semantics.
 import "./project-finance-theme-authority.css";
 // Component-local chooser styles are emitted later; this uses !important theme tokens to normalize them.
