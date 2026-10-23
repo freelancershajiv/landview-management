@@ -1,62 +1,176 @@
 .project-map-page {
+  min-height: 100vh;
   min-height: 100dvh;
 }
 
+/*
+ * Mobile authority for the public project map.
+ * PublicProjectMap still carries legacy inline responsive rules, so the
+ * mobile rules here intentionally use !important where required to keep
+ * one predictable source of truth until those legacy rules are removed.
+ */
 @media (max-width: 900px) {
   .project-map-shell {
-    min-height: 0;
+    grid-template-columns: 1fr !important;
+    height: auto !important;
+    min-height: 0 !important;
   }
 
   .project-map-canvas-wrap {
-    height: clamp(400px, 60vh, 520px);
-    height: clamp(400px, 60svh, 520px);
+    height: clamp(400px, 60vh, 520px) !important;
+    height: clamp(400px, 60svh, 520px) !important;
   }
 
   .project-map-side {
-    height: min(500px, 62vh);
-    height: min(500px, 62svh);
+    height: min(500px, 62vh) !important;
+    height: min(500px, 62svh) !important;
+    min-height: 0 !important;
+    border-left: 0 !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.09) !important;
   }
 }
 
 @media (max-width: 620px) {
-  /* PublicHeader remains 74px tall on mobile, so keep the sticky toolbar below it. */
+  /*
+   * Do not keep a multi-row filter panel stuck below the 74px public
+   * header. On a phone that previously consumed most of the viewport and
+   * made the map appear broken or inaccessible.
+   */
   .project-map-toolbar {
-    top: 74px !important;
+    position: relative !important;
+    top: auto !important;
+    z-index: 30 !important;
+    padding: 10px 0 !important;
+  }
+
+  .project-map-wrap {
+    width: min(100% - 20px, 1380px) !important;
+  }
+
+  .project-map-hero {
+    padding: 30px 0 20px !important;
+  }
+
+  .project-map-hero-grid {
+    gap: 22px !important;
+  }
+
+  .project-map-hero h1 {
+    font-size: clamp(36px, 11vw, 50px) !important;
+    line-height: 0.98 !important;
+  }
+
+  .project-map-controls,
+  .project-map-controls.second {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+  }
+
+  .project-map-search {
+    grid-column: 1 / -1 !important;
+  }
+
+  .project-map-reset {
+    grid-column: 1 / -1 !important;
+  }
+
+  .project-map-search,
+  .project-map-select,
+  .project-map-reset {
+    min-width: 0 !important;
+    width: 100% !important;
+    height: 44px !important;
+    font-size: 11px !important;
   }
 
   .project-map-main {
-    padding-top: 12px;
-    padding-bottom: max(42px, env(safe-area-inset-bottom));
+    padding-top: 12px !important;
+    padding-bottom: max(42px, env(safe-area-inset-bottom)) !important;
   }
 
-  /* Use the stable mobile viewport so Chrome's address bar does not make the map jump. */
+  /* Stable viewport units prevent Chrome/Safari browser UI from jumping the map. */
   .project-map-canvas-wrap {
-    height: clamp(360px, 56vh, 470px);
-    height: clamp(360px, 56svh, 470px);
+    height: clamp(360px, 56vh, 470px) !important;
+    height: clamp(360px, 56svh, 470px) !important;
+    overflow: hidden !important;
+  }
+
+  .project-map-canvas,
+  .project-map-canvas .leaflet-container {
+    /* Allow normal page scrolling while preserving pinch zoom on the map. */
+    touch-action: pan-y pinch-zoom !important;
   }
 
   .project-map-detail {
-    max-height: calc(100% - 92px);
-    overflow: auto;
-    overscroll-behavior: contain;
+    left: 10px !important;
+    right: 10px !important;
+    bottom: 10px !important;
+    width: auto !important;
+    max-height: min(58%, 300px) !important;
+    overflow: auto !important;
+    overscroll-behavior: contain !important;
     -webkit-overflow-scrolling: touch;
+    padding: 14px !important;
+  }
+
+  .project-map-detail h2 {
+    font-size: 18px !important;
+  }
+
+  .project-map-detail-actions {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .project-map-detail-actions a {
+    width: 100% !important;
+    min-height: 40px !important;
+    padding: 0 9px !important;
+    text-align: center !important;
   }
 
   .project-map-side {
-    height: min(480px, 60vh);
-    height: min(480px, 60svh);
+    height: min(480px, 60vh) !important;
+    height: min(480px, 60svh) !important;
   }
 
   .project-map-list {
-    overscroll-behavior-y: contain;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    overscroll-behavior-y: contain !important;
     -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
+    touch-action: pan-y !important;
+  }
+
+  .project-map-card {
+    min-height: 82px !important;
+  }
+
+  .project-map-style-switch {
+    right: 10px !important;
+    top: 10px !important;
+  }
+
+  .project-map-style-switch button {
+    min-height: 34px !important;
+  }
+
+  .project-map-legend {
+    right: 10px !important;
+    top: 58px !important;
+  }
+
+  .leaflet-control-zoom a {
+    width: 36px !important;
+    height: 36px !important;
+    line-height: 36px !important;
   }
 
   .leaflet-control-attribution {
-    max-width: calc(100vw - 88px);
-    white-space: normal;
-    line-height: 1.2;
+    max-width: calc(100vw - 88px) !important;
+    white-space: normal !important;
+    line-height: 1.2 !important;
     font-size: 7px !important;
   }
 }
@@ -66,14 +180,25 @@
     width: min(100% - 16px, 1380px) !important;
   }
 
+  /* Keep two columns even though the legacy inline rule switches to one. */
+  .project-map-controls,
+  .project-map-controls.second {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .project-map-search,
+  .project-map-reset {
+    grid-column: 1 / -1 !important;
+  }
+
   .project-map-canvas-wrap {
-    height: clamp(340px, 54vh, 430px);
-    height: clamp(340px, 54svh, 430px);
+    height: clamp(340px, 54vh, 430px) !important;
+    height: clamp(340px, 54svh, 430px) !important;
   }
 
   .project-map-side {
-    height: min(440px, 58vh);
-    height: min(440px, 58svh);
+    height: min(440px, 58vh) !important;
+    height: min(440px, 58svh) !important;
   }
 
   .project-map-style-switch {
@@ -81,8 +206,48 @@
     top: 8px !important;
   }
 
+  .project-map-style-switch button {
+    min-width: 54px !important;
+    padding-inline: 8px !important;
+  }
+
   .project-map-legend {
     right: 8px !important;
-    top: 56px !important;
+    top: 54px !important;
+  }
+
+  .project-map-detail {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: 8px !important;
+    max-height: min(60%, 280px) !important;
+  }
+
+  .project-map-card {
+    grid-template-columns: 58px minmax(0, 1fr) !important;
+    gap: 9px !important;
+    padding: 9px !important;
+  }
+
+  .project-map-thumb,
+  .project-map-thumb-fallback {
+    width: 58px !important;
+    height: 58px !important;
+  }
+}
+
+@media (max-width: 350px) {
+  .project-map-controls,
+  .project-map-controls.second {
+    grid-template-columns: 1fr !important;
+  }
+
+  .project-map-search,
+  .project-map-reset {
+    grid-column: auto !important;
+  }
+
+  .project-map-detail-actions {
+    grid-template-columns: 1fr !important;
   }
 }
