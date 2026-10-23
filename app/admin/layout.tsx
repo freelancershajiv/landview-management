@@ -11,7 +11,6 @@ import "./admin-layout-polish.css";
 import "./finance/invoices/invoice-revamp-print-fix.css";
 import "./finance/invoices/invoice-column-alignment-fix.css";
 import "./admin-theme-consistency.css";
-import "./admin-mobile-redesign.css";
 import "./admin-dashboard-light.css";
 import "./admin-color-harmony.css";
 import "../dual-mode-navigation.css";
