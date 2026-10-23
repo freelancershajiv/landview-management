@@ -92,6 +92,29 @@
     color: var(--lv-text-muted) !important;
   }
 
+  /* Loading state must never flash a light canvas while the portal is in dark mode. */
+  .pf-redesign .pm-loading {
+    min-height: calc(100vh - 220px) !important;
+    background: var(--lv-surface-page) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  .pf-redesign .pm-loading-card {
+    background: var(--lv-surface-elevated) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-strong) !important;
+    box-shadow: var(--lv-shadow-md) !important;
+  }
+
+  .pf-redesign .pm-loading-card span {
+    color: var(--lv-text-muted) !important;
+  }
+
+  .pf-redesign .pm-spinner {
+    border-color: var(--lv-border-strong) !important;
+    border-top-color: var(--lv-brand-primary) !important;
+  }
+
   /* Prevent the unused last grid slot from appearing as a mismatched solid block. */
   .pf-redesign .pf-admin-module-grid {
     background: var(--lv-surface-panel) !important;
@@ -107,5 +130,11 @@
     background:
       radial-gradient(circle at 12% 0%, var(--lv-brand-soft-strong), transparent 30%),
       var(--lv-surface-panel) !important;
+  }
+
+  html[data-theme="dark"] .pf-redesign .pm-loading {
+    background:
+      radial-gradient(circle at 50% 20%, var(--lv-brand-soft), transparent 34%),
+      var(--lv-surface-page) !important;
   }
 }
