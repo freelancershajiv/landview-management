@@ -27,22 +27,14 @@ import "./top-portal-navigation.css";
 import "./portal-sidebar-lock.css";
 // Keep typography near the end so it can normalize legacy component font sizes.
 import "./typography-system.css";
-// Final legacy normalization before the semantic LAND VIEW color system.
-import "./theme-consistency.css";
-// Authoritative screen palette across public, login, employee and client surfaces.
-import "./landview-color-harmony.css";
 // Navigation must independently honor light and dark mode.
 import "./dual-mode-navigation.css";
 // Shared mobile interaction geometry across public, employee and client surfaces.
 import "./mobile-foundation.css";
-// Final color/brightness authority. Keep last so legacy theme layers cannot reintroduce drift.
+// Semantic screen palette shared across public, login, portal and finance surfaces.
 import "./color-system-authority.css";
-// Public components still contain historical inline accent styles; normalize them last.
-import "./public-color-authority.css";
-// Login carries its own embedded legacy coral styles; keep this as the final gateway authority.
-import "./login-color-authority.css";
-// User-requested darker LAND VIEW red. This intentionally wins over all previous palette layers.
-import "./darker-brand-red.css";
+// Phase 3 compatibility bridge: one final layer replaces five overlapping color overrides.
+import "./color-system-compatibility.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
