@@ -1,0 +1,481 @@
+/* LAND VIEW Admin route theme bridge
+   ------------------------------------------------------------
+   Phase 4 consolidates the former Admin-only consistency, light-dashboard,
+   color-harmony and dashboard-theme-fix layers into one semantic route file.
+   Structural layout and mobile geometry remain in their dedicated stylesheets.
+   This file intentionally loads before admin-mobile-authority and before the
+   shared color authority/compatibility layers. */
+
+@media screen {
+  .portal-admin,
+  .admin-shell,
+  .tmg-shell {
+    background: var(--lv-surface-page) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  .portal-admin {
+    --lv-accent: var(--lv-brand-primary) !important;
+    --lv-accent-dark: var(--lv-brand-primary-hover) !important;
+  }
+
+  .portal-admin :is(.admin-main,.tmg-admin-main,.content-wrap,.tmg-content-wrap) {
+    background: var(--lv-surface-page) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  /* Admin utility chrome */
+  .portal-admin .utility-bar {
+    background: color-mix(in srgb, var(--lv-surface-panel) 95%, transparent) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: 0 3px 14px rgba(15,23,42,.045) !important;
+    backdrop-filter: blur(14px) !important;
+  }
+
+  .portal-admin :is(.global-search,.notification-button,.utility-logout) {
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: none !important;
+  }
+
+  .portal-admin :is(.global-search,.notification-button,.utility-logout):hover {
+    background: var(--lv-control-bg-hover) !important;
+    border-color: var(--lv-border-strong) !important;
+  }
+
+  .portal-admin .global-search input {
+    background: transparent !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  .portal-admin .global-search input::placeholder { color: var(--lv-control-placeholder) !important; }
+
+  .portal-admin .utility-avatar {
+    background: var(--lv-brand-soft-strong) !important;
+    border-color: var(--lv-brand-border) !important;
+    color: var(--lv-brand-text) !important;
+  }
+
+  .portal-admin .utility-item strong,
+  .portal-admin .user-utility span { color: var(--lv-text-strong) !important; }
+  .portal-admin .utility-item small { color: var(--lv-text-muted) !important; }
+
+  html[data-theme="dark"] .portal-admin .utility-bar {
+    background: color-mix(in srgb, var(--lv-surface-chrome) 95%, transparent) !important;
+    border-color: var(--lv-border-chrome) !important;
+  }
+
+  html[data-theme="dark"] .portal-admin :is(.global-search,.notification-button,.utility-logout) {
+    background: var(--lv-surface-elevated) !important;
+    border-color: var(--lv-border-default) !important;
+  }
+
+  /* Route-only primary actions not covered by the shared action selectors. */
+  .portal-admin :where([class*="primaryButton" i],[class*="printButton" i]),
+  .portal-admin .bank-btn.primary,
+  .portal-admin .aep-submit.expense {
+    border-color: var(--lv-brand-primary) !important;
+    background: var(--lv-brand-primary) !important;
+    color: #fff !important;
+    box-shadow: 0 7px 18px var(--lv-brand-ring) !important;
+  }
+
+  .portal-admin :where([class*="primaryButton" i],[class*="printButton" i]):hover:not(:disabled),
+  .portal-admin .bank-btn.primary:hover:not(:disabled),
+  .portal-admin .aep-submit.expense:hover:not(:disabled) {
+    border-color: var(--lv-brand-primary-hover) !important;
+    background: var(--lv-brand-primary-hover) !important;
+    box-shadow: 0 8px 20px var(--lv-brand-ring) !important;
+  }
+
+  /* Expense entry is a workflow action, not a destructive action. */
+  .portal-admin .bank-btn.expense-action {
+    border-color: var(--lv-brand-border) !important;
+    background: var(--lv-brand-soft) !important;
+    color: var(--lv-brand-text) !important;
+    box-shadow: none !important;
+  }
+
+  .portal-admin .bank-btn.expense-action:hover {
+    border-color: var(--lv-brand-primary) !important;
+    background: var(--lv-brand-soft-strong) !important;
+  }
+
+  /* Admin tab families share one selected state. */
+  .portal-admin :where([class*="tabs" i]) button[class*="active" i],
+  .portal-admin :where([class*="tabs" i]) a[class*="active" i],
+  .portal-admin :where([class*="tabs" i]) [aria-selected="true"],
+  .portal-admin .bank-tabs button.active {
+    border-color: var(--lv-brand-border) !important;
+    background: var(--lv-brand-soft-strong) !important;
+    color: var(--lv-brand-text) !important;
+    box-shadow: inset 0 -2px var(--lv-brand-primary) !important;
+  }
+
+  /* Legacy command-center cards still inject dark-first styles locally. */
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command,.lv-system-health,.lv-balance-overview,.nsdc-card,.lv-ack
+  ) { color: var(--lv-text-primary) !important; }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command-hero,.lv-score,.lv-health-card,.lv-kpi,.lv-panel,.lv-alert,
+    .lv-project,.lv-action,.lv-admin-edit-center,.lv-admin-edit-link,
+    .lv-balance-card,.lv-balance-loading,.lv-sh-shell,.lv-sh-refresh,
+    .lv-ack,.lv-ack-refresh
+  ) {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: var(--lv-shadow-sm) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-panel-head,.lv-admin-edit-toggle,.lv-sh-head,.lv-ack-head
+  ) {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-strong) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .lv-command-hero {
+    background:
+      radial-gradient(circle at 88% -8%, var(--lv-brand-soft-strong), transparent 34%),
+      var(--lv-surface-panel) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .nsdc-card {
+    background:
+      linear-gradient(135deg, var(--lv-brand-soft), transparent 42%),
+      var(--lv-surface-panel) !important;
+    border-color: var(--lv-brand-border) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .nsdc-card::after {
+    color: color-mix(in srgb, var(--lv-text-primary) 5%, transparent) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .nsdc-flow span {
+    background: var(--lv-surface-elevated) !important;
+    border-color: var(--lv-border-soft) !important;
+    color: var(--lv-text-secondary) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(.lv-search,.lv-command-btn:not(.primary)) {
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .lv-search::placeholder {
+    color: var(--lv-control-placeholder) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(.lv-score-ring::after,.lv-sh-ring::after) {
+    background: var(--lv-surface-elevated) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(.lv-health-track,.lv-stage-track) {
+    background: var(--lv-surface-subtle) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-score,
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-card {
+    border-color: var(--lv-border-default) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-card {
+    background: var(--lv-surface-panel) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-card:hover {
+    background: var(--lv-surface-hover) !important;
+  }
+
+  .portal-admin .lv-sh-pill {
+    background: var(--lv-success-soft) !important;
+    border-color: color-mix(in srgb, var(--lv-success) 30%, transparent) !important;
+    color: var(--lv-success) !important;
+  }
+
+  .portal-admin .lv-sh-card.watch .lv-sh-pill {
+    background: var(--lv-warning-soft) !important;
+    border-color: color-mix(in srgb, var(--lv-warning) 30%, transparent) !important;
+    color: var(--lv-warning) !important;
+  }
+
+  .portal-admin .lv-sh-card.bad .lv-sh-pill {
+    background: var(--lv-danger-soft) !important;
+    border-color: color-mix(in srgb, var(--lv-danger) 30%, transparent) !important;
+    color: var(--lv-danger) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .lv-sh-actions > span { color: var(--lv-text-muted) !important; }
+
+  html:not([data-theme="dark"]) .portal-admin .lv-ack-btn {
+    background: var(--lv-success-soft) !important;
+    border-color: color-mix(in srgb, var(--lv-success) 30%, transparent) !important;
+    color: var(--lv-success) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin .lv-ack-btn:hover {
+    background: color-mix(in srgb, var(--lv-success) 14%, var(--lv-surface-panel)) !important;
+  }
+
+  .portal-admin :is(.lv-error,.lv-sh-error,.lv-ack-error,.lv-balance-error) {
+    background: var(--lv-danger-soft) !important;
+    border-color: color-mix(in srgb, var(--lv-danger) 30%, transparent) !important;
+    color: var(--lv-danger) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command h1,.lv-command h2,.lv-score-ring strong,.lv-score-copy b,
+    .lv-health-card > strong,.lv-kpi strong,.lv-panel-head h2,.lv-alert strong,
+    .lv-stage-row b,.lv-project strong,.lv-admin-edit-toggle,.lv-admin-edit-link strong,
+    .lv-balance-card strong:not(.negative),.lv-sh-head h2,.lv-sh-ring strong,
+    .lv-sh-score b,.lv-sh-card strong,.nsdc-copy h2,.lv-ack h2,.lv-ack-cell strong
+  ) { color: var(--lv-text-strong) !important; }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command-hero p,.lv-command-date,.lv-score-copy small,.lv-score-copy span,
+    .lv-health-card-top span,.lv-health-card > strong small,.lv-health-card p,
+    .lv-kpi small,.lv-kpi span,.lv-alert small,.lv-alert > span,.lv-empty,
+    .lv-stage-row span,.lv-project small,.lv-status,.lv-admin-edit-link small,
+    .lv-command-loading,.lv-balance-card small,.lv-balance-card p,.lv-balance-card span,
+    .lv-balance-loading,.lv-sh-head p,.lv-sh-score small,.lv-sh-card-top span,
+    .lv-sh-card p,.lv-sh-loading,.nsdc-copy p,.nsdc-note,.lv-ack-head p,
+    .lv-ack-cell small,.lv-ack-meta,.lv-ack-msg
+  ) { color: var(--lv-text-muted) !important; }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-health-card,.lv-project,.lv-action,.lv-admin-edit-link,.lv-balance-card,
+    .lv-sh-refresh,.lv-ack-refresh
+  ):hover {
+    background: var(--lv-surface-hover) !important;
+    border-color: var(--lv-border-strong) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-eyebrow,.lv-panel-head a,.lv-panel-head span,.lv-project-id,
+    .lv-admin-edit-toggle span,.lv-sh-eyebrow,.lv-sh-open,.nsdc-kicker,
+    .nsdc-flow b,.lv-ack-kicker
+  ) { color: var(--lv-brand-text) !important; }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    .lv-command-btn.primary,.nsdc-button,.nsdc-icon,.lv-ack-count
+  ) { color: #fff !important; }
+
+  /* Current Admin dashboard: one semantic bridge for both themes. */
+  .portal-admin .lv-clean-dashboard {
+    --red: var(--lv-brand-primary) !important;
+    --red2: var(--lv-brand-primary-hover) !important;
+    --redsoft: var(--lv-brand-soft) !important;
+    --ink: var(--lv-text-primary) !important;
+    --muted: var(--lv-text-secondary) !important;
+    --line: var(--lv-border-default) !important;
+    --panel: var(--lv-surface-panel) !important;
+    --bg: var(--lv-surface-page) !important;
+    background: var(--lv-surface-page) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(
+    .lv-clean-btn:not(.primary),.lv-clean-kpi,.lv-clean-card,.lv-today-item
+  ) {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: var(--lv-shadow-sm) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-clean-btn:not(.primary):hover,
+  .portal-admin .lv-clean-dashboard .lv-today-item:hover {
+    background: var(--lv-surface-hover) !important;
+    border-color: var(--lv-border-strong) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(
+    h1,h2,h3,.lv-clean-kpi strong,.lv-finance-summary strong,.lv-activity-copy strong,
+    .lv-project-copy strong,.lv-calendar-head strong,.lv-priority-copy strong
+  ) { color: var(--lv-text-strong) !important; }
+
+  .portal-admin .lv-clean-dashboard :is(
+    .lv-clean-head p,.lv-clean-kpi span,.lv-clean-kpi small,.lv-workflow-step small,
+    .lv-finance-summary span,.lv-chart-label,.lv-chart-legend,.lv-activity-copy small,
+    .lv-activity-date,.lv-project-copy small,.lv-calendar-week span,
+    .lv-calendar-day:not(.today),.lv-today-item span,.lv-priority-copy small,.lv-empty
+  ) { color: var(--lv-text-muted) !important; }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-link,.lv-priority-open) {
+    color: var(--lv-brand-text) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(
+    .lv-finance-summary > div,.lv-chart,.lv-activity-row,.lv-project-row,
+    .lv-today-summary,.lv-priority-row
+  ) { border-color: var(--lv-border-soft) !important; }
+
+  .portal-admin .lv-clean-dashboard .lv-workflow-icon {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-secondary) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-workflow-step:first-child .lv-workflow-icon,
+  .portal-admin .lv-clean-dashboard .lv-clean-btn.primary,
+  .portal-admin .lv-clean-dashboard .lv-calendar-day.today {
+    background: var(--lv-brand-primary) !important;
+    border-color: var(--lv-brand-primary) !important;
+    color: #fff !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-progress-track { background: var(--lv-surface-subtle) !important; }
+  .portal-admin .lv-clean-dashboard .lv-chart-bar { background: var(--lv-brand-primary) !important; }
+
+  .portal-admin .lv-clean-dashboard .lv-chart-bar.expense,
+  .portal-admin .lv-clean-dashboard .lv-chart-legend i.exp {
+    background: color-mix(in srgb, var(--lv-danger) 45%, var(--lv-surface-panel)) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-activity-icon {
+    background: var(--lv-info-soft) !important;
+    color: var(--lv-info) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-activity-icon.red {
+    background: var(--lv-danger-soft) !important;
+    color: var(--lv-danger) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-activity-icon.green {
+    background: var(--lv-success-soft) !important;
+    color: var(--lv-success) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-project-avatar {
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-brand-text) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-project-status.completed,.lv-project-status.ontrack) {
+    background: var(--lv-success-soft) !important;
+    color: var(--lv-success) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-project-status.progress {
+    background: var(--lv-info-soft) !important;
+    color: var(--lv-info) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-project-status.early {
+    background: var(--lv-warning-soft) !important;
+    color: var(--lv-warning) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-quick a {
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-brand-border) !important;
+    color: var(--lv-brand-text) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-quick a b {
+    background: var(--lv-brand-soft-strong) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-dashboard-error {
+    background: var(--lv-danger-soft) !important;
+    border-color: color-mix(in srgb, var(--lv-danger) 30%, var(--lv-border-default)) !important;
+    color: var(--lv-danger) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-dashboard-loading span {
+    background: linear-gradient(
+      90deg,
+      var(--lv-surface-muted),
+      var(--lv-surface-panel),
+      var(--lv-surface-muted)
+    ) !important;
+    background-size: 220% 100% !important;
+  }
+
+  /* Older CSS-module dashboard compatibility, if still reached by legacy links. */
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__root"] {
+    --dash-line: var(--lv-border-default) !important;
+    --dash-muted: var(--lv-text-muted) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__metric"],[class*="dashboard_module__collection"],
+    [class*="dashboard_module__launcher"],[class*="dashboard_module__projects"],
+    [class*="dashboard_module__portfolioPanel"],[class*="dashboard_module__attentionPanel"],
+    [class*="dashboard_module__healthPanel"]
+  ) {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: var(--lv-shadow-sm) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__dueMetric"] {
+    background: linear-gradient(135deg, var(--lv-danger-soft), var(--lv-surface-panel)) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__moduleCard"] {
+    background: linear-gradient(145deg, var(--lv-surface-panel), var(--lv-surface-muted)) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: var(--lv-shadow-sm) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__moduleCard"]:hover,
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__attentionList"] > a:hover {
+    background: var(--lv-surface-hover) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__refresh"],[class*="dashboard_module__attentionList"] > a,
+    [class*="dashboard_module__healthStats"] > div,[class*="dashboard_module__statusGrid"] > div
+  ) {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__launchIcon"],[class*="dashboard_module__projectHeader"] h2 > span
+  ) {
+    background: var(--lv-surface-subtle) !important;
+    color: var(--lv-brand-text) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__attentionBadge"],[class*="dashboard_module__attentionIcon"]
+  ) {
+    background: var(--lv-danger-soft) !important;
+    border-color: color-mix(in srgb, var(--lv-danger) 28%, transparent) !important;
+    color: var(--lv-danger) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin [class*="dashboard_module__ring"] > div {
+    background: var(--lv-surface-elevated) !important;
+  }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__header"] h1,[class*="dashboard_module__metric"] strong,
+    [class*="dashboard_module__moduleCard"] strong,[class*="dashboard_module__healthStats"] strong,
+    [class*="dashboard_module__statusGrid"] strong,[class*="dashboard_module__attentionList"] strong,
+    [class*="dashboard_module__attentionList"] > a,[class*="dashboard_module__panelTop"] > a,
+    [class*="dashboard_module__projectTools"] > a
+  ) { color: var(--lv-text-strong) !important; }
+
+  html:not([data-theme="dark"]) .portal-admin :is(
+    [class*="dashboard_module__metricTitle"],[class*="dashboard_module__metric"] small,
+    [class*="dashboard_module__moduleCard"] p,[class*="dashboard_module__moduleCard"] small,
+    [class*="dashboard_module__attentionList"] small,[class*="dashboard_module__healthStats"] span,
+    [class*="dashboard_module__timestamp"],[class*="dashboard_module__portfolioCount"]
+  ) { color: var(--lv-text-muted) !important; }
+}

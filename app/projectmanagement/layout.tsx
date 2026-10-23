@@ -12,9 +12,8 @@ import ProjectFinanceCategoryTotalStrip from "@/components/project-finance-categ
 import { requirePortalSession } from "@/lib/server-auth";
 import "../admin/admin-brand-theme.css";
 import "../admin/admin-layout-polish.css";
-import "../admin/admin-theme-consistency.css";
-import "../admin/admin-dashboard-light.css";
-import "../admin/admin-color-harmony.css";
+// Project Management shares the consolidated Admin route theme foundation.
+import "../admin/admin-route-theme.css";
 import "./project-finance-redesign.css";
 import "./project-finance-navigation.css";
 import "./project-finance-admin-module.css";
