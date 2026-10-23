@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 const whatsappMessage = "Hello LAND VIEW, I would like to discuss a building project. Project location: ____. Project type: ____. Proposed floors: ____. Services needed: ____.";
-const whatsappUrl = `https://wa.me/8801408080400?text=${encodeURIComponent(whatsappMessage)}`;
+const whatsappUrl = `https://wa.me/8801902500400?text=${encodeURIComponent(whatsappMessage)}`;
 
 export default function ContactPage() {
   const schema = { "@context": "https://schema.org", "@type": "ContactPage", "@id": `${siteUrl}/contact#page`, url: `${siteUrl}/contact`, name: "Contact LAND VIEW", about: { "@id": `${siteUrl}/#organization` }, breadcrumb: { "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: siteUrl }, { "@type": "ListItem", position: 2, name: "Contact", item: `${siteUrl}/contact` }] } };
