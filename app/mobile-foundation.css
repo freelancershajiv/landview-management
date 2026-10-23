@@ -78,6 +78,7 @@
 
   .portfolio-card {
     content-visibility: auto;
+    contain: layout paint style;
     contain-intrinsic-size: 620px;
   }
 
@@ -253,6 +254,17 @@
 @media screen and (max-width: 560px) {
   .public-header .public-nav.open {
     grid-template-columns: 1fr !important;
+  }
+
+  /* PublicHeader carries a legacy 40px !important mobile rule in its component
+     stylesheet. This higher-specificity authority keeps primary header actions
+     at the 44px minimum touch target without changing desktop sizing. */
+  html body .public-site .public-header .public-header-actions .public-header-login,
+  html body .public-site .public-header .public-header-actions .public-menu-button {
+    width: 44px !important;
+    min-width: 44px !important;
+    height: 44px !important;
+    min-height: 44px !important;
   }
 
   .lv-client-shell .lv-client-content {
