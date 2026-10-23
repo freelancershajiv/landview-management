@@ -1,10 +1,10 @@
 import type { Metadata } from "next";
-import PublicProjectMap from "@/components/public-project-map";
+import PublicProjectMapV2 from "@/components/public-project-map-v2";
 import PublicProjectMapMarkerStatus from "@/components/public-project-map-marker-status";
 import PublicProjectMapMobileGuard from "@/components/public-project-map-mobile-guard";
 import { getPublicProjectsForSeo } from "@/lib/public-projects-server";
 import { selectRows } from "@/lib/supabase-data";
-import "./mobile-map-fix.css";
+import "./project-map-v2.css";
 
 export const dynamic = "force-dynamic";
 
@@ -33,12 +33,12 @@ function markerState(row: Record<string, any>): MarkerState {
 }
 
 export const metadata: Metadata = {
-  title: "Project Map | LAND VIEW Engineers & Architects",
-  description: "Explore selected LAND VIEW architectural and engineering projects across Bangladesh on an interactive map.",
+  title: "Interactive Project Map | LAND VIEW Engineers & Architects",
+  description: "Explore published LAND VIEW architecture and engineering projects across Bangladesh with project photos, locations, stages and services on an interactive map.",
   alternates: { canonical: "https://www.landview.com.bd/projects/map" },
   openGraph: {
     title: "LAND VIEW Interactive Project Map",
-    description: "Explore selected LAND VIEW architectural and engineering projects across Bangladesh by location.",
+    description: "Select a LAND VIEW project marker to see its photo, location, project stage, services and full project page.",
     url: "https://www.landview.com.bd/projects/map",
     siteName: "LAND VIEW Engineers & Architects",
     type: "website",
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "LAND VIEW Interactive Project Map",
-    description: "Explore selected LAND VIEW architecture and engineering projects by location.",
+    description: "Explore LAND VIEW projects by location with project photos and details.",
   },
 };
 
@@ -65,6 +65,6 @@ export default async function ProjectMapPage() {
   return <>
     <PublicProjectMapMarkerStatus states={states} />
     <PublicProjectMapMobileGuard />
-    <PublicProjectMap initialProjects={projects} />
+    <PublicProjectMapV2 initialProjects={projects} />
   </>;
 }
