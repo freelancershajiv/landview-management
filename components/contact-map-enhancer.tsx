@@ -181,14 +181,14 @@ const css = `
     border: 1px solid var(--lv-brand-primary);
     border-radius: 5px;
     background:var(--lv-brand-primary);
-    color: #101820 !important;
+    color: var(--lv-text-on-chrome) !important;
     font-size:10px !important;
     font-weight: 900;
     letter-spacing: .08em;
     text-transform: uppercase;
     box-shadow: 0 8px 20px var(--theme-shadow-rgba_0_0_0__24_, rgba(0,0,0,.24));
   }
-  .lv-location-button:hover { filter: brightness(1.08); transform: translateY(-1px); }
+  .lv-location-button:hover { background:var(--lv-brand-primary-hover); border-color:var(--lv-brand-primary-hover); filter:none; transform:translateY(-1px); }
 
   @media(max-width:850px){
     .lv-contact-location-head{align-items:flex-start;flex-direction:column;gap:16px}

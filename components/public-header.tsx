@@ -93,7 +93,7 @@ const headerCss = `
     border: 1px solid var(--theme-line-rgba_214_31_38__55_, var(--lv-brand-border));
     border-radius: 7px;
     background: var(--lv-brand-soft);
-    color: var(--theme-ink-_f4f5f6, #f4f5f6) !important;
+    color: var(--lv-text-on-chrome) !important;
     font-size: 12px;
     font-weight: 900;
     letter-spacing: .05em;
@@ -103,7 +103,7 @@ const headerCss = `
   }
   .public-header-login b { color:var(--lv-brand-text); font-size: 12px; }
   .public-header-login:hover {
-    border-color:var(--lv-brand-text);
+    border-color:var(--lv-brand-primary);
     color:var(--lv-brand-text) !important;
     background: var(--lv-brand-soft);
     transform: translateY(-1px);
@@ -125,9 +125,9 @@ const headerCss = `
     box-shadow: inset 0 1px var(--theme-shadow-rgba_255_255_255__25_, rgba(255,255,255,.25));
     transition: .18s ease;
   }
-  .public-header-cta:hover { transform: translateY(-1px); filter: brightness(1.08); }
+  .public-header-cta:hover { transform: translateY(-1px); background:var(--lv-brand-primary-hover); border-color:var(--lv-brand-primary-hover); filter:none; }
   .public-menu-button { display: none; width: 42px; height: 42px; padding: 10px; border: 1px solid var(--theme-line-_36414c, #36414c); background: var(--theme-bg-_101820, #101820); }
-  .public-menu-button span { display: block; height: 2px; margin: 4px 0; background: var(--theme-bg-white, white); }
+  .public-menu-button span { display: block; height: 2px; margin: 4px 0; background: var(--lv-text-on-chrome); }
 
   /* Homepage reference match */
   .public-site .public-container { width: min(100% - 44px, 1240px) !important; }

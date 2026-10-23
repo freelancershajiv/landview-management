@@ -265,7 +265,7 @@ function Hero() {
 const homeCss = `
   .public-site {
     --lv-gold: var(--lv-brand-primary);
-    --lv-gold-light: var(--lv-brand-primary);
+    --lv-gold-light: var(--lv-brand-text);
     --lv-navy: var(--theme-bg-_07101a, #07101a);
     --lv-navy-2: var(--theme-bg-_0b1621, #0b1621);
     --lv-panel: var(--theme-bg-_101a24, #101a24);
@@ -289,7 +289,8 @@ const homeCss = `
   .lv-hero-actions { display: flex; gap: 12px; margin-top: 28px; }
   .lv-btn { min-height: 48px; display: inline-flex; align-items: center; justify-content: center; padding: 0 24px; border-radius: 6px; font-size:12px; font-weight: 900; letter-spacing: .05em; text-transform: uppercase; transition: .18s ease; }
   .lv-btn:hover { transform: translateY(-2px); }
-  .lv-btn-gold { border: 1px solid var(--lv-gold-light); background:var(--lv-brand-primary); color:var(--lv-text-on-chrome); box-shadow: 0 10px 25px var(--theme-shadow-rgba_0_0_0__23_, rgba(0,0,0,.23)); }
+  .lv-btn-gold:hover { background:var(--lv-brand-primary-hover); border-color:var(--lv-brand-primary-hover); }
+  .lv-btn-gold { border: 1px solid var(--lv-brand-primary); background:var(--lv-brand-primary); color:var(--lv-text-on-chrome); box-shadow: 0 10px 25px var(--theme-shadow-rgba_0_0_0__23_, rgba(0,0,0,.23)); }
   .lv-btn-outline { border: 1px solid var(--theme-line-rgba_214_31_38__78_, var(--lv-brand-border)); background: var(--theme-bg-rgba_3_9_14__18_, rgba(3,9,14,.18)); color: var(--lv-text-on-chrome); }
   .lv-hero-visual { position: relative; overflow: hidden; min-height: 500px; background: linear-gradient(160deg,var(--theme-bg-_152331, #152331) 0%,var(--theme-bg-_0b141d, #0b141d) 46%,var(--theme-bg-_060b10, #060b10) 100%); background-size: cover; background-position: center; }
   .lv-hero-visual::before { content:""; position:absolute; inset:0; background: linear-gradient(90deg,var(--theme-bg-_07101a, #07101a) 0%,var(--theme-bg-rgba_7_16_26__55_, rgba(7,16,26,.55)) 12%,transparent 42%),linear-gradient(0deg,var(--theme-bg-rgba_3_8_12__7_, rgba(3,8,12,.7)),transparent 42%); z-index:1; }
