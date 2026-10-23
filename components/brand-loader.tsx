@@ -4,8 +4,9 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-const INITIAL_MIN_MS = 720;
-const ROUTE_MIN_MS = 420;
+/* Keep the LAND VIEW animation visible, but do not make fast routes feel slow. */
+const INITIAL_MIN_MS = 420;
+const ROUTE_MIN_MS = 220;
 
 export default function BrandLoader() {
   const pathname = usePathname();
@@ -26,7 +27,7 @@ export default function BrandLoader() {
     }
 
     window.addEventListener("load", finish, { once: true });
-    const fallback = window.setTimeout(finish, 2600);
+    const fallback = window.setTimeout(finish, 2200);
 
     return () => {
       window.removeEventListener("load", finish);
