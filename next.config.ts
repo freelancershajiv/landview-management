@@ -6,7 +6,6 @@ const securityHeaders = [
   { key: "X-Permitted-Cross-Domain-Policies", value: "none" },
   { key: "X-DNS-Prefetch-Control", value: "off" },
   { key: "X-Download-Options", value: "noopen" },
-  { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
   { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
   { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
   { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
@@ -34,6 +33,22 @@ const securityHeaders = [
   },
 ];
 
+const privateRobotsHeaders = [
+  { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
+];
+
+const privateRoutePatterns = [
+  "/account/:path*",
+  "/admin/:path*",
+  "/api/:path*",
+  "/certificate/:path*",
+  "/client/:path*",
+  "/employee/:path*",
+  "/login",
+  "/login/:path*",
+  "/projectmanagement/:path*",
+];
+
 const nextConfig: NextConfig = {
   turbopack: { root: process.cwd() },
   async rewrites() {
@@ -46,7 +61,15 @@ const nextConfig: NextConfig = {
     return [{ source: "/", has: [{ type: "host", value: "app.landview.com.bd" }], destination: "/login", permanent: false }];
   },
   async headers() {
-    return [{ source: "/(.*)", headers: securityHeaders }];
+    return [
+      { source: "/(.*)", headers: securityHeaders },
+      {
+        source: "/:path*",
+        has: [{ type: "host", value: "app.landview.com.bd" }],
+        headers: privateRobotsHeaders,
+      },
+      ...privateRoutePatterns.map((source) => ({ source, headers: privateRobotsHeaders })),
+    ];
   },
 };
 export default nextConfig;
