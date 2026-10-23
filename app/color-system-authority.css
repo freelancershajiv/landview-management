@@ -25,23 +25,24 @@
     --lv-surface-chrome: #10151b;
     --lv-surface-chrome-2: #0b0f13;
 
-    /* Readable neutral hierarchy. Both muted levels remain usable for normal text. */
+    /* Normal-size muted text remains AA-readable on the page canvas. */
     --lv-text-strong: #15202b;
     --lv-text-primary: #26323e;
     --lv-text-secondary: #566472;
-    --lv-text-muted: #667582;
-    --lv-text-faint: #6a7682;
+    --lv-text-muted: #5d6a76;
+    --lv-text-faint: #60707d;
     --lv-text-on-chrome: #eef2f5;
     --lv-text-on-chrome-muted: #a7b1ba;
 
     --lv-border-soft: #dfe5ea;
     --lv-border-default: #d2dae1;
     --lv-border-strong: #bdc8d1;
+    --lv-border-chrome: rgba(255,255,255,.10);
     --lv-divider: #dfe5ea;
     --lv-control-bg: #ffffff;
     --lv-control-bg-hover: #f4f7f9;
     --lv-control-border: #c8d2da;
-    --lv-control-placeholder: #687683;
+    --lv-control-placeholder: #60707d;
 
     /* LAND VIEW action red: calm enough for long sessions and AA with white text. */
     --lv-brand-primary: #96383e;
@@ -57,6 +58,10 @@
     --lv-warning: #7d5c1b;
     --lv-danger: #a92c33;
     --lv-info: #2f648e;
+    --lv-success-soft: rgba(45,115,80,.10);
+    --lv-warning-soft: rgba(125,92,27,.10);
+    --lv-danger-soft: rgba(169,44,51,.10);
+    --lv-info-soft: rgba(47,100,142,.10);
 
     /* Semantic SOLID colors: safe behind white text. Never reuse bright foreground tokens. */
     --lv-success-solid: #2d7350;
@@ -86,6 +91,15 @@
     --lv-text-on-chrome: #f2f5f7;
     --lv-text-on-chrome-muted: #9ca7b1;
 
+    /* Dark mode must not inherit light borders/controls from :root. */
+    --lv-border-soft: #26313b;
+    --lv-border-default: #303c47;
+    --lv-border-strong: #43515d;
+    --lv-border-chrome: rgba(255,255,255,.10);
+    --lv-divider: #26313b;
+    --lv-control-bg: #11171d;
+    --lv-control-bg-hover: #182028;
+    --lv-control-border: #394754;
     --lv-control-placeholder: #84909b;
 
     /* Dark-mode red remains restrained and passes AA with white button text. */
@@ -102,6 +116,10 @@
     --lv-warning: #e7c36e;
     --lv-danger: #ff9aa0;
     --lv-info: #8dbce4;
+    --lv-success-soft: rgba(123,199,155,.11);
+    --lv-warning-soft: rgba(231,195,110,.11);
+    --lv-danger-soft: rgba(255,154,160,.11);
+    --lv-info-soft: rgba(141,188,228,.11);
 
     /* Dark semantic solids stay dark enough for white text. */
     --lv-success-solid: #2f6f50;
@@ -302,7 +320,7 @@
     .portal-employee .employee-nav-button[aria-current="location"],
     .lv-client-nav a[aria-current="location"]
   ) {
-    background: linear-gradient(90deg, var(--lv-brand-soft-strong), rgba(150,56,62,.045)) !important;
+    background: linear-gradient(90deg, var(--lv-brand-soft-strong), transparent) !important;
     border-color: var(--lv-brand-border) !important;
     box-shadow: inset 3px 0 0 var(--lv-brand-primary) !important;
     color: #fff !important;

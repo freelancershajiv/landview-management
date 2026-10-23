@@ -20,6 +20,8 @@ import "./public-portfolio-nav-cleanup.css";
 import "./admin-mobile-authority.css";
 // Re-assert the shared palette after every Admin-specific override.
 import "../color-system-authority.css";
+// Keep the user-selected deeper LAND VIEW red authoritative in nested Admin CSS chunks too.
+import "../darker-brand-red.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
