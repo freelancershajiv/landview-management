@@ -37,6 +37,8 @@ import "./dual-mode-navigation.css";
 import "./mobile-foundation.css";
 // Final color/brightness authority. Keep last so legacy theme layers cannot reintroduce drift.
 import "./color-system-authority.css";
+// Public components still contain historical inline accent styles; normalize them last.
+import "./public-color-authority.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
