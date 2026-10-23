@@ -35,6 +35,8 @@ import "./landview-color-harmony.css";
 import "./dual-mode-navigation.css";
 // Shared mobile interaction geometry across public, employee and client surfaces.
 import "./mobile-foundation.css";
+// Final color/brightness authority. Keep last so legacy theme layers cannot reintroduce drift.
+import "./color-system-authority.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
