@@ -30,6 +30,10 @@ import "../admin/admin-mobile-authority.css";
 import "./project-finance-mobile-authority.css";
 // Re-assert shared contrast/brightness tokens after finance-specific legacy layers.
 import "../color-system-authority.css";
+// Nested Project Management CSS can otherwise reset the user-selected deeper LAND VIEW red.
+import "../darker-brand-red.css";
+// Final Project Management-only authority: surfaces, active states, controls and finance semantics.
+import "./project-finance-theme-authority.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
