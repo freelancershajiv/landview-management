@@ -1,30 +1,112 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import PublicHeader from "@/components/public-header";
-import { publicServices } from "@/lib/public-services";
+import { publicServices, type PublicService } from "@/lib/public-services";
+import "./services-v2.css";
 
 export const metadata: Metadata = {
-  title: "Engineering & Architectural Services in Bangladesh",
-  description: "LAND VIEW Engineers & Architects in Feni provides architectural design, structural design, 3D design, electrical, plumbing, estimating, plan approval, digital survey and soil test services.",
-  keywords: ["architect in Feni", "structural engineer Feni", "building design Feni", "engineering consultant Feni", "architectural design Feni", "soil test Feni", "digital survey Feni"],
+  title: "Architecture, Engineering & Building Consultancy Services | LAND VIEW",
+  description: "Explore LAND VIEW architecture, structural engineering, 3D visualization, building services, costing, approval support, survey, soil investigation and site supervision services in Feni and across Bangladesh.",
+  keywords: ["architect in Feni", "structural engineer Feni", "building design Feni", "engineering consultant Feni", "architectural design Feni", "plan approval Feni", "soil test Feni", "digital survey Feni"],
   alternates: { canonical: "https://www.landview.com.bd/services" },
-  openGraph: { title: "Architect & Engineering Services in Feni | LAND VIEW", description: "Architecture, structural engineering and coordinated building consultancy services from LAND VIEW Engineers & Architects in Feni, Bangladesh.", url: "https://www.landview.com.bd/services", siteName: "LAND VIEW Engineers & Architects", type: "website" },
-  twitter: { card: "summary_large_image", title: "Architect & Engineering Services in Feni | LAND VIEW", description: "Explore LAND VIEW building design and engineering services in Feni, Bangladesh." },
+  openGraph: { title: "Architecture & Engineering Services | LAND VIEW", description: "Coordinated building consultancy from design and engineering through approval support and construction-stage services.", url: "https://www.landview.com.bd/services", siteName: "LAND VIEW Engineers & Architects", type: "website" },
+  twitter: { card: "summary_large_image", title: "Architecture & Engineering Services | LAND VIEW", description: "Explore LAND VIEW building design and engineering services in Bangladesh." },
   robots: { index: true, follow: true },
 };
 
-const css = `
-.lv-services-page{min-height:100vh;background:var(--theme-bg-_07101a, #07101a);color:var(--theme-ink-_fff, #fff)}.lv-services-wrap{width:min(100% - 44px,1320px);margin:0 auto}.lv-services-hero{padding:86px 0 56px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));background:radial-gradient(circle at 75% 20%,var(--theme-bg-rgba_214_31_38__12_, rgba(214,31,38,.12)),transparent 30%),var(--theme-bg-_07101a, #07101a)}.lv-services-kicker{display:block;margin-bottom:16px;color:#ef4a50;font-size:12px;font-weight:900;letter-spacing:.2em}.lv-services-hero h1{max-width:950px;margin:0;font:500 clamp(42px,6vw,76px)/.98 Georgia,"Times New Roman",serif;letter-spacing:-.04em}.lv-services-hero p{max-width:800px;margin:24px 0 0;color:var(--theme-ink-_cfd6dc, #cfd6dc);font-size:15px;line-height:1.8}.lv-local-proof{padding:28px 0;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));color:var(--theme-ink-_aeb9c2, #aeb9c2);font-size:12px;line-height:1.8}.lv-local-proof strong{color:#ef4a50}.lv-service-list{padding:56px 0 48px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.lv-service-card{display:grid;grid-template-columns:auto 1fr auto;gap:18px;align-items:center;padding:26px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:14px;background:var(--theme-bg-_0d1721, #0d1721);color:var(--theme-ink-_fff, #fff);transition:.2s ease}.lv-service-card:hover{transform:translateY(-3px);border-color:var(--theme-line-rgba_214_31_38__65_, rgba(214,31,38,.65));background:var(--theme-bg-_101d29, #101d29)}.lv-service-card-icon{width:50px;height:50px;display:grid;place-items:center;border:1px solid var(--theme-line-rgba_214_31_38__45_, rgba(214,31,38,.45));border-radius:10px;color:#ef4a50;font-size:21px}.lv-service-card small{display:block;margin-bottom:6px;color:var(--theme-ink-_8d9aa5, #8d9aa5);font-size:12px;font-weight:900;letter-spacing:.15em}.lv-service-card h2{margin:0 0 8px;font-size:20px}.lv-service-card p{margin:0;color:var(--theme-ink-_bdc6cd, #bdc6cd);font-size:12px;line-height:1.7}.lv-service-arrow{color:#ef4a50;font-size:20px}.lv-seo-block{margin-bottom:80px;padding:32px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:14px;background:var(--theme-bg-_0d1721, #0d1721)}.lv-seo-block h2{margin:0 0 15px;font:500 30px/1.1 Georgia,"Times New Roman",serif}.lv-seo-block p{max-width:950px;color:var(--theme-ink-_c5cdd4, #c5cdd4);font-size:13px;line-height:1.9}.lv-seo-links{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}.lv-seo-links a{padding:12px 16px;border:1px solid var(--theme-line-rgba_214_31_38__55_, rgba(214,31,38,.55));border-radius:6px;color:var(--theme-ink-_fff, #fff);font-size:12px;font-weight:900;text-transform:uppercase;letter-spacing:.05em}@media(max-width:760px){.lv-service-list{grid-template-columns:1fr}.lv-service-card{grid-template-columns:auto 1fr}.lv-service-arrow{display:none}.lv-services-hero{padding-top:60px}}
-`;
+type Group = { label: string; title: string; description: string; slugs: string[] };
+
+const groups: Group[] = [
+  {
+    label: "01 / DESIGN & ENGINEERING",
+    title: "Develop the building as one coordinated design.",
+    description: "Architecture, structure, visualization and building services are easier to execute when the major technical decisions are considered together.",
+    slugs: ["architectural-design", "structural-design", "3d-exterior-design", "3d-interior-design", "electrical-design", "plumbing-design"],
+  },
+  {
+    label: "02 / PLANNING & PRE-CONSTRUCTION",
+    title: "Prepare the information needed before construction.",
+    description: "Costing, approval documentation, survey and soil investigation support help turn the design into a more informed and buildable project package.",
+    slugs: ["estimate-costing", "plan-approval", "digital-survey", "soil-test"],
+  },
+  {
+    label: "03 / PROJECT DELIVERY",
+    title: "Keep design information connected to the site.",
+    description: "Construction-stage support helps the client and project team connect current drawings, observations and site decisions during execution.",
+    slugs: ["site-supervision"],
+  },
+];
+
+const process = [
+  ["01", "Define the scope", "Share the location, intended building use, floor count, available site information and the services you need."],
+  ["02", "Coordinate the design", "Architectural and technical disciplines are developed around the agreed project scope and available information."],
+  ["03", "Prepare documents", "Drawings, technical information, costing or approval documentation are prepared according to the selected services."],
+  ["04", "Support delivery", "Where included, LAND VIEW continues with site observations, coordination and construction-stage follow-through."],
+] as const;
+
+function servicesFor(group: Group) {
+  return group.slugs.map((slug) => publicServices.find((service) => service.slug === slug)).filter(Boolean) as PublicService[];
+}
+
+const whatsappMessage = "Hello LAND VIEW, I would like to discuss a building project. Project location: ____. Project type: ____. Proposed floors: ____. Services needed: ____.";
+const whatsappUrl = `https://wa.me/8801902500400?text=${encodeURIComponent(whatsappMessage)}`;
 
 export default function ServicesPage() {
-  const schema = { "@context": "https://schema.org", "@type": "ItemList", name: "LAND VIEW Engineers & Architects Services in Feni", itemListElement: publicServices.map((service, index) => ({ "@type": "ListItem", position: index + 1, name: service.name, url: `https://www.landview.com.bd/services/${service.slug}` })) };
+  const schema = { "@context": "https://schema.org", "@type": "ItemList", name: "LAND VIEW architecture and engineering services", itemListElement: publicServices.map((service, index) => ({ "@type": "ListItem", position: index + 1, name: service.name, url: `https://www.landview.com.bd/services/${service.slug}` })) };
   const businessSchema = { "@context": "https://schema.org", "@type": "ProfessionalService", "@id": "https://www.landview.com.bd/#organization", name: "LAND VIEW Engineers & Architects", url: "https://www.landview.com.bd", email: "landviewcivil@gmail.com", telephone: "+8801408080400", address: { "@type": "PostalAddress", streetAddress: "F. Rahman AC Market (2nd Floor), S.S.K Road", addressLocality: "Feni Sadar", addressRegion: "Feni", postalCode: "3900", addressCountry: "BD" }, areaServed: [{ "@type": "City", name: "Feni" }, { "@type": "Country", name: "Bangladesh" }] };
 
-  return <main className="lv-services-page"><style dangerouslySetInnerHTML={{ __html: css }} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} /><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessSchema) }} /><PublicHeader />
-    <section className="lv-services-hero"><div className="lv-services-wrap"><span className="lv-services-kicker">WHAT WE DO · FENI, BANGLADESH</span><h1>Architecture and engineering services in Bangladesh.</h1><p>LAND VIEW Engineers &amp; Architects provides coordinated architectural, structural and technical building consultancy from Feni Sadar. Explore our design, engineering, survey, testing and project-support services below.</p></div></section>
-    <div className="lv-services-wrap lv-local-proof"><strong>Local office:</strong> F. Rahman AC Market (2nd Floor), S.S.K Road, Feni Sadar, Feni-3900, Bangladesh. LAND VIEW serves suitable residential, commercial and other building projects in Feni and across Bangladesh.</div>
-    <section className="lv-services-wrap lv-service-list" aria-label="LAND VIEW architecture and engineering services in Feni">{publicServices.map((service,index)=><Link href={`/services/${service.slug}`} className="lv-service-card" key={service.slug}><span className="lv-service-card-icon" aria-hidden="true">{service.icon}</span><div><small>SERVICE {String(index+1).padStart(2,"0")}</small><h2>{service.name}</h2><p>{service.shortDescription}</p></div><span className="lv-service-arrow" aria-hidden="true">→</span></Link>)}</section>
-    <section className="lv-services-wrap lv-seo-block"><h2>Building design consultancy based in Feni</h2><p>Clients can work with LAND VIEW for architectural planning, structural engineering, 3D visualization and coordinated building services, with supporting services including estimate and costing, plan approval documentation, digital survey and soil-test coordination. Our workflow connects design disciplines so project information can be developed with construction and coordination in mind.</p><div className="lv-seo-links"><Link href="/projects">Explore projects</Link><a href="/team">Meet the team</a><a href="/contact">Contact our Feni office</a></div></section>
-  </main>;
+  return (
+    <main className="sv2-page">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(businessSchema) }} />
+      <PublicHeader />
+
+      <section className="sv2-hero">
+        <div className="sv2-wrap sv2-hero-grid">
+          <div>
+            <span className="sv2-kicker">LAND VIEW SERVICES · FENI, BANGLADESH</span>
+            <h1>From first concept to<em>construction support.</em></h1>
+            <p>LAND VIEW Engineers &amp; Architects provides coordinated architectural, structural and technical building consultancy for residential, commercial and other suitable projects. Choose individual services or discuss a coordinated scope for the full project journey.</p>
+            <div className="sv2-actions"><a className="sv2-btn sv2-btn-whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp Project Enquiry</a><Link className="sv2-btn sv2-btn-outline" href="/projects">Explore Projects</Link></div>
+          </div>
+          <aside className="sv2-hero-card">
+            <span>ONE COORDINATED CONSULTANCY</span>
+            <div className="sv2-journey"><div><b>Design</b><span>Architecture, structure, visualization &amp; building services</span></div><div><b>Prepare</b><span>Costing, approval, survey &amp; soil information</span></div><div><b>Deliver</b><span>Site supervision &amp; design-to-site support</span></div></div>
+          </aside>
+        </div>
+      </section>
+
+      <section className="sv2-proof">
+        <div className="sv2-wrap sv2-proof-grid">
+          <div className="sv2-proof-copy"><strong>Based in Feni. Working across suitable projects in Bangladesh.</strong><span>F. Rahman AC Market (2nd Floor), S.S.K Road, Feni Sadar, Feni-3900.</span></div>
+          <div className="sv2-proof-stat"><strong>{publicServices.length}</strong><span>Public services</span></div>
+          <div className="sv2-proof-stat"><strong>3</strong><span>Service stages</span></div>
+          <div className="sv2-proof-stat"><strong>1</strong><span>Coordinated team</span></div>
+        </div>
+      </section>
+
+      <section className="sv2-section">
+        <div className="sv2-wrap">
+          <div className="sv2-heading"><div><span className="sv2-kicker">SERVICE DIRECTORY</span><h2>Choose the support your project actually needs.</h2></div><p>Each service page explains the focus, typical deliverables, what to prepare before requesting a quotation, common questions and related LAND VIEW services.</p></div>
+          <div className="sv2-groups">
+            {groups.map((group) => <section className="sv2-group" key={group.label}>
+              <div className="sv2-group-head"><span>{group.label}</span><h3>{group.title}</h3><p>{group.description}</p></div>
+              <div className="sv2-cards">{servicesFor(group).map((service, index) => <Link href={`/services/${service.slug}`} className="sv2-card" key={service.slug}><div className="sv2-card-top"><span className="sv2-card-icon" aria-hidden="true">{service.icon}</span><span className="sv2-card-index">{String(index + 1).padStart(2, "0")}</span></div><h4>{service.name}</h4><p>{service.shortDescription}</p><span className="sv2-card-link">Explore service →</span></Link>)}</div>
+            </section>)}
+          </div>
+        </div>
+      </section>
+
+      <section className="sv2-section sv2-section-alt">
+        <div className="sv2-wrap">
+          <div className="sv2-heading"><div><span className="sv2-kicker">HOW TO START</span><h2>A practical path to the right service scope.</h2></div><p>You do not need to know every technical deliverable before contacting LAND VIEW. Start with the project information you have and the team can help define the next steps.</p></div>
+          <div className="sv2-process-grid">{process.map(([number, title, description]) => <article key={number}><span>{number}</span><h3>{title}</h3><p>{description}</p></article>)}</div>
+        </div>
+      </section>
+
+      <section className="sv2-cta-band">
+        <div className="sv2-wrap sv2-cta-grid"><div><span className="sv2-kicker">PLANNING A BUILDING?</span><h2>Send your project details directly to LAND VIEW.</h2><p>Include the project location, land or site information, intended use, proposed floors and the services you are considering. WhatsApp enquiries go to 01902 500 400.</p></div><div className="sv2-actions"><a className="sv2-btn sv2-btn-whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp 01902 500 400</a><Link className="sv2-btn sv2-btn-outline" href="/contact">Full Contact Details</Link></div></div>
+      </section>
+    </main>
+  );
 }
