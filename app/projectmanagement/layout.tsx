@@ -1,5 +1,6 @@
 import AdminMobileDock from "@/components/admin-mobile-dock";
-import ManagementShellV3 from "@/components/management-shell-v3";
+import ManagementShellV5 from "@/components/management-shell-v5";
+import RolePortalShell from "@/components/role-portal-shell";
 import ProjectFinanceAdminModule from "@/components/project-finance-admin-module";
 import ProjectFinanceRouteController from "@/components/project-finance-route-controller";
 import ProjectFinancePartyEnhancer from "@/components/project-finance-party-enhancer";
@@ -12,8 +13,6 @@ import { requirePortalSession } from "@/lib/server-auth";
 import "../admin/admin-brand-theme.css";
 import "../admin/admin-layout-polish.css";
 import "../admin/admin-theme-consistency.css";
-import "../admin/admin-mobile-redesign.css";
-import "../admin/admin-mobile-shell-final.css";
 import "../admin/admin-dashboard-light.css";
 import "../admin/admin-color-harmony.css";
 import "./project-finance-redesign.css";
@@ -25,26 +24,32 @@ import "./project-finance-dual-mode-polish.css";
 import "./project-finance-party-dropdown.css";
 import "./project-finance-readable-summary.css";
 import "./project-finance-summary-v2.css";
+// Project Management now shares the same authoritative Admin mobile shell as /admin.
+import "../admin/admin-mobile-authority.css";
+// Route-specific finance geometry is last so wide ledgers/forms stay usable on phones.
+import "./project-finance-mobile-authority.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
   const role = String(session.role || session.user?.role || session.user?.Role || "").trim().toLowerCase();
 
+  const clientFinance = (
+    <div className="pf-redesign pf-client-shell">
+      <ProjectFinanceRouteController />
+      <ProjectFinanceSummaryV2 />
+      <ProjectFinanceLocalDate />
+      <ProjectFinanceCategoryTotalStrip />
+      {children}
+    </div>
+  );
+
   if (role === "client") {
-    return (
-      <div className="pf-redesign">
-        <ProjectFinanceRouteController />
-        <ProjectFinanceSummaryV2 />
-        <ProjectFinanceLocalDate />
-        <ProjectFinanceCategoryTotalStrip />
-        {children}
-      </div>
-    );
+    return <RolePortalShell portal="client">{clientFinance}</RolePortalShell>;
   }
 
   return (
     <>
-      <ManagementShellV3 initialUser={session.user}>
+      <ManagementShellV5 initialUser={session.user}>
         <div className="pf-redesign pf-management-shell">
           <ProjectFinancePartyEnhancer />
           <ProjectFinanceRouteController />
@@ -56,7 +61,7 @@ export default async function ProjectFinanceLayout({ children }: Readonly<{ chil
           <ProjectFinanceAdminModule />
           {children}
         </div>
-      </ManagementShellV3>
+      </ManagementShellV5>
       <AdminMobileDock />
     </>
   );
