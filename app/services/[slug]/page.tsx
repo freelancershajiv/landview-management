@@ -2,10 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import PublicHeader from "@/components/public-header";
+import PublicServiceRelatedProjects from "@/components/public-service-related-projects";
 import { getPublicService, publicServices } from "@/lib/public-services";
-
 import { servicePlanning } from "@/lib/service-planning";
 import { businessSchema } from "@/lib/site-info";
+import "../services-v2.css";
 
 type PageProps = { params: Promise<{ slug: string }> };
 
@@ -18,7 +19,6 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   const service = getPublicService(slug);
   if (!service) return {};
   const url = `https://www.landview.com.bd/services/${service.slug}`;
-
   return {
     title: `${service.name} in Bangladesh`,
     description: service.description,
@@ -30,39 +30,78 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-const css = `
-.lv-service-page{min-height:100vh;background:var(--theme-bg-_07101a, #07101a);color:var(--theme-ink-_fff, #fff)}.lv-service-wrap{width:min(100% - 44px,1160px);margin:0 auto}.lv-service-hero{padding:72px 0 46px;background:radial-gradient(circle at 78% 18%,var(--theme-bg-rgba_214_31_38__13_, rgba(214,31,38,.13)),transparent 28%),var(--theme-bg-_07101a, #07101a);border-bottom:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1))}.lv-service-back{display:inline-flex;margin-bottom:26px;color:#ef4a50;font-size:12px;font-weight:900;letter-spacing:.08em}.lv-service-icon{width:64px;height:64px;display:grid;place-items:center;margin-bottom:20px;border:1px solid var(--theme-line-rgba_214_31_38__45_, rgba(214,31,38,.45));border-radius:12px;color:#ef4a50;font-size:26px}.lv-service-hero h1{max-width:900px;margin:0;font:500 clamp(44px,6vw,76px)/.98 Georgia,"Times New Roman",serif;letter-spacing:-.04em}.lv-service-hero p{max-width:780px;margin:24px 0 0;color:var(--theme-ink-_cfd6dc, #cfd6dc);font-size:15px;line-height:1.8}.lv-local-line{margin-top:16px!important;color:#ef4a50!important;font-size:12px!important;font-weight:800;letter-spacing:.03em}.lv-service-content{display:grid;grid-template-columns:1.25fr .75fr;gap:34px;padding:50px 0 78px}.lv-service-panel{padding:28px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:14px;background:var(--theme-bg-_0d1721, #0d1721)}.lv-service-panel h2{margin:0 0 16px;font:500 30px/1.1 Georgia,"Times New Roman",serif}.lv-service-panel p{margin:0;color:var(--theme-ink-_c5cdd4, #c5cdd4);font-size:16px;line-height:1.8}.lv-service-panel ul{margin:18px 0 0;padding:0;list-style:none}.lv-service-panel li{padding:12px 0;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));color:var(--theme-ink-_d8dde2, #d8dde2);font-size:15px;line-height:1.65}.lv-service-panel li:last-child{border-bottom:0}.lv-service-cta{margin-top:20px;display:flex;gap:12px;flex-wrap:wrap}.lv-service-btn{min-height:44px;display:inline-flex;align-items:center;justify-content:center;padding:0 18px;border-radius:6px;font-size:12px;font-weight:900;letter-spacing:.05em;text-transform:uppercase}.lv-service-btn-gold{background:#ef4a50;color:#fff}.lv-service-btn-outline{border:1px solid var(--theme-line-rgba_214_31_38__72_, rgba(214,31,38,.72));color:var(--theme-ink-_fff, #fff)}.lv-service-related{grid-column:1/-1}.lv-related-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:18px}.lv-related-card{padding:18px;border:1px solid var(--theme-line-rgba_255_255_255__09_, rgba(255,255,255,.09));border-radius:10px;background:var(--theme-bg-_0b151f, #0b151f);color:var(--theme-ink-_fff, #fff)}.lv-related-card small{display:block;margin-bottom:7px;color:#ef4a50;font-size:12px;font-weight:900;letter-spacing:.12em}.lv-related-card strong{font-size:14px}.lv-contact-facts{margin-top:18px!important}.lv-contact-facts li strong{display:block;color:#ef4a50;font-size:12px;letter-spacing:.08em;text-transform:uppercase;margin-bottom:5px}@media(max-width:780px){.lv-service-content{grid-template-columns:1fr}.lv-related-grid{grid-template-columns:1fr}.lv-service-hero{padding-top:54px}}
-`;
-
 export default async function ServicePage({ params }: PageProps) {
   const { slug } = await params;
   const service = getPublicService(slug);
   if (!service) notFound();
+
   const url = `https://www.landview.com.bd/services/${service.slug}`;
+  const planning = servicePlanning[service.slug] || { prepare: "Share the project location, available drawings and the service scope you are considering.", questions: [], related: [] };
+  const related = planning.related.map(getPublicService).filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const whatsappMessage = `Hello LAND VIEW, I would like to discuss ${service.name}. Project location: ____. Project type: ____. Proposed floors: ____. Available drawings/site information: ____.`;
+  const whatsappUrl = `https://wa.me/8801902500400?text=${encodeURIComponent(whatsappMessage)}`;
+
   const provider = businessSchema;
   const serviceSchema = { "@context": "https://schema.org", "@type": "Service", "@id": `${url}#service`, name: service.name, description: service.description, url, serviceType: service.name, areaServed: provider.areaServed, provider };
   const breadcrumbSchema = { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [{ "@type": "ListItem", position: 1, name: "Home", item: "https://www.landview.com.bd" }, { "@type": "ListItem", position: 2, name: "Services", item: "https://www.landview.com.bd/services" }, { "@type": "ListItem", position: 3, name: service.name, item: url }] };
-  const planning = servicePlanning[service.slug];
-  const related = planning.related.map(getPublicService).filter((item): item is NonNullable<typeof item> => Boolean(item));
+  const faqSchema = planning.questions.length ? { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: planning.questions.map((item) => ({ "@type": "Question", name: item.question, acceptedAnswer: { "@type": "Answer", text: item.answer } })) } : null;
 
   return (
-    <main className="lv-service-page">
-      <style dangerouslySetInnerHTML={{ __html: css }} />
+    <main className="sv2-page">
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(serviceSchema) }} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(breadcrumbSchema) }} />
+      {faqSchema ? <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(faqSchema) }} /> : null}
       <PublicHeader />
-      <section className="lv-service-hero"><div className="lv-service-wrap">
-        <Link className="lv-service-back" href="/services">← ALL SERVICES</Link><div className="lv-service-icon" aria-hidden="true">{service.icon}</div>
-        <h1>{service.name} in Bangladesh</h1><p>{service.description}</p><p className="lv-local-line">Feni Sadar, Feni-3900 · Serving suitable projects across Bangladesh</p>
-      </div></section>
-      <section className="lv-service-wrap lv-service-content">
-        <article className="lv-service-panel"><h2>{service.name} for building projects</h2><p>{service.intro}</p><div className="lv-service-cta"><a href="/contact" className="lv-service-btn lv-service-btn-gold">Discuss your project</a><Link href="/projects" className="lv-service-btn lv-service-btn-outline">View relevant projects</Link></div></article>
-        <aside className="lv-service-panel"><h2>Service focus</h2><ul>{service.highlights.map((item) => <li key={item}>{item}</li>)}</ul></aside>
-        <article className="lv-service-panel"><h2>Typical deliverables</h2><ul>{service.deliverables.map((item) => <li key={item}>{item}</li>)}</ul></article>
-        <aside className="lv-service-panel"><h2>Local consultancy in Feni</h2><p>LAND VIEW Engineers &amp; Architects provides {service.name.toLowerCase()} support from Feni Sadar. Our architecture and engineering teams coordinate suitable building projects in Feni and other parts of Bangladesh.</p><ul className="lv-contact-facts"><li><strong>Office</strong>F. Rahman AC Market (2nd Floor), S.S.K Road, Feni Sadar, Feni-3900</li><li><strong>Engineering</strong>+88 0140 8080 400</li><li><strong>Architecture</strong>+88 01902 500 400</li></ul></aside>
-        <article className="lv-service-panel lv-service-related"><h2>Before you request a quotation</h2><p>{planning.prepare}</p><p style={{marginTop:16}}>For projects outside Feni, share the location so we can confirm design coordination, travel and site attendance before agreeing the scope.</p></article>
-        <section className="lv-service-panel lv-service-related"><h2>Questions about {service.name.toLowerCase()}</h2>{planning.questions.map(item => <div key={item.question} style={{marginTop:24}}><h3 style={{fontSize:18,marginBottom:10}}>{item.question}</h3><p>{item.answer}</p></div>)}</section>
-        <section className="lv-service-panel lv-service-related"><h2>Related architecture &amp; engineering services</h2><div className="lv-related-grid">{related.map((item) => <Link href={`/services/${item.slug}`} className="lv-related-card" key={item.slug}><small>{item.icon} RELATED SERVICE</small><strong>{item.name} →</strong></Link>)}</div><div className="lv-service-cta"><Link href="/services" className="lv-service-btn lv-service-btn-outline">All services</Link><Link href="/projects" className="lv-service-btn lv-service-btn-outline">LAND VIEW projects</Link><a href="/contact" className="lv-service-btn lv-service-btn-gold">Contact LAND VIEW</a></div></section>
+
+      <section className="sv2-detail-hero">
+        <div className="sv2-wrap">
+          <nav className="sv2-breadcrumb" aria-label="Breadcrumb"><Link href="/">Home</Link><span>›</span><Link href="/services">Services</Link><span>›</span><span>{service.name}</span></nav>
+          <div className="sv2-detail-grid">
+            <div>
+              <div className="sv2-service-icon" aria-hidden="true">{service.icon}</div>
+              <h1>{service.name}<br />in Bangladesh</h1>
+              <p>{service.description}</p>
+              <div className="sv2-actions"><a className="sv2-btn sv2-btn-whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">Discuss on WhatsApp</a><Link className="sv2-btn sv2-btn-outline" href="/projects">View Projects</Link></div>
+            </div>
+            <aside className="sv2-service-summary"><span>SERVICE OVERVIEW</span><strong>{service.name}</strong><p>Feni Sadar, Feni-3900 · Available for suitable projects in Feni and elsewhere in Bangladesh, subject to project scope and coordination requirements.</p></aside>
+          </div>
+        </div>
+      </section>
+
+      <section className="sv2-wrap sv2-detail-content">
+        <div className="sv2-detail-main">
+          <article className="sv2-panel">
+            <span className="sv2-panel-label">WHAT THIS SERVICE DOES</span>
+            <h2>{service.name} for building projects</h2>
+            <p>{service.intro}</p>
+            <div className="sv2-actions"><a className="sv2-btn sv2-btn-primary" href={whatsappUrl} target="_blank" rel="noopener noreferrer">Request Service Discussion</a><Link className="sv2-btn sv2-btn-outline" href="/contact">Contact Details</Link></div>
+          </article>
+
+          <div className="sv2-side-stack">
+            <aside className="sv2-panel"><span className="sv2-panel-label">SERVICE FOCUS</span><h2>What we coordinate</h2><ul className="sv2-check-list">{service.highlights.map((item) => <li key={item}>{item}</li>)}</ul></aside>
+            <aside className="sv2-panel"><span className="sv2-panel-label">LAND VIEW OFFICE</span><h2>Talk to the team</h2><div className="sv2-contact-list"><div><span>WhatsApp / Architecture</span><strong>+88 01902 500 400</strong></div><div><span>Engineering</span><strong>+88 0140 8080 400</strong></div><div><span>Office</span><strong>F. Rahman AC Market (2nd Floor), S.S.K Road, Feni Sadar</strong></div></div></aside>
+          </div>
+
+          <article className="sv2-panel sv2-wide">
+            <div className="sv2-prepare">
+              <div><span className="sv2-panel-label">TYPICAL DELIVERABLES</span><h2>What may be included in the service package</h2><ul className="sv2-deliverables">{service.deliverables.map((item) => <li key={item}>{item}</li>)}</ul></div>
+              <div><span className="sv2-panel-label">BEFORE YOU REQUEST A QUOTATION</span><h2>Prepare the right project information</h2><div className="sv2-prepare-note">{planning.prepare}</div></div>
+            </div>
+          </article>
+
+          <section className="sv2-panel sv2-wide">
+            <span className="sv2-panel-label">RELATED LAND VIEW WORK</span>
+            <h2>Projects connected to {service.name.toLowerCase()}</h2>
+            <p>These cards are loaded from LAND VIEW's current public project records when the service has been tagged on a published project.</p>
+            <PublicServiceRelatedProjects serviceName={service.name} />
+          </section>
+
+          {planning.questions.length ? <section className="sv2-panel sv2-wide"><span className="sv2-panel-label">COMMON QUESTIONS</span><h2>Before you start {service.name.toLowerCase()}</h2><div className="sv2-faq">{planning.questions.map((item, index) => <details key={item.question} open={index === 0}><summary>{item.question}</summary><p>{item.answer}</p></details>)}</div></section> : null}
+
+          {related.length ? <section className="sv2-panel sv2-wide"><span className="sv2-panel-label">RELATED SERVICES</span><h2>Services that often connect with this scope</h2><div className="sv2-related-services">{related.map((item) => <Link href={`/services/${item.slug}`} className="sv2-related-service" key={item.slug}><span>{item.icon} RELATED SERVICE</span><strong>{item.name} →</strong></Link>)}</div></section> : null}
+
+          <section className="sv2-wide sv2-detail-cta"><div className="sv2-detail-cta-grid"><div><span className="sv2-kicker">START THE CONVERSATION</span><h2>Tell LAND VIEW what you are planning.</h2><p>For the fastest first discussion, send the project location, intended use, proposed floors, available drawings or site information and the service you need. WhatsApp enquiries go to 01902 500 400.</p></div><div className="sv2-actions"><a className="sv2-btn sv2-btn-whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp 01902 500 400</a><Link className="sv2-btn sv2-btn-outline" href="/services">All Services</Link></div></div></section>
+        </div>
       </section>
     </main>
   );
