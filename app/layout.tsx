@@ -85,21 +85,13 @@ export const metadata: Metadata = {
     title: "Engineering & Architectural Consultancy in Bangladesh | LAND VIEW",
     description:
       "Architectural design, structural engineering, 3D design and complete building consultancy services in Feni, Bangladesh.",
-    images: [
-      {
-        url: `${siteUrl}/land-view-logo.png`,
-        width: 1200,
-        height: 630,
-        alt: "LAND VIEW Engineers & Architects",
-      },
-    ],
+    images: [{ url: "/land-view-logo.png", alt: "LAND VIEW Engineers & Architects" }],
   },
   twitter: {
     card: "summary_large_image",
     title: "Engineering & Architectural Consultancy in Bangladesh | LAND VIEW",
-    description:
-      "Architecture, structural engineering and complete building consultancy services in Feni, Bangladesh.",
-    images: [`${siteUrl}/land-view-logo.png`],
+    description: "Architecture, structural engineering and complete building consultancy services in Feni, Bangladesh.",
+    images: ["/land-view-logo.png"],
   },
   icons: {
     icon: [{ url: "/favicon.svg", type: "image/svg+xml" }],
@@ -108,39 +100,28 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-BD" data-theme="light" suppressHydrationWarning>
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              '(function(){try{document.documentElement.dataset.theme=localStorage.getItem("landview-theme")==="dark"?"dark":"light"}catch(e){document.documentElement.dataset.theme="light"}})();',
-          }}
-        />
-      </head>
+      <head><script dangerouslySetInnerHTML={{ __html: `(function(){try{document.documentElement.dataset.theme=localStorage.getItem("landview-theme")==="dark"?"dark":"light"}catch(e){document.documentElement.dataset.theme="light"}})();` }} /></head>
       <body>
         <ThemeSwitch />
         <BrandLoader />
         {children}
-        <GlobalActionFeedback />
-        <SessionExpiryGuard />
+        <PublicLeadActions />
+        <PublicHomeProjectEnhancer />
         <VisitorAnalytics />
         <ConversionAnalytics />
         <WebsiteLeadNotifier />
-        <PublicLeadActions />
-        <PublicHomeProjectEnhancer />
+        <SessionExpiryGuard />
         <MobileInteractionGuard />
-        <ContactMapEnhancer />
         <Analytics />
         <SpeedInsights />
+        <GlobalActionFeedback />
+        <ContactMapEnhancer />
         <script
           type="application/ld+json"
-          dangerouslySetInnerHTML={{ __html: jsonLd(businessSchema) }}
+          dangerouslySetInnerHTML={{ __html: jsonLd({ "@context": "https://schema.org", "@graph": [businessSchema, { "@type": "WebSite", "@id": `${siteUrl}/#website`, url: siteUrl, name: "LAND VIEW Engineers & Architects", publisher: { "@id": `${siteUrl}/#organization` } }] }) }}
         />
       </body>
     </html>
