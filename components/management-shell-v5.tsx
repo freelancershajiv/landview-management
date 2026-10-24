@@ -37,7 +37,7 @@ const SIDEBAR: SidebarEntry[] = [
       { href: "/admin/projects", label: "Project List", icon: "▣", permission: "projects.view" },
       { href: "/projectmanagement", label: "Project Management", icon: "◈", permission: "project_management.view" },
       { href: "/admin/workflow", label: "Workflow", icon: "↗", permission: "workflow.view" },
-      { href: "/admin/projects/new", label: "New Project", icon: "+", adminOnly: true },
+      { href: "/admin/projects/new", label: "New Project", icon: "+", permission: "projects.edit" },
     ],
   },
   {
@@ -52,10 +52,10 @@ const SIDEBAR: SidebarEntry[] = [
       { href: "/admin/accounts/entry", label: "Accounts", icon: "▥", adminOnly: true },
       { href: "/admin/finance", label: "Billing", icon: "৳", permission: "finance.view" },
       { href: "/admin/accounts", label: "Ledger", icon: "≡", permission: "ledger.view" },
-      { href: "/admin/finance/invoices", label: "Invoices", icon: "▤", adminOnly: true },
-      { href: "/admin/finance/bills", label: "Bills", icon: "▧", adminOnly: true },
-      { href: "/admin/municipality-accounts", label: "Municipality Accounts", icon: "▦", adminOnly: true },
-      { href: "/admin/accounts/export", label: "Ledger Export", icon: "⇩", adminOnly: true },
+      { href: "/admin/finance/invoices", label: "Invoices", icon: "▤", permission: "finance.view" },
+      { href: "/admin/finance/bills", label: "Bills", icon: "▧", permission: "finance.edit" },
+      { href: "/admin/municipality-accounts", label: "Municipality Accounts", icon: "▦", permission: "municipality.view" },
+      { href: "/admin/accounts/export", label: "Ledger Export", icon: "⇩", permission: "reports.view" },
     ],
   },
   {
@@ -69,7 +69,7 @@ const SIDEBAR: SidebarEntry[] = [
     items: [
       { href: "/admin/registers", label: "Document Registry", icon: "▧", permission: "documents.view" },
       { href: "/admin/certificates", label: "Certificates", icon: "⌑", permission: "certificates.view" },
-      { href: "/admin/municipality-file-pass", label: "Municipality File Pass", icon: "✓", adminOnly: true },
+      { href: "/admin/municipality-file-pass", label: "Municipality File Pass", icon: "✓", permission: "municipality.view" },
     ],
   },
   {
