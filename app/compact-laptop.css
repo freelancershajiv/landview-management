@@ -13,6 +13,59 @@
 
   /* Public website: keep the desktop character, but reduce wasted space and
      let dense sections breathe at compact desktop widths. */
+  .public-home-v2 .public-nav-inner {
+    width: min(calc(100% - 28px), 1240px) !important;
+    min-height: 72px !important;
+    gap: 10px !important;
+  }
+
+  .public-home-v2 .public-brand {
+    min-width: clamp(205px, 19vw, 260px) !important;
+    gap: 9px !important;
+  }
+
+  .public-home-v2 .public-brand img {
+    width: 50px !important;
+    height: 50px !important;
+  }
+
+  .public-home-v2 .public-brand-copy strong {
+    font-size: 18px !important;
+    letter-spacing: .1em !important;
+  }
+
+  .public-home-v2 .public-brand-copy span {
+    margin-top: 4px !important;
+    font-size: 10.5px !important;
+    letter-spacing: .13em !important;
+  }
+
+  .public-home-v2 .public-nav a {
+    min-height: 72px !important;
+    padding-left: clamp(6px, .65vw, 10px) !important;
+    padding-right: clamp(6px, .65vw, 10px) !important;
+    font-size: 10.5px !important;
+  }
+
+  .public-home-v2 .public-nav a::after {
+    left: 8px !important;
+    right: 8px !important;
+    bottom: 12px !important;
+  }
+
+  .public-home-v2 .public-header-actions {
+    gap: 6px !important;
+    margin-left: 3px !important;
+  }
+
+  .public-home-v2 .public-header-login,
+  .public-home-v2 .public-header-cta {
+    min-height: 38px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 10.5px !important;
+  }
+
   .public-home-v2 .ph-container {
     width: min(calc(100% - 28px), 1320px);
   }
@@ -185,6 +238,14 @@
 }
 
 @media screen and (min-width: 901px) and (max-width: 1120px) {
+  .public-home-v2 .public-header-cta {
+    display: none !important;
+  }
+
+  .public-home-v2 .public-brand {
+    min-width: 205px !important;
+  }
+
   .public-home-v2 .ph-service-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
