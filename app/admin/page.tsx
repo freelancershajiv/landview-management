@@ -20,12 +20,15 @@ export default async function DashboardPage() {
   const record = user as Record<string, unknown>;
   const chairman = isEmp0001(record);
   const admin = isAdmin(record);
-  const management = admin || String(record.role || record.Role || "").trim().toLowerCase() === "manager";
+  const manager = String(record.role || record.Role || "").trim().toLowerCase() === "manager";
+  const management = admin || manager;
 
   return <>
     {management && <div style={{ display:"flex", justifyContent:"flex-end", gap:8, flexWrap:"wrap", marginBottom:12 }}>
       <Link href="/admin/website" style={shortcutStyle}><span aria-hidden="true">⌁</span>Website Content</Link>
-      {admin && <Link href="/admin/system-control" style={shortcutStyle}><span aria-hidden="true">⚙</span>System Control</Link>}
+      {admin
+        ? <Link href="/admin/system-control" style={shortcutStyle}><span aria-hidden="true">⚙</span>System Control</Link>
+        : <Link href="/account" style={shortcutStyle}><span aria-hidden="true">⚿</span>My Account</Link>}
     </div>}
     <AdminCommandCenter />
     {chairman && <ChairmanExpenseApproval />}

@@ -1,0 +1,246 @@
+/* LAND VIEW true laptop-density emulation.
+   The user runs 1920x1080 at 125% Windows display scaling and confirmed that
+   Chrome 90% zoom is the desired visual result. At Chrome 100%, Chromium is
+   roughly 1536px wide. We reproduce 90% browser zoom by giving the complete
+   management shell a reciprocal 111.111% layout canvas and scaling that canvas
+   to 90%. Because the shell itself is transformed, its fixed descendants use
+   the transformed shell as their containing block, so top/right and
+   left/bottom edges remain aligned with the real viewport. */
+
+@media screen and (min-width: 1450px) and (max-width: 1600px) and (max-height: 900px) {
+  html,
+  body {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100% !important;
+    overflow: hidden !important;
+  }
+
+  body:has(.portal-admin) {
+    zoom: 1 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .portal-admin {
+    --lv-sidebar-width: 286px !important;
+    --lv-topbar-height: 74px !important;
+    position: relative !important;
+    width: 111.111111vw !important;
+    max-width: none !important;
+    height: 111.111111dvh !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+    transform: scale(.9) !important;
+    transform-origin: 0 0 !important;
+  }
+
+  /* Restore the normal desktop shell before the 90% whole-shell scale. */
+  .portal-admin .primary-nav {
+    position: fixed !important;
+    z-index: 110 !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: auto !important;
+    bottom: 0 !important;
+    width: var(--lv-sidebar-width) !important;
+    height: 100% !important;
+    max-height: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    transform: none !important;
+    overflow: hidden !important;
+  }
+
+  .portal-admin .sidebar-brand {
+    flex: 0 0 auto !important;
+    height: 88px !important;
+    min-height: 88px !important;
+    padding: 18px 19px !important;
+  }
+
+  .portal-admin .sidebar-brand img {
+    width: 48px !important;
+    height: 48px !important;
+    flex-basis: 48px !important;
+  }
+
+  .portal-admin .sidebar-brand strong {
+    font-size: 18px !important;
+  }
+
+  .portal-admin .primary-nav-inner {
+    display: block !important;
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 14px 12px 24px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .lv-nav-direct,
+  .portal-admin .lv-nav-group-button,
+  .portal-admin .primary-nav a,
+  .portal-admin .estimate-nav-trigger {
+    min-height: 48px !important;
+    padding-left: 15px !important;
+    padding-right: 14px !important;
+    gap: 12px !important;
+    font-size: 12.25px !important;
+    line-height: 1.2 !important;
+  }
+
+  .portal-admin .lv-nav-children > a {
+    min-height: 38px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 11.5px !important;
+  }
+
+  .portal-admin .sidebar-footer {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    padding: 13px 12px 15px !important;
+    overflow: hidden !important;
+  }
+
+  .portal-admin .sidebar-footer-account,
+  .portal-admin .sidebar-user,
+  .portal-admin .sidebar-user > div {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .portal-admin .sidebar-user strong,
+  .portal-admin .sidebar-user small {
+    display: block !important;
+    max-width: 205px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .portal-admin .utility-bar {
+    position: fixed !important;
+    z-index: 100 !important;
+    top: 0 !important;
+    left: var(--lv-sidebar-width) !important;
+    right: 0 !important;
+    width: auto !important;
+    max-width: none !important;
+    height: var(--lv-topbar-height) !important;
+    overflow: visible !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .utility-inner {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 28px !important;
+    gap: 12px !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .global-search {
+    flex: 1 1 auto !important;
+    width: min(430px, 38vw) !important;
+    min-width: 0 !important;
+    max-width: 430px !important;
+    height: 40px !important;
+  }
+
+  .portal-admin .global-search input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .portal-admin .utility-items {
+    display: flex !important;
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    margin-left: auto !important;
+    gap: 18px !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+    overflow: visible !important;
+  }
+
+  .portal-admin .utility-item,
+  .portal-admin .user-utility {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+  }
+
+  .portal-admin .user-utility > span {
+    display: block !important;
+    max-width: 160px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 10px !important;
+  }
+
+  .portal-admin .user-utility > span small {
+    display: block !important;
+    margin-bottom: 3px !important;
+    font-size: 7px !important;
+  }
+
+  .portal-admin .utility-logout {
+    display: inline-flex !important;
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    min-height: 34px !important;
+    padding: 0 13px !important;
+    font-size: 9px !important;
+    line-height: normal !important;
+    white-space: nowrap !important;
+  }
+
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main {
+    position: fixed !important;
+    top: var(--lv-topbar-height) !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: var(--lv-sidebar-width) !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    zoom: 1 !important;
+    width: calc(100% - 56px) !important;
+    max-width: 1500px !important;
+    min-width: 0 !important;
+    min-height: 100% !important;
+    margin: 0 28px !important;
+    padding: 28px 0 48px !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+  }
+}

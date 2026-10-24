@@ -1,0 +1,431 @@
+/* LAND VIEW management compact-laptop layer.
+   The 1450-1600px / short-screen band uses a shell-safe 90%-density emulation.
+   Fixed viewport chrome stays unzoomed; only workspace content is density-scaled. */
+
+@media screen and (min-width: 901px) and (max-width: 1449px) {
+  .portal-admin {
+    max-width: 100%;
+    overflow-x: clip !important;
+  }
+
+  .portal-admin .utility-bar,
+  .portal-admin .utility-inner {
+    height: auto !important;
+  }
+
+  .portal-admin .utility-inner {
+    width: calc(100% - 18px) !important;
+    min-width: 0 !important;
+    min-height: 52px !important;
+    gap: 7px !important;
+    padding: 5px 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .global-search {
+    flex: 1 1 190px !important;
+    width: auto !important;
+    min-width: 130px !important;
+    max-width: 270px !important;
+  }
+
+  .portal-admin .global-search input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .portal-admin .utility-items {
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    gap: 4px !important;
+    row-gap: 4px !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+  }
+
+  .portal-admin .utility-item,
+  .portal-admin .user-utility {
+    min-width: 0 !important;
+  }
+
+  .portal-admin .user-utility > span {
+    min-width: 0 !important;
+    max-width: 92px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 10px !important;
+  }
+
+  .portal-admin .user-utility > span small {
+    display: none !important;
+  }
+
+  .portal-admin .utility-logout {
+    min-width: 0 !important;
+    padding: 6px 7px !important;
+    font-size: 8.5px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  .portal-admin .primary-nav {
+    max-width: 100% !important;
+    padding-top: 5px !important;
+    padding-bottom: 6px !important;
+  }
+
+  .portal-admin .primary-nav-inner {
+    width: calc(100% - 18px) !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    gap: 4px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain;
+  }
+
+  .portal-admin .lv-nav-direct,
+  .portal-admin .lv-nav-group-button {
+    min-height: 36px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    font-size: 10px !important;
+  }
+
+  .portal-admin .lv-nav-children > a {
+    min-height: 34px !important;
+    font-size: 10px !important;
+  }
+
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main,
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+  }
+
+  .portal-admin .content-wrap > *,
+  .portal-admin .tmg-content-wrap > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .portal-admin :where(.toolbar, .page-toolbar, .page-actions, .filter-bar, .filters, .action-row) {
+    min-width: 0 !important;
+    flex-wrap: wrap !important;
+  }
+
+  .portal-admin .lv-clean-dashboard {
+    padding: 12px 10px 24px !important;
+    gap: 10px !important;
+  }
+
+  .portal-admin .lv-clean-head {
+    gap: 12px !important;
+  }
+
+  .portal-admin .lv-clean-head h1 {
+    font-size: 24px !important;
+  }
+
+  .portal-admin .lv-clean-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 9px !important;
+  }
+
+  .portal-admin .lv-clean-kpi {
+    min-height: 104px !important;
+    padding-top: 14px !important;
+    padding-bottom: 12px !important;
+  }
+
+  .portal-admin .lv-clean-grid-main {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .portal-admin .lv-clean-grid-lower {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .portal-admin .lv-clean-grid-lower > .lv-clean-card:last-child {
+    grid-column: 1 / -1 !important;
+  }
+
+  .portal-admin .lv-bottom-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .portal-admin .lv-workflow {
+    grid-template-columns: repeat(5, minmax(90px, 1fr)) !important;
+    overflow-x: auto !important;
+  }
+
+  .portal-admin .lv-clean-card-head {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+}
+
+@media screen and (min-width: 901px) and (max-width: 1366px) {
+  .portal-admin .global-search {
+    max-width: 220px !important;
+  }
+
+  .portal-admin .user-utility > span {
+    display: none !important;
+  }
+
+  .portal-admin .utility-logout {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    font-size: 8px !important;
+  }
+
+  .portal-admin .lv-clean-grid-lower {
+    grid-template-columns: 1fr !important;
+  }
+
+  .portal-admin .lv-clean-grid-lower > .lv-clean-card:last-child {
+    grid-column: auto !important;
+  }
+}
+
+@media screen and (min-width: 901px) and (max-width: 1449px) and (max-height: 900px) {
+  .portal-admin .utility-inner {
+    min-height: 48px !important;
+  }
+
+  .portal-admin .primary-nav {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .portal-admin .lv-clean-dashboard {
+    padding-top: 9px !important;
+  }
+
+  .portal-admin .lv-clean-kpi {
+    min-height: 96px !important;
+  }
+}
+
+/* 1920x1080 @ 125% Windows scale, Chromium 100% zoom.
+   Do not zoom the whole body: fixed top/right and left/bottom shell regions
+   must stay bound to the real viewport. Instead, reproduce the preferred
+   90%-browser-zoom density inside the scrollable workspace. */
+@media screen and (min-width: 1450px) and (max-width: 1600px) and (max-height: 900px) {
+  body:has(.portal-admin) {
+    zoom: 1 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .portal-admin {
+    --lv-sidebar-width: 258px !important;
+    --lv-topbar-height: 67px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: 100dvh !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .portal-admin .primary-nav {
+    top: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: var(--lv-sidebar-width) !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    padding: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .portal-admin .sidebar-brand {
+    height: 79px !important;
+    min-height: 79px !important;
+    padding: 16px 17px !important;
+  }
+
+  .portal-admin .sidebar-brand img {
+    width: 43px !important;
+    height: 43px !important;
+    flex-basis: 43px !important;
+  }
+
+  .portal-admin .sidebar-brand strong {
+    font-size: 16px !important;
+  }
+
+  .portal-admin .primary-nav-inner {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding: 12px 11px 20px !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .lv-nav-direct,
+  .portal-admin .lv-nav-group-button,
+  .portal-admin .primary-nav a,
+  .portal-admin .estimate-nav-trigger {
+    min-height: 43px !important;
+    padding-left: 13px !important;
+    padding-right: 13px !important;
+    gap: 10px !important;
+    font-size: 11px !important;
+  }
+
+  .portal-admin .lv-nav-children > a {
+    min-height: 34px !important;
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+    font-size: 10px !important;
+  }
+
+  .portal-admin .sidebar-footer {
+    padding: 11px 10px 12px !important;
+    min-width: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .portal-admin .sidebar-footer-account,
+  .portal-admin .sidebar-user,
+  .portal-admin .sidebar-user > div {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .portal-admin .sidebar-user strong,
+  .portal-admin .sidebar-user small {
+    display: block !important;
+    max-width: 170px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .portal-admin .utility-bar {
+    top: 0 !important;
+    left: var(--lv-sidebar-width) !important;
+    right: 0 !important;
+    width: auto !important;
+    height: var(--lv-topbar-height) !important;
+    max-width: none !important;
+    overflow: hidden !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .utility-inner {
+    width: calc(100% - 24px) !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0 12px !important;
+    padding: 0 !important;
+    gap: 8px !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .global-search {
+    flex: 1 1 220px !important;
+    width: auto !important;
+    min-width: 140px !important;
+    max-width: 300px !important;
+  }
+
+  .portal-admin .global-search input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .portal-admin .utility-items {
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    max-width: calc(100% - 160px) !important;
+    gap: 6px !important;
+    flex-wrap: nowrap !important;
+    justify-content: flex-end !important;
+    overflow: hidden !important;
+  }
+
+  .portal-admin .utility-item,
+  .portal-admin .user-utility {
+    min-width: 0 !important;
+    flex: 0 1 auto !important;
+  }
+
+  .portal-admin .user-utility > span {
+    min-width: 0 !important;
+    max-width: 112px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    font-size: 9.5px !important;
+  }
+
+  .portal-admin .user-utility > span small {
+    font-size: 7px !important;
+  }
+
+  .portal-admin .notification-button {
+    flex: 0 0 auto !important;
+  }
+
+  .portal-admin .utility-logout {
+    flex: 0 0 auto !important;
+    min-width: 0 !important;
+    padding: 6px 8px !important;
+    font-size: 8.25px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main {
+    top: var(--lv-topbar-height) !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: var(--lv-sidebar-width) !important;
+    width: auto !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+  }
+
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    zoom: .9;
+    width: calc(111.111111% - 56px) !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    min-height: 111.111111% !important;
+    margin: 0 28px !important;
+    padding: 28px 0 48px !important;
+    box-sizing: border-box !important;
+    overflow: visible !important;
+  }
+}

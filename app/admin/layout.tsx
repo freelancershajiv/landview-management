@@ -21,6 +21,10 @@ import "../color-system-authority.css";
 import "../color-system-compatibility.css";
 // Keep the restored original signature red final in the Admin cascade.
 import "../brand-palette-original.css";
+// Final Admin geometry override for compact/scaled laptop displays.
+import "./admin-compact-laptop.css";
+// Exact 90%-browser-density emulation for 1920x1080 at 125% Windows scaling.
+import "./admin-true-90-shell.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
