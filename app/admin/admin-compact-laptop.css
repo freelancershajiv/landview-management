@@ -1,8 +1,9 @@
 /* LAND VIEW management compact-laptop layer.
-   Targets the effective viewport of 1920x1080 Windows laptops at 125% display
-   scaling (~1536x864 CSS pixels). */
+   The 1450-1600px / short-screen band is handled globally by the 90%-density
+   emulation in app/compact-laptop.css. These structural Admin changes are for
+   genuinely narrower laptop viewports only. */
 
-@media screen and (min-width: 901px) and (max-width: 1600px) {
+@media screen and (min-width: 901px) and (max-width: 1449px) {
   .portal-admin {
     max-width: 100%;
     overflow-x: clip !important;
@@ -128,10 +129,6 @@
     flex-wrap: wrap !important;
   }
 
-  /* The dashboard previously stayed in its full 1920px composition until
-     1180px viewport width. At 125% Windows scaling the viewport is ~1536px,
-     while the usable dashboard width is smaller after the management chrome.
-     Force the compact dashboard composition at this size. */
   .portal-admin .lv-clean-dashboard {
     padding: 12px 10px 24px !important;
     gap: 10px !important;
@@ -210,7 +207,7 @@
   }
 }
 
-@media screen and (min-width: 901px) and (max-width: 1600px) and (max-height: 900px) {
+@media screen and (min-width: 901px) and (max-width: 1449px) and (max-height: 900px) {
   .portal-admin .utility-inner {
     min-height: 48px !important;
   }
