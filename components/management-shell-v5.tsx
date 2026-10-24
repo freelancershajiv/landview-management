@@ -372,7 +372,7 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
         <div className="global-search" role="search"><span aria-hidden="true">⌕</span><input aria-label="Search LAND VIEW" placeholder="Search..." /></div>
         <div className="utility-items">
           <button type="button" className="notification-button" aria-label="Notifications"><span aria-hidden="true">♧</span><b>3</b></button>
-          <Link href={isAdmin ? "/admin/account" : "#"} className="utility-item user-utility" style={{ textDecoration: "none", color: "inherit" }}><div className="utility-avatar">{String(name).slice(0, 1).toUpperCase()}</div><span><small>{roleLabel(role)}</small>{name}</span></Link>
+          <Link href="/admin/account" className="utility-item user-utility" style={{ textDecoration: "none", color: "inherit" }}><div className="utility-avatar">{String(name).slice(0, 1).toUpperCase()}</div><span><small>{roleLabel(role)}</small>{name}</span></Link>
           {isAdmin && <button className="utility-logout" onClick={switchToEmployeeMode} disabled={roleSwitchBusy}>{roleSwitchBusy ? "SWITCHING..." : "EMP-0002 MODE"}</button>}
           {(isAdmin || isManager) && quickConfigured && <button className="utility-logout" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `TRUSTED ${daysLeft}D` : "TRUST DEVICE"}</button>}
           {(isAdmin || isManager) && <button className="utility-logout" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN LOCK" : "SET PIN"}</button>}
@@ -412,7 +412,7 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
         </div>
 
         <div className="admin-mobile-account">
-          {isAdmin && <Link href="/admin/account" onClick={() => setMobileOpen(false)}>My Account</Link>}
+          {(isAdmin || isManager) && <Link href="/admin/account" onClick={() => setMobileOpen(false)}>My Account</Link>}
           {isAdmin && <button type="button" onClick={switchToEmployeeMode} disabled={roleSwitchBusy}>{roleSwitchBusy ? "Switching..." : "Switch to EMP-0002 workspace"}</button>}
           {(isAdmin || isManager) && quickConfigured && <button type="button" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `Trusted device · ${daysLeft} days` : "Trust this device"}</button>}
           {(isAdmin || isManager) && <button type="button" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN lock" : "Set PIN"}</button>}
@@ -420,7 +420,7 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
         </div>
 
         <div className="sidebar-footer">
-          <Link href={isAdmin ? "/admin/account" : "#"} className="sidebar-footer-account" onClick={() => setMobileOpen(false)}>
+          <Link href="/admin/account" className="sidebar-footer-account" onClick={() => setMobileOpen(false)}>
             <div className="utility-avatar">{String(name).slice(0, 1).toUpperCase()}</div>
             <div className="sidebar-user"><div><strong>{name}</strong><small>{roleLabel(role)}{isAdmin ? " · Account Control" : ""}</small></div></div>
           </Link>
