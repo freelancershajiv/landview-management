@@ -1,0 +1,42 @@
+/* LAND VIEW original signature-red palette
+   ------------------------------------------------------------
+   Restores the bright pre-cleanup brand colors while keeping the
+   consolidated semantic token system introduced in Phases 1-4.
+
+   Original palette reference:
+   - primary red: #d61f26
+   - dark/hover red: #ad171d
+   - bright accent red: #ef4a50
+
+   Keep this as the final palette layer after route/theme compatibility CSS. */
+
+@media screen {
+  :root,
+  html:not([data-theme="dark"]),
+  html:not([data-theme="dark"]) :is(
+    body,.public-site,.lv-login,.portal-admin,.portal-employee,.portal-client,
+    .lv-client-shell,.pf-redesign
+  ) {
+    --lv-brand-primary: #d61f26 !important;
+    --lv-brand-primary-hover: #ad171d !important;
+    --lv-brand-text: #d61f26 !important;
+    --lv-brand-soft: rgba(214,31,38,.09) !important;
+    --lv-brand-soft-strong: rgba(214,31,38,.15) !important;
+    --lv-brand-border: rgba(214,31,38,.34) !important;
+    --lv-brand-ring: rgba(214,31,38,.18) !important;
+  }
+
+  html[data-theme="dark"],
+  html[data-theme="dark"] :is(
+    body,.public-site,.lv-login,.portal-admin,.portal-employee,.portal-client,
+    .lv-client-shell,.pf-redesign
+  ) {
+    --lv-brand-primary: #d61f26 !important;
+    --lv-brand-primary-hover: #ad171d !important;
+    --lv-brand-text: #ef4a50 !important;
+    --lv-brand-soft: rgba(214,31,38,.11) !important;
+    --lv-brand-soft-strong: rgba(214,31,38,.18) !important;
+    --lv-brand-border: rgba(239,74,80,.40) !important;
+    --lv-brand-ring: rgba(239,74,80,.22) !important;
+  }
+}

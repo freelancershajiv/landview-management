@@ -35,6 +35,8 @@ import "./mobile-foundation.css";
 import "./color-system-authority.css";
 // Phase 3 compatibility bridge: one final layer replaces five overlapping color overrides.
 import "./color-system-compatibility.css";
+// Final brand palette: restore the original bright LAND VIEW signature red.
+import "./brand-palette-original.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
