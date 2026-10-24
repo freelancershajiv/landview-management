@@ -6,7 +6,9 @@ import {
   readSignedWorkspaceUser,
   requireLocalSession,
   roleOf,
+  userIdOf,
 } from "@/lib/local-session";
+import { selectRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +42,19 @@ function response(data: unknown, status = 200) {
   return NextResponse.json(data, { status, headers: { "Cache-Control": "no-store, max-age=0" } });
 }
 
+async function managerEmployeeCode(user: Row) {
+  const direct = employeeCodeOf(user);
+  if (/^EMP-/i.test(direct)) return direct;
+
+  const userKey = clean(userIdOf(user as any), 120);
+  let rows = userKey ? await selectRows("app_users", { filters: { user_key: userKey }, limit: 1 }) : [];
+  if (!rows.length) {
+    const username = clean(user?.username || user?.Username, 120);
+    if (username) rows = await selectRows("app_users", { filters: { username }, limit: 1 });
+  }
+  return clean(rows[0]?.employee_code, 120).toUpperCase();
+}
+
 async function currentEmployee(request: NextRequest) {
   const signedBase = readSignedWorkspaceUser(request.cookies.get(QUICK_USER_COOKIE)?.value) as Row | null;
   let user: Row | null = signedBase;
@@ -50,8 +65,9 @@ async function currentEmployee(request: NextRequest) {
   if (!user) user = await requireLocalSession(request) as Row | null;
 
   if (!user) throw new Error("SESSION_EXPIRED");
-  if (roleOf(user) !== "employee") throw new Error("EMPLOYEE_REQUIRED");
-  const employeeId = employeeCodeOf(user);
+  const role = roleOf(user);
+  if (role !== "employee" && role !== "manager") throw new Error("EMPLOYEE_REQUIRED");
+  const employeeId = role === "manager" ? await managerEmployeeCode(user) : employeeCodeOf(user);
   if (!employeeId) throw new Error("EMPLOYEE_ID_MISSING");
   return { user, employeeId };
 }
@@ -133,8 +149,8 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     const message = clean(error?.message || "Could not load WhatsApp status.", 1000);
     if (message === "SESSION_EXPIRED") return response({ success: false, error: "Session expired." }, 401);
-    if (message === "EMPLOYEE_REQUIRED") return response({ success: false, error: "Employee access is required." }, 403);
-    if (message === "EMPLOYEE_ID_MISSING") return response({ success: false, error: "Employee ID is missing from this account." }, 400);
+    if (message === "EMPLOYEE_REQUIRED") return response({ success: false, error: "Employee or Management access is required." }, 403);
+    if (message === "EMPLOYEE_ID_MISSING") return response({ success: false, error: "No employee ID is linked to this account." }, 400);
 
     const status = Number(error?.status) || 0;
     if (!status || retriableBotStatus(status)) {
@@ -166,8 +182,8 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     const message = clean(error?.message || "Could not update WhatsApp connection.", 1000);
     if (message === "SESSION_EXPIRED") return response({ success: false, error: "Session expired." }, 401);
-    if (message === "EMPLOYEE_REQUIRED") return response({ success: false, error: "Employee access is required." }, 403);
-    if (message === "EMPLOYEE_ID_MISSING") return response({ success: false, error: "Employee ID is missing from this account." }, 400);
+    if (message === "EMPLOYEE_REQUIRED") return response({ success: false, error: "Employee or Management access is required." }, 403);
+    if (message === "EMPLOYEE_ID_MISSING") return response({ success: false, error: "No employee ID is linked to this account." }, 400);
     return response({ success: false, error: message }, Number(error?.status) || 500);
   }
 }
