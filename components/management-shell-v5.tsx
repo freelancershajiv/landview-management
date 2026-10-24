@@ -111,7 +111,7 @@ const SIDEBAR: SidebarEntry[] = [
     items: [
       { href: "/admin/access", label: "Permissions", icon: "⚿", adminOnly: true },
       { href: "/admin/security", label: "Security", icon: "◆", adminOnly: true },
-      { href: "/admin/whatsapp", label: "WhatsApp", icon: "●", adminOnly: true },
+      { href: "/admin/whatsapp", label: "WhatsApp", icon: "●", permission: "dashboard.view" },
     ],
   },
 ];
