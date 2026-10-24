@@ -89,9 +89,9 @@ const SIDEBAR: SidebarEntry[] = [
     items: [
       { href: "/admin/website-analytics", label: "Website Analytics", icon: "⌁", permission: "analytics.view" },
       { href: "/admin/website-leads", label: "Website Leads", icon: "✦", permission: "public.view" },
-      { href: "/admin/projects/website-curation", label: "Website Projects", icon: "▣", adminOnly: true },
+      { href: "/admin/projects/website-curation", label: "Website Projects", icon: "▣", permission: "public.edit" },
       { href: "/admin/public-testimonials", label: "Testimonials", icon: "❝", permission: "public.view" },
-      { href: "/admin/projects/website-readiness", label: "Website Readiness", icon: "✓", adminOnly: true },
+      { href: "/admin/projects/website-readiness", label: "Website Readiness", icon: "✓", permission: "public.view" },
     ],
   },
   {
@@ -99,8 +99,8 @@ const SIDEBAR: SidebarEntry[] = [
     label: "Management",
     icon: "◎",
     items: [
-      { href: "/admin/action-center", label: "Action Center", icon: "◎", adminOnly: true },
-      { href: "/admin/management-analytics", label: "Management Analytics", icon: "⌁", adminOnly: true },
+      { href: "/admin/action-center", label: "Action Center", icon: "◎", permission: "workflow.edit" },
+      { href: "/admin/management-analytics", label: "Management Analytics", icon: "⌁", permission: "analytics.view" },
       { href: "/admin/audit-log", label: "Audit Log", icon: "≣", adminOnly: true },
     ],
   },
