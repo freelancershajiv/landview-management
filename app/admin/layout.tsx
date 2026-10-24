@@ -20,6 +20,8 @@ import "./admin-mobile-authority.css";
 import "../color-system-authority.css";
 // Phase 3 keeps one final compatibility bridge after nested Admin styles.
 import "../color-system-compatibility.css";
+// Keep the restored original signature red final in the Admin cascade.
+import "../brand-palette-original.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
