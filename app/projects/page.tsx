@@ -3,6 +3,7 @@ import Link from "next/link";
 import PublicProjectListPaginated from "@/components/public-project-list-paginated";
 import { getPublicProjectsForSeo } from "@/lib/public-projects-server";
 import "./projects-v2.css";
+import "./case-studies-link.css";
 
 export const dynamic = "force-dynamic";
 
@@ -24,6 +25,7 @@ export default async function ProjectsPage() {
 
   return <>
     <PublicProjectListPaginated initialProjects={projects} />
+    <Link className="pv2-map-fab pv2-case-fab" href="/case-studies" aria-label="Open selected LAND VIEW project case studies"><span aria-hidden="true">◆</span> Case Studies</Link>
     {hasMappedProjects && <Link className="pv2-map-fab" href="/projects/map" aria-label="Open interactive project map"><span aria-hidden="true">⌖</span> Project Map</Link>}
   </>;
 }
