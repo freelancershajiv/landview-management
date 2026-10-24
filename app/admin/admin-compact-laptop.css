@@ -1,0 +1,164 @@
+/* LAND VIEW management compact-laptop layer.
+   Keeps the desktop workspace from overflowing on 14-inch Windows laptops
+   when display scaling reduces the effective CSS viewport. */
+
+@media screen and (min-width: 901px) and (max-width: 1536px) {
+  .portal-admin {
+    max-width: 100%;
+    overflow-x: clip !important;
+  }
+
+  .portal-admin .utility-bar,
+  .portal-admin .utility-inner {
+    height: auto !important;
+  }
+
+  .portal-admin .utility-inner {
+    width: calc(100% - 24px) !important;
+    min-width: 0 !important;
+    min-height: 60px !important;
+    gap: 10px !important;
+    padding: 7px 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .global-search {
+    flex: 1 1 220px !important;
+    width: auto !important;
+    min-width: 150px !important;
+    max-width: 340px !important;
+  }
+
+  .portal-admin .global-search input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .portal-admin .utility-items {
+    flex: 0 1 auto !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    gap: 6px !important;
+    row-gap: 5px !important;
+    flex-wrap: wrap !important;
+    justify-content: flex-end !important;
+  }
+
+  .portal-admin .utility-item,
+  .portal-admin .user-utility {
+    min-width: 0 !important;
+  }
+
+  .portal-admin .user-utility > span {
+    min-width: 0 !important;
+    max-width: 120px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  .portal-admin .utility-logout {
+    min-width: 0 !important;
+    padding: 7px 9px !important;
+    font-size: 9.5px !important;
+    line-height: 1 !important;
+    white-space: nowrap !important;
+  }
+
+  .portal-admin .primary-nav {
+    max-width: 100% !important;
+    padding-top: 7px !important;
+    padding-bottom: 8px !important;
+  }
+
+  .portal-admin .primary-nav-inner {
+    width: calc(100% - 24px) !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    gap: 5px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain;
+  }
+
+  .portal-admin .lv-nav-direct,
+  .portal-admin .lv-nav-group-button {
+    min-height: 40px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 11px !important;
+  }
+
+  .portal-admin .lv-nav-children > a {
+    min-height: 36px !important;
+    font-size: 11px !important;
+  }
+
+  .portal-admin .admin-main,
+  .portal-admin .tmg-admin-main,
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .portal-admin .content-wrap,
+  .portal-admin .tmg-content-wrap {
+    padding-left: clamp(12px, 1.5vw, 22px) !important;
+    padding-right: clamp(12px, 1.5vw, 22px) !important;
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+  }
+
+  .portal-admin .content-wrap > *,
+  .portal-admin .tmg-content-wrap > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .portal-admin :where(.toolbar, .page-toolbar, .page-actions, .filter-bar, .filters, .action-row) {
+    min-width: 0 !important;
+    flex-wrap: wrap !important;
+  }
+}
+
+@media screen and (min-width: 901px) and (max-width: 1280px) {
+  .portal-admin .utility-inner {
+    gap: 7px !important;
+  }
+
+  .portal-admin .global-search {
+    flex-basis: 180px !important;
+    max-width: 250px !important;
+  }
+
+  .portal-admin .utility-items {
+    gap: 4px !important;
+  }
+
+  .portal-admin .user-utility > span {
+    max-width: 82px !important;
+  }
+
+  .portal-admin .utility-logout {
+    padding-left: 7px !important;
+    padding-right: 7px !important;
+    font-size: 9px !important;
+  }
+
+  .portal-admin .primary-nav-inner {
+    width: calc(100% - 18px) !important;
+  }
+}
+
+@media screen and (min-width: 901px) and (max-width: 1080px) {
+  .portal-admin .user-utility > span {
+    display: none !important;
+  }
+
+  .portal-admin .global-search {
+    max-width: 210px !important;
+  }
+}
