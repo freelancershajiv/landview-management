@@ -10,15 +10,6 @@ type Row = Record<string, any>;
 const LEDGER_LIVE_START = "2026-09-01";
 const LEDGER_END = "2026-12-31";
 const MUNICIPALITY_SCOPE = "municipality_file_pass";
-const NON_EFFECTIVE_EXPENSE_STATUSES = new Set([
-  "rejected",
-  "returned",
-  "cancelled",
-  "canceled",
-  "void",
-  "voided",
-  "draft",
-]);
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -74,7 +65,7 @@ function transactionAmounts(row: Row) {
   return { debit, credit, transactionType };
 }
 
-function baseMainLedgerEligibility(row: Row) {
+function includedInMainLedger(row: Row) {
   const id = text(row.transaction_code);
   const date = dateKey(row.transaction_date);
   const { debit, credit, transactionType } = transactionAmounts(row);
@@ -83,37 +74,9 @@ function baseMainLedgerEligibility(row: Row) {
   const historical = id.startsWith("TXN-LEDGER-2025-") || id.startsWith("TXN-HIST-2026-");
   if (historical) return true;
 
+  if (normalizeStatus(row.status || "Posted") !== "posted") return false;
   if (["transfer", "personal income", "personal expense"].includes(transactionType)) return false;
   return date >= LEDGER_LIVE_START && date <= LEDGER_END;
-}
-
-function includedInMainLedger(row: Row) {
-  if (!baseMainLedgerEligibility(row)) return false;
-  const id = text(row.transaction_code);
-  const historical = id.startsWith("TXN-LEDGER-2025-") || id.startsWith("TXN-HIST-2026-");
-  if (historical) return true;
-  return normalizeStatus(row.status || "Posted") === "posted";
-}
-
-function includedInCurrentBalance(row: Row) {
-  if (!baseMainLedgerEligibility(row)) return false;
-
-  const id = text(row.transaction_code);
-  const historical = id.startsWith("TXN-LEDGER-2025-") || id.startsWith("TXN-HIST-2026-");
-  if (historical) return true;
-
-  const { debit, transactionType } = transactionAmounts(row);
-  const status = normalizeStatus(row.status || "Posted");
-
-  // An expense represents money already spent, so Admin's operational balance
-  // must reflect it while EMP-0001 approval is still pending. Rejected,
-  // returned, cancelled or voided expenses stop affecting the balance. Income
-  // continues to affect the balance only after it is posted.
-  if (transactionType === "expense" && debit > 0) {
-    return !NON_EFFECTIVE_EXPENSE_STATUSES.has(status);
-  }
-
-  return status === "posted";
 }
 
 function transactionDescription(row: Row) {
@@ -169,14 +132,8 @@ export async function GET(request: NextRequest) {
         if (debit > 0 || credit > 0) municipalityEntries += 1;
       }
 
-      // Current balance is intentionally broader than the posted ledger totals:
-      // pending expenses reduce available cash immediately, but they remain
-      // outside posted totals/history until EMP-0001 approves them.
-      if (includedInCurrentBalance(row)) {
-        currentBalance += credit - debit;
-      }
-
       if (includedInMainLedger(row)) {
+        currentBalance += credit - debit;
         mainEntries += 1;
         totalIncome += credit;
         totalExpenses += debit;
