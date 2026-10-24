@@ -90,6 +90,7 @@ const SIDEBAR: SidebarEntry[] = [
       { href: "/admin/website-analytics", label: "Website Analytics", icon: "⌁", permission: "analytics.view" },
       { href: "/admin/website-leads", label: "Website Leads", icon: "✦", permission: "public.view" },
       { href: "/admin/projects/website-curation", label: "Website Projects", icon: "▣", adminOnly: true },
+      { href: "/admin/public-testimonials", label: "Testimonials", icon: "❝", permission: "public.view" },
       { href: "/admin/projects/website-readiness", label: "Website Readiness", icon: "✓", adminOnly: true },
     ],
   },
