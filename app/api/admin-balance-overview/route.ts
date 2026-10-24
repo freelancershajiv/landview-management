@@ -10,6 +10,15 @@ type Row = Record<string, any>;
 const LEDGER_LIVE_START = "2026-09-01";
 const LEDGER_END = "2026-12-31";
 const MUNICIPALITY_SCOPE = "municipality_file_pass";
+const NON_EFFECTIVE_EXPENSE_STATUSES = new Set([
+  "rejected",
+  "returned",
+  "cancelled",
+  "canceled",
+  "void",
+  "voided",
+  "draft",
+]);
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -65,7 +74,9 @@ function transactionAmounts(row: Row) {
   return { debit, credit, transactionType };
 }
 
-function includedInMainLedger(row: Row) {
+function baseMainLedgerEligibility(row: Row) {
+  if (text(row.finance_scope) === MUNICIPALITY_SCOPE) return false;
+
   const id = text(row.transaction_code);
   const date = dateKey(row.transaction_date);
   const { debit, credit, transactionType } = transactionAmounts(row);
@@ -74,9 +85,37 @@ function includedInMainLedger(row: Row) {
   const historical = id.startsWith("TXN-LEDGER-2025-") || id.startsWith("TXN-HIST-2026-");
   if (historical) return true;
 
-  if (normalizeStatus(row.status || "Posted") !== "posted") return false;
   if (["transfer", "personal income", "personal expense"].includes(transactionType)) return false;
   return date >= LEDGER_LIVE_START && date <= LEDGER_END;
+}
+
+function includedInMainLedger(row: Row) {
+  if (!baseMainLedgerEligibility(row)) return false;
+  const id = text(row.transaction_code);
+  const historical = id.startsWith("TXN-LEDGER-2025-") || id.startsWith("TXN-HIST-2026-");
+  if (historical) return true;
+  return normalizeStatus(row.status || "Posted") === "posted";
+}
+
+function includedInCurrentBalance(row: Row) {
+  if (!baseMainLedgerEligibility(row)) return false;
+
+  const id = text(row.transaction_code);
+  const historical = id.startsWith("TXN-LEDGER-2025-") || id.startsWith("TXN-HIST-2026-");
+  if (historical) return true;
+
+  const { debit, transactionType } = transactionAmounts(row);
+  const status = normalizeStatus(row.status || "Posted");
+
+  // A real operating expense reduces available cash immediately while it waits
+  // for EMP-0001 approval. Approval changes workflow state only; it must not
+  // deduct the expense a second time. Municipality-file-pass money is handled
+  // in its own balance and is excluded by baseMainLedgerEligibility().
+  if (transactionType === "expense" && debit > 0) {
+    return !NON_EFFECTIVE_EXPENSE_STATUSES.has(status);
+  }
+
+  return status === "posted";
 }
 
 function transactionDescription(row: Row) {
@@ -101,9 +140,6 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
     }
 
-    // The data gateway reads large result sets in 1,000-row pages. Always use
-    // a unique tiebreaker so rows sharing the same transaction date cannot be
-    // skipped or duplicated between pages.
     const transactions = await selectRows("transactions", {
       order: "transaction_date:asc,id:asc",
       limit: 5000,
@@ -132,8 +168,11 @@ export async function GET(request: NextRequest) {
         if (debit > 0 || credit > 0) municipalityEntries += 1;
       }
 
-      if (includedInMainLedger(row)) {
+      if (includedInCurrentBalance(row)) {
         currentBalance += credit - debit;
+      }
+
+      if (includedInMainLedger(row)) {
         mainEntries += 1;
         totalIncome += credit;
         totalExpenses += debit;
