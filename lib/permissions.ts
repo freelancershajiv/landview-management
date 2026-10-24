@@ -102,7 +102,7 @@ const ROLE_CAPABILITIES: Record<WorkspaceRole, ReadonlySet<Capability>> = {
 
   // Manager is an operational management role. Deliberately excluded:
   // destructive accounting actions, employee/role administration, certificate
-  // issuance, access/security/WhatsApp settings and website curation.
+  // issuance, access/security settings and website curation.
   manager: new Set<Capability>([
     "dashboard.view",
     "systemHealth.view",
@@ -132,6 +132,7 @@ const ROLE_CAPABILITIES: Record<WorkspaceRole, ReadonlySet<Capability>> = {
     "municipalityAccounts.view",
     "municipalityAccounts.edit",
     "analytics.view",
+    "whatsapp.manage",
   ]),
 
   employee: new Set<Capability>([
