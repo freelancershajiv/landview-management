@@ -1,8 +1,8 @@
 /* LAND VIEW management compact-laptop layer.
-   Keeps the desktop workspace from overflowing on 14-inch Windows laptops
-   when display scaling reduces the effective CSS viewport. */
+   Targets the effective viewport of 1920x1080 Windows laptops at 125% display
+   scaling (~1536x864 CSS pixels). */
 
-@media screen and (min-width: 901px) and (max-width: 1536px) {
+@media screen and (min-width: 901px) and (max-width: 1600px) {
   .portal-admin {
     max-width: 100%;
     overflow-x: clip !important;
@@ -14,19 +14,19 @@
   }
 
   .portal-admin .utility-inner {
-    width: calc(100% - 24px) !important;
+    width: calc(100% - 18px) !important;
     min-width: 0 !important;
-    min-height: 60px !important;
-    gap: 10px !important;
-    padding: 7px 0 !important;
+    min-height: 52px !important;
+    gap: 7px !important;
+    padding: 5px 0 !important;
     box-sizing: border-box !important;
   }
 
   .portal-admin .global-search {
-    flex: 1 1 220px !important;
+    flex: 1 1 190px !important;
     width: auto !important;
-    min-width: 150px !important;
-    max-width: 340px !important;
+    min-width: 130px !important;
+    max-width: 270px !important;
   }
 
   .portal-admin .global-search input {
@@ -38,9 +38,9 @@
     flex: 0 1 auto !important;
     min-width: 0 !important;
     max-width: 100% !important;
-    gap: 6px !important;
-    row-gap: 5px !important;
-    flex-wrap: wrap !important;
+    gap: 4px !important;
+    row-gap: 4px !important;
+    flex-wrap: nowrap !important;
     justify-content: flex-end !important;
   }
 
@@ -51,31 +51,36 @@
 
   .portal-admin .user-utility > span {
     min-width: 0 !important;
-    max-width: 120px !important;
+    max-width: 92px !important;
     overflow: hidden !important;
     text-overflow: ellipsis !important;
     white-space: nowrap !important;
+    font-size: 10px !important;
+  }
+
+  .portal-admin .user-utility > span small {
+    display: none !important;
   }
 
   .portal-admin .utility-logout {
     min-width: 0 !important;
-    padding: 7px 9px !important;
-    font-size: 9.5px !important;
+    padding: 6px 7px !important;
+    font-size: 8.5px !important;
     line-height: 1 !important;
     white-space: nowrap !important;
   }
 
   .portal-admin .primary-nav {
     max-width: 100% !important;
-    padding-top: 7px !important;
-    padding-bottom: 8px !important;
+    padding-top: 5px !important;
+    padding-bottom: 6px !important;
   }
 
   .portal-admin .primary-nav-inner {
-    width: calc(100% - 24px) !important;
+    width: calc(100% - 18px) !important;
     min-width: 0 !important;
     max-width: 100% !important;
-    gap: 5px !important;
+    gap: 4px !important;
     overflow-x: auto !important;
     overflow-y: hidden !important;
     overscroll-behavior-x: contain;
@@ -83,15 +88,15 @@
 
   .portal-admin .lv-nav-direct,
   .portal-admin .lv-nav-group-button {
-    min-height: 40px !important;
-    padding-left: 10px !important;
-    padding-right: 10px !important;
-    font-size: 11px !important;
+    min-height: 36px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    font-size: 10px !important;
   }
 
   .portal-admin .lv-nav-children > a {
-    min-height: 36px !important;
-    font-size: 11px !important;
+    min-height: 34px !important;
+    font-size: 10px !important;
   }
 
   .portal-admin .admin-main,
@@ -106,8 +111,8 @@
 
   .portal-admin .content-wrap,
   .portal-admin .tmg-content-wrap {
-    padding-left: clamp(12px, 1.5vw, 22px) !important;
-    padding-right: clamp(12px, 1.5vw, 22px) !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
     overflow-x: auto !important;
     overscroll-behavior-x: contain;
   }
@@ -122,43 +127,104 @@
     min-width: 0 !important;
     flex-wrap: wrap !important;
   }
-}
 
-@media screen and (min-width: 901px) and (max-width: 1280px) {
-  .portal-admin .utility-inner {
-    gap: 7px !important;
+  /* The dashboard previously stayed in its full 1920px composition until
+     1180px viewport width. At 125% Windows scaling the viewport is ~1536px,
+     while the usable dashboard width is smaller after the management chrome.
+     Force the compact dashboard composition at this size. */
+  .portal-admin .lv-clean-dashboard {
+    padding: 12px 10px 24px !important;
+    gap: 10px !important;
   }
 
+  .portal-admin .lv-clean-head {
+    gap: 12px !important;
+  }
+
+  .portal-admin .lv-clean-head h1 {
+    font-size: 24px !important;
+  }
+
+  .portal-admin .lv-clean-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 9px !important;
+  }
+
+  .portal-admin .lv-clean-kpi {
+    min-height: 104px !important;
+    padding-top: 14px !important;
+    padding-bottom: 12px !important;
+  }
+
+  .portal-admin .lv-clean-grid-main {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .portal-admin .lv-clean-grid-lower {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+  }
+
+  .portal-admin .lv-clean-grid-lower > .lv-clean-card:last-child {
+    grid-column: 1 / -1 !important;
+  }
+
+  .portal-admin .lv-bottom-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .portal-admin .lv-workflow {
+    grid-template-columns: repeat(5, minmax(90px, 1fr)) !important;
+    overflow-x: auto !important;
+  }
+
+  .portal-admin .lv-clean-card-head {
+    padding-left: 14px !important;
+    padding-right: 14px !important;
+  }
+}
+
+@media screen and (min-width: 901px) and (max-width: 1366px) {
   .portal-admin .global-search {
-    flex-basis: 180px !important;
-    max-width: 250px !important;
+    max-width: 220px !important;
   }
 
-  .portal-admin .utility-items {
-    gap: 4px !important;
-  }
-
-  .portal-admin .user-utility > span {
-    max-width: 82px !important;
-  }
-
-  .portal-admin .utility-logout {
-    padding-left: 7px !important;
-    padding-right: 7px !important;
-    font-size: 9px !important;
-  }
-
-  .portal-admin .primary-nav-inner {
-    width: calc(100% - 18px) !important;
-  }
-}
-
-@media screen and (min-width: 901px) and (max-width: 1080px) {
   .portal-admin .user-utility > span {
     display: none !important;
   }
 
-  .portal-admin .global-search {
-    max-width: 210px !important;
+  .portal-admin .utility-logout {
+    padding-left: 6px !important;
+    padding-right: 6px !important;
+    font-size: 8px !important;
+  }
+
+  .portal-admin .lv-clean-grid-lower {
+    grid-template-columns: 1fr !important;
+  }
+
+  .portal-admin .lv-clean-grid-lower > .lv-clean-card:last-child {
+    grid-column: auto !important;
+  }
+}
+
+@media screen and (min-width: 901px) and (max-width: 1600px) and (max-height: 900px) {
+  .portal-admin .utility-inner {
+    min-height: 48px !important;
+  }
+
+  .portal-admin .primary-nav {
+    padding-top: 4px !important;
+    padding-bottom: 4px !important;
+  }
+
+  .portal-admin .lv-clean-dashboard {
+    padding-top: 9px !important;
+  }
+
+  .portal-admin .lv-clean-kpi {
+    min-height: 96px !important;
   }
 }
