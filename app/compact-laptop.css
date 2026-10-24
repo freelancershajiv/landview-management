@@ -1,147 +1,192 @@
 /* LAND VIEW compact-laptop responsive layer.
-   Targets the effective CSS viewport commonly produced by 14-inch Windows
-   laptops at 125-150% display scaling. Phone/tablet layouts and wide desktop
-   layouts keep their existing behavior. */
+   Optimized for 14-inch Windows laptops running 1920x1080 at 125% display
+   scaling (roughly a 1536px-wide CSS viewport). This keeps desktop behavior,
+   but switches dense layouts into a compact desktop geometry before they
+   become cramped. */
 
-@media screen and (min-width: 901px) and (max-width: 1536px) {
+@media screen and (min-width: 901px) and (max-width: 1600px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
   .public-home-v2,
   .portal-employee,
-  .lv-client-shell {
+  .lv-client-shell,
+  .lv-login {
     max-width: 100%;
     overflow-x: clip;
   }
 
-  /* Public website: keep the desktop character, but reduce wasted space and
-     let dense sections breathe at compact desktop widths. */
-  .public-home-v2 .public-nav-inner {
-    width: min(calc(100% - 28px), 1240px) !important;
-    min-height: 72px !important;
-    gap: 10px !important;
+  /* Public website header. Use the header itself as the scope so these rules
+     remain valid regardless of where the header is mounted in the page tree. */
+  .public-header .public-nav-inner {
+    width: min(calc(100% - 24px), 1240px) !important;
+    min-height: 68px !important;
+    gap: 8px !important;
   }
 
-  .public-home-v2 .public-brand {
-    min-width: clamp(205px, 19vw, 260px) !important;
-    gap: 9px !important;
+  .public-header .public-brand {
+    min-width: clamp(200px, 17vw, 245px) !important;
+    gap: 8px !important;
   }
 
-  .public-home-v2 .public-brand img {
-    width: 50px !important;
-    height: 50px !important;
+  .public-header .public-brand img {
+    width: 46px !important;
+    height: 46px !important;
   }
 
-  .public-home-v2 .public-brand-copy strong {
-    font-size: 18px !important;
-    letter-spacing: .1em !important;
+  .public-header .public-brand-copy strong {
+    font-size: 17px !important;
+    letter-spacing: .09em !important;
   }
 
-  .public-home-v2 .public-brand-copy span {
+  .public-header .public-brand-copy span {
     margin-top: 4px !important;
-    font-size: 10.5px !important;
-    letter-spacing: .13em !important;
+    font-size: 9.5px !important;
+    letter-spacing: .11em !important;
   }
 
-  .public-home-v2 .public-nav a {
-    min-height: 72px !important;
-    padding-left: clamp(6px, .65vw, 10px) !important;
-    padding-right: clamp(6px, .65vw, 10px) !important;
-    font-size: 10.5px !important;
+  .public-header .public-nav a {
+    min-height: 68px !important;
+    padding-left: clamp(5px, .55vw, 8px) !important;
+    padding-right: clamp(5px, .55vw, 8px) !important;
+    font-size: 10px !important;
   }
 
-  .public-home-v2 .public-nav a::after {
-    left: 8px !important;
-    right: 8px !important;
-    bottom: 12px !important;
+  .public-header .public-nav a::after {
+    left: 6px !important;
+    right: 6px !important;
+    bottom: 10px !important;
   }
 
-  .public-home-v2 .public-header-actions {
-    gap: 6px !important;
-    margin-left: 3px !important;
+  .public-header .public-header-actions {
+    gap: 5px !important;
+    margin-left: 2px !important;
   }
 
-  .public-home-v2 .public-header-login,
-  .public-home-v2 .public-header-cta {
-    min-height: 38px !important;
-    padding-left: 10px !important;
-    padding-right: 10px !important;
-    font-size: 10.5px !important;
+  .public-header .public-header-login,
+  .public-header .public-header-cta {
+    min-height: 36px !important;
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+    font-size: 10px !important;
   }
 
+  /* Public homepage content. */
   .public-home-v2 .ph-container {
-    width: min(calc(100% - 28px), 1320px);
+    width: min(calc(100% - 24px), 1320px);
   }
 
   .public-home-v2 .ph-section {
-    padding-top: clamp(64px, 6vw, 82px);
-    padding-bottom: clamp(64px, 6vw, 82px);
+    padding-top: clamp(56px, 5vw, 72px);
+    padding-bottom: clamp(56px, 5vw, 72px);
   }
 
   .public-home-v2 .ph-heading {
-    gap: clamp(24px, 3vw, 36px);
+    gap: clamp(20px, 2.5vw, 32px);
   }
 
   .public-home-v2 .ph-hero-grid {
-    grid-template-columns: minmax(0, .96fr) minmax(0, 1.04fr);
-    min-height: 540px;
+    grid-template-columns: minmax(0, .94fr) minmax(0, 1.06fr);
+    min-height: 500px;
   }
 
   .public-home-v2 .ph-hero-copy {
     min-width: 0;
-    padding: 58px clamp(24px, 3vw, 42px) 58px 0;
+    padding: 48px clamp(20px, 2.5vw, 34px) 48px 0;
   }
 
   .public-home-v2 .ph-hero-visual {
     min-width: 0;
-    min-height: 540px;
+    min-height: 500px;
   }
 
   .public-home-v2 .ph-service-group {
-    grid-template-columns: clamp(220px, 21vw, 270px) minmax(0, 1fr);
+    grid-template-columns: clamp(205px, 18vw, 245px) minmax(0, 1fr);
   }
 
   .public-home-v2 .ph-why-grid,
   .public-home-v2 .ph-portal-grid {
-    gap: clamp(30px, 4vw, 48px);
+    gap: clamp(26px, 3vw, 40px);
   }
 
-  /* Employee workspace: the old 238px rail and 28px content gutters consume
-     too much of a scaled 14-inch display. Keep desktop navigation, but make it
-     proportional and allow the workspace itself to contain wide content. */
+  /* Login page: reduce the oversized 1920px composition on a 1536x864
+     logical viewport without switching to the mobile layout. */
+  .lv-login .lv-head {
+    height: 66px !important;
+  }
+
+  .lv-login .lv-headin,
+  .lv-login .lv-main {
+    width: min(1220px, calc(100% - 28px)) !important;
+  }
+
+  .lv-login .lv-main {
+    padding: 30px 0 36px !important;
+    grid-template-columns: minmax(0, 1fr) minmax(350px, .72fr) !important;
+    gap: clamp(28px, 3.4vw, 46px) !important;
+  }
+
+  .lv-login .copy h1 {
+    font-size: clamp(40px, 4.1vw, 58px) !important;
+    margin-top: 13px !important;
+    margin-bottom: 15px !important;
+  }
+
+  .lv-login .copy > p {
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+  }
+
+  .lv-login .info {
+    margin-top: 20px !important;
+  }
+
+  .lv-login .summary {
+    margin-top: 18px !important;
+    padding-top: 12px !important;
+    padding-bottom: 12px !important;
+  }
+
+  /* Employee workspace. */
   .portal-employee {
-    --lv-sidebar-width: clamp(202px, 16vw, 226px) !important;
+    --lv-sidebar-width: clamp(192px, 14vw, 216px) !important;
   }
 
   .portal-employee .employee-topbar-inner {
     min-width: 0;
-    padding-left: 16px !important;
-    padding-right: 16px !important;
-    gap: 10px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    gap: 8px !important;
   }
 
   .portal-employee .employee-search {
-    flex: 1 1 240px;
+    flex: 1 1 210px;
     width: auto !important;
-    min-width: 150px;
-    max-width: 390px;
+    min-width: 130px;
+    max-width: 320px;
   }
 
   .portal-employee .employee-tools {
     min-width: 0;
-    gap: 6px !important;
+    gap: 5px !important;
   }
 
   .portal-employee .employee-user {
     min-width: 0;
-    gap: 7px !important;
+    gap: 6px !important;
   }
 
   .portal-employee .employee-user-copy strong {
-    max-width: 120px !important;
+    max-width: 96px !important;
   }
 
   .portal-employee .employee-action {
-    padding-left: 9px !important;
-    padding-right: 9px !important;
-    font-size: 10px !important;
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+    font-size: 9.5px !important;
     white-space: nowrap;
   }
 
@@ -151,12 +196,12 @@
   }
 
   .portal-employee .employee-content {
-    width: calc(100% - 32px) !important;
+    width: calc(100% - 24px) !important;
     max-width: none !important;
     min-width: 0 !important;
-    margin-left: 16px !important;
-    margin-right: 16px !important;
-    padding-top: 22px !important;
+    margin-left: 12px !important;
+    margin-right: 12px !important;
+    padding-top: 16px !important;
     overflow-x: auto;
     overscroll-behavior-x: contain;
   }
@@ -166,8 +211,7 @@
     max-width: 100%;
   }
 
-  /* Client workspace: scale the permanent desktop rail instead of reserving a
-     fixed 278px on every screen wider than 980px. */
+  /* Client workspace. */
   .lv-client-shell,
   .lv-client-stage,
   .lv-client-content {
@@ -176,46 +220,59 @@
 
   .lv-client-top {
     min-width: 0;
-    padding-left: 18px !important;
-    padding-right: 18px !important;
+    padding-left: 14px !important;
+    padding-right: 14px !important;
   }
 
   .lv-client-content {
-    width: calc(100% - 32px) !important;
+    width: calc(100% - 24px) !important;
     max-width: none !important;
+    margin-left: 12px !important;
+    margin-right: 12px !important;
     overflow-x: auto;
     overscroll-behavior-x: contain;
   }
 
   .lv-client-side {
-    padding-left: 16px !important;
-    padding-right: 16px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
   }
 
   .lv-client-nav a {
-    height: 46px !important;
-    gap: 10px !important;
-    padding-left: 12px !important;
-    padding-right: 12px !important;
-    font-size: 12.5px !important;
+    height: 44px !important;
+    gap: 8px !important;
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    font-size: 12px !important;
   }
 }
 
-@media screen and (min-width: 981px) and (max-width: 1536px) {
+/* The client shell is CSS grid. Change the grid tracks themselves instead of
+   adding a second width/margin offset to the stage. */
+@media screen and (min-width: 981px) and (max-width: 1600px) {
+  html body .lv-client-shell {
+    grid-template-columns: clamp(210px, 16vw, 240px) minmax(0, 1fr) !important;
+  }
+
   html body .lv-client-shell .lv-client-side {
-    width: clamp(224px, 18vw, 258px) !important;
+    width: auto !important;
+    min-width: 0 !important;
   }
 
   html body .lv-client-shell .lv-client-stage {
-    width: calc(100% - clamp(224px, 18vw, 258px)) !important;
-    margin-left: clamp(224px, 18vw, 258px) !important;
+    width: auto !important;
+    margin-left: 0 !important;
     min-width: 0 !important;
   }
 }
 
-@media screen and (min-width: 901px) and (max-width: 1280px) {
+@media screen and (min-width: 901px) and (max-width: 1450px) {
+  .public-header .public-header-cta {
+    display: none !important;
+  }
+
   .public-home-v2 .ph-heading {
-    grid-template-columns: minmax(0, 1fr) minmax(230px, 340px);
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
   }
 
   .public-home-v2 .ph-process {
@@ -223,13 +280,11 @@
   }
 
   .portal-employee .employee-user-copy {
-    max-width: 92px;
+    max-width: 82px;
   }
 
   .portal-employee .employee-user-copy small {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    display: none !important;
   }
 
   .lv-client-user > div:not(.lv-client-avatar) {
@@ -237,13 +292,9 @@
   }
 }
 
-@media screen and (min-width: 901px) and (max-width: 1120px) {
-  .public-home-v2 .public-header-cta {
-    display: none !important;
-  }
-
-  .public-home-v2 .public-brand {
-    min-width: 205px !important;
+@media screen and (min-width: 901px) and (max-width: 1180px) {
+  .public-header .public-brand {
+    min-width: 195px !important;
   }
 
   .public-home-v2 .ph-service-list {
@@ -259,10 +310,29 @@
   }
 
   .public-home-v2 .ph-hero-copy {
-    padding-right: 22px;
+    padding-right: 18px;
   }
 
   .portal-employee .employee-user-copy {
     display: none !important;
+  }
+}
+
+/* Short laptop screens such as 1920x1080 at 125% scaling often expose only
+   ~800-870 CSS pixels vertically after browser chrome. Reduce vertical waste. */
+@media screen and (min-width: 901px) and (max-width: 1600px) and (max-height: 900px) {
+  .public-home-v2 .ph-hero-grid,
+  .public-home-v2 .ph-hero-visual {
+    min-height: 440px;
+  }
+
+  .public-home-v2 .ph-hero-copy {
+    padding-top: 38px;
+    padding-bottom: 38px;
+  }
+
+  .portal-employee .employee-content,
+  .lv-client-content {
+    padding-top: 12px !important;
   }
 }
