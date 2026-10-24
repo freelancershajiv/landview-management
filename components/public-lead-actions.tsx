@@ -2,11 +2,9 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
-import { business } from "@/lib/site-info";
+import { defaultWebsiteContent } from "@/lib/website-content";
 
 const PUBLIC_PREFIXES = ["/services", "/projects", "/team", "/contact", "/feni", "/bn", "/case-studies"];
-const WHATSAPP_NUMBER = business.architecturePhone.replace(/\D/g, "");
-const PHONE_NUMBER = business.telephone;
 const WHATSAPP_MESSAGE = "Hello LAND VIEW, I would like to discuss a building project. Please guide me about the next steps.";
 const SERVICE_OPTIONS = ["Architectural Design", "Structural Design", "3D Design - Exterior", "3D Design - Interior", "Electrical Design", "Fire Safety Design", "Plumbing Design", "Plan Approval Design", "Estimate & Costing", "Site Supervision"];
 
@@ -36,9 +34,28 @@ export default function PublicLeadActions() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [leadCode, setLeadCode] = useState("");
+  const [whatsappNumber, setWhatsappNumber] = useState(defaultWebsiteContent.general.whatsappPhone);
+  const [phoneNumber, setPhoneNumber] = useState(defaultWebsiteContent.general.engineeringPhone);
 
   const isPublic = isPublicMarketingPath(pathname || "/");
-  const whatsappHref = useMemo(() => `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`, []);
+  const whatsappHref = useMemo(() => `https://wa.me/${String(whatsappNumber).replace(/\D/g, "")}?text=${encodeURIComponent(WHATSAPP_MESSAGE)}`, [whatsappNumber]);
+
+  useEffect(() => {
+    if (!isPublic) return;
+    let cancelled = false;
+    void fetch("/api/public/site-content", { cache: "no-store" })
+      .then((response) => response.json())
+      .then((json) => {
+        if (cancelled || !json?.success) return;
+        const general = json?.data?.general || {};
+        const whatsapp = String(general.whatsappPhone || "").replace(/\D/g, "");
+        const phone = String(general.engineeringPhone || "").trim();
+        if (whatsapp) setWhatsappNumber(whatsapp);
+        if (phone) setPhoneNumber(phone);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [isPublic]);
 
   useEffect(() => {
     if (!open) return;
@@ -93,7 +110,7 @@ export default function PublicLeadActions() {
           <span className="lv-public-lead-icon" aria-hidden="true">◉</span>
           <span className="lv-public-lead-copy"><strong>WhatsApp</strong><small>Discuss your project</small></span>
         </a>
-        <a className="lv-public-lead-action lv-public-call" href={`tel:${PHONE_NUMBER}`} aria-label="Call LAND VIEW engineering enquiries">
+        <a className="lv-public-lead-action lv-public-call" href={`tel:${phoneNumber}`} aria-label="Call LAND VIEW engineering enquiries">
           <span className="lv-public-lead-icon" aria-hidden="true">☎</span>
           <span className="lv-public-lead-copy"><strong>Call</strong><small>Engineering enquiries</small></span>
         </a>
