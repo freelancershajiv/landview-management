@@ -35,6 +35,8 @@ import "../color-system-compatibility.css";
 import "./project-finance-theme-authority.css";
 // Component-local chooser styles are emitted later; this uses !important theme tokens to normalize them.
 import "./project-finance-selector-theme.css";
+// Keep the restored original signature red final after all finance-specific layers.
+import "../brand-palette-original.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
