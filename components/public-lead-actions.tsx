@@ -2,10 +2,11 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
+import { business } from "@/lib/site-info";
 
-const PUBLIC_PREFIXES = ["/services", "/projects", "/team", "/contact", "/feni", "/bn"];
-const WHATSAPP_NUMBER = "8801408080400";
-const PHONE_NUMBER = "+8801408080400";
+const PUBLIC_PREFIXES = ["/services", "/projects", "/team", "/contact", "/feni", "/bn", "/case-studies"];
+const WHATSAPP_NUMBER = business.architecturePhone.replace(/\D/g, "");
+const PHONE_NUMBER = business.telephone;
 const WHATSAPP_MESSAGE = "Hello LAND VIEW, I would like to discuss a building project. Please guide me about the next steps.";
 const SERVICE_OPTIONS = ["Architectural Design", "Structural Design", "3D Design - Exterior", "3D Design - Interior", "Electrical Design", "Fire Safety Design", "Plumbing Design", "Plan Approval Design", "Estimate & Costing", "Site Supervision"];
 
