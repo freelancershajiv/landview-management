@@ -8,7 +8,7 @@ import "./case-studies-link.css";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Architecture & Engineering Projects in Bangladesh | LAND VIEW",
+  title: { absolute: "Architecture & Engineering Projects in Bangladesh | LAND VIEW" },
   description: "Explore public LAND VIEW architecture and engineering projects by category, stage, district and consultancy service, with project images, location information and project details.",
   alternates: { canonical: "/projects" },
   openGraph: {
