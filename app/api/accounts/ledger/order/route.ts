@@ -37,6 +37,8 @@ type LedgerStateRow = {
   balance: number;
 };
 
+type DropPlacement = "before" | "after";
+
 function text(value: unknown, max = 1500) {
   return String(value ?? "").trim().slice(0, max);
 }
@@ -66,17 +68,35 @@ function ledgerEntryRank(row: LedgerRow) {
   return row.credit >= row.debit ? 0 : 1;
 }
 function fallbackWording(row: LedgerRow) {
-  return [row.description, row.category, row.projectCode, row.id].map((value) => text(value)).filter(Boolean).join(" ").toLowerCase();
+  return [row.description, row.category, row.projectCode, row.id]
+    .map((value) => text(value))
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
 }
 function compareWithinDate(a: LedgerRow, b: LedgerRow) {
-  if (a.order !== null && b.order !== null && a.order !== b.order) return a.order - b.order;
-  if (a.order !== null && b.order === null) return -1;
-  if (a.order === null && b.order !== null) return 1;
   const entryOrder = ledgerEntryRank(a) - ledgerEntryRank(b);
   if (entryOrder) return entryOrder;
   const wordingOrder = fallbackWording(a).localeCompare(fallbackWording(b), undefined, { numeric: true, sensitivity: "base" });
   if (wordingOrder) return wordingOrder;
   return a.id.localeCompare(b.id, undefined, { numeric: true, sensitivity: "base" });
+}
+function compareChronological(a: LedgerRow, b: LedgerRow) {
+  const dateOrder = a.date.localeCompare(b.date);
+  if (dateOrder) return dateOrder;
+  return compareWithinDate(a, b);
+}
+function isCanonicalOrder(rows: LedgerRow[]) {
+  if (!rows.length || rows.some((row) => row.order === null)) return false;
+  const values = rows.map((row) => row.order as number);
+  const unique = new Set(values);
+  if (unique.size !== rows.length) return false;
+  const sorted = [...unique].sort((a, b) => a - b);
+  return sorted[0] === 1 && sorted[sorted.length - 1] === rows.length;
+}
+function compareMonthly(a: LedgerRow, b: LedgerRow, canonical: boolean) {
+  if (canonical && a.order !== null && b.order !== null && a.order !== b.order) return a.order - b.order;
+  return compareChronological(a, b);
 }
 function isLedgerTransaction(row: LedgerRow) {
   const historical = HISTORICAL_PREFIXES.some((prefix) => row.id.startsWith(prefix));
@@ -87,30 +107,48 @@ function isLedgerTransaction(row: LedgerRow) {
 }
 function toLedgerRow(row: DbRow): LedgerRow {
   return {
-    id: text(row.transaction_code, 160), date: text(row.transaction_date, 20), debit: number(row.debit), credit: number(row.credit), order: positiveInteger(row.ledger_order),
-    description: text(row.description), category: text(row.category, 300), projectCode: text(row.project_code_snapshot, 160), transactionType: text(row.transaction_type, 100), status: text(row.status, 100) || "Posted",
+    id: text(row.transaction_code, 160),
+    date: text(row.transaction_date, 20),
+    debit: number(row.debit),
+    credit: number(row.credit),
+    order: positiveInteger(row.ledger_order),
+    description: text(row.description),
+    category: text(row.category, 300),
+    projectCode: text(row.project_code_snapshot, 160),
+    transactionType: text(row.transaction_type, 100),
+    status: text(row.status, 100) || "Posted",
   };
 }
 async function loadLedgerRows() {
-  // The gateway paginates in 1,000-row chunks. A stable unique order prevents
-  // any transaction from being skipped or duplicated between those pages.
   const rows = await selectRows("transactions", { order: "id:asc", limit: 5000 });
-  return rows.map(toLedgerRow).filter((row) => row.id && row.date && (row.debit > 0 || row.credit > 0) && isLedgerTransaction(row));
+  return rows
+    .map(toLedgerRow)
+    .filter((row) => row.id && row.date && (row.debit > 0 || row.credit > 0) && isLedgerTransaction(row));
 }
 function buildState(rows: LedgerRow[], openingBalance = 0, statementDisplay = false) {
-  const chronological = [...rows].sort((a, b) => {
-    const dateOrder = a.date.localeCompare(b.date);
-    return dateOrder || compareWithinDate(a, b);
-  });
+  const chronological = [...rows].sort(compareChronological);
   const dayGroups = new Map<string, LedgerRow[]>();
-  for (const row of chronological) { const group = dayGroups.get(row.date) || []; group.push(row); dayGroups.set(row.date, group); }
+  for (const row of chronological) {
+    const group = dayGroups.get(row.date) || [];
+    group.push(row);
+    dayGroups.set(row.date, group);
+  }
+
   let balance = openingBalance;
   const state = chronological.map<LedgerStateRow>((row) => {
     balance += row.credit - row.debit;
     const group = dayGroups.get(row.date) || [];
     const position = group.findIndex((item) => item.id === row.id);
-    return { id: row.id, date: row.date, order: row.order, position: position >= 0 ? position + 1 : 1, dayCount: group.length, balance };
+    return {
+      id: row.id,
+      date: row.date,
+      order: row.order,
+      position: position >= 0 ? position + 1 : 1,
+      dayCount: group.length,
+      balance,
+    };
   });
+
   if (!statementDisplay || !state.length) return state;
   const stateById = new Map(state.map((row) => [row.id, row]));
   const displayOrder = [...chronological].sort((a, b) => {
@@ -129,28 +167,48 @@ function buildMonthState(rows: LedgerRow[], monthKey: string) {
   const monthStart = `${monthKey}-01`;
   const openingBalance = rows.reduce((sum, row) => row.date >= monthStart ? sum : sum + row.credit - row.debit, 0);
   const monthRows = rows.filter((row) => row.date.slice(0, 7) === monthKey);
-  return buildState(monthRows, openingBalance, true);
+  const canonical = isCanonicalOrder(monthRows);
+  const ordered = [...monthRows].sort((a, b) => compareMonthly(a, b, canonical));
+
+  let balance = openingBalance;
+  return ordered.map<LedgerStateRow>((row, index) => {
+    balance += row.credit - row.debit;
+    return {
+      id: row.id,
+      date: row.date,
+      order: row.order,
+      position: index + 1,
+      dayCount: ordered.length,
+      balance,
+    };
+  });
 }
 function stateFor(rows: LedgerRow[], monthKey: string) {
   return monthKey ? buildMonthState(rows, monthKey) : buildState(rows, 0, true);
 }
-async function stabilizeDayOrder(dayRows: LedgerRow[]) {
-  for (let index = 0; index < dayRows.length; index += 1) {
+async function saveScopeOrder(scopeRows: LedgerRow[]) {
+  for (let index = 0; index < scopeRows.length; index += 1) {
     const expected = index + 1;
-    if (dayRows[index].order !== expected) { await updateRows("transactions", { transaction_code: dayRows[index].id }, { ledger_order: expected }); dayRows[index].order = expected; }
-  }
-}
-async function saveDayOrder(dayRows: LedgerRow[]) {
-  for (let index = 0; index < dayRows.length; index += 1) {
-    const expected = index + 1;
-    if (dayRows[index].order !== expected) { await updateRows("transactions", { transaction_code: dayRows[index].id }, { ledger_order: expected }); dayRows[index].order = expected; }
+    if (scopeRows[index].order !== expected) {
+      await updateRows("transactions", { transaction_code: scopeRows[index].id }, { ledger_order: expected });
+      scopeRows[index].order = expected;
+    }
   }
 }
 async function requireLedgerUser(request: NextRequest) {
   let user = await requireLocalSession(request);
   if (!user) user = readSignedWorkspaceUser(request.cookies.get(QUICK_USER_COOKIE)?.value);
-  if (!user) return { error: NextResponse.json({ success: false, error: "Session could not be validated. Refresh the page and try again." }, { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } }) };
-  if (!READ_ROLES.has(roleOf(user))) return { error: NextResponse.json({ success: false, error: "Ledger access is required." }, { status: 403 }) };
+  if (!user) {
+    return {
+      error: NextResponse.json(
+        { success: false, error: "Session could not be validated. Refresh the page and try again." },
+        { status: 401, headers: { "Cache-Control": "no-store, max-age=0" } },
+      ),
+    };
+  }
+  if (!READ_ROLES.has(roleOf(user))) {
+    return { error: NextResponse.json({ success: false, error: "Ledger access is required." }, { status: 403 }) };
+  }
   return { user };
 }
 
@@ -158,11 +216,18 @@ export async function GET(request: NextRequest) {
   try {
     const access = await requireLedgerUser(request);
     if (access.error) return access.error;
+
     const requestedMonth = request.nextUrl.searchParams.get("month");
     const monthKey = requestedMonth ? validMonthKey(requestedMonth) : "";
-    if (requestedMonth && !monthKey) return NextResponse.json({ success: false, error: "Month must use YYYY-MM format." }, { status: 400 });
+    if (requestedMonth && !monthKey) {
+      return NextResponse.json({ success: false, error: "Month must use YYYY-MM format." }, { status: 400 });
+    }
+
     const rows = await loadLedgerRows();
-    return NextResponse.json({ success: true, rows: stateFor(rows, monthKey), month: monthKey || null }, { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } });
+    return NextResponse.json(
+      { success: true, rows: stateFor(rows, monthKey), month: monthKey || null },
+      { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load ledger order.";
     return NextResponse.json({ success: false, error: message }, { status: 502, headers: { "Cache-Control": "no-store" } });
@@ -171,66 +236,148 @@ export async function GET(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
-    if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
+    if (!sameOrigin(request)) {
+      return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
+    }
+
     const access = await requireLedgerUser(request);
     if (access.error) return access.error;
-    if (roleOf(access.user) !== "admin") return NextResponse.json({ success: false, error: "Admin access is required to reorder ledger history." }, { status: 403 });
+    if (roleOf(access.user) !== "admin") {
+      return NextResponse.json({ success: false, error: "Admin access is required to reorder ledger history." }, { status: 403 });
+    }
 
     const body = await request.json() as Record<string, unknown>;
     const transactionId = text(body.transactionId || body.Transaction_ID, 160);
     const direction = text(body.direction, 20).toLowerCase();
     const targetTransactionId = text(body.targetTransactionId, 160);
-    const placement = text(body.placement, 20).toLowerCase();
+    const placement = text(body.placement, 20).toLowerCase() as DropPlacement;
     const requestedMonth = text(body.month, 20);
     const monthKey = requestedMonth ? validMonthKey(requestedMonth) : "";
     const dragRequest = Boolean(targetTransactionId);
-    if (requestedMonth && !monthKey) return NextResponse.json({ success: false, error: "Month must use YYYY-MM format." }, { status: 400 });
-    if (!transactionId) return NextResponse.json({ success: false, error: "Transaction ID is required." }, { status: 400 });
+
+    if (requestedMonth && !monthKey) {
+      return NextResponse.json({ success: false, error: "Month must use YYYY-MM format." }, { status: 400 });
+    }
+    if (!transactionId) {
+      return NextResponse.json({ success: false, error: "Transaction ID is required." }, { status: 400 });
+    }
     if (dragRequest) {
-      if (placement !== "before" && placement !== "after") return NextResponse.json({ success: false, error: "Placement must be before or after." }, { status: 400 });
-    } else if (direction !== "up" && direction !== "down") return NextResponse.json({ success: false, error: "Direction must be up or down." }, { status: 400 });
+      if (placement !== "before" && placement !== "after") {
+        return NextResponse.json({ success: false, error: "Placement must be before or after." }, { status: 400 });
+      }
+    } else if (direction !== "up" && direction !== "down") {
+      return NextResponse.json({ success: false, error: "Direction must be up or down." }, { status: 400 });
+    }
 
     const allRows = await loadLedgerRows();
     const current = allRows.find((row) => row.id === transactionId);
-    if (!current) return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
-    if (monthKey && current.date.slice(0, 7) !== monthKey) return NextResponse.json({ success: false, error: "Only entries from the current month can be reordered here." }, { status: 400 });
-    const dayRows = allRows.filter((row) => row.date === current.date).sort(compareWithinDate);
-    const currentIndex = dayRows.findIndex((row) => row.id === transactionId);
-    if (currentIndex < 0) return NextResponse.json({ success: false, error: "Ledger transaction was not found for its date." }, { status: 404 });
-    await stabilizeDayOrder(dayRows);
-    const actor = text((access.user as Record<string, unknown>).User_ID || (access.user as Record<string, unknown>).userId || (access.user as Record<string, unknown>).username || "LAND VIEW", 160);
+    if (!current) {
+      return NextResponse.json({ success: false, error: "Ledger transaction was not found." }, { status: 404 });
+    }
+
+    const effectiveMonth = monthKey || current.date.slice(0, 7);
+    if (monthKey && current.date.slice(0, 7) !== monthKey) {
+      return NextResponse.json({ success: false, error: "Only entries from the selected month can be reordered here." }, { status: 400 });
+    }
+
+    const scopeRows = allRows.filter((row) => row.date.slice(0, 7) === effectiveMonth);
+    const canonical = isCanonicalOrder(scopeRows);
+    scopeRows.sort((a, b) => compareMonthly(a, b, canonical));
+    await saveScopeOrder(scopeRows);
+
+    const currentIndex = scopeRows.findIndex((row) => row.id === transactionId);
+    if (currentIndex < 0) {
+      return NextResponse.json({ success: false, error: "Ledger transaction was not found for its month." }, { status: 404 });
+    }
+
+    const actor = text(
+      (access.user as Record<string, unknown>).User_ID ||
+      (access.user as Record<string, unknown>).userId ||
+      (access.user as Record<string, unknown>).username ||
+      "LAND VIEW",
+      160,
+    );
 
     if (dragRequest) {
-      if (targetTransactionId === transactionId) return NextResponse.json({ success: true, rows: stateFor(await loadLedgerRows(), monthKey), month: monthKey || null }, { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } });
-      const target = dayRows.find((row) => row.id === targetTransactionId);
-      if (!target) {
-        const targetAnywhere = allRows.find((row) => row.id === targetTransactionId);
-        return NextResponse.json({ success: false, error: targetAnywhere ? "Ledger entries can only be dragged within the same date." : "Drop target was not found." }, { status: 400 });
+      if (targetTransactionId === transactionId) {
+        return NextResponse.json(
+          { success: true, rows: stateFor(await loadLedgerRows(), effectiveMonth), month: effectiveMonth },
+          { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
+        );
       }
+
+      const targetIndex = scopeRows.findIndex((row) => row.id === targetTransactionId);
+      if (targetIndex < 0) {
+        const targetAnywhere = allRows.find((row) => row.id === targetTransactionId);
+        return NextResponse.json(
+          { success: false, error: targetAnywhere ? "Ledger entries can only be dragged within the same month." : "Drop target was not found." },
+          { status: 400 },
+        );
+      }
+
       const fromOrder = current.order || currentIndex + 1;
-      const withoutCurrent = dayRows.filter((row) => row.id !== transactionId);
-      const targetIndex = withoutCurrent.findIndex((row) => row.id === targetTransactionId);
-      let insertIndex = placement === "after" ? targetIndex + 1 : targetIndex;
+      const withoutCurrent = scopeRows.filter((row) => row.id !== transactionId);
+      const targetWithoutCurrentIndex = withoutCurrent.findIndex((row) => row.id === targetTransactionId);
+      let insertIndex = placement === "after" ? targetWithoutCurrentIndex + 1 : targetWithoutCurrentIndex;
       insertIndex = Math.max(0, Math.min(insertIndex, withoutCurrent.length));
       withoutCurrent.splice(insertIndex, 0, current);
-      await saveDayOrder(withoutCurrent);
+      await saveScopeOrder(withoutCurrent);
       const toOrder = withoutCurrent.findIndex((row) => row.id === transactionId) + 1;
-      if (toOrder !== fromOrder) await insertRows("app_audit_log", { actor_user_key: actor, action: "ledger_reorder_drag", target: transactionId, outcome: "success", details: { transaction_date: current.date, month: monthKey || null, moved_relative_to: targetTransactionId, placement, from_order: fromOrder, to_order: toOrder } });
+
+      if (toOrder !== fromOrder) {
+        await insertRows("app_audit_log", {
+          actor_user_key: actor,
+          action: "ledger_reorder_drag",
+          target: transactionId,
+          outcome: "success",
+          details: {
+            transaction_date: current.date,
+            month: effectiveMonth,
+            moved_relative_to: targetTransactionId,
+            placement,
+            from_order: fromOrder,
+            to_order: toOrder,
+          },
+        });
+      }
     } else {
       const neighborIndex = direction === "up" ? currentIndex - 1 : currentIndex + 1;
-      if (neighborIndex >= 0 && neighborIndex < dayRows.length) {
-        const first = dayRows[currentIndex], second = dayRows[neighborIndex];
-        const firstOrder = first.order || currentIndex + 1, secondOrder = second.order || neighborIndex + 1;
+      if (neighborIndex >= 0 && neighborIndex < scopeRows.length) {
+        const first = scopeRows[currentIndex];
+        const second = scopeRows[neighborIndex];
+        const firstOrder = first.order || currentIndex + 1;
+        const secondOrder = second.order || neighborIndex + 1;
         await updateRows("transactions", { transaction_code: first.id }, { ledger_order: secondOrder });
         await updateRows("transactions", { transaction_code: second.id }, { ledger_order: firstOrder });
-        first.order = secondOrder; second.order = firstOrder;
-        await insertRows("app_audit_log", { actor_user_key: actor, action: "ledger_reorder", target: transactionId, outcome: "success", details: { transaction_date: current.date, month: monthKey || null, direction, swapped_with: second.id, from_order: firstOrder, to_order: secondOrder } });
+        first.order = secondOrder;
+        second.order = firstOrder;
+        await insertRows("app_audit_log", {
+          actor_user_key: actor,
+          action: "ledger_reorder",
+          target: transactionId,
+          outcome: "success",
+          details: {
+            transaction_date: current.date,
+            month: effectiveMonth,
+            direction,
+            swapped_with: second.id,
+            from_order: firstOrder,
+            to_order: secondOrder,
+          },
+        });
       }
     }
+
     const refreshed = await loadLedgerRows();
-    return NextResponse.json({ success: true, rows: stateFor(refreshed, monthKey), month: monthKey || null }, { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } });
+    return NextResponse.json(
+      { success: true, rows: stateFor(refreshed, effectiveMonth), month: effectiveMonth },
+      { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } },
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not reorder the ledger entry.";
-    return NextResponse.json({ success: false, error: message }, { status: /session/i.test(message) ? 401 : 502, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json(
+      { success: false, error: message },
+      { status: /session/i.test(message) ? 401 : 502, headers: { "Cache-Control": "no-store" } },
+    );
   }
 }
