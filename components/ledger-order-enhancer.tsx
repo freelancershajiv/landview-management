@@ -42,21 +42,19 @@ function transactionId(row: HTMLTableRowElement) {
   return row.querySelector<HTMLElement>(".tx-id")?.textContent?.trim() || "";
 }
 
-function dateLabel(row: HTMLTableRowElement) {
-  return row.querySelector<HTMLElement>(".date-cell")?.textContent?.trim() || "";
-}
-
 function installStyles() {
   if (document.getElementById("ledger-order-enhancer-style")) return;
   const style = document.createElement("style");
   style.id = "ledger-order-enhancer-style";
   style.textContent = `
-    .ledger-order-head{width:64px;text-align:center!important}
-    .ledger-order-cell{width:64px;white-space:nowrap;text-align:center!important}
-    .ledger-drag-handle{width:34px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--theme-line-_4b5963,#4b5963);border-radius:8px;background:var(--theme-bg-_17222b,#17222b);color:var(--theme-ink-_edf2f5,#edf2f5);font-size:20px;font-weight:900;line-height:1;cursor:grab;user-select:none;touch-action:none}
-    .ledger-drag-handle:hover{border-color:var(--theme-line-_77858f,#77858f);background:var(--theme-bg-_1d2b35,#1d2b35)}
+    .ledger-order-head{width:88px;text-align:center!important}
+    .ledger-order-cell{width:88px;white-space:nowrap;text-align:center!important}
+    .ledger-order-wrap{display:inline-flex;align-items:center;justify-content:center;gap:7px}
+    .ledger-serial{min-width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--theme-line-_4b5963,#4b5963);border-radius:7px;background:var(--theme-bg-_101820,#101820);color:var(--theme-ink-_edf2f5,#edf2f5);font-size:9px;font-weight:900;font-variant-numeric:tabular-nums}
+    .ledger-drag-handle{width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:1px solid var(--theme-line-_4b5963,#4b5963);border-radius:7px;background:var(--theme-bg-_17222b,#17222b);color:var(--theme-ink-_aeb8be,#aeb8be);font-size:17px;font-weight:900;line-height:1;cursor:grab;user-select:none;touch-action:none}
+    .ledger-drag-handle:hover{border-color:var(--theme-line-_77858f,#77858f);background:var(--theme-bg-_1d2b35,#1d2b35);color:var(--theme-ink-_edf2f5,#edf2f5)}
     .ledger-drag-handle:active{cursor:grabbing}
-    .ledger-drag-handle.disabled{opacity:.45;cursor:not-allowed;border-style:dashed}
+    .ledger-drag-handle.disabled{opacity:.4;cursor:not-allowed;border-style:dashed}
     .ledger-drag-handle.busy{opacity:.5;cursor:wait}
     tr.transaction-row.ledger-dragging{opacity:.45}
     tr.transaction-row.ledger-drop-before td{box-shadow:inset 0 3px 0 #c83d3f}
@@ -82,30 +80,21 @@ function reorderVisibleRows(table: HTMLTableElement, stateById: Map<string, Ledg
   const tbody = table.tBodies.item(0);
   if (!tbody) return;
 
-  const rows = Array.from(tbody.querySelectorAll<HTMLTableRowElement>("tr.transaction-row"));
-  let index = 0;
-  while (index < rows.length) {
-    const groupDate = dateLabel(rows[index]);
-    const group: HTMLTableRowElement[] = [];
-    let cursor = index;
-    while (cursor < rows.length && dateLabel(rows[cursor]) === groupDate) {
-      group.push(rows[cursor]);
-      cursor += 1;
-    }
+  const allRows = Array.from(tbody.querySelectorAll<HTMLTableRowElement>("tr.transaction-row"));
+  const rows = allRows.filter((row) => stateById.has(transactionId(row)));
+  if (rows.length <= 1) return;
 
-    const sorted = [...group].sort((a, b) => {
-      const aState = stateById.get(transactionId(a));
-      const bState = stateById.get(transactionId(b));
-      return (aState?.position ?? Number.MAX_SAFE_INTEGER) - (bState?.position ?? Number.MAX_SAFE_INTEGER);
-    });
+  const sorted = [...rows].sort((a, b) => {
+    const aState = stateById.get(transactionId(a));
+    const bState = stateById.get(transactionId(b));
+    return (aState?.position ?? Number.MAX_SAFE_INTEGER) - (bState?.position ?? Number.MAX_SAFE_INTEGER);
+  });
 
-    const changed = group.some((row, groupIndex) => row !== sorted[groupIndex]);
-    if (changed) {
-      const marker = group[group.length - 1].nextSibling;
-      sorted.forEach((row) => tbody.insertBefore(row, marker));
-    }
-    index = cursor;
-  }
+  const changed = rows.some((row, index) => row !== sorted[index]);
+  if (!changed) return;
+
+  const marker = rows[rows.length - 1].nextSibling;
+  sorted.forEach((row) => tbody.insertBefore(row, marker));
 }
 
 function updateBalances(table: HTMLTableElement, stateById: Map<string, LedgerOrderRow>) {
@@ -126,14 +115,17 @@ export default function LedgerOrderEnhancer() {
     let scheduled = false;
     let busyId = "";
     let draggingId = "";
-    let draggingDate = "";
     let stateRows: LedgerOrderRow[] = [];
     const monthKey = currentMonthKey();
 
     const stateById = () => new Map(stateRows.map((row) => [row.id, row]));
 
     async function loadAllState() {
-      const response = await fetch("/api/accounts/ledger/order", { credentials: "same-origin", cache: "no-store" });
+      const query = monthKey ? `?month=${encodeURIComponent(monthKey)}` : "";
+      const response = await fetch(`/api/accounts/ledger/order${query}`, {
+        credentials: "same-origin",
+        cache: "no-store",
+      });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.success || !Array.isArray(json.rows)) {
         throw new Error(String(json?.error || "Could not load ledger balance/order state."));
@@ -157,14 +149,13 @@ export default function LedgerOrderEnhancer() {
         if (!response.ok || !json?.success || !Array.isArray(json.rows)) {
           throw new Error(String(json?.error || "Could not reorder ledger entry."));
         }
-        await loadAllState();
+        stateRows = json.rows as LedgerOrderRow[];
       } catch (error) {
         console.error("Current month ledger drag reorder failed", error);
         window.alert(error instanceof Error ? error.message : "Could not reorder ledger entry.");
       } finally {
         busyId = "";
         draggingId = "";
-        draggingDate = "";
         apply();
       }
     }
@@ -175,8 +166,8 @@ export default function LedgerOrderEnhancer() {
         const th = document.createElement("th");
         th.className = "ledger-order-head";
         th.dataset.ledgerOrderAdded = "true";
-        th.textContent = "Order";
-        th.title = "Click and hold the handle, then drag within the same date";
+        th.textContent = "S.L";
+        th.title = "Monthly ledger serial. Drag to change the current-month order.";
         header.insertBefore(th, header.firstElementChild);
       }
 
@@ -184,6 +175,7 @@ export default function LedgerOrderEnhancer() {
         const id = transactionId(row);
         if (!id) return;
         const state = map.get(id);
+        if (!state) return;
 
         let cell = row.querySelector<HTMLTableCellElement>("td[data-ledger-order-added='true']");
         if (!cell) {
@@ -193,34 +185,47 @@ export default function LedgerOrderEnhancer() {
           row.insertBefore(cell, row.firstElementChild);
         }
 
-        let handle = cell.querySelector<HTMLSpanElement>(".ledger-drag-handle");
+        let wrap = cell.querySelector<HTMLSpanElement>(".ledger-order-wrap");
+        if (!wrap) {
+          wrap = document.createElement("span");
+          wrap.className = "ledger-order-wrap";
+          cell.replaceChildren(wrap);
+        }
+
+        let serial = wrap.querySelector<HTMLSpanElement>(".ledger-serial");
+        if (!serial) {
+          serial = document.createElement("span");
+          serial.className = "ledger-serial";
+          wrap.appendChild(serial);
+        }
+        serial.textContent = String(state.position);
+        serial.title = `Ledger serial ${state.position}`;
+
+        let handle = wrap.querySelector<HTMLSpanElement>(".ledger-drag-handle");
         if (!handle) {
           handle = document.createElement("span");
           handle.className = "ledger-drag-handle";
           handle.setAttribute("role", "button");
           handle.setAttribute("tabindex", "0");
           handle.textContent = "⠿";
-          cell.replaceChildren(handle);
+          wrap.appendChild(handle);
         }
 
-        const canDrag = Boolean(state && state.dayCount > 1 && !busyId);
+        const canDrag = state.dayCount > 1 && !busyId;
         handle.draggable = canDrag;
-        handle.classList.toggle("disabled", !state || Boolean(state && state.dayCount <= 1));
+        handle.classList.toggle("disabled", state.dayCount <= 1);
         handle.classList.toggle("busy", busyId === id);
-        handle.title = !state
-          ? "Ordering is unavailable for this ledger entry"
-          : state.dayCount <= 1
-            ? "This is the only entry on this date"
-            : "Click and hold, then drag this entry within the same date";
-        handle.setAttribute("aria-label", `Drag ${id} to reorder within ${state?.date || "this date"}`);
+        handle.title = state.dayCount <= 1
+          ? "This is the only entry in the month"
+          : "Drag to change this entry's monthly serial";
+        handle.setAttribute("aria-label", `Drag ledger serial ${state.position} to reorder within ${monthKey}`);
 
         handle.ondragstart = (event) => {
-          if (!state || state.dayCount <= 1 || busyId) {
+          if (state.dayCount <= 1 || busyId) {
             event.preventDefault();
             return;
           }
           draggingId = id;
-          draggingDate = state.date;
           row.classList.add("ledger-dragging");
           if (event.dataTransfer) {
             event.dataTransfer.effectAllowed = "move";
@@ -230,19 +235,18 @@ export default function LedgerOrderEnhancer() {
 
         handle.ondragend = () => {
           draggingId = "";
-          draggingDate = "";
           row.classList.remove("ledger-dragging");
           clearDropClasses(table);
         };
 
         row.ondragover = (event) => {
-          if (!draggingId || draggingId === id || !state || state.date !== draggingDate || busyId) return;
+          if (!draggingId || draggingId === id || busyId) return;
           event.preventDefault();
           if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
           clearDropClasses(table);
           const rect = row.getBoundingClientRect();
-          const placement: DropPlacement = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
-          row.classList.add(placement === "before" ? "ledger-drop-before" : "ledger-drop-after");
+          const dropPlacement: DropPlacement = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+          row.classList.add(dropPlacement === "before" ? "ledger-drop-before" : "ledger-drop-after");
         };
 
         row.ondragleave = (event) => {
@@ -252,14 +256,14 @@ export default function LedgerOrderEnhancer() {
         };
 
         row.ondrop = (event) => {
-          if (!draggingId || draggingId === id || !state || state.date !== draggingDate || busyId) return;
+          if (!draggingId || draggingId === id || busyId) return;
           event.preventDefault();
           const rect = row.getBoundingClientRect();
-          const placement: DropPlacement = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
+          const dropPlacement: DropPlacement = event.clientY < rect.top + rect.height / 2 ? "before" : "after";
           const sourceId = draggingId;
           clearDropClasses(table);
           row.classList.remove("ledger-dragging");
-          void moveTo(sourceId, id, placement);
+          void moveTo(sourceId, id, dropPlacement);
         };
       });
     }
@@ -270,13 +274,13 @@ export default function LedgerOrderEnhancer() {
       const map = stateById();
       const currentMonthActive = activeCurrentMonthTab();
       document.querySelectorAll<HTMLTableElement>("table.bank-table").forEach((table) => {
-        // Row ordering and running balances come from the ledger/order endpoint.
-        // Page-level summary cards are intentionally left alone so the
-        // canonical balance bridge remains the single source for Current Balance.
-        reorderVisibleRows(table, map);
-        updateBalances(table, map);
-        if (currentMonthActive) addOrderControls(table, map);
-        else removeOrderControls(table);
+        if (currentMonthActive) {
+          reorderVisibleRows(table, map);
+          updateBalances(table, map);
+          addOrderControls(table, map);
+        } else {
+          removeOrderControls(table);
+        }
       });
     }
 
