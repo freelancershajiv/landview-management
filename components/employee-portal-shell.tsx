@@ -5,6 +5,7 @@ import { landViewApi } from "@/lib/api";
 import EmployeeCommandCenter, { type EmployeeCommandView } from "@/components/employee-command-center";
 import EmployeeTaskCenter from "@/components/employee-task-center";
 import EmployeeSiteVisitAssignments from "@/components/employee-site-visit-assignments";
+import EmployeeWhatsAppConnect from "@/components/employee-whatsapp-connect";
 import EmployeeProjectStageStrip from "@/components/employee-project-stage-strip";
 import ChairmanExpenseApproval from "@/components/chairman-expense-approval";
 import EmployeeExpenseCenter from "@/components/employee-expense-center";
@@ -123,6 +124,7 @@ export default function EmployeePortalShell() {
     <div className="employee-workspace-body">
       {active === "dashboard" && <div className="employee-dashboard-stack">
         <EmployeeSiteVisitAssignments showRecordButton />
+        <EmployeeWhatsAppConnect />
         <EmployeeCommandCenter view="dashboard" />
       </div>}
       {active === "visits" && <EmployeeSiteVisitAssignments />}
