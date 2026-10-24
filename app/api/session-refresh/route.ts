@@ -57,9 +57,22 @@ export async function GET(request: NextRequest) {
     response.cookies.set(QUICK_USER_COOKIE, signWorkspaceUser(data.user), cookieOptions(maxAge));
     if (remembered) response.cookies.set(REMEMBER_COOKIE, "1", cookieOptions(maxAge));
     return response;
-  } catch {
-    const response = NextResponse.json({ success: false, error: "Session expired." }, { status: 401, headers: { "Cache-Control": "no-store" } });
-    clearAuth(response);
-    return response;
+  } catch (error: any) {
+    const status = Number(error?.status || 0);
+    const invalidSession = status === 400 || status === 401 || status === 403;
+
+    // Only an explicit authentication failure should destroy the local login.
+    // Temporary Supabase/Vercel/network failures must preserve the refresh token
+    // so the next request can retry without forcing the user to sign in again.
+    if (invalidSession) {
+      const response = NextResponse.json({ success: false, error: "Session expired." }, { status: 401, headers: { "Cache-Control": "no-store" } });
+      clearAuth(response);
+      return response;
+    }
+
+    return NextResponse.json(
+      { success: false, error: "Session refresh is temporarily unavailable. Your login has been preserved." },
+      { status: 503, headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
   }
 }
