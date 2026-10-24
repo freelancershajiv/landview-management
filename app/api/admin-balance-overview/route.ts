@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
+import {
+  financeDateKey,
+  financeTransactionAmounts,
+  includedInCurrentBalance,
+  includedInMainLedger,
+  isMunicipalityTransaction,
+} from "@/lib/finance-ledger-policy";
 import { selectRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -7,47 +14,8 @@ export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
 
-const LEDGER_LIVE_START = "2026-09-01";
-const LEDGER_END = "2026-12-31";
-const MUNICIPALITY_SCOPE = "municipality_file_pass";
-const NON_EFFECTIVE_EXPENSE_STATUSES = new Set([
-  "rejected",
-  "returned",
-  "cancelled",
-  "canceled",
-  "void",
-  "voided",
-  "draft",
-]);
-
 function text(value: unknown) {
   return String(value ?? "").trim();
-}
-
-function amount(value: unknown) {
-  const n = Number(text(value).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : 0;
-}
-
-function normalizeStatus(value: unknown) {
-  return text(value).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
-}
-
-function dateKey(value: unknown) {
-  const raw = text(value);
-  if (!raw) return "";
-  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
-  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
-  const dmy = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\D|$)/);
-  if (dmy) return `${dmy[3]}-${dmy[2].padStart(2, "0")}-${dmy[1].padStart(2, "0")}`;
-  const parsed = new Date(raw);
-  if (Number.isNaN(parsed.getTime())) return raw;
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(parsed);
 }
 
 function dhakaYearMonth() {
@@ -59,63 +27,6 @@ function dhakaYearMonth() {
   const year = parts.find((part) => part.type === "year")?.value || String(new Date().getFullYear());
   const month = parts.find((part) => part.type === "month")?.value || "01";
   return { year, month: Number(month) || 1 };
-}
-
-function transactionAmounts(row: Row) {
-  const transactionType = normalizeStatus(row.transaction_type);
-  const direction = text(row.direction).toUpperCase();
-  const fallback = amount(row.amount);
-  let debit = amount(row.debit);
-  let credit = amount(row.credit);
-  if (!debit && !credit && fallback > 0) {
-    if (direction === "DEBIT" || transactionType === "expense") debit = fallback;
-    if (direction === "CREDIT" || transactionType === "income") credit = fallback;
-  }
-  return { debit, credit, transactionType };
-}
-
-function baseMainLedgerEligibility(row: Row) {
-  if (text(row.finance_scope) === MUNICIPALITY_SCOPE) return false;
-
-  const id = text(row.transaction_code);
-  const date = dateKey(row.transaction_date);
-  const { debit, credit, transactionType } = transactionAmounts(row);
-  if (!id || !date || (debit <= 0 && credit <= 0)) return false;
-
-  const historical = id.startsWith("TXN-LEDGER-2025-") || id.startsWith("TXN-HIST-2026-");
-  if (historical) return true;
-
-  if (["transfer", "personal income", "personal expense"].includes(transactionType)) return false;
-  return date >= LEDGER_LIVE_START && date <= LEDGER_END;
-}
-
-function includedInMainLedger(row: Row) {
-  if (!baseMainLedgerEligibility(row)) return false;
-  const id = text(row.transaction_code);
-  const historical = id.startsWith("TXN-LEDGER-2025-") || id.startsWith("TXN-HIST-2026-");
-  if (historical) return true;
-  return normalizeStatus(row.status || "Posted") === "posted";
-}
-
-function includedInCurrentBalance(row: Row) {
-  if (!baseMainLedgerEligibility(row)) return false;
-
-  const id = text(row.transaction_code);
-  const historical = id.startsWith("TXN-LEDGER-2025-") || id.startsWith("TXN-HIST-2026-");
-  if (historical) return true;
-
-  const { debit, transactionType } = transactionAmounts(row);
-  const status = normalizeStatus(row.status || "Posted");
-
-  // A real operating expense reduces available cash immediately while it waits
-  // for EMP-0001 approval. Approval changes workflow state only; it must not
-  // deduct the expense a second time. Municipality-file-pass money is handled
-  // in its own balance and is excluded by baseMainLedgerEligibility().
-  if (transactionType === "expense" && debit > 0) {
-    return !NON_EFFECTIVE_EXPENSE_STATUSES.has(status);
-  }
-
-  return status === "posted";
 }
 
 function transactionDescription(row: Row) {
@@ -140,6 +51,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
     }
 
+    // Stable tiebreaker is required because the data gateway pages large result
+    // sets and many transactions can share the same transaction date.
     const transactions = await selectRows("transactions", {
       order: "transaction_date:asc,id:asc",
       limit: 5000,
@@ -162,8 +75,9 @@ export async function GET(request: NextRequest) {
     }> = [];
 
     for (const row of transactions) {
-      const { debit, credit } = transactionAmounts(row);
-      if (text(row.finance_scope) === MUNICIPALITY_SCOPE) {
+      const { debit, credit } = financeTransactionAmounts(row);
+
+      if (isMunicipalityTransaction(row)) {
         municipalityBalance += credit - debit;
         if (debit > 0 || credit > 0) municipalityEntries += 1;
       }
@@ -172,28 +86,28 @@ export async function GET(request: NextRequest) {
         currentBalance += credit - debit;
       }
 
-      if (includedInMainLedger(row)) {
-        mainEntries += 1;
-        totalIncome += credit;
-        totalExpenses += debit;
+      if (!includedInMainLedger(row)) continue;
 
-        const day = dateKey(row.transaction_date);
-        const monthKey = day.slice(0, 7);
-        if (/^\d{4}-\d{2}$/.test(monthKey)) {
-          const bucket = monthly.get(monthKey) || { income: 0, expenses: 0 };
-          bucket.income += credit;
-          bucket.expenses += debit;
-          monthly.set(monthKey, bucket);
-        }
+      mainEntries += 1;
+      totalIncome += credit;
+      totalExpenses += debit;
 
-        recentMain.push({
-          id: text(row.transaction_code || row.id),
-          date: day,
-          description: transactionDescription(row),
-          type: credit > 0 ? "income" : "expense",
-          amount: credit > 0 ? credit : debit,
-        });
+      const day = financeDateKey(row.transaction_date);
+      const monthKey = day.slice(0, 7);
+      if (/^\d{4}-\d{2}$/.test(monthKey)) {
+        const bucket = monthly.get(monthKey) || { income: 0, expenses: 0 };
+        bucket.income += credit;
+        bucket.expenses += debit;
+        monthly.set(monthKey, bucket);
       }
+
+      recentMain.push({
+        id: text(row.transaction_code || row.id),
+        date: day,
+        description: transactionDescription(row),
+        type: credit > 0 ? "income" : "expense",
+        amount: credit > 0 ? credit : debit,
+      });
     }
 
     const { year, month } = dhakaYearMonth();
