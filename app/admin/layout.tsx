@@ -4,7 +4,6 @@ import PortalPreloader from "@/components/portal-preloader";
 import ProjectManagementEnhancements from "@/components/project-management-enhancements";
 import AdminProjectMapDrawer from "@/components/admin-project-map-drawer";
 import ManagementRolePolicyEnforcer from "@/components/management-role-policy-enforcer";
-import AccountShortcut from "@/components/account-shortcut";
 import { requirePortalSession } from "@/lib/server-auth";
 import "./admin-brand-theme.css";
 import "./admin-layout-polish.css";
@@ -32,7 +31,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <AdminProjectMapDrawer />
     <ManagementRolePolicyEnforcer role={role} />
     <ManagementShellV5 initialUser={session.user}>{children}</ManagementShellV5>
-    {role === "manager" && <AccountShortcut label="My Account" mobileDock />}
     <AdminMobileDock />
   </>;
 }
