@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import EmployeeWhatsAppConnect from "@/components/employee-whatsapp-connect";
 
 type PairState = {
   connection: string;
@@ -110,6 +111,7 @@ function BotCard({
 export default function WhatsAppPage() {
   const [siteState, setSiteState] = useState<PairState | null>(null);
   const [clientState, setClientState] = useState<PairState | null>(null);
+  const [accountRole, setAccountRole] = useState("");
   const [loading, setLoading] = useState(true);
   const [siteError, setSiteError] = useState("");
   const [clientError, setClientError] = useState("");
@@ -218,6 +220,10 @@ export default function WhatsAppPage() {
   }
 
   useEffect(() => {
+    fetch("/api/account", { credentials: "same-origin", cache: "no-store" })
+      .then((response) => response.json())
+      .then((json) => setAccountRole(String(json?.data?.role || "").trim().toLowerCase()))
+      .catch(() => setAccountRole(""));
     loadStatus(); loadConversations();
     const statusTimer = window.setInterval(loadStatus, 6000);
     const inboxTimer = window.setInterval(loadConversations, 8000);
@@ -239,12 +245,22 @@ export default function WhatsAppPage() {
         <div>
           <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: "#64748b" }}>LAND VIEW</div>
           <h1 style={{ margin: "6px 0 8px", fontSize: 30 }}>WhatsApp Center</h1>
-          <p style={{ margin: 0, color: "#64748b", lineHeight: 1.6 }}>One centralized Admin WhatsApp session powers Admin, EMP-0002, client updates/replies, project finance and Site Visit messaging. Other employees keep their own WhatsApp sessions.</p>
+          <p style={{ margin: 0, color: "#64748b", lineHeight: 1.6 }}>{accountRole === "manager" ? "Connect the WhatsApp linked to your Management employee profile for Site Visit group messages. The central EMP-0002 session remains available below for client-facing operations." : "One centralized Admin WhatsApp session powers Admin, EMP-0002, client updates/replies, project finance and Site Visit messaging. Other employees keep their own WhatsApp sessions."}</p>
         </div>
         <button onClick={() => { loadStatus(); loadConversations(); }} disabled={loading} style={{ border: "1px solid #cbd5e1", background: "white", borderRadius: 10, padding: "10px 14px", cursor: "pointer", fontWeight: 700 }}>
           {loading ? "Checking…" : "Refresh"}
         </button>
       </div>
+
+      {accountRole === "manager" ? (
+        <section style={{ marginTop: 24 }}>
+          <div style={{ marginBottom: 10 }}>
+            <h2 style={{ margin: 0, fontSize: 20 }}>Management WhatsApp Connection</h2>
+            <p style={{ margin: "6px 0 0", color: "#64748b", lineHeight: 1.55 }}>This connection uses the employee ID linked to the Management account, so Site Visit group messages are sent from the Manager&apos;s own WhatsApp session.</p>
+          </div>
+          <EmployeeWhatsAppConnect />
+        </section>
+      ) : null}
 
       <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(360px,1fr))", gap: 18 }}>
         <BotCard title="Admin Bot · EMP-0002" description="Your WhatsApp number. This single session sends Admin and EMP-0002 messages, client project updates/replies, project finance updates and Site Visit announcements." state={siteState} loading={loading} error={siteError || clientError} onReset={() => resetPairing("site")} resetting={resetting === "site"} />
