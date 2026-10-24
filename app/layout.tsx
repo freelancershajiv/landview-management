@@ -37,6 +37,8 @@ import "./color-system-authority.css";
 import "./color-system-compatibility.css";
 // Final brand palette: restore the original bright LAND VIEW signature red.
 import "./brand-palette-original.css";
+// Compact desktop geometry for 14-inch/scaled laptop viewports.
+import "./compact-laptop.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
