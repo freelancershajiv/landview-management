@@ -5,6 +5,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const ID_PATTERN = /^(vis|ses)_[0-9a-f-]{36}$/i;
+const ANALYTICS_WRITE_ATTEMPTS = 2;
+const ANALYTICS_WRITE_TIMEOUT_MS = 8_000;
 
 function text(value: unknown, maxLength: number) {
   return String(value ?? "").trim().slice(0, maxLength);
@@ -128,19 +130,32 @@ export async function POST(request: NextRequest) {
     sourceHost: text(request.nextUrl.hostname, 160),
   };
 
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
+  // Analytics is best-effort telemetry. A storage outage must never become a
+  // user-facing site failure or produce noisy application error groups. Keep a
+  // short retry for transient OIDC/data-service timing issues, then accept and
+  // drop the telemetry event if storage is still unavailable.
+  for (let attempt = 1; attempt <= ANALYTICS_WRITE_ATTEMPTS; attempt += 1) {
     try {
-      await supabaseGateway("trackVisitorAnalytics", payload, 15_000);
-      return NextResponse.json({ success: true }, { headers: { "Cache-Control": "no-store, max-age=0" } });
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Analytics backend unavailable.";
-      console.error("Visitor analytics Supabase write failed", { attempt, eventType, error: message });
+      await supabaseGateway("trackVisitorAnalytics", payload, ANALYTICS_WRITE_TIMEOUT_MS);
+      return NextResponse.json(
+        { success: true, stored: true },
+        { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Analytics": "stored" } },
+      );
+    } catch {
+      if (attempt < ANALYTICS_WRITE_ATTEMPTS) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
     }
-    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 300));
   }
 
   return NextResponse.json(
-    { success: false, error: "Analytics storage temporarily unavailable." },
-    { status: 502, headers: { "Cache-Control": "no-store, max-age=0" } },
+    { success: true, stored: false },
+    {
+      status: 202,
+      headers: {
+        "Cache-Control": "no-store, max-age=0",
+        "X-Landview-Analytics": "dropped",
+      },
+    },
   );
 }
