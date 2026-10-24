@@ -1,0 +1,207 @@
+/* LAND VIEW compact-laptop responsive layer.
+   Targets the effective CSS viewport commonly produced by 14-inch Windows
+   laptops at 125-150% display scaling. Phone/tablet layouts and wide desktop
+   layouts keep their existing behavior. */
+
+@media screen and (min-width: 901px) and (max-width: 1536px) {
+  .public-home-v2,
+  .portal-employee,
+  .lv-client-shell {
+    max-width: 100%;
+    overflow-x: clip;
+  }
+
+  /* Public website: keep the desktop character, but reduce wasted space and
+     let dense sections breathe at compact desktop widths. */
+  .public-home-v2 .ph-container {
+    width: min(calc(100% - 28px), 1320px);
+  }
+
+  .public-home-v2 .ph-section {
+    padding-top: clamp(64px, 6vw, 82px);
+    padding-bottom: clamp(64px, 6vw, 82px);
+  }
+
+  .public-home-v2 .ph-heading {
+    gap: clamp(24px, 3vw, 36px);
+  }
+
+  .public-home-v2 .ph-hero-grid {
+    grid-template-columns: minmax(0, .96fr) minmax(0, 1.04fr);
+    min-height: 540px;
+  }
+
+  .public-home-v2 .ph-hero-copy {
+    min-width: 0;
+    padding: 58px clamp(24px, 3vw, 42px) 58px 0;
+  }
+
+  .public-home-v2 .ph-hero-visual {
+    min-width: 0;
+    min-height: 540px;
+  }
+
+  .public-home-v2 .ph-service-group {
+    grid-template-columns: clamp(220px, 21vw, 270px) minmax(0, 1fr);
+  }
+
+  .public-home-v2 .ph-why-grid,
+  .public-home-v2 .ph-portal-grid {
+    gap: clamp(30px, 4vw, 48px);
+  }
+
+  /* Employee workspace: the old 238px rail and 28px content gutters consume
+     too much of a scaled 14-inch display. Keep desktop navigation, but make it
+     proportional and allow the workspace itself to contain wide content. */
+  .portal-employee {
+    --lv-sidebar-width: clamp(202px, 16vw, 226px) !important;
+  }
+
+  .portal-employee .employee-topbar-inner {
+    min-width: 0;
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+    gap: 10px !important;
+  }
+
+  .portal-employee .employee-search {
+    flex: 1 1 240px;
+    width: auto !important;
+    min-width: 150px;
+    max-width: 390px;
+  }
+
+  .portal-employee .employee-tools {
+    min-width: 0;
+    gap: 6px !important;
+  }
+
+  .portal-employee .employee-user {
+    min-width: 0;
+    gap: 7px !important;
+  }
+
+  .portal-employee .employee-user-copy strong {
+    max-width: 120px !important;
+  }
+
+  .portal-employee .employee-action {
+    padding-left: 9px !important;
+    padding-right: 9px !important;
+    font-size: 10px !important;
+    white-space: nowrap;
+  }
+
+  .portal-employee .employee-main {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .portal-employee .employee-content {
+    width: calc(100% - 32px) !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    margin-left: 16px !important;
+    margin-right: 16px !important;
+    padding-top: 22px !important;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .portal-employee .employee-content > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* Client workspace: scale the permanent desktop rail instead of reserving a
+     fixed 278px on every screen wider than 980px. */
+  .lv-client-shell,
+  .lv-client-stage,
+  .lv-client-content {
+    min-width: 0 !important;
+  }
+
+  .lv-client-top {
+    min-width: 0;
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+  }
+
+  .lv-client-content {
+    width: calc(100% - 32px) !important;
+    max-width: none !important;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .lv-client-side {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  .lv-client-nav a {
+    height: 46px !important;
+    gap: 10px !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    font-size: 12.5px !important;
+  }
+}
+
+@media screen and (min-width: 981px) and (max-width: 1536px) {
+  html body .lv-client-shell .lv-client-side {
+    width: clamp(224px, 18vw, 258px) !important;
+  }
+
+  html body .lv-client-shell .lv-client-stage {
+    width: calc(100% - clamp(224px, 18vw, 258px)) !important;
+    margin-left: clamp(224px, 18vw, 258px) !important;
+    min-width: 0 !important;
+  }
+}
+
+@media screen and (min-width: 901px) and (max-width: 1280px) {
+  .public-home-v2 .ph-heading {
+    grid-template-columns: minmax(0, 1fr) minmax(230px, 340px);
+  }
+
+  .public-home-v2 .ph-process {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .portal-employee .employee-user-copy {
+    max-width: 92px;
+  }
+
+  .portal-employee .employee-user-copy small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .lv-client-user > div:not(.lv-client-avatar) {
+    display: none !important;
+  }
+}
+
+@media screen and (min-width: 901px) and (max-width: 1120px) {
+  .public-home-v2 .ph-service-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .public-home-v2 .ph-service-item:nth-child(3n) {
+    border-right: 1px solid var(--ph-line);
+  }
+
+  .public-home-v2 .ph-service-item:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .public-home-v2 .ph-hero-copy {
+    padding-right: 22px;
+  }
+
+  .portal-employee .employee-user-copy {
+    display: none !important;
+  }
+}
