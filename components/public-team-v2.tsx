@@ -2,13 +2,28 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { normalizePublicTeamImageUrl, type PublicTeamMember } from "@/lib/public-team-server";
+import type { PublicTeamMember } from "@/lib/public-team-server";
 
 const POSITION_PREFIX = "__POSITION__:";
 const LEADERSHIP_WORDS = ["founder", "director", "general manager", "manager", "head", "chief", "principal", "lead"];
 
 function text(value: unknown) {
   return String(value ?? "").trim();
+}
+
+function normalizePhotoUrl(url?: string, size = "w900") {
+  const value = text(url);
+  if (!value) return "";
+  const fileMatch = value.match(/drive\.google\.com\/file\/d\/([^/?#]+)/i);
+  if (fileMatch?.[1]) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(fileMatch[1])}&sz=${size}`;
+  try {
+    const parsed = new URL(value);
+    if (parsed.hostname === "drive.google.com") {
+      const id = parsed.searchParams.get("id");
+      if (id) return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=${size}`;
+    }
+  } catch {}
+  return value;
 }
 
 function isDegreeLine(value: string) {
@@ -65,12 +80,12 @@ function isLeadership(member: PublicTeamMember) {
 
 function MemberCard({ member, featured = false }: { member: PublicTeamMember; featured?: boolean }) {
   const { position, department, degrees, specialities } = memberView(member);
-  const photo = normalizePublicTeamImageUrl(member.photoUrl, featured ? "w1400" : "w900");
+  const photo = normalizePhotoUrl(member.photoUrl, featured ? "w1400" : "w900");
   const initials = text(member.name || "LV").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
   return <article className={`tv2-card${featured ? " tv2-card-featured" : ""}`}>
     <div className="tv2-photo-wrap">
       {photo ? <img className="tv2-photo" src={photo} alt={`${text(member.name) || "LAND VIEW team member"}${position ? ` — ${position}` : ""}`} /> : <div className="tv2-photo-fallback">{initials}</div>}
-      {departmentLabel(member) ? <span className="tv2-dept-chip">{departmentLabel(member)}</span> : null}
+      <span className="tv2-dept-chip">{departmentLabel(member)}</span>
     </div>
     <div className="tv2-card-copy">
       <h3>{text(member.name) || "LAND VIEW Team Member"}</h3>
@@ -89,7 +104,6 @@ function MemberCard({ member, featured = false }: { member: PublicTeamMember; fe
 export default function PublicTeamV2({ members }: { members: PublicTeamMember[] }) {
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("All");
-
   const departments = useMemo(() => ["All", ...Array.from(new Set(members.map(departmentLabel).filter(Boolean))).sort((a, b) => a.localeCompare(b))], [members]);
   const leadership = useMemo(() => members.filter(isLeadership).slice(0, 4), [members]);
   const leadershipSet = useMemo(() => new Set(leadership), [leadership]);
@@ -102,7 +116,6 @@ export default function PublicTeamV2({ members }: { members: PublicTeamMember[] 
       return (department === "All" || dept === department) && (!term || haystack.includes(term));
     });
   }, [members, query, department]);
-
   const directory = filtered.filter((member) => !leadershipSet.has(member) || query || department !== "All");
 
   return <>
