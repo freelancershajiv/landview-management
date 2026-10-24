@@ -3,7 +3,8 @@ import Link from "next/link";
 import PublicHeader from "@/components/public-header";
 import { getPublicCaseStudies } from "@/lib/public-case-studies-server";
 import { getPublicTestimonials } from "@/lib/public-testimonials-server";
-import { business, jsonLd, siteUrl } from "@/lib/site-info";
+import { getWebsiteContent } from "@/lib/website-content-server";
+import { jsonLd, siteUrl } from "@/lib/site-info";
 import styles from "./page.module.css";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +29,12 @@ function projectHref(id?: string) {
 }
 
 export default async function CaseStudiesPage() {
-  const [studies, testimonials] = await Promise.all([getPublicCaseStudies(), getPublicTestimonials()]);
+  const [studies, allTestimonials, websiteContent] = await Promise.all([getPublicCaseStudies(), getPublicTestimonials(), getWebsiteContent()]);
+  const testimonials = websiteContent.homepage.sections.testimonials ? allTestimonials : [];
   const serviceCount = new Set(studies.flatMap((study) => study.services || [])).size;
   const locations = new Set(studies.map((study) => study.district || study.location || "").filter(Boolean)).size;
   const whatsappText = "Hello LAND VIEW, I reviewed your project case studies and would like to discuss a building project.";
-  const whatsappUrl = `https://wa.me/${business.architecturePhone.replace(/\D/g, "")}?text=${encodeURIComponent(whatsappText)}`;
+  const whatsappUrl = `https://wa.me/${websiteContent.general.whatsappPhone.replace(/\D/g, "")}?text=${encodeURIComponent(whatsappText)}`;
 
   const schema = {
     "@context": "https://schema.org",
@@ -76,7 +78,7 @@ export default async function CaseStudiesPage() {
       <div className={styles.container}>
         <div className={styles.sectionHead}>
           <div><span className={styles.kicker}>FEATURED CASE STUDIES</span><h2>From project requirement to coordinated delivery.</h2></div>
-          <p>Featured projects are controlled from LAND VIEW's Public Portfolio admin area, so this page stays aligned with the projects the team has intentionally selected for public presentation.</p>
+          <p>Featured projects are controlled from LAND VIEW&apos;s Public Portfolio admin area, so this page stays aligned with the projects the team has intentionally selected for public presentation.</p>
         </div>
 
         {studies.length ? <div className={styles.studies}>
