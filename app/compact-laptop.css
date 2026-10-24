@@ -1,10 +1,29 @@
-/* LAND VIEW compact-laptop responsive layer.
-   Optimized for 14-inch Windows laptops running 1920x1080 at 125% display
-   scaling (roughly a 1536px-wide CSS viewport). This keeps desktop behavior,
-   but switches dense layouts into a compact desktop geometry before they
-   become cramped. */
+/* LAND VIEW laptop-density layer.
+   On a 1920x1080 display at 125% Windows scaling, Chromium exposes roughly a
+   1536px-wide CSS viewport. The user confirmed that the unmodified desktop UI
+   looks correct at 90% browser zoom. For that exact logical-size band we keep
+   the normal desktop composition and reproduce the same ~90% density in CSS,
+   so the browser can remain at 100% zoom.
 
-@media screen and (min-width: 901px) and (max-width: 1600px) {
+   Narrower laptop widths still use the compact structural rules below. */
+
+/* 1920x1080 @ 125% Windows display scale, browser zoom 100%.
+   1536 / .90 ~= 1707, which is the effective layout width the user preferred
+   at browser zoom 90%. Width compensation prevents a blank strip on the right. */
+@media screen and (min-width: 1450px) and (max-width: 1600px) and (max-height: 900px) {
+  html {
+    overflow-x: hidden !important;
+  }
+
+  body {
+    zoom: .9;
+    width: 111.111111% !important;
+    max-width: none !important;
+    overflow-x: hidden !important;
+  }
+}
+
+@media screen and (min-width: 901px) and (max-width: 1449px) {
   html,
   body {
     max-width: 100%;
@@ -19,8 +38,7 @@
     overflow-x: clip;
   }
 
-  /* Public website header. Use the header itself as the scope so these rules
-     remain valid regardless of where the header is mounted in the page tree. */
+  /* Public website header. */
   .public-header .public-nav-inner {
     width: min(calc(100% - 24px), 1240px) !important;
     min-height: 68px !important;
@@ -28,7 +46,7 @@
   }
 
   .public-header .public-brand {
-    min-width: clamp(200px, 17vw, 245px) !important;
+    min-width: clamp(195px, 17vw, 235px) !important;
     gap: 8px !important;
   }
 
@@ -74,7 +92,6 @@
     font-size: 10px !important;
   }
 
-  /* Public homepage content. */
   .public-home-v2 .ph-container {
     width: min(calc(100% - 24px), 1320px);
   }
@@ -86,6 +103,7 @@
 
   .public-home-v2 .ph-heading {
     gap: clamp(20px, 2.5vw, 32px);
+    grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
   }
 
   .public-home-v2 .ph-hero-grid {
@@ -107,13 +125,20 @@
     grid-template-columns: clamp(205px, 18vw, 245px) minmax(0, 1fr);
   }
 
+  .public-home-v2 .ph-process {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   .public-home-v2 .ph-why-grid,
   .public-home-v2 .ph-portal-grid {
     gap: clamp(26px, 3vw, 40px);
   }
 
-  /* Login page: reduce the oversized 1920px composition on a 1536x864
-     logical viewport without switching to the mobile layout. */
+  .public-header .public-header-cta {
+    display: none !important;
+  }
+
+  /* Login page. */
   .lv-login .lv-head {
     height: 66px !important;
   }
@@ -180,7 +205,11 @@
   }
 
   .portal-employee .employee-user-copy strong {
-    max-width: 96px !important;
+    max-width: 82px !important;
+  }
+
+  .portal-employee .employee-user-copy small {
+    display: none !important;
   }
 
   .portal-employee .employee-action {
@@ -245,11 +274,13 @@
     padding-right: 10px !important;
     font-size: 12px !important;
   }
+
+  .lv-client-user > div:not(.lv-client-avatar) {
+    display: none !important;
+  }
 }
 
-/* The client shell is CSS grid. Change the grid tracks themselves instead of
-   adding a second width/margin offset to the stage. */
-@media screen and (min-width: 981px) and (max-width: 1600px) {
+@media screen and (min-width: 981px) and (max-width: 1449px) {
   html body .lv-client-shell {
     grid-template-columns: clamp(210px, 16vw, 240px) minmax(0, 1fr) !important;
   }
@@ -266,37 +297,7 @@
   }
 }
 
-@media screen and (min-width: 901px) and (max-width: 1450px) {
-  .public-header .public-header-cta {
-    display: none !important;
-  }
-
-  .public-home-v2 .ph-heading {
-    grid-template-columns: minmax(0, 1fr) minmax(220px, 320px);
-  }
-
-  .public-home-v2 .ph-process {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .portal-employee .employee-user-copy {
-    max-width: 82px;
-  }
-
-  .portal-employee .employee-user-copy small {
-    display: none !important;
-  }
-
-  .lv-client-user > div:not(.lv-client-avatar) {
-    display: none !important;
-  }
-}
-
 @media screen and (min-width: 901px) and (max-width: 1180px) {
-  .public-header .public-brand {
-    min-width: 195px !important;
-  }
-
   .public-home-v2 .ph-service-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -318,9 +319,7 @@
   }
 }
 
-/* Short laptop screens such as 1920x1080 at 125% scaling often expose only
-   ~800-870 CSS pixels vertically after browser chrome. Reduce vertical waste. */
-@media screen and (min-width: 901px) and (max-width: 1600px) and (max-height: 900px) {
+@media screen and (min-width: 901px) and (max-width: 1449px) and (max-height: 900px) {
   .public-home-v2 .ph-hero-grid,
   .public-home-v2 .ph-hero-visual {
     min-height: 440px;
