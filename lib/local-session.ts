@@ -4,8 +4,8 @@ import { supabaseAuthGateway } from "@/lib/supabase-auth";
 
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 
-// v2 cookie names intentionally invalidate the old persistent auth cookies.
-// All v2 auth cookies are browser-session cookies and disappear with the browser session.
+// v2 auth cookies are persistent across browser restarts. Successful token
+// refreshes renew their lifetime; explicit logout still clears them immediately.
 export const SESSION_COOKIE = "landview_session_v2";
 export const REFRESH_COOKIE = "landview_refresh_v2";
 export const QUICK_USER_COOKIE = "landview_quick_user_v2";
@@ -14,6 +14,7 @@ export const DEVICE_COOKIE = "landview_device";
 export const ACTING_USER_COOKIE = "landview_acting_user_v1";
 
 const SESSION_READ_CACHE_MS = 5_000;
+const SESSION_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
 
 export type WorkspaceUser = Record<string, unknown>;
 
@@ -83,9 +84,13 @@ export function userIdOf(user: WorkspaceUser | null | undefined) {
   return String(user?.userId || user?.User_ID || user?.username || user?.Username || "").trim();
 }
 
-/** Auth cookies are browser-session cookies: no Max-Age or Expires. */
-export function sessionMaxAge(_remembered: boolean): any {
-  return undefined;
+/**
+ * Keep authenticated sessions across browser restarts. Browsers can cap the
+ * lifetime of persistent cookies, so each successful refresh renews this
+ * rolling window. Logout still clears the cookies immediately.
+ */
+export function sessionMaxAge(_remembered: boolean): number {
+  return SESSION_MAX_AGE_SECONDS;
 }
 
 function cacheKey(token: string) {
