@@ -160,11 +160,12 @@ export async function GET(request: NextRequest) {
       const allowedIds=new Set(rawIds.split(/[;,\s]+/).map(normalizeProjectCode).filter(Boolean));
       if (!allowedIds.has(projectId)) return NextResponse.json({success:false,error:"Access denied for this project."},{status:403});
     }
-    const [project,billing,commercial,lifecycle]=await Promise.all([
+    const [project,billing,commercial,lifecycle,adjustments]=await Promise.all([
       handleLandviewDataAction("getProject",{projectId},user) as Promise<Row>,
       handleLandviewDataAction("getProjectBilling",{projectId},user) as Promise<Row>,
       billingV2CommercialSummary(projectId).catch(() => null),
       billingLifecycle(projectId).catch(() => ({ invoices: [], receipts: [], unallocated: 0 })),
+      selectRows("billing_adjustments", { filters: { project_code: projectId }, order: "posted_at:asc", limit: 2000 }).catch(() => [] as Row[]),
     ]);
     const bills=((Array.isArray(billing.bills)?billing.bills:[]) as Row[]).filter(effectiveBill);
     const payments=(Array.isArray(billing.payments)?billing.payments:[]) as Row[];
@@ -183,12 +184,29 @@ export async function GET(request: NextRequest) {
     for(const g of Object.values(groups))g.due=Math.max(0,g.gross-g.discount-g.paid);
     const eng=groups["Engineering Bill"],books=groups["Design Books"],sup=groups["Supervision Bill"],oth=groups["Other Services Bill"];
     const totalDue=eng.due+books.due+sup.due+oth.due,totalBilled=eng.gross-eng.discount+books.gross-books.discount+sup.gross-sup.discount+oth.gross-oth.discount;
+
+    // Attach posted Credit Notes back to the original service bill. This keeps
+    // the adjustment as an immutable audit record while allowing statements to
+    // show the client's discount beside the service that actually received it.
+    const creditByBillCode = new Map<string, number>();
+    for (const adjustment of (adjustments as Row[])) {
+      if (text(adjustment.status).toLowerCase() === "void") continue;
+      if (text(adjustment.adjustment_type).toLowerCase() !== "credit note") continue;
+      const billCode = text(adjustment.bill_code);
+      if (!billCode) continue;
+      creditByBillCode.set(billCode, (creditByBillCode.get(billCode) || 0) + num(adjustment.amount));
+    }
+
     const billRows=(c:Category)=>groups[c].bills
       .filter(b=>adjustmentKind(b)!=="credit")
       .map(b=>{
         const kind=adjustmentKind(b);
         const description=kind==="debit" ? `Debit Note — ${serviceDescription(b,c)}` : (b.Description||c);
-        return [projectId,description,b.Unit_Price||"",b.Quantity||"",b.Amount||0,b.Bill_ID||"",b.Status||"",b.Net_Amount ?? (num(b.Amount)-num(b.Discount)),b.Discount||0];
+        const billCode=text(b.Bill_ID || b.bill_code);
+        const serviceCredit=kind ? 0 : (creditByBillCode.get(billCode) || 0);
+        const effectiveDiscount=Math.max(0,num(b.Discount)+serviceCredit);
+        const effectiveNet=Math.max(0,num(b.Amount)-effectiveDiscount);
+        return [projectId,description,b.Unit_Price||"",b.Quantity||"",b.Amount||0,b.Bill_ID||"",b.Status||"",effectiveNet,effectiveDiscount];
       });
     const payRows=(c:Category)=>groups[c].payments.map(p=>[projectId,p.Payment_Date||"",[p.Payment_Method,p.Reference_No].filter(Boolean).join(" · ")||"Client Payment",p.Amount||0,p.Approval_Status||"Approved",p.Payment_ID||""]);
     const sheets=[
@@ -198,9 +216,9 @@ export async function GET(request: NextRequest) {
       sheet("Design Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Engineering Bill")),
       sheet("Design Books Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID","Status","Net Amount (BDT)","Discount (BDT)"],billRows("Design Books")),
       sheet("Design Books Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Design Books")),
-      sheet("Supervision Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID"],billRows("Supervision Bill")),
+      sheet("Supervision Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID","Status","Net Amount (BDT)","Discount (BDT)"],billRows("Supervision Bill")),
       sheet("S Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Supervision Bill")),
-      sheet("Others Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID"],billRows("Other Services Bill")),
+      sheet("Others Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID","Status","Net Amount (BDT)","Discount (BDT)"],billRows("Other Services Bill")),
       sheet("Others Bill Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Other Services Bill")),
     ];
     return NextResponse.json({success:true,data:{projectId,sheets,payments,commercial,lifecycle,updatedAt:new Date().toISOString(),source:"supabase"}},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase"}});
