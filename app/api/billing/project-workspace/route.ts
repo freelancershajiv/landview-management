@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { employeeCodeOf, insertRows, selectRows, updateRows } from "@/lib/supabase-data";
 import {
-  getBillingV2Snapshot,
   issueBillingMilestone,
   markBillingMilestoneReady,
 } from "@/lib/billing-v2";
+import { getAdjustedBillingV2Snapshot } from "@/lib/billing-adjusted-financials";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
 
     const projectId = text(request.nextUrl.searchParams.get("projectId"), 80).toUpperCase();
     if (!projectId) throw new Error("Project ID is required.");
-    const snapshot = await getBillingV2Snapshot(projectId, actorOf(user));
+    const snapshot = await getAdjustedBillingV2Snapshot(projectId, actorOf(user));
     return json({ success: true, data: decorated(snapshot) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load Billing 2.0 workspace.";
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
       if (!milestoneId) throw new Error("Billing milestone is required.");
       await markBillingMilestoneReady(milestoneId, actorOf(user));
     } else if (action === "closecontract") {
-      const current = await getBillingV2Snapshot(projectId, actorOf(user));
+      const current = await getAdjustedBillingV2Snapshot(projectId, actorOf(user));
       if (text(current.project?.lifecyclePhase).toLowerCase() !== "completed") {
         throw new Error("Complete the operational project before financial close.");
       }
@@ -118,7 +118,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return json({ success: true, data: decorated(await getBillingV2Snapshot(projectId, actorOf(user))) });
+    return json({ success: true, data: decorated(await getAdjustedBillingV2Snapshot(projectId, actorOf(user))) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Billing 2.0 action failed.";
     return json({ success: false, error: message }, /session/i.test(message) ? 401 : /permission|access|role/i.test(message) ? 403 : /not found/i.test(message) ? 404 : 400);
