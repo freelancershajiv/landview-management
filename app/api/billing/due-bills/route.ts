@@ -30,6 +30,7 @@ function activePayment(row: Row) {
   const status = text(row.approval_status || row.status).toLowerCase().replace(/[_-]+/g, " ");
   return !status || ["approved", "received", "paid", "verified", "complete", "completed", "full paid", "fully paid", "posted"].includes(status);
 }
+// Receivables follow invoice allocation state; unallocated project money is not treated as invoice payment.
 function invoiceDue(row: Row) {
   const snapshot = row.due_amount_snapshot;
   if (snapshot !== undefined && snapshot !== null && text(snapshot) !== "") return Math.max(0, num(snapshot));
