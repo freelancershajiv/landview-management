@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { employeeCodeOf, handleLandviewDataAction, insertRows, roleOf, selectRows, supabaseGateway, updateRows } from "@/lib/supabase-data";
-import { getProjectServiceFinancials, syncPaidServiceWorkflows, workflowServiceKey, workflowServiceName } from "@/lib/service-workflow";
+import { syncPaidServiceWorkflows, workflowServiceKey, workflowServiceName } from "@/lib/service-workflow";
+import { getAdjustedProjectServiceFinancials } from "@/lib/billing-adjusted-financials";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,7 +71,7 @@ export async function POST(request: NextRequest) {
       if (Math.abs(paymentAmount - allocated) > 0.01) {
         return NextResponse.json({ success: false, error: `Service allocations must equal the payment amount (BDT ${paymentAmount.toLocaleString("en-BD")}).` }, { status: 400 });
       }
-      const snapshot = await getProjectServiceFinancials(projectCode);
+      const snapshot = await getAdjustedProjectServiceFinancials(projectCode);
       const byKey = new Map(snapshot.services.map((row) => [row.serviceKey, row]));
       for (const allocation of serviceAllocations) {
         const amount = Math.max(0, num(allocation.amount || allocation.allocatedAmount));
