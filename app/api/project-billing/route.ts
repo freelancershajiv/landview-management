@@ -25,6 +25,20 @@ function category(row: Row): Category {
   if(/other|soil|survey|municipality|file pass/.test(source)) return "Other Services Bill";
   return "Engineering Bill";
 }
+function effectiveBill(row: Row) {
+  return !["void","voided","cancelled","canceled","rejected"].includes(text(row.Status || row.status).toLowerCase());
+}
+function adjustmentKind(row: Row) {
+  const createdVia = text(row.Created_Via || row.created_via).toLowerCase();
+  if (createdVia.includes("credit note")) return "credit";
+  if (createdVia.includes("debit note")) return "debit";
+  return "";
+}
+function serviceDescription(row: Row, fallback: string) {
+  const description = text(row.Description || row.description || fallback);
+  const clean = description.replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim();
+  return clean || fallback;
+}
 function sheet(tab:string,headers:string[],rows:unknown[][],totals:Row={gross:0,discount:0,billed:0,paid:0,due:0,projects:1}) {
   return {tab,tabs:[...TABS],headers,rows:rows.map(r=>r.map(v=>String(v??""))),totals,url:"",updatedAt:new Date().toISOString()};
 }
@@ -152,7 +166,7 @@ export async function GET(request: NextRequest) {
       billingV2CommercialSummary(projectId).catch(() => null),
       billingLifecycle(projectId).catch(() => ({ invoices: [], receipts: [], unallocated: 0 })),
     ]);
-    const bills=(Array.isArray(billing.bills)?billing.bills:[]) as Row[];
+    const bills=((Array.isArray(billing.bills)?billing.bills:[]) as Row[]).filter(effectiveBill);
     const payments=(Array.isArray(billing.payments)?billing.payments:[]) as Row[];
     const groups: Record<Category,{bills:Row[];payments:Row[];gross:number;discount:number;paid:number;due:number}>={
       "Engineering Bill":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
@@ -160,12 +174,22 @@ export async function GET(request: NextRequest) {
       "Supervision Bill":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
       "Other Services Bill":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
     };
+    // Adjustment mirror bills remain part of the financial totals so Credit Notes
+    // reduce the balance and Debit Notes increase it. They are audit records,
+    // though, not a second delivery of the same service. Keep them out of the
+    // normal service line list below so a discount never creates a duplicate row.
     for(const b of bills){const g=groups[category(b)];g.bills.push(b);g.gross+=num(b.Amount);g.discount+=num(b.Discount);}
     for(const p of payments){const g=groups[category(p)];g.payments.push(p);g.paid+=num(p.Amount);}
     for(const g of Object.values(groups))g.due=Math.max(0,g.gross-g.discount-g.paid);
     const eng=groups["Engineering Bill"],books=groups["Design Books"],sup=groups["Supervision Bill"],oth=groups["Other Services Bill"];
     const totalDue=eng.due+books.due+sup.due+oth.due,totalBilled=eng.gross-eng.discount+books.gross-books.discount+sup.gross-sup.discount+oth.gross-oth.discount;
-    const billRows=(c:Category)=>groups[c].bills.map(b=>[projectId,b.Description||c,b.Unit_Price||"",b.Quantity||"",b.Amount||0,b.Bill_ID||"",b.Status||"",b.Net_Amount ?? (num(b.Amount)-num(b.Discount)),b.Discount||0]);
+    const billRows=(c:Category)=>groups[c].bills
+      .filter(b=>adjustmentKind(b)!=="credit")
+      .map(b=>{
+        const kind=adjustmentKind(b);
+        const description=kind==="debit" ? `Debit Note — ${serviceDescription(b,c)}` : (b.Description||c);
+        return [projectId,description,b.Unit_Price||"",b.Quantity||"",b.Amount||0,b.Bill_ID||"",b.Status||"",b.Net_Amount ?? (num(b.Amount)-num(b.Discount)),b.Discount||0];
+      });
     const payRows=(c:Category)=>groups[c].payments.map(p=>[projectId,p.Payment_Date||"",[p.Payment_Method,p.Reference_No].filter(Boolean).join(" · ")||"Client Payment",p.Amount||0,p.Approval_Status||"Approved",p.Payment_ID||""]);
     const sheets=[
       sheet("Summary",["FILE ID","Client Name","Project Name","Engineering Bill","Engineering Discount","Engineering Deposit","Engineering Due","Supervision Bill","Supervision Discount","Supervision Deposit","Supervision Due","Other Services Bill","Other Services Discount","Other Services Deposit","Other Services Due","Design Books Bill","Design Books Discount","Design Books Deposit","Design Books Due","Total Due","Status"],[[projectId,project.Client_Name||"",project.Project_Name||"",eng.gross,eng.discount,eng.paid,eng.due,sup.gross,sup.discount,sup.paid,sup.due,oth.gross,oth.discount,oth.paid,oth.due,books.gross,books.discount,books.paid,books.due,totalDue,totalDue>.009?"DUE":totalBilled>0?"FULL PAID":""]]),
