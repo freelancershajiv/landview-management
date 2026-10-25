@@ -23,6 +23,9 @@ function date(value: unknown) {
   const v = text(value, 20);
   return /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : "";
 }
+function draftOnly(current: Record<string, unknown>) {
+  return text(current.status).toLowerCase() === "draft";
+}
 
 async function findBillForProject(billId: string, projectCode: string) {
   const found = await selectRows("bills", { filters: { bill_code: billId }, limit: 1 });
@@ -51,6 +54,7 @@ export async function PATCH(request: NextRequest) {
     const projectCode = normalizeProjectCode(body.Project_ID || body.projectId || "");
     const lookup = await findBillForProject(billId, projectCode);
     if ("error" in lookup) return lookup.error;
+    if (!draftOnly(lookup.current)) return NextResponse.json({ success: false, error: "Posted/issued bills are locked. Use a Credit Note or Debit Note to correct the financial record." }, { status: 409 });
 
     const category = text(body.Billing_Category || body.Category || body.category, 80);
     if (!BILL_CATEGORIES.has(category)) return NextResponse.json({ success: false, error: "Choose a valid billing category." }, { status: 400 });
@@ -96,6 +100,7 @@ export async function DELETE(request: NextRequest) {
     const projectCode = normalizeProjectCode(body.Project_ID || body.projectId || "");
     const lookup = await findBillForProject(billId, projectCode);
     if ("error" in lookup) return lookup.error;
+    if (!draftOnly(lookup.current)) return NextResponse.json({ success: false, error: "Posted/issued bills cannot be deleted. Use a Credit Note, Debit Note, or void an adjustment document instead." }, { status: 409 });
 
     await deleteRows("bills", { bill_code: billId });
     const remaining = await selectRows("bills", { filters: { bill_code: billId }, limit: 1 });
