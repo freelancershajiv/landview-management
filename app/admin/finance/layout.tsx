@@ -15,6 +15,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         .finance-section-nav a:hover{border-color:var(--theme-line-_67737d,#67737d)}
         @media(max-width:720px){.finance-section-nav{display:grid;grid-template-columns:1fr 1fr}.finance-section-nav a{justify-content:center;text-align:center}.finance-section-nav a.featured{grid-column:1/-1}}
       `}</style>
+      <Link href="/admin/finance">Finance Home</Link>
       <Link className="featured" href="/admin/finance/full-bill-editor">Full Bill Editor</Link>
       <Link className="primary" href="/admin/finance/direct-bill">+ New Full Bill</Link>
       <Link className="primary" href="/admin/finance/workspace">Billing Workspace</Link>
