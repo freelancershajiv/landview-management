@@ -13,6 +13,7 @@ import {
   workflowServiceName,
   workflowStatusesForService,
 } from "@/lib/service-workflow";
+import { getAdjustedProjectServiceFinancials } from "@/lib/billing-adjusted-financials";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -114,7 +115,7 @@ async function billingProjects() {
   ]);
   const billedProjectIds = new Set(
     bills
-      .filter((bill) => !["void", "voided", "cancelled", "canceled", "rejected"].includes(text(bill.status).toLowerCase()) && num(bill.amount) > 0)
+      .filter((bill) => !["void", "voided", "cancelled", "canceled", "rejected"].includes(text(bill.status).toLowerCase()) && (num(bill.amount) !== 0 || num(bill.discount) !== 0))
       .map((bill) => text(bill.project_id))
       .filter(Boolean),
   );
@@ -135,7 +136,7 @@ export async function GET(request: NextRequest) {
     if (mode === "billing") {
       const projectId = text(request.nextUrl.searchParams.get("projectId"), 80).toUpperCase();
       if (!projectId) throw new Error("Project ID is required.");
-      const snapshot = await getProjectServiceFinancials(projectId);
+      const snapshot = await getAdjustedProjectServiceFinancials(projectId);
       return json({ success: true, data: {
         project: {
           projectId,
@@ -202,12 +203,19 @@ export async function POST(request: NextRequest) {
       const now = new Date().toISOString();
       const serviceRows = await selectRows("project_service_workflows", { filters: { project_id: project.id }, limit: 5000 });
       let servicesClosed = 0;
+      const blocked: Array<{ service: string; reason: string }> = [];
       for (const service of serviceRows) {
         const statuses = workflowStatusesForService(service.service_name);
         const finalStatus = statuses[statuses.length - 1] || service.status;
         if (text(service.status) === finalStatus) continue;
-        await updateRows("project_service_workflows", { id: service.id }, { status: finalStatus, updated_by: who, updated_at: now });
-        servicesClosed += 1;
+        try {
+          await updateRows("project_service_workflows", { id: service.id }, { status: finalStatus, updated_by: who, updated_at: now });
+          servicesClosed += 1;
+        } catch (gateError) {
+          const reason = gateError instanceof Error ? gateError.message : "Financial delivery gate blocked final delivery.";
+          if (/Financial delivery gate blocked/i.test(reason)) blocked.push({ service: text(service.service_name), reason });
+          else throw gateError;
+        }
       }
       const projectChanges = {
         lifecycle_phase: "Completed",
@@ -224,8 +232,8 @@ export async function POST(request: NextRequest) {
         project_code: projectId,
         from_phase: text(project.lifecycle_phase) || null,
         to_phase: "Completed",
-        transition_type: "legacy_close",
-        reason: text(input.reason, 1000) || "Manually marked complete from Project Workflow for legacy project close-out.",
+        transition_type: blocked.length ? "operational_close_financially_open" : "legacy_close",
+        reason: text(input.reason, 1000) || (blocked.length ? "Operational work completed; one or more client deliveries remain finance-gated." : "Manually marked complete from Project Workflow for legacy project close-out."),
         changed_by: who,
         changed_by_role: roleOf(user),
         source: "service-workflow",
@@ -235,9 +243,9 @@ export async function POST(request: NextRequest) {
         user, request, action: "project_manual_complete", entityType: "project", entityId: projectId,
         before: { lifecycle_phase: project.lifecycle_phase, design_stage_status: project.design_stage_status, approval_stage_status: project.approval_stage_status, supervision_stage_status: project.supervision_stage_status },
         after: projectChanges,
-        details: { servicesClosed, reason: text(input.reason, 1000) || "Legacy/manual close from Project Workflow" }, source: "service-workflow",
+        details: { servicesClosed, blocked, reason: text(input.reason, 1000) || "Manual close from Project Workflow" }, source: "service-workflow",
       });
-      return json({ success: true, data: { project: updatedProjects[0] || { ...project, ...projectChanges }, servicesClosed } });
+      return json({ success: true, data: { project: updatedProjects[0] || { ...project, ...projectChanges }, servicesClosed, servicesBlocked: blocked.length, blocked } });
     }
 
     if (action === "redistributeengineeringdiscount") {
@@ -256,8 +264,9 @@ export async function POST(request: NextRequest) {
         const serviceDiscount = Math.max(0, num(req.discount));
         const matching = bills.filter((bill) => {
           const category = text(bill.billing_category || bill.category).toLowerCase();
-          return category.includes("engineering") && workflowServiceKey(workflowServiceName(text(bill.description).replace(/^\[[^\]]+\]\s*/, ""))) === serviceKey;
+          return category.includes("engineering") && text(bill.status).toLowerCase() === "draft" && workflowServiceKey(workflowServiceName(text(bill.description).replace(/^\[[^\]]+\]\s*/, ""))) === serviceKey;
         });
+        if (!matching.length && serviceDiscount > 0.01) throw new Error(`${text(req.serviceName)} has no Draft bill. Posted bill corrections must use a Credit Note or Debit Note.`);
         const grossTotal = matching.reduce((sum, bill) => sum + Math.max(0, num(bill.amount)), 0);
         let remaining = serviceDiscount;
         for (let index = 0; index < matching.length; index += 1) {
@@ -265,11 +274,11 @@ export async function POST(request: NextRequest) {
           const gross = Math.max(0, num(bill.amount));
           const share = index === matching.length - 1 ? remaining : Math.min(remaining, grossTotal > 0 ? Math.round((serviceDiscount * gross / grossTotal) * 100) / 100 : 0);
           remaining = Math.max(0, remaining - share);
-          await updateRows("bills", { bill_code: bill.bill_code }, { discount: share, net_amount: Math.max(0, gross - share), updated_at: new Date().toISOString(), source_updated_at: new Date().toISOString() });
+          await updateRows("bills", { bill_code: bill.bill_code }, { discount: share, updated_at: new Date().toISOString(), source_updated_at: new Date().toISOString() });
         }
       }
       await recordAuditEvent({ user, request, action: "engineering_discount_split", entityType: "project", entityId: projectId, details: { totalDiscount: requestedTotal, services: requested }, source: "service-workflow" });
-      return json({ success: true, data: await getProjectServiceFinancials(projectId) });
+      return json({ success: true, data: await getAdjustedProjectServiceFinancials(projectId) });
     }
 
     if (action === "syncpaidservices") {
