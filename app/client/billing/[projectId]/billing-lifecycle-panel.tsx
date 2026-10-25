@@ -7,6 +7,7 @@ import { useParams } from "next/navigation";
 type Invoice = { invoiceCode?: string; billCode?: string; issueDate?: string; category?: string; amount?: number; paid?: number; due?: number; status?: string };
 type Receipt = { receiptCode?: string; paymentCode?: string; date?: string; amount?: number; allocated?: number; unallocated?: number; allocationStatus?: string; method?: string; reference?: string; receiptUrl?: string };
 type Lifecycle = { invoices?: Invoice[]; receipts?: Receipt[]; unallocated?: number };
+type InvoiceTotals = { amount: number; paid: number; due: number };
 
 const money = (value: unknown) => new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(Number(value || 0));
 const date = (value: unknown) => {
@@ -36,7 +37,7 @@ export default function BillingLifecyclePanel() {
 
   const invoices = data?.invoices || [];
   const receipts = data?.receipts || [];
-  const invoiceTotals = useMemo(() => invoices.reduce((sum, row) => ({ amount: sum.amount + Number(row.amount || 0), paid: sum.paid + Number(row.paid || 0), due: sum.due + Number(row.due || 0) }), { amount: 0, paid: 0, due: 0 }), [invoices]);
+  const invoiceTotals = useMemo(() => invoices.reduce<InvoiceTotals>((sum, row) => ({ amount: sum.amount + Number(row.amount || 0), paid: sum.paid + Number(row.paid || 0), due: sum.due + Number(row.due || 0) }), { amount: 0, paid: 0, due: 0 }), [invoices]);
 
   if (loading) return <div className="blc blc-loading"><style>{css}</style>Loading invoice & receipt lifecycle…</div>;
   if (error) return <div className="blc blc-error"><style>{css}</style>{error}</div>;
