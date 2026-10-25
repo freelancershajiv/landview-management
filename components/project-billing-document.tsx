@@ -17,55 +17,16 @@ const amountText = (value: unknown) => {
     : "—";
 };
 
-function formatDate(date: Date) {
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Dhaka",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(date);
+function isSoilTestService(value: unknown) {
+  return /\bsoil\s*test\b/i.test(String(value ?? ""));
 }
 
-function parseBillingDate(value: unknown) {
-  const text = String(value ?? "").trim();
-  if (!text) return null;
-
-  let match = text.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
-  if (match) {
-    const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-
-  match = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/);
-  if (match) {
-    let year = Number(match[3]);
-    if (year < 100) year += year >= 70 ? 1900 : 2000;
-    const parsed = new Date(year, Number(match[2]) - 1, Number(match[1]));
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-
-  const parsed = new Date(text);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
-}
-
-function paymentDateOnly(value: unknown) {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "—";
-
-  const isoDate = raw.match(/^(\d{4}-\d{2}-\d{2})/);
-  if (isoDate) return isoDate[1];
-
-  const displayDate = raw.match(/^(\d{1,2}[/.]\d{1,2}[/.]\d{2,4})/);
-  if (displayDate) return displayDate[1];
-
-  const parsed = parseBillingDate(raw);
-  if (!parsed) return raw;
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Dhaka",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(parsed);
+function isEngineeringBill(category: SheetInvoices["invoices"][number]) {
+  const name = String(category.name || "").trim().toLowerCase();
+  if (name === "engineering") return true;
+  if (["supervision", "others", "design books"].includes(name)) return false;
+  const service = String(category.items?.[0]?.service || category.name || "").trim().toLowerCase();
+  return /architectural|structural|3d\s*design|electrical|fire\s*safety|plumbing|plan\s*approval|estimate\s*&?\s*costing|re-?design/.test(service);
 }
 
 function billLineAmounts(item: SheetInvoices["invoices"][number]["items"][number]) {
@@ -83,22 +44,60 @@ function billLineAmounts(item: SheetInvoices["invoices"][number]["items"][number
   return { amount, discount, net };
 }
 
+function formatDate(date: Date) {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Dhaka",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function parseBillingDate(value: unknown) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  let match = text.match(/^(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/);
+  if (match) {
+    const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  match = text.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{2}|\d{4})$/);
+  if (match) {
+    let year = Number(match[3]);
+    if (year < 100) year += year >= 70 ? 1900 : 2000;
+    const parsed = new Date(year, Number(match[2]) - 1, Number(match[1]));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function paymentDateOnly(value: unknown) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "—";
+  const isoDate = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDate) return isoDate[1];
+  const displayDate = raw.match(/^(\d{1,2}[/.]\d{1,2}[/.]\d{2,4})/);
+  if (displayDate) return displayDate[1];
+  const parsed = parseBillingDate(raw);
+  if (!parsed) return raw;
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(parsed);
+}
+
 export function billingIssueDate(result: SheetInvoices) {
   const explicitIssueDate = parseBillingDate(result.client.issueDate);
   if (explicitIssueDate) return formatDate(explicitIssueDate);
-
-  const dates = result.invoices
-    .flatMap((category) => category.payments)
+  const dates = result.invoices.flatMap((category) => category.payments)
     .map((payment) => parseBillingDate(payment.date))
     .filter((date): date is Date => Boolean(date));
-
   if (!dates.length) return formatDate(new Date());
   return formatDate(new Date(Math.max(...dates.map((date) => date.getTime()))));
 }
 
 export function hasBillingData(category: SheetInvoices["invoices"][number]) {
-  return category.items.length > 0 ||
-    category.payments.length > 0 ||
+  return category.items.length > 0 || category.payments.length > 0 ||
     Math.abs(Number(category.gross || 0)) > 0.009 ||
     Math.abs(Number(category.discount || 0)) > 0.009 ||
     Math.abs(Number(category.paid || 0)) > 0.009 ||
@@ -126,13 +125,8 @@ export function billingVerificationSnapshot(result: SheetInvoices) {
 }
 
 export function safePdfTitle(value: string) {
-  return value
-    .normalize("NFKD")
-    .replace(/[^A-Za-z0-9._ -]+/g, "")
-    .trim()
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "") || "LAND-VIEW-Project-Billing-Statement";
+  return value.normalize("NFKD").replace(/[^A-Za-z0-9._ -]+/g, "").trim()
+    .replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "LAND-VIEW-Project-Billing-Statement";
 }
 
 let billingPrintPending = false;
@@ -147,16 +141,13 @@ export async function printBillingPdf(result: SheetInvoices) {
     window.alert("The invoice QR is not ready. Wait for verification to finish, or reload the billing statement and try again.");
     return false;
   }
-
   billingPrintPending = true;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const qrSource = qrImage?.src;
   try {
     await Promise.race([
       Promise.all(Array.from(root.querySelectorAll<HTMLImageElement>("img")).map((image) => image.decode())),
-      new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("Invoice images did not load.")), 10000);
-      }),
+      new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("Invoice images did not load.")), 10000); }),
     ]);
     if (!root.isConnected || root.dataset.billingId !== result.id || qrImage?.src !== qrSource) return false;
   } catch {
@@ -167,8 +158,7 @@ export async function printBillingPdf(result: SheetInvoices) {
     billingPrintPending = false;
   }
   const previousTitle = document.title;
-  const displayName = result.client.name || result.id || "Project";
-  const pdfTitle = safePdfTitle(`${result.id}-${displayName}-Billing-Statement`);
+  document.title = safePdfTitle(`${result.id}-${result.client.name || result.id || "Project"}-Billing-Statement`);
   let restored = false;
   const restoreTitle = () => {
     if (restored) return;
@@ -176,16 +166,11 @@ export async function printBillingPdf(result: SheetInvoices) {
     document.title = previousTitle;
     window.removeEventListener("afterprint", restoreTitle);
   };
-
-  document.title = pdfTitle;
   window.addEventListener("afterprint", restoreTitle, { once: true });
   window.setTimeout(restoreTitle, 60000);
-  await new Promise<void>((resolve) => {
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-      window.print();
-      resolve();
-    }));
-  });
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+    window.print(); resolve();
+  })));
   return true;
 }
 
@@ -196,77 +181,74 @@ type Props = {
   dueOnly?: boolean;
 };
 
-export default function ProjectBillingDocument({ result, verificationUrl = "", verificationError = "" }: Props) {
+export default function ProjectBillingDocument({ result, verificationUrl = "", verificationError = "", dueOnly = false }: Props) {
   const issueDate = billingIssueDate(result);
   const qr = useMemo(() => {
     if (!verificationUrl) return { url: "", error: "" };
-    try {
-      return { url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(billingQrSvg(verificationUrl))}`, error: "" };
-    } catch {
-      return { url: "", error: "Could not generate the invoice QR. Reload the billing statement and try again." };
-    }
+    try { return { url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(billingQrSvg(verificationUrl))}`, error: "" }; }
+    catch { return { url: "", error: "Could not generate the invoice QR. Reload the billing statement and try again." }; }
   }, [verificationUrl]);
   const qrUrl = qr.url;
   const statementRef = `INV-${result.id.replace(/^LV-/, "")}-01`;
   const projectStatus = result.client.status || (result.totals.due > 0 ? "Partial / Due" : "Full Paid");
-
   const activeCategories = result.invoices.filter(hasBillingData);
-  const printCategories = activeCategories.length ? activeCategories : result.invoices.slice(0, 1);
+  const dueCategories = activeCategories.filter((category) => Number(category.due || 0) > 0.009);
+  const printCategories = dueOnly ? (dueCategories.length ? dueCategories : activeCategories) : (activeCategories.length ? activeCategories : result.invoices.slice(0, 1));
   const totalPages = printCategories.length;
 
-  const renderTable = (category: SheetInvoices["invoices"][number], type: "bill" | "deposit") => {
-    if (type === "bill") {
-      if (!category.items.length) return <p className={styles.empty}>No bill records.</p>;
-      const netBilled = Math.max(0, Number(category.gross || 0) - Number(category.discount || 0));
-      return <div className={styles.tableWrap}>
-        <table className={styles.billTable}>
-          <thead>
-            <tr>
-              <th>SL.</th>
-              <th>Description</th>
-              <th>Bill Amount (BDT)</th>
-              <th><span style={{ display: "block", margin: "-10px", padding: "10px", background: "#fff0f0", color: "#d61f26", textAlign: "center" }}>Discount (BDT)</span></th>
-              <th>Net Amount (BDT)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortServicesByStandardOrder(category.items).map((item,index)=>{
-              const values=billLineAmounts(item);
-              return <tr key={index}>
-                <td>{index+1}</td>
-                <td>{standardServiceLabel(item.service)||item.service||"—"}</td>
-                <td className={styles.moneyCell}>{amountText(values.amount)}</td>
-                <td className={styles.moneyCell}><span style={{ display: "block", margin: "-10px", padding: "10px", background: values.discount > 0.009 ? "#fff5f5" : "transparent", color: values.discount > 0.009 ? "#d61f26" : "inherit", fontWeight: values.discount > 0.009 ? 800 : 400 }}>{values.discount > 0.009 ? amountText(values.discount) : "—"}</span></td>
-                <td className={styles.moneyCell}><strong>{amountText(values.net)}</strong></td>
-              </tr>;
-            })}
-          </tbody>
-          <tfoot>
-            <tr>
-              <td colSpan={2}><strong>Bill Subtotal (BDT)</strong></td>
-              <td className={styles.moneyCell}><strong>{amountText(category.gross)}</strong></td>
-              <td className={styles.moneyCell}>—</td>
-              <td className={styles.moneyCell}>—</td>
-            </tr>
-            <tr>
-              <td colSpan={2}><strong>Total Discount (BDT)</strong></td>
-              <td className={styles.moneyCell}>—</td>
-              <td className={styles.moneyCell}><strong style={{ color: "#d61f26" }}>{amountText(category.discount)}</strong></td>
-              <td className={styles.moneyCell}>—</td>
-            </tr>
-            <tr style={{ background: "#ed1c24" }}>
-              <td colSpan={2}><strong style={{ color: "#fff" }}>Grand Total (BDT)</strong></td>
-              <td className={styles.moneyCell}>—</td>
-              <td className={styles.moneyCell}>—</td>
-              <td className={styles.moneyCell}><strong style={{ color: "#fff", fontSize: "1.08em" }}>{amountText(netBilled)}</strong></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>;
-    }
+  const renderEngineeringBill = (category: SheetInvoices["invoices"][number]) => {
+    const items = sortServicesByStandardOrder(category.items);
+    if (!items.length) return <p className={styles.empty}>No bill records.</p>;
+    const netBilled = Math.max(0, Number(category.gross || 0) - Number(category.discount || 0));
+    return <div className={styles.tableWrap}>
+      <table className={styles.billTable}>
+        <thead><tr>
+          <th>SL.</th><th>Description</th><th>Bill Amount (BDT)</th>
+          <th><span style={{ display:"block", margin:"-10px", padding:"10px", background:"#fff0f0", color:"#d61f26", textAlign:"center" }}>Discount (BDT)</span></th>
+          <th>Net Amount (BDT)</th>
+        </tr></thead>
+        <tbody>{items.map((item, index) => {
+          const values = billLineAmounts(item);
+          return <tr key={`${item.service}-${index}`}>
+            <td>{index + 1}</td>
+            <td>{standardServiceLabel(item.service) || item.service || "—"}</td>
+            <td className={styles.moneyCell}>{amountText(values.amount)}</td>
+            <td className={styles.moneyCell}><span style={{ display:"block", margin:"-10px", padding:"10px", background:values.discount > 0.009 ? "#fff5f5" : "transparent", color:values.discount > 0.009 ? "#d61f26" : "inherit", fontWeight:values.discount > 0.009 ? 800 : 400 }}>{values.discount > 0.009 ? amountText(values.discount) : "—"}</span></td>
+            <td className={styles.moneyCell}><strong>{amountText(values.net)}</strong></td>
+          </tr>;
+        })}</tbody>
+        <tfoot>
+          <tr><td colSpan={2}><strong>Bill Subtotal (BDT)</strong></td><td className={styles.moneyCell}><strong>{amountText(category.gross)}</strong></td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}>—</td></tr>
+          <tr><td colSpan={2}><strong>Total Discount (BDT)</strong></td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}><strong style={{ color:"#d61f26" }}>{amountText(category.discount)}</strong></td><td className={styles.moneyCell}>—</td></tr>
+          <tr style={{ background:"#ed1c24" }}><td colSpan={2}><strong style={{ color:"#fff" }}>Grand Total (BDT)</strong></td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}><strong style={{ color:"#fff", fontSize:"1.08em" }}>{amountText(netBilled)}</strong></td></tr>
+        </tfoot>
+      </table>
+    </div>;
+  };
 
+  const renderStandardBill = (category: SheetInvoices["invoices"][number]) => {
+    const items = sortServicesByStandardOrder(category.items);
+    if (!items.length) return <p className={styles.empty}>No bill records.</p>;
+    return <div className={styles.tableWrap}><table className={styles.billTable}>
+      <thead><tr><th>SL.</th><th>Description</th><th>Rate (BDT)</th><th>QTY</th><th>Amount (BDT)</th></tr></thead>
+      <tbody>{items.map((item,index)=>{ const soilTest=isSoilTestService(item.service); return <tr key={`${item.service}-${index}`}>
+        <td>{index+1}</td><td>{standardServiceLabel(item.service)||item.service||"—"}</td>
+        <td>{soilTest&&item.price?amountText(item.price):""}</td><td>{soilTest&&item.quantity?item.quantity:""}</td>
+        <td className={styles.moneyCell}>{amountText(item.amount)}</td>
+      </tr>; })}</tbody>
+    </table></div>;
+  };
+
+  const renderTable = (category: SheetInvoices["invoices"][number], type: "bill" | "deposit") => {
+    if (type === "bill") return isEngineeringBill(category) ? renderEngineeringBill(category) : renderStandardBill(category);
     if (!category.payments.length) return <p className={styles.empty}>No deposit records.</p>;
-    return <div className={styles.tableWrap}><table className={styles.depositTable}><thead><tr><th>SL.</th><th>Date</th><th>Details</th><th>Amount</th><th>Verification</th></tr></thead><tbody>{category.payments.map((payment,index)=><tr key={index}><td>{index+1}</td><td className={styles.dateCell}>{paymentDateOnly(payment.date)}</td><td className={styles.detailsCell}>{payment.details||"—"}</td><td className={styles.moneyCell}>{money(payment.amount)}</td><td className={styles.verificationCell}><strong className={payment.verification === "Verified" ? styles.verificationVerified : styles.verificationUnverified}>{payment.verification||"Unverified"}</strong>{payment.incomeId&&<small className={styles.verificationRef}>Ref: {payment.incomeId}</small>}</td></tr>)}</tbody></table></div>;
+    return <div className={styles.tableWrap}><table className={styles.depositTable}>
+      <thead><tr><th>SL.</th><th>Date</th><th>Details</th><th>Amount</th><th>Verification</th></tr></thead>
+      <tbody>{category.payments.map((payment,index)=><tr key={index}>
+        <td>{index+1}</td><td className={styles.dateCell}>{paymentDateOnly(payment.date)}</td><td className={styles.detailsCell}>{payment.details||"—"}</td>
+        <td className={styles.moneyCell}>{money(payment.amount)}</td><td className={styles.verificationCell}><strong className={payment.verification === "Verified" ? styles.verificationVerified : styles.verificationUnverified}>{payment.verification||"Unverified"}</strong>{payment.incomeId&&<small className={styles.verificationRef}>Ref: {payment.incomeId}</small>}</td>
+      </tr>)}</tbody>
+    </table></div>;
   };
 
   const PrintHeader = ({ page, title }: { page: number; title: string }) => <>
@@ -297,7 +279,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
     <section className={styles.printSheets}>
       {printCategories.map((category, index) => {
         const last = index === printCategories.length - 1;
-        return <article className={styles.printPage} key={category.name}>
+        return <article className={styles.printPage} key={`${category.name}-${index}`}>
           <PrintHeader page={index + 1} title={`${category.name} Bill`}/>
           <section className={styles.portraitSection}>
             <div className={styles.sheetMain}><h2>{category.name.toUpperCase()} <span>BILL</span></h2>{renderTable(category,"bill")}<h2 className={styles.depositHeading}>{category.name.toUpperCase()} <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(category,"deposit")}</div>
