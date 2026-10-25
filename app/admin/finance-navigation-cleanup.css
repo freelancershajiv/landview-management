@@ -1,8 +1,6 @@
 /* Finance 2.0 navigation authority.
-   Legacy routes remain as redirects for old bookmarks, but duplicate entry points stay hidden. */
+   Keep only genuinely duplicate legacy entries hidden. Bill Manager is an active Finance workflow. */
 .portal-admin .lv-nav-children > a[href="/admin/accounts/entry"],
-.portal-admin .lv-nav-children > a[href="/admin/finance/invoices"],
-.portal-admin .lv-nav-children > a[href="/admin/finance/bills"],
-.portal-admin .adj-actions > a[href="/admin/finance/bills"] {
+.portal-admin .lv-nav-children > a[href="/admin/finance/invoices"] {
   display: none !important;
 }
