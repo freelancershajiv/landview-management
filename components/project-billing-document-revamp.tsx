@@ -190,10 +190,7 @@ export default function ProjectBillingDocumentRevamp({
           const due = Math.max(0, Number(category.due || 0));
           const grandTotal = Math.max(0, gross - discount);
           const fullyPaid = due <= 0.009;
-          const discountRows = isEngineeringCategory(category.name)
-            ? (category.items as BillingItem[]).filter((item) => Number(item.billDiscount || 0) > 0.009)
-            : [];
-          const discountRowsTotal = discountRows.reduce((sum, item) => sum + Math.max(0, Number(item.billDiscount || 0)), 0);
+          const engineeringBill = isEngineeringCategory(category.name);
 
           return (
             <article className={`${styles.printPage} lvInvoicePage`} key={`${category.name}-${index}`}>
@@ -238,51 +235,55 @@ export default function ProjectBillingDocumentRevamp({
                 <h2 className="lvSectionTitle"><span>{dueOnly ? "OUTSTANDING" : category.name.toUpperCase()}</span> <b>{dueOnly ? "DUE BILL" : "BILL"}</b></h2>
 
                 <div className="lvTableWrap">
-                  <table className="lvInvoiceTable lvBillTable">
+                  <table className={`lvInvoiceTable lvBillTable ${engineeringBill ? "lvEngineeringBillTable" : ""}`}>
                     <colgroup><col /><col /><col /><col /><col /></colgroup>
-                    <thead><tr><th>SL.</th><th>DESCRIPTION</th><th>RATE (BDT)</th><th>QTY</th><th>AMOUNT (BDT)</th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th>SL.</th>
+                        <th>DESCRIPTION</th>
+                        {engineeringBill ? <>
+                          <th>AMOUNT (BDT)</th>
+                          <th>DISCOUNT (BDT)</th>
+                          <th>NET AMOUNT (BDT)</th>
+                        </> : <>
+                          <th>RATE (BDT)</th>
+                          <th>QTY</th>
+                          <th>AMOUNT (BDT)</th>
+                        </>}
+                      </tr>
+                    </thead>
                     <tbody>
                       {category.items.length ? category.items.map((item, itemIndex) => {
+                        const billingItem = item as BillingItem;
                         const soilTest = isSoilTestService(item.service);
+                        const amount = Number.isFinite(item.amount) ? Math.max(0, Number(item.amount)) : 0;
+                        const serviceDiscount = engineeringBill && Number.isFinite(billingItem.billDiscount)
+                          ? Math.max(0, Number(billingItem.billDiscount))
+                          : 0;
+                        const serviceNet = engineeringBill
+                          ? Number.isFinite(billingItem.billNetAmount)
+                            ? Math.max(0, Number(billingItem.billNetAmount))
+                            : Math.max(0, amount - serviceDiscount)
+                          : amount;
                         return (
                           <tr key={itemIndex}>
                             <td>{itemIndex + 1}</td>
                             <td>{item.service || "—"}</td>
-                            <td>{soilTest && item.price ? amountText(item.price) : ""}</td>
-                            <td>{soilTest && item.quantity ? item.quantity : ""}</td>
-                            <td>{amountText(Number.isFinite(item.amount) ? item.amount : 0)}</td>
+                            {engineeringBill ? <>
+                              <td>{amountText(amount)}</td>
+                              <td>{serviceDiscount > 0.009 ? amountText(serviceDiscount) : "—"}</td>
+                              <td><strong>{amountText(serviceNet)}</strong></td>
+                            </> : <>
+                              <td>{soilTest && item.price ? amountText(item.price) : ""}</td>
+                              <td>{soilTest && item.quantity ? item.quantity : ""}</td>
+                              <td>{amountText(amount)}</td>
+                            </>}
                           </tr>
                         );
                       }) : <tr><td colSpan={5} className="lvEmptyRow">No bill records.</td></tr>}
                     </tbody>
                   </table>
                 </div>
-
-                {discountRows.length > 0 && (
-                  <div className="lvDiscountBlock">
-                    <div className="lvDiscountHeading">ENGINEERING DISCOUNTS</div>
-                    <div className="lvTableWrap lvDiscountTableWrap">
-                      <table className="lvInvoiceTable lvDiscountTable">
-                        <colgroup><col /><col /><col /><col /></colgroup>
-                        <thead><tr><th>SL.</th><th>SERVICE</th><th>ORIGINAL BILL (BDT)</th><th>DISCOUNT (BDT)</th></tr></thead>
-                        <tbody>
-                          {discountRows.map((item, itemIndex) => (
-                            <tr key={`${item.service}-${itemIndex}`}>
-                              <td>{itemIndex + 1}</td>
-                              <td>{item.service || "—"}</td>
-                              <td>{amountText(Number.isFinite(item.amount) ? item.amount : 0)}</td>
-                              <td>{amountText(Math.max(0, Number(item.billDiscount || 0)))}</td>
-                            </tr>
-                          ))}
-                          <tr className="lvDiscountTotalRow">
-                            <td colSpan={3}><strong>Total Discount (BDT)</strong></td>
-                            <td><strong>{amountText(discountRowsTotal)}</strong></td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
 
                 <div className="lvTotalsBlock">
                   <div><span>Bill Subtotal (BDT)</span><strong>{amountText(gross)}</strong></div>
@@ -391,19 +392,11 @@ export default function ProjectBillingDocumentRevamp({
           .lvBillTable col:nth-child(1){width:7%!important}.lvBillTable col:nth-child(2){width:42%!important}.lvBillTable col:nth-child(3){width:18%!important}.lvBillTable col:nth-child(4){width:12%!important}.lvBillTable col:nth-child(5){width:21%!important}
           .lvBillTable th:nth-child(3),.lvBillTable td:nth-child(3),.lvBillTable th:nth-child(4),.lvBillTable td:nth-child(4){text-align:center!important}
           .lvBillTable th:nth-child(5),.lvBillTable td:nth-child(5){text-align:right!important;white-space:nowrap!important}
-
-          .lvDiscountBlock{margin-top:2.2mm!important;break-inside:avoid!important}
-          .lvDiscountHeading{padding:1.4mm 1.8mm!important;border:1px solid #efb3b8!important;border-bottom:0!important;background:#fff4f5!important;color:#d7192d!important;font-size:8.6pt!important;font-weight:900!important;letter-spacing:.25px!important}
-          .lvDiscountTableWrap{border-color:#efb3b8!important}
-          .lvDiscountTable col:nth-child(1){width:8%!important}.lvDiscountTable col:nth-child(2){width:46%!important}.lvDiscountTable col:nth-child(3){width:23%!important}.lvDiscountTable col:nth-child(4){width:23%!important}
-          .lvDiscountTable th{background:#3a3f43!important}
-          .lvDiscountTable th:nth-child(3),.lvDiscountTable td:nth-child(3),.lvDiscountTable th:nth-child(4),.lvDiscountTable td:nth-child(4){text-align:right!important;white-space:nowrap!important}
-          .lvDiscountTable td:nth-child(4){color:#d7192d!important;font-weight:800!important}
-          .lvDiscountTotalRow td{background:#fff4f5!important;color:#d7192d!important;font-weight:900!important}
-          .lvDiscountTotalRow td:first-child{text-align:right!important}
+          .lvEngineeringBillTable col:nth-child(1){width:7%!important}.lvEngineeringBillTable col:nth-child(2){width:43%!important}.lvEngineeringBillTable col:nth-child(3){width:17%!important}.lvEngineeringBillTable col:nth-child(4){width:16%!important}.lvEngineeringBillTable col:nth-child(5){width:17%!important}
+          .lvEngineeringBillTable th:nth-child(3),.lvEngineeringBillTable td:nth-child(3),.lvEngineeringBillTable th:nth-child(4),.lvEngineeringBillTable td:nth-child(4),.lvEngineeringBillTable th:nth-child(5),.lvEngineeringBillTable td:nth-child(5){text-align:right!important;white-space:nowrap!important}
+          .lvEngineeringBillTable td:nth-child(4){color:#d7192d!important;font-weight:800!important}
 
           .lvTotalsBlock{width:100%!important;margin-top:0!important;border:1px solid #cbd1d6!important;border-top:0!important;box-sizing:border-box!important}
-          .lvDiscountBlock + .lvTotalsBlock{border-top:1px solid #cbd1d6!important;margin-top:2.2mm!important}
           .lvTotalsBlock>div{display:grid!important;grid-template-columns:minmax(0,1fr) 42mm!important;align-items:center!important;min-height:6.6mm!important;border-top:1px solid #d6dbe0!important}
           .lvTotalsBlock>div:first-child{border-top:0!important}
           .lvTotalsBlock span,.lvTotalsBlock strong{padding:1.45mm 2mm!important;font-size:8.5pt!important;box-sizing:border-box!important}
