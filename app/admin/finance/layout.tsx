@@ -15,6 +15,8 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         @media(max-width:720px){.finance-section-nav{display:grid;grid-template-columns:1fr 1fr}.finance-section-nav a{justify-content:center;text-align:center}}
       `}</style>
       <Link className="primary" href="/admin/finance/workspace">Billing 2.0</Link>
+      <Link className="primary" href="/admin/finance/bills">Bills</Link>
+      <Link className="primary" href="/admin/finance/direct-bill">+ Add Bill</Link>
       <Link className="primary" href="/admin/finance/due-bills">Due Bills</Link>
       <Link className="primary" href="/admin/finance/service-payments">Receive Payment</Link>
       <Link href="/admin/finance/payment-lifecycle">Invoices / Receipts</Link>
