@@ -19,8 +19,8 @@ import WhatsAppInvoiceButton from "@/components/whatsapp-invoice-button";
 import { saveBillingJpg } from "@/lib/save-document-jpg";
 import styles from "./invoice.module.css";
 
-const BILLING_SNAPSHOT_PREFIX = "landview_billing_snapshot_v3:";
-const BILLING_SNAPSHOT_TTL_MS = 10 * 60 * 1000;
+const BILLING_SNAPSHOT_PREFIX = "landview_billing_snapshot_v4:";
+const BILLING_SNAPSHOT_TTL_MS = 0;
 
 type BillingSnapshot = { savedAt: number; billing: SheetInvoices };
 type ProjectBillingBundle = {
@@ -52,7 +52,7 @@ function readBillingSnapshot(id: string): SheetInvoices | null {
     const raw = sessionStorage.getItem(snapshotKey(id));
     if (!raw) return null;
     const parsed = JSON.parse(raw) as BillingSnapshot;
-    if (!parsed?.billing?.id || !parsed.savedAt || Date.now() - parsed.savedAt > BILLING_SNAPSHOT_TTL_MS) {
+    if (!parsed?.billing?.id || !parsed.savedAt || BILLING_SNAPSHOT_TTL_MS <= 0 || Date.now() - parsed.savedAt > BILLING_SNAPSHOT_TTL_MS) {
       sessionStorage.removeItem(snapshotKey(id));
       return null;
     }
@@ -61,6 +61,7 @@ function readBillingSnapshot(id: string): SheetInvoices | null {
 }
 
 function saveBillingSnapshot(id: string, billing: SheetInvoices) {
+  if (BILLING_SNAPSHOT_TTL_MS <= 0) return;
   try { sessionStorage.setItem(snapshotKey(id), JSON.stringify({ savedAt: Date.now(), billing } satisfies BillingSnapshot)); }
   catch {}
 }
