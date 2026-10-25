@@ -14,12 +14,13 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         .finance-section-nav a{display:inline-flex;align-items:center;min-height:36px;padding:8px 11px;border:1px solid var(--theme-line-_36414a,#36414a);border-radius:7px;background:var(--theme-bg-_151d24,#151d24);color:var(--theme-ink-_dbe3e8,#dbe3e8);font-size:11px;font-weight:900;text-decoration:none}
         .finance-section-nav a:first-of-type{border-color:#8b4039;background:#3a211f;color:#ffd0cc}
         .finance-section-nav a:hover{border-color:var(--theme-line-_67737d,#67737d)}
-        .finance-section-nav a.direct-bill-link,.finance-section-nav a.service-payments-link,.finance-section-nav a.billing-v2-link,.finance-section-nav a.billing-control-link,.finance-section-nav a.adjustments-link{border-color:#8b4039;background:#3a211f;color:#ffd0cc}
+        .finance-section-nav a.direct-bill-link,.finance-section-nav a.service-payments-link,.finance-section-nav a.billing-v2-link,.finance-section-nav a.billing-control-link,.finance-section-nav a.adjustments-link,.finance-section-nav a.payment-lifecycle-link{border-color:#8b4039;background:#3a211f;color:#ffd0cc}
         @media(max-width:640px){.finance-section-nav{display:grid;grid-template-columns:1fr 1fr}.finance-section-nav a{justify-content:center;text-align:center}}
       `}</style>
       <Link href="/admin/finance/control">Control Center</Link>
       <Link className="billing-v2-link" href="/admin/finance/workspace">Billing 2.0</Link>
       <Link className="billing-control-link" href="/admin/finance/billing-control">Billing Controls</Link>
+      <Link className="payment-lifecycle-link" href="/admin/finance/payment-lifecycle">Invoices / Receipts</Link>
       <Link className="adjustments-link" href="/admin/finance/adjustments">Credit / Debit Notes</Link>
       <Link href="/admin/finance">Billing</Link>
       <Link className="service-payments-link" href="/admin/finance/service-payments">Service Payments</Link>
