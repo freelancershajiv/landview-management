@@ -87,7 +87,7 @@ select pc.id,g.project_id,g.project_code,g.service_name,g.service_key,g.billing_
        case when g.service_name='Municipality Approval Contract' then 'municipality'
             when g.billing_category='Engineering Bill' and g.service_name not in ('Site Supervision','Soil Test','Digital Survey') then 'engineering'
             else 'other' end,
-       g.gross,g.discount,g.net,'Any Payment','None',
+       g.gross,g.discount,g.net,'None','None',
        case when g.service_name='Site Supervision' then 'event' else 'fixed' end,true,now(),now()
 from grouped g join public.project_contracts pc on pc.project_id=g.project_id
 on conflict(contract_id,service_key) do nothing;
@@ -113,8 +113,8 @@ from public.project_contracts pc
 where pc.source='Billing 2.0 Legacy Backfill'
 on conflict(event_key) do nothing;
 
--- Existing historical projects must not be retroactively blocked by new delivery rules.
+-- Existing historical projects must not be retroactively blocked by new financial gates.
 update public.project_contract_services s
-set release_gate='None',release_gate_value=0,updated_at=now()
+set start_gate='None',start_gate_value=0,release_gate='None',release_gate_value=0,updated_at=now()
 from public.project_contracts pc
 where pc.id=s.contract_id and pc.source='Billing 2.0 Legacy Backfill';
