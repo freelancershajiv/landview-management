@@ -56,14 +56,14 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
     return "";
   };
   const categories = [
-    { name: "Engineering", bill: "Design Bill", deposit: "Design Deposit", discountIndex: 4 },
-    { name: "Design Books", bill: "Design Books Bill", deposit: "Design Books Deposit", discountIndex: 16 },
-    { name: "Supervision", bill: "Supervision Bill", deposit: "S Deposit", discountIndex: 8 },
-    { name: "Others", bill: "Others Bill", deposit: "Others Bill Deposit", discountIndex: 12 },
+    { name: "Engineering", bill: "Design Bill", deposit: "Design Deposit", grossIndex: 3, discountIndex: 4 },
+    { name: "Design Books", bill: "Design Books Bill", deposit: "Design Books Deposit", grossIndex: 15, discountIndex: 16 },
+    { name: "Supervision", bill: "Supervision Bill", deposit: "S Deposit", grossIndex: 7, discountIndex: 8 },
+    { name: "Others", bill: "Others Bill", deposit: "Others Bill Deposit", grossIndex: 11, discountIndex: 12 },
   ];
 
   const invoices = categories.map((category) => {
-    const items = sortServicesByStandardOrder(matching(category.bill).map((row) => ({
+    const rawItems = matching(category.bill).map((row) => ({
       service: cleanBillDescription(row[1]),
       price: row[2],
       quantity: row[3],
@@ -71,7 +71,16 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
       ...(String(row[6] || "").trim() ? { billStatus: String(row[6]).trim().toLowerCase() } : {}),
       ...(String(row[7] || "").trim() ? { billNetAmount: sheetAmount(row[7]) } : {}),
       ...(String(row[8] || "").trim() ? { billDiscount: sheetAmount(row[8]) } : {}),
-    })));
+    }));
+    // Credit-note mirror bills preserve audit history in the database but are
+    // not real service lines. Older/cached payloads can still contain them as
+    // zero-amount rows with a positive discount. Keep the discount in Summary
+    // while preventing a duplicate service row from being printed.
+    const items = sortServicesByStandardOrder(rawItems.filter((item) => !(
+      Math.abs(Number(item.amount || 0)) <= 0.009 &&
+      Number(item.billDiscount || 0) > 0.009 &&
+      Math.abs(Number(item.billNetAmount || 0)) <= 0.009
+    )));
 
     const rawPayments = matching(category.deposit).map((row) => ({
       date: row[1],
@@ -101,7 +110,8 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
       return true;
     });
 
-    const gross = items.reduce((total, row) => total + row.amount, 0);
+    const itemGross = items.reduce((total, row) => total + row.amount, 0);
+    const gross = summary.length > category.grossIndex ? sheetAmount(summary[category.grossIndex]) : itemGross;
     const paid = payments.reduce((total, row) => total + row.amount, 0);
     const discount = summary.length > category.discountIndex ? sheetAmount(summary[category.discountIndex]) : 0;
     const due = gross - discount - paid;
@@ -158,7 +168,11 @@ function categoryFromWorkspaceValue(value: unknown): InvoiceCategoryName | "" {
 function recalculateBilling(billing: SheetInvoices) {
   for (const category of billing.invoices) {
     category.items = sortServicesByStandardOrder(category.items);
-    category.gross = category.items.reduce((sum, item) => sum + item.amount, 0);
+    const itemGross = category.items.reduce((sum, item) => sum + item.amount, 0);
+    // The Summary row is authoritative for posted adjustments. Preserve a
+    // higher canonical gross (for example a Debit Note) even when adjustment
+    // mirror rows are intentionally hidden from the printable service list.
+    category.gross = Math.max(Number(category.gross || 0), itemGross);
     category.paid = category.payments.reduce((sum, payment) => sum + payment.amount, 0);
     category.due = category.gross - category.discount - category.paid;
   }
@@ -190,6 +204,7 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     const notes = String(recordValue(record, ["Notes", "Created_Via", "Created Via"]));
     const explicitCategory = recordValue(record, ["Billing_Category", "Billing Category", "Category"]);
     const createdVia = String(recordValue(record, ["Created_Via", "Created Via"])).trim();
+    if (/credit note|debit note/i.test(createdVia)) continue;
     const categoryName = categoryFromWorkspaceValue(explicitCategory || prefix?.[1] || "");
     // Billing records created directly in Supabase are canonical too. Older
     // records may have the workspace prefix/metadata, but newly added bills
