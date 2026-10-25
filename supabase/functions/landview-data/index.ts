@@ -13,7 +13,7 @@ const ALLOWED_TABLES = new Set([
   "client_document_register","design_book_register","project_management_ledger","project_management_summary",
   "project_contractor_contracts","project_contractor_bills","project_contractor_progress_updates","project_supplier_accounts",
   "project_billing","project_ledger","project_lifecycle_transitions","employee_location_checks",
-  "project_service_workflows","payment_service_allocations",
+  "project_service_workflows","payment_service_allocations","invoice_items","payment_invoice_allocations","payment_receipts",
   "project_contracts","project_contract_services","billing_milestones","billing_events","billing_adjustments","supervision_billing_rules","billing_gate_overrides",
   "website_analytics_visitors","website_analytics_sessions","website_analytics_page_views","website_analytics_location_events","website_analytics_interactions","website_leads"
 ]);
@@ -180,7 +180,7 @@ async function selectRowsPaged(input: Record<string, unknown>) {
 }
 
 async function handleAction(action: string, input: Record<string, unknown>) {
-  if (action === "health") return { backend: "supabase", ok: true, version: 14 };
+  if (action === "health") return { backend: "supabase", ok: true, version: 15 };
   if (action === "trackVisitorAnalytics") return await db("rpc/track_website_analytics_event", { method: "POST", body: JSON.stringify({ p: input }) });
   if (action === "applyBillingDiscount") return await db("rpc/apply_billing_discount", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_discount_date: String(input.discountDate || "").trim() || null, p_notes: String(input.notes || "").trim() || null, p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
   if (action === "applyBillingWriteOff") return await db("rpc/apply_billing_writeoff", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_writeoff_date: String(input.writeoffDate || input.date || "").trim() || null, p_reason: String(input.reason || "").trim(), p_notes: String(input.notes || "").trim(), p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
