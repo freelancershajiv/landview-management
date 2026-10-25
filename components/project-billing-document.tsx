@@ -17,10 +17,6 @@ const amountText = (value: unknown) => {
     : "—";
 };
 
-function isSoilTestService(value: unknown) {
-  return /\bsoil\s*test\b/i.test(String(value ?? ""));
-}
-
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-GB", {
     timeZone: "Asia/Dhaka",
@@ -70,6 +66,21 @@ function paymentDateOnly(value: unknown) {
     month: "2-digit",
     day: "2-digit",
   }).format(parsed);
+}
+
+function billLineAmounts(item: SheetInvoices["invoices"][number]["items"][number]) {
+  const amount = Math.max(0, Number(item.amount || 0));
+  const explicitDiscount = Number(item.billDiscount);
+  const explicitNet = Number(item.billNetAmount);
+  const discount = Number.isFinite(explicitDiscount)
+    ? Math.max(0, explicitDiscount)
+    : Number.isFinite(explicitNet)
+      ? Math.max(0, amount - explicitNet)
+      : 0;
+  const net = Number.isFinite(explicitNet)
+    ? Math.max(0, explicitNet)
+    : Math.max(0, amount - discount);
+  return { amount, discount, net };
 }
 
 export function billingIssueDate(result: SheetInvoices) {
@@ -182,6 +193,7 @@ type Props = {
   result: SheetInvoices;
   verificationUrl?: string;
   verificationError?: string;
+  dueOnly?: boolean;
 };
 
 export default function ProjectBillingDocument({ result, verificationUrl = "", verificationError = "" }: Props) {
@@ -205,7 +217,52 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
   const renderTable = (category: SheetInvoices["invoices"][number], type: "bill" | "deposit") => {
     if (type === "bill") {
       if (!category.items.length) return <p className={styles.empty}>No bill records.</p>;
-      return <div className={styles.tableWrap}><table className={styles.billTable}><thead><tr><th>SL.</th><th>Description</th><th>Rate (BDT)</th><th>QTY</th><th>AMOUNT (BDT)</th></tr></thead><tbody>{sortServicesByStandardOrder(category.items).map((item,index)=>{const soilTest=isSoilTestService(item.service);return <tr key={index}><td>{index+1}</td><td>{standardServiceLabel(item.service)||item.service||"—"}</td><td>{soilTest&&item.price?amountText(item.price):""}</td><td>{soilTest&&item.quantity?item.quantity:""}</td><td className={styles.moneyCell}>{amountText(item.amount)}</td></tr>;})}</tbody></table></div>;
+      const netBilled = Math.max(0, Number(category.gross || 0) - Number(category.discount || 0));
+      return <div className={styles.tableWrap}>
+        <table className={styles.billTable}>
+          <thead>
+            <tr>
+              <th>SL.</th>
+              <th>Description</th>
+              <th>Bill Amount (BDT)</th>
+              <th><span style={{ display: "block", margin: "-10px", padding: "10px", background: "#fff0f0", color: "#d61f26", textAlign: "center" }}>Discount (BDT)</span></th>
+              <th>Net Amount (BDT)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sortServicesByStandardOrder(category.items).map((item,index)=>{
+              const values=billLineAmounts(item);
+              return <tr key={index}>
+                <td>{index+1}</td>
+                <td>{standardServiceLabel(item.service)||item.service||"—"}</td>
+                <td className={styles.moneyCell}>{amountText(values.amount)}</td>
+                <td className={styles.moneyCell}><span style={{ display: "block", margin: "-10px", padding: "10px", background: values.discount > 0.009 ? "#fff5f5" : "transparent", color: values.discount > 0.009 ? "#d61f26" : "inherit", fontWeight: values.discount > 0.009 ? 800 : 400 }}>{values.discount > 0.009 ? amountText(values.discount) : "—"}</span></td>
+                <td className={styles.moneyCell}><strong>{amountText(values.net)}</strong></td>
+              </tr>;
+            })}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colSpan={2}><strong>Bill Subtotal (BDT)</strong></td>
+              <td className={styles.moneyCell}><strong>{amountText(category.gross)}</strong></td>
+              <td className={styles.moneyCell}>—</td>
+              <td className={styles.moneyCell}>—</td>
+            </tr>
+            <tr>
+              <td colSpan={2}><strong>Total Discount (BDT)</strong></td>
+              <td className={styles.moneyCell}>—</td>
+              <td className={styles.moneyCell}><strong style={{ color: "#d61f26" }}>{amountText(category.discount)}</strong></td>
+              <td className={styles.moneyCell}>—</td>
+            </tr>
+            <tr style={{ background: "#ed1c24" }}>
+              <td colSpan={2}><strong style={{ color: "#fff" }}>Grand Total (BDT)</strong></td>
+              <td className={styles.moneyCell}>—</td>
+              <td className={styles.moneyCell}>—</td>
+              <td className={styles.moneyCell}><strong style={{ color: "#fff", fontSize: "1.08em" }}>{amountText(netBilled)}</strong></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>;
     }
 
     if (!category.payments.length) return <p className={styles.empty}>No deposit records.</p>;
