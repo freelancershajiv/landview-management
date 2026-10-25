@@ -13,8 +13,6 @@ const TABS = ["Summary","File List","Design Bill","Design Deposit","Design Books
 function text(v: unknown) { return String(v ?? "").trim(); }
 function num(v: unknown) { const n=Number(text(v).replace(/,/g,"").replace(/[^0-9.-]/g,"")); return Number.isFinite(n)?n:0; }
 function category(row: Row): Category {
-  // Prefer canonical billing buckets. Payment_For can be a free-text purpose
-  // such as "6th Floor R.C.C Bill" and must not override Income_Category.
   const source=text(
     row.Billing_Category || row.billing_category ||
     row.Income_Category || row.income_category ||
@@ -100,6 +98,43 @@ async function billingV2CommercialSummary(projectCode: string) {
   };
 }
 
+async function billingLifecycle(projectCode: string) {
+  const projectRows = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
+  const project = projectRows[0];
+  if (!project) return { invoices: [], receipts: [], unallocated: 0 };
+  const [invoices, payments] = await Promise.all([
+    selectRows("invoices", { filters: { project_id: project.id }, order: "issue_date:desc,created_at:desc", limit: 2000 }),
+    selectRows("payments", { filters: { project_id: project.id }, order: "payment_date:desc,created_at:desc", limit: 2000 }),
+  ]);
+  const receiptRows = payments.filter((row: Row) => text(row.receipt_url));
+  return {
+    invoices: invoices.map((row: Row) => ({
+      invoiceCode: row.invoice_code || row.invoice_no || "",
+      billCode: row.bill_code || "",
+      issueDate: row.issue_date || "",
+      dueDate: row.due_date || "",
+      category: row.category || "",
+      amount: num(row.amount),
+      paid: num(row.paid_amount_snapshot),
+      due: num(row.due_amount_snapshot),
+      status: row.status || "ISSUED",
+    })),
+    receipts: receiptRows.map((row: Row) => ({
+      receiptCode: `RCPT-${row.payment_code}`,
+      paymentCode: row.payment_code || "",
+      date: row.payment_date || "",
+      amount: num(row.amount),
+      allocated: num(row.invoice_allocated_amount),
+      unallocated: num(row.invoice_unallocated_amount),
+      allocationStatus: row.invoice_allocation_status || "Unallocated",
+      method: row.payment_method || "",
+      reference: row.reference_no || "",
+      receiptUrl: row.receipt_url || "",
+    })),
+    unallocated: receiptRows.reduce((sum: number, row: Row) => sum + Math.max(0, num(row.invoice_unallocated_amount)), 0),
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const projectId=normalizeProjectCode(request.nextUrl.searchParams.get("fileId"));
@@ -111,10 +146,11 @@ export async function GET(request: NextRequest) {
       const allowedIds=new Set(rawIds.split(/[;,\s]+/).map(normalizeProjectCode).filter(Boolean));
       if (!allowedIds.has(projectId)) return NextResponse.json({success:false,error:"Access denied for this project."},{status:403});
     }
-    const [project,billing,commercial]=await Promise.all([
+    const [project,billing,commercial,lifecycle]=await Promise.all([
       handleLandviewDataAction("getProject",{projectId},user) as Promise<Row>,
       handleLandviewDataAction("getProjectBilling",{projectId},user) as Promise<Row>,
       billingV2CommercialSummary(projectId).catch(() => null),
+      billingLifecycle(projectId).catch(() => ({ invoices: [], receipts: [], unallocated: 0 })),
     ]);
     const bills=(Array.isArray(billing.bills)?billing.bills:[]) as Row[];
     const payments=(Array.isArray(billing.payments)?billing.payments:[]) as Row[];
@@ -143,6 +179,6 @@ export async function GET(request: NextRequest) {
       sheet("Others Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID"],billRows("Other Services Bill")),
       sheet("Others Bill Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Other Services Bill")),
     ];
-    return NextResponse.json({success:true,data:{projectId,sheets,payments,commercial,updatedAt:new Date().toISOString(),source:"supabase"}},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase"}});
+    return NextResponse.json({success:true,data:{projectId,sheets,payments,commercial,lifecycle,updatedAt:new Date().toISOString(),source:"supabase"}},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase"}});
   } catch(error){const message=error instanceof Error?error.message:"Project billing request failed.";return NextResponse.json({success:false,error:message},{status:/session/i.test(message)?401:/not found/i.test(message)?404:502,headers:{"Cache-Control":"no-store"}});}
 }
