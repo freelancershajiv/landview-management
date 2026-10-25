@@ -21,6 +21,68 @@ function approvalStatus(row: Row) {
   return t(row.Approval_Status || row.approval_status || row.Status || row.status) || "Pending";
 }
 
+function expenseDate(row: Row) {
+  return t(row.Expense_Date || row["Expense Date"] || row.expense_date || row.Date || row.date);
+}
+
+function expenseId(row: Row) {
+  return t(
+    row.Expense_ID ||
+      row["Expense ID"] ||
+      row.Expense_Code ||
+      row["Expense Code"] ||
+      row.expense_code ||
+      row.id
+  );
+}
+
+function dateSortValue(value: any) {
+  const raw = t(value);
+  if (!raw) return 0;
+
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return Number(`${iso[1]}${iso[2]}${iso[3]}`);
+
+  const dmy = raw.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if (dmy) return Number(`${dmy[3]}${dmy[2].padStart(2, "0")}${dmy[1].padStart(2, "0")}`);
+
+  const parsed = Date.parse(raw);
+  if (!Number.isFinite(parsed)) return 0;
+  const date = new Date(parsed);
+  return Number(
+    `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`
+  );
+}
+
+function expenseTimestamp(row: Row) {
+  const raw = t(
+    row.Source_Created_At ||
+      row["Source Created At"] ||
+      row.source_created_at ||
+      row.Requested_At ||
+      row["Requested At"] ||
+      row.requested_at ||
+      row.Created_At ||
+      row["Created At"] ||
+      row.created_at ||
+      row.Updated_At ||
+      row["Updated At"] ||
+      row.updated_at
+  );
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function compareRecentExpenses(a: Row, b: Row) {
+  const dateOrder = dateSortValue(expenseDate(b)) - dateSortValue(expenseDate(a));
+  if (dateOrder) return dateOrder;
+
+  const timestampOrder = expenseTimestamp(b) - expenseTimestamp(a);
+  if (timestampOrder) return timestampOrder;
+
+  return expenseId(b).localeCompare(expenseId(a), undefined, { numeric: true, sensitivity: "base" });
+}
+
 function currentActorCode(session: any) {
   return t(
     session?.user?.employeeCode ||
@@ -62,6 +124,7 @@ export default function ExpensesPage() {
 
   const actorCode = currentActorCode(session);
   const canApprove = actorCode === APPROVER_CODE;
+  const sortedRows = useMemo(() => [...rows].sort(compareRecentExpenses), [rows]);
   const pending = useMemo(() => rows.filter((row) => approvalStatus(row).toLowerCase() === "pending"), [rows]);
   const approved = useMemo(() => rows.filter((row) => approvalStatus(row).toLowerCase() === "approved"), [rows]);
   const totals = {
@@ -70,7 +133,7 @@ export default function ExpensesPage() {
   };
 
   async function decide(row: Row, decision: "Approved" | "Rejected") {
-    const id = t(row.Expense_ID || row["Expense ID"]);
+    const id = expenseId(row);
     if (!id || !canApprove || busy) return;
 
     let note = "";
@@ -167,14 +230,14 @@ export default function ExpensesPage() {
       ) : (
         <div className="expense-card">
           <div className="expense-row head"><div>Date</div><div>Expense</div><div>Amount</div><div>Status</div><div>Decision</div></div>
-          {[...rows].reverse().map((row, index) => {
-            const id = t(row.Expense_ID || row["Expense ID"]) || String(index);
+          {sortedRows.map((row, index) => {
+            const id = expenseId(row) || String(index);
             const state = approvalStatus(row);
             const stateKey = state.toLowerCase();
             const decisionBy = t(row.Approved_By || row.Reviewed_By);
             return (
               <div className="expense-row" key={id}>
-                <div>{t(row.Expense_Date || row["Expense Date"]) || "—"}</div>
+                <div>{expenseDate(row) || "—"}</div>
                 <div>
                   <strong>{t(row.Description) || t(row.Category) || "Office expense"}</strong>
                   <small>{t(row.Category)}{row.Created_By ? ` · entered by ${t(row.Created_By)}` : ""}{row.Project_ID ? ` · ${t(row.Project_ID)}` : ""}</small>
