@@ -35,6 +35,13 @@ function transactionAmount(row: Row) {
   if (direct > 0) return direct;
   return Math.max(Math.abs(num(row.debit)), Math.abs(num(row.credit)));
 }
+function isIncomeTransaction(row: Row) {
+  if (num(row.credit) > 0.009) return true;
+  const direction = normalized(row.direction);
+  if (["credit", "income", "in"].includes(direction)) return true;
+  const type = normalized(row.transaction_type);
+  return num(row.debit) <= 0.009 && /income|payment|receipt|collection/.test(type);
+}
 function expectedInvoiceStatus(amount: number, allocated: number) {
   if (amount <= 0.009) return "ADJUSTED";
   if (allocated >= amount - 0.009) return "PAID";
@@ -58,7 +65,7 @@ async function billingV2Reconciliation() {
     selectRows("billing_adjustments", { select: "id,adjustment_code,project_id,project_code,bill_id,bill_code,mirror_bill_id,mirror_bill_code,adjustment_type,amount,status", limit: 5000 }),
     selectRows("projects", { select: "id,project_code,project_name,client_name_snapshot,lifecycle_phase", limit: 5000 }),
     selectRows("bills", { select: "id,bill_code,project_id,amount,discount,status,created_via", limit: 5000 }),
-    selectRows("transactions", { select: "id,transaction_code,source_type,source_id,project_id,amount,debit,credit,status", limit: 5000 }),
+    selectRows("transactions", { select: "id,transaction_code,transaction_date,transaction_type,source_type,source_id,project_id,amount,debit,credit,direction,status", limit: 5000 }),
   ]);
 
   const projectById = new Map(projects.map((row) => [text(row.id), row]));
@@ -174,6 +181,7 @@ async function billingV2Reconciliation() {
   const transactionById = new Map<string, Row>();
   const transactionByCode = new Map<string, Row>();
   const transactionsBySource = new Map<string, Row[]>();
+  const transactionsByProjectDate = new Map<string, Row[]>();
   for (const transaction of transactions) {
     if (!effectiveTransaction(transaction)) continue;
     if (text(transaction.id)) transactionById.set(text(transaction.id), transaction);
@@ -184,15 +192,23 @@ async function billingV2Reconciliation() {
       bucket.push(transaction);
       transactionsBySource.set(source, bucket);
     }
+    const projectDateKey = `${text(transaction.project_id)}|${text(transaction.transaction_date).slice(0, 10)}`;
+    if (text(transaction.project_id) && text(transaction.transaction_date)) {
+      const bucket = transactionsByProjectDate.get(projectDateKey) || [];
+      bucket.push(transaction);
+      transactionsByProjectDate.set(projectDateKey, bucket);
+    }
   }
 
   let billingPaymentTotal = 0;
   let linkedLedgerTotal = 0;
+  let legacyFallbackCount = 0;
   const ledgerPaymentMismatches: Row[] = [];
   for (const payment of effectivePayments) {
     const paymentAmount = Math.max(0, num(payment.amount));
     billingPaymentTotal += paymentAmount;
     const linked = new Map<string, Row>();
+    let matchMode = "direct";
     for (const key of [text(payment.id), text(payment.payment_code)]) {
       for (const row of transactionsBySource.get(key) || []) linked.set(text(row.id || row.transaction_code), row);
     }
@@ -200,6 +216,24 @@ async function billingV2Reconciliation() {
     if (directId) linked.set(text(directId.id || directId.transaction_code), directId);
     const directCode = transactionByCode.get(text(payment.ledger_transaction_code));
     if (directCode) linked.set(text(directCode.id || directCode.transaction_code), directCode);
+
+    if (linked.size === 0) {
+      const key = `${text(payment.project_id)}|${text(payment.payment_date).slice(0, 10)}`;
+      const sameDayIncome = (transactionsByProjectDate.get(key) || []).filter(isIncomeTransaction);
+      const exact = sameDayIncome.filter((row) => Math.abs(transactionAmount(row) - paymentAmount) <= 0.01);
+      if (exact.length === 1) {
+        linked.set(text(exact[0].id || exact[0].transaction_code), exact[0]);
+        matchMode = "legacy exact";
+        legacyFallbackCount += 1;
+      } else if (sameDayIncome.length === 1) {
+        linked.set(text(sameDayIncome[0].id || sameDayIncome[0].transaction_code), sameDayIncome[0]);
+        matchMode = "legacy same-day income";
+        legacyFallbackCount += 1;
+      } else {
+        matchMode = "unlinked";
+      }
+    }
+
     const ledgerAmount = [...linked.values()].reduce((sum, row) => sum + transactionAmount(row), 0);
     linkedLedgerTotal += ledgerAmount;
     if (Math.abs(ledgerAmount - paymentAmount) > 0.01) {
@@ -209,6 +243,7 @@ async function billingV2Reconciliation() {
         paymentAmount: round(paymentAmount),
         ledgerAmount: round(ledgerAmount),
         difference: round(ledgerAmount - paymentAmount),
+        matchMode,
         linkedTransactions: [...linked.values()].map((row) => text(row.transaction_code)).filter(Boolean).slice(0, 6),
       });
     }
@@ -255,6 +290,7 @@ async function billingV2Reconciliation() {
       linkedLedgerTotal: round(linkedLedgerTotal),
       difference: round(linkedLedgerTotal - billingPaymentTotal),
       mismatchCount: ledgerPaymentMismatches.length,
+      legacyFallbackCount,
       sample: ledgerPaymentMismatches.sort((a, b) => Math.abs(num(b.difference)) - Math.abs(num(a.difference))).slice(0, 12),
     },
     totals: {
