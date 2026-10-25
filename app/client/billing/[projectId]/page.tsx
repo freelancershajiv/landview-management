@@ -32,6 +32,22 @@ type ClientProject = {
   billing?: Record<string, Row[]>;
 };
 type ClientAccessData = { projects?: ClientProject[] };
+type CommercialSummary = {
+  contractStatus?: string;
+  proposalCode?: string;
+  totals?: { contract?: number; billed?: number; paid?: number; due?: number; unbilled?: number };
+  services?: Array<{
+    serviceName?: string;
+    billingCategory?: string;
+    workflowStatus?: string;
+    contractNet?: number;
+    billed?: number;
+    paid?: number;
+    due?: number;
+    unbilled?: number;
+    nextBilling?: { milestone?: string; trigger?: string; amount?: number; status?: string } | null;
+  }>;
+};
 
 const text = (value: unknown) => String(value ?? "").trim();
 const num = (value: unknown) => Number(text(value).replace(/BDT|Tk\.?|৳|,/gi, "").replace(/[^0-9.-]/g, "")) || 0;
@@ -40,6 +56,7 @@ const pick = (row: Row, keys: string[]) => {
   return "";
 };
 const supplied = (value: unknown) => value !== undefined && value !== null && text(value) !== "";
+const money = (value: unknown) => new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(num(value));
 
 function rowsFor(billing: Record<string, Row[]> | undefined, names: string[]) {
   if (!billing) return [];
@@ -131,6 +148,7 @@ export default function ClientBillingPage() {
   const rawId = decodeURIComponent(String(params?.projectId || ""));
   const requestedId = rawId.toLowerCase() === "current" ? "" : normalizeFileId(rawId);
   const [result, setResult] = useState<SheetInvoices | null>(null);
+  const [commercial, setCommercial] = useState<CommercialSummary | null>(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [verificationUrl, setVerificationUrl] = useState("");
@@ -151,6 +169,7 @@ export default function ClientBillingPage() {
         billing = verifySheetInvoicesWithPayments(billing, Array.isArray(json.data.payments) ? json.data.payments : []);
         if (!active) return;
         setResult(billing);
+        setCommercial(json.data.commercial && typeof json.data.commercial === "object" ? json.data.commercial as CommercialSummary : null);
         if (active) setBusy(false);
 
         // QR verification is supplemental and must never delay the billing statement.
@@ -183,6 +202,9 @@ export default function ClientBillingPage() {
   if (error) return <div className={styles.workspace}><div className={styles.error} role="alert">{error}</div><Link href="/client">← Back to client portal</Link></div>;
   if (!result) return null;
 
+  const totals = commercial?.totals || {};
+  const commercialServices = commercial?.services || [];
+
   return (
     <div className={styles.workspace}>
       <div className={styles.header}>
@@ -194,6 +216,24 @@ export default function ClientBillingPage() {
         </div>
         <button className={styles.printButton} type="button" onClick={() => printBillingPdf(result)}>Print / Save PDF</button>
       </div>
+
+      {commercial && <section style={{ marginBottom: 18, padding: 14, border: "1px solid var(--lv-border-default)", borderRadius: 12, background: "var(--lv-surface-panel)" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "flex-start", flexWrap: "wrap", marginBottom: 12 }}>
+          <div><strong style={{ fontSize: 15 }}>Project Commercial Progress</strong><div style={{ marginTop: 4, fontSize: 9, color: "var(--lv-text-muted)" }}>{commercial.proposalCode ? `Contract source: ${commercial.proposalCode}` : "LAND VIEW project contract"}</div></div>
+          <span style={{ padding: "5px 8px", borderRadius: 999, background: "var(--lv-brand-soft)", color: "var(--lv-brand-text)", fontSize: 9, fontWeight: 900 }}>{commercial.contractStatus || "Active"}</span>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(130px,1fr))", gap: 8, marginBottom: 12 }}>
+          {[
+            ["Contract", totals.contract],
+            ["Billed", totals.billed],
+            ["Paid", totals.paid],
+            ["Current Due", totals.due],
+            ["Future / Unbilled", totals.unbilled],
+          ].map(([label, value]) => <div key={String(label)} style={{ padding: 10, border: "1px solid var(--lv-border-subtle)", borderRadius: 9, background: "var(--lv-surface-muted)" }}><span style={{ display: "block", fontSize: 8, textTransform: "uppercase", color: "var(--lv-text-muted)", fontWeight: 900 }}>{String(label)}</span><strong style={{ display: "block", marginTop: 5, fontSize: 14 }}>{money(value)}</strong></div>)}
+        </div>
+        {commercialServices.length > 0 && <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", minWidth: 780 }}><thead><tr>{["Service","Progress","Contract","Billed","Paid","Due","Future / Next Billing"].map((heading) => <th key={heading} style={{ padding: "8px 7px", borderBottom: "1px solid var(--lv-border-default)", textAlign: "left", fontSize: 8, textTransform: "uppercase", color: "var(--lv-text-muted)" }}>{heading}</th>)}</tr></thead><tbody>{commercialServices.map((service) => <tr key={`${service.serviceName}-${service.billingCategory}`}><td style={{ padding: "9px 7px", borderBottom: "1px solid var(--lv-border-subtle)", fontSize: 9 }}><strong>{service.serviceName || "Service"}</strong><div style={{ marginTop: 2, color: "var(--lv-text-muted)", fontSize: 8 }}>{service.billingCategory || ""}</div></td><td style={{ padding: "9px 7px", borderBottom: "1px solid var(--lv-border-subtle)", fontSize: 9 }}>{service.workflowStatus || "Not Started"}</td><td style={{ padding: "9px 7px", borderBottom: "1px solid var(--lv-border-subtle)", fontSize: 9 }}>{money(service.contractNet)}</td><td style={{ padding: "9px 7px", borderBottom: "1px solid var(--lv-border-subtle)", fontSize: 9 }}>{money(service.billed)}</td><td style={{ padding: "9px 7px", borderBottom: "1px solid var(--lv-border-subtle)", fontSize: 9 }}>{money(service.paid)}</td><td style={{ padding: "9px 7px", borderBottom: "1px solid var(--lv-border-subtle)", fontSize: 9 }}>{money(service.due)}</td><td style={{ padding: "9px 7px", borderBottom: "1px solid var(--lv-border-subtle)", fontSize: 9 }}>{service.nextBilling ? <><strong>{service.nextBilling.milestone}</strong><div style={{ marginTop: 2, color: "var(--lv-text-muted)", fontSize: 8 }}>{service.nextBilling.trigger} · {money(service.nextBilling.amount)}</div></> : service.unbilled ? money(service.unbilled) : "Complete"}</td></tr>)}</tbody></table></div>}
+      </section>}
+
       <ProjectBillingDocument result={result} verificationUrl={verificationUrl} verificationError={verificationError} />
     </div>
   );
