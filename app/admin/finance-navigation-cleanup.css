@@ -1,7 +1,8 @@
 /* Finance 2.0 navigation authority.
-   Legacy routes remain as redirects for old bookmarks, but duplicate sidebar entries stay hidden. */
+   Legacy routes remain as redirects for old bookmarks, but duplicate entry points stay hidden. */
 .portal-admin .lv-nav-children > a[href="/admin/accounts/entry"],
 .portal-admin .lv-nav-children > a[href="/admin/finance/invoices"],
-.portal-admin .lv-nav-children > a[href="/admin/finance/bills"] {
+.portal-admin .lv-nav-children > a[href="/admin/finance/bills"],
+.portal-admin .adj-actions > a[href="/admin/finance/bills"] {
   display: none !important;
 }
