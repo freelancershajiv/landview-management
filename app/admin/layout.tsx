@@ -13,6 +13,7 @@ import "../dual-mode-navigation.css";
 // Phase 4: one Admin-only semantic theme bridge replaces four overlapping fix layers.
 import "./admin-route-theme.css";
 import "./public-portfolio-nav-cleanup.css";
+import "./finance-navigation-cleanup.css";
 // Authoritative mobile geometry. Keep this after route theme styles.
 import "./admin-mobile-authority.css";
 // Re-assert the shared palette after every Admin-specific override.
