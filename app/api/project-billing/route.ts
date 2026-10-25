@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
-import { handleLandviewDataAction, normalizeProjectCode } from "@/lib/supabase-data";
+import { handleLandviewDataAction, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
+import { getProjectServiceFinancials } from "@/lib/service-workflow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,6 +31,75 @@ function sheet(tab:string,headers:string[],rows:unknown[][],totals:Row={gross:0,
   return {tab,tabs:[...TABS],headers,rows:rows.map(r=>r.map(v=>String(v??""))),totals,url:"",updatedAt:new Date().toISOString()};
 }
 
+async function billingV2CommercialSummary(projectCode: string) {
+  const projectRows = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
+  const project = projectRows[0];
+  if (!project) return null;
+  const contracts = await selectRows("project_contracts", { filters: { project_id: project.id }, limit: 1 });
+  const contract = contracts[0];
+  if (!contract) return null;
+
+  const [services, milestones, workflows, financials] = await Promise.all([
+    selectRows("project_contract_services", { filters: { contract_id: contract.id }, order: "created_at:asc", limit: 500 }),
+    selectRows("billing_milestones", { filters: { contract_id: contract.id }, order: "sequence_no:asc,created_at:asc", limit: 2000 }),
+    selectRows("project_service_workflows", { filters: { project_id: project.id }, order: "updated_at:desc", limit: 500 }),
+    getProjectServiceFinancials(projectCode),
+  ]);
+
+  const financeByKey = new Map(financials.services.map((row) => [text(row.serviceKey), row]));
+  const workflowByKey = new Map(workflows.map((row: Row) => [text(row.service_key), row]));
+  const milestonesByKey = new Map<string, Row[]>();
+  for (const milestone of milestones) {
+    const key = text(milestone.service_key);
+    const list = milestonesByKey.get(key) || [];
+    list.push(milestone);
+    milestonesByKey.set(key, list);
+  }
+
+  const serviceRows = services.map((service: Row) => {
+    const key = text(service.service_key);
+    const finance = financeByKey.get(key);
+    const serviceMilestones = milestonesByKey.get(key) || [];
+    const contractNet = Math.max(0, num(service.contract_net));
+    const billed = Math.max(0, num(finance?.net));
+    const paid = Math.max(0, num(finance?.paid));
+    const due = Math.max(0, num(finance?.due));
+    const unbilled = Math.max(0, contractNet - billed);
+    const next = serviceMilestones.find((row) => ["ready_to_bill", "scheduled"].includes(text(row.status).toLowerCase())) || null;
+    return {
+      serviceName: service.service_name,
+      billingCategory: service.billing_category,
+      workflowStatus: workflowByKey.get(key)?.status || "Not Started",
+      contractNet,
+      billed,
+      paid,
+      due,
+      unbilled,
+      nextBilling: next ? {
+        milestone: next.milestone_name,
+        trigger: next.trigger_status,
+        amount: Math.max(0, num(next.net_amount)),
+        status: next.status,
+      } : null,
+    };
+  });
+
+  const totals = serviceRows.reduce((sum, row) => ({
+    contract: sum.contract + row.contractNet,
+    billed: sum.billed + row.billed,
+    paid: sum.paid + row.paid,
+    due: sum.due + row.due,
+    unbilled: sum.unbilled + row.unbilled,
+  }), { contract: 0, billed: 0, paid: 0, due: 0, unbilled: 0 });
+
+  return {
+    contractStatus: contract.status || "Active",
+    proposalCode: contract.proposal_code || "",
+    totals,
+    services: serviceRows,
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const projectId=normalizeProjectCode(request.nextUrl.searchParams.get("fileId"));
@@ -41,9 +111,10 @@ export async function GET(request: NextRequest) {
       const allowedIds=new Set(rawIds.split(/[;,\s]+/).map(normalizeProjectCode).filter(Boolean));
       if (!allowedIds.has(projectId)) return NextResponse.json({success:false,error:"Access denied for this project."},{status:403});
     }
-    const [project,billing]=await Promise.all([
+    const [project,billing,commercial]=await Promise.all([
       handleLandviewDataAction("getProject",{projectId},user) as Promise<Row>,
       handleLandviewDataAction("getProjectBilling",{projectId},user) as Promise<Row>,
+      billingV2CommercialSummary(projectId).catch(() => null),
     ]);
     const bills=(Array.isArray(billing.bills)?billing.bills:[]) as Row[];
     const payments=(Array.isArray(billing.payments)?billing.payments:[]) as Row[];
@@ -72,6 +143,6 @@ export async function GET(request: NextRequest) {
       sheet("Others Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID"],billRows("Other Services Bill")),
       sheet("Others Bill Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Other Services Bill")),
     ];
-    return NextResponse.json({success:true,data:{projectId,sheets,payments,updatedAt:new Date().toISOString(),source:"supabase"}},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase"}});
+    return NextResponse.json({success:true,data:{projectId,sheets,payments,commercial,updatedAt:new Date().toISOString(),source:"supabase"}},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase"}});
   } catch(error){const message=error instanceof Error?error.message:"Project billing request failed.";return NextResponse.json({success:false,error:message},{status:/session/i.test(message)?401:/not found/i.test(message)?404:502,headers:{"Cache-Control":"no-store"}});}
 }
