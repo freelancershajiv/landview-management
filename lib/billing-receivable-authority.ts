@@ -373,15 +373,15 @@ export async function loadReceivableAuthority(options: { projectId?: string } = 
       }
     }
 
-    const appliedUnallocated = reduceReceivableAmounts(collectible, rawUnallocated, unallocatedByCategory);
-    const remainingUnallocated = Math.max(0, rawUnallocated - appliedUnallocated);
     const billed = projectBills.reduce((sum, row) => sum + row.effectiveAmount, 0);
     const writeoffTotal = CATEGORY_KEYS.reduce((sum, key) => sum + writeoffByCategory[key], 0);
     const projectBalanceDue = Math.max(0, billed - paid - writeoffTotal);
     const beforeCap = CATEGORY_KEYS.reduce((sum, key) => sum + collectible[key], 0);
-    if (beforeCap > projectBalanceDue + 0.009) {
-      reduceReceivableAmounts(collectible, beforeCap - projectBalanceDue);
-    }
+    const requiredReduction = Math.max(0, beforeCap - projectBalanceDue);
+    const appliedUnallocated = requiredReduction > 0.009
+      ? reduceReceivableAmounts(collectible, requiredReduction, unallocatedByCategory)
+      : 0;
+    const remainingUnallocated = Math.max(0, rawUnallocated - Math.min(rawUnallocated, appliedUnallocated));
     const totalDue = CATEGORY_KEYS.reduce((sum, key) => sum + collectible[key], 0);
 
     projects.set(id, {
