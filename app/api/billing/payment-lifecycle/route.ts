@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
         invoices: invoices.length,
         receipts: receipts.length,
         invoiceValue: invoices.reduce((sum, row) => sum + row.amount, 0),
-        invoicePaid: invoices.reduce((sum, row) => sum + row.allocated, 0),
+        invoicePaid: invoices.reduce((sum, row) => sum + (row.settledByBill ? row.amount : row.allocated), 0),
         invoiceDue: authority.totals.due,
         paidInvoices,
         partialInvoices,
