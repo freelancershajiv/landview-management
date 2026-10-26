@@ -37,6 +37,8 @@ import "./project-finance-theme-authority.css";
 import "./project-finance-selector-theme.css";
 // Keep the restored original signature red final after all finance-specific layers.
 import "../brand-palette-original.css";
+// Keep Admin/management screen text readable after every route-specific layer.
+import "../admin/admin-typography-authority.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
