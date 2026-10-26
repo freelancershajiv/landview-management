@@ -1,5 +1,6 @@
 import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
 import { canonicalProjectService, taskKeyPart } from "@/lib/project-task-templates";
+import { loadReceivableAuthority, type ReceivableCategoryKey } from "@/lib/billing-receivable-authority";
 
 type Row = Record<string, any>;
 
@@ -30,23 +31,13 @@ export const MUNICIPALITY_SERVICE_STATUSES = [
 ] as const;
 
 function text(value: unknown, max = 1000) { return String(value ?? "").trim().slice(0, max); }
-function num(value: unknown) { const n = Number(String(value ?? 0).replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; }
-function norm(value: unknown) { return text(value, 160).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " "); }
-function effectiveBill(row: Row) { return !["void", "voided", "cancelled", "canceled", "rejected"].includes(norm(row.status)); }
-function effectivePayment(row: Row) {
-  if (norm(row.transaction_type) === "personal income" || row.affects_business_balance === false) return false;
-  const status = norm(row.approval_status || row.status);
-  return !status || ["approved", "received", "paid", "verified", "complete", "completed", "full paid", "fully paid", "posted"].includes(status);
-}
-function billCategory(row: Row) {
-  const value = text(row.billing_category || row.category, 120);
-  const n = norm(value);
-  if (n.includes("other")) return "Other Services Bill";
-  if (n.includes("supervision")) return "Supervision Bill";
-  return "Engineering Bill";
-}
 function rawBillService(row: Row) {
   return text(row.description, 300).replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim();
+}
+function billingCategory(key: ReceivableCategoryKey) {
+  if (key === "supervision") return "Supervision Bill";
+  if (key === "other") return "Other Services Bill";
+  return "Engineering Bill";
 }
 export function workflowServiceName(value: unknown) {
   const raw = text(value, 300);
@@ -77,6 +68,7 @@ export type ServiceFinancial = {
   net: number;
   paid: number;
   due: number;
+  relief: number;
   fullyPaid: boolean;
   billCodes: string[];
 };
@@ -95,23 +87,19 @@ export async function getProjectServiceFinancials(projectCode: string) {
   const projects = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
   if (!projects.length) throw new Error(`Project ${projectCode} was not found.`);
   const project = projects[0];
-  const [bills, payments, allocations] = await Promise.all([
-    selectRows("bills", { filters: { project_id: project.id }, order: "bill_date:asc,created_at:asc", limit: 5000 }),
-    selectRows("payments", { filters: { project_id: project.id }, order: "payment_date:asc,created_at:asc", limit: 5000 }),
-    selectRows("payment_service_allocations", { filters: { project_id: project.id }, order: "created_at:asc", limit: 10000 }),
-  ]);
+  const authority = await loadReceivableAuthority({ projectId: text(project.id) });
+  const projectReceivable = authority.projects.get(text(project.id));
 
   const map = new Map<string, ServiceFinancial>();
-  for (const bill of bills.filter(effectiveBill)) {
-    const category = billCategory(bill);
-    const raw = rawBillService(bill);
-    const serviceName = category === "Supervision Bill" ? "Site Supervision" : workflowServiceName(raw || bill.billing_category || bill.category);
+  for (const bill of authority.bills) {
+    const category = billingCategory(bill.category);
+    const raw = rawBillService(bill.row);
+    const serviceName = category === "Supervision Bill"
+      ? "Site Supervision"
+      : workflowServiceName(raw || bill.row.billing_category || bill.row.category);
     const serviceKey = workflowServiceKey(serviceName);
     if (!serviceKey) continue;
-    const gross = Math.max(0, num(bill.amount));
-    const discount = Math.max(0, num(bill.discount));
-    const hasStoredNet = bill.net_amount !== null && bill.net_amount !== undefined && String(bill.net_amount) !== "";
-    const net = Math.max(0, hasStoredNet ? num(bill.net_amount) : gross - discount);
+
     const existing = map.get(serviceKey) || {
       serviceName,
       serviceKey,
@@ -122,80 +110,62 @@ export async function getProjectServiceFinancials(projectCode: string) {
       net: 0,
       paid: 0,
       due: 0,
+      relief: 0,
       fullyPaid: false,
       billCodes: [],
     };
-    existing.gross += gross;
-    existing.discount += discount;
-    existing.net += net;
-    if (bill.bill_code) existing.billCodes.push(text(bill.bill_code, 160));
+    existing.gross += bill.gross;
+    existing.discount += bill.effectiveDiscount;
+    existing.net += bill.effectiveAmount;
+    existing.paid += bill.paidForReceivable;
+    existing.due += bill.dueBeforeRelief;
+    if (bill.billCode) existing.billCodes.push(bill.billCode);
     map.set(serviceKey, existing);
   }
 
-  const explicitByService = new Map<string, number>();
-  let explicitEngineering = 0;
-  for (const allocation of allocations) {
-    const key = text(allocation.service_key, 120);
-    const value = Math.max(0, num(allocation.allocated_amount));
-    explicitByService.set(key, (explicitByService.get(key) || 0) + value);
-    if (norm(allocation.billing_category).includes("engineering")) explicitEngineering += value;
-  }
-
-  const approvedPayments = payments.filter(effectivePayment);
-  const categoryPaid = (needle: string) => approvedPayments
-    .filter((row) => norm(row.payment_for || row.income_category).includes(needle))
-    .reduce((sum, row) => sum + Math.max(0, num(row.amount)), 0);
-  let legacyEngineeringPool = Math.max(0, categoryPaid("engineering") - explicitEngineering);
-  let supervisionPool = categoryPaid("supervision");
-
-  const directOtherPaidByService = new Map<string, number>();
-  let directlyAssignedOtherTotal = 0;
-  for (const payment of approvedPayments) {
-    const pCategory = norm(payment.payment_for || payment.income_category);
-    if (!pCategory.includes("other")) continue;
-    const rawServiceType = text(payment.service_type, 120);
-    if (!rawServiceType) continue;
-    const key = workflowServiceKey(rawServiceType);
-    const amount = Math.max(0, num(payment.amount));
-    if (!key || amount <= 0) continue;
-    directOtherPaidByService.set(key, (directOtherPaidByService.get(key) || 0) + amount);
-    directlyAssignedOtherTotal += amount;
-  }
-  let legacyOtherPool = Math.max(0, categoryPaid("other") - directlyAssignedOtherTotal);
-
   const rows = Array.from(map.values()).sort((a, b) => serviceRank(a.serviceName) - serviceRank(b.serviceName) || a.serviceName.localeCompare(b.serviceName));
-  for (const service of rows) {
-    let paid = explicitByService.get(service.serviceKey) || 0;
-    if (service.billingCategory === "Engineering Bill") {
-      const remaining = Math.max(0, service.net - paid);
-      const legacyApplied = Math.min(remaining, legacyEngineeringPool);
-      paid += legacyApplied;
-      legacyEngineeringPool -= legacyApplied;
-    } else if (service.billingCategory === "Supervision Bill") {
-      const remaining = Math.max(0, service.net - paid);
-      const applied = Math.min(remaining, supervisionPool);
-      paid += applied;
-      supervisionPool -= applied;
-    } else {
-      paid = Math.max(paid, directOtherPaidByService.get(service.serviceKey) || 0);
-      const remaining = Math.max(0, service.net - paid);
-      const legacyApplied = Math.min(remaining, legacyOtherPool);
-      paid += legacyApplied;
-      legacyOtherPool -= legacyApplied;
+
+  // Write-offs and approved-but-unallocated payments are project/category relief.
+  // Apply only the amount needed to make service totals agree with the canonical
+  // project receivable, without pretending that relief is an actual cash payment.
+  const targetDue = {
+    "Engineering Bill": projectReceivable?.engineeringDue ?? rows.filter((row) => row.billingCategory === "Engineering Bill").reduce((sum, row) => sum + row.due, 0),
+    "Supervision Bill": projectReceivable?.supervisionDue ?? rows.filter((row) => row.billingCategory === "Supervision Bill").reduce((sum, row) => sum + row.due, 0),
+    "Other Services Bill": projectReceivable?.otherDue ?? rows.filter((row) => row.billingCategory === "Other Services Bill").reduce((sum, row) => sum + row.due, 0),
+  };
+
+  for (const category of ["Engineering Bill", "Supervision Bill", "Other Services Bill"] as const) {
+    const candidates = rows.filter((row) => row.billingCategory === category);
+    const currentDue = candidates.reduce((sum, row) => sum + row.due, 0);
+    let reduction = Math.max(0, currentDue - targetDue[category]);
+    candidates.sort((a, b) => b.due - a.due || serviceRank(a.serviceName) - serviceRank(b.serviceName));
+    for (const service of candidates) {
+      if (reduction <= 0.009) break;
+      const applied = Math.min(service.due, reduction);
+      service.due -= applied;
+      service.relief += applied;
+      reduction -= applied;
     }
-    service.paid = Math.min(service.net, paid);
-    service.due = Math.max(0, service.net - service.paid);
+  }
+
+  for (const service of rows) {
     service.fullyPaid = service.net > 0 && service.due <= 0.01;
   }
 
   return {
     project,
     services: rows,
-    categoryTotals: rows.reduce((acc: Record<string, { gross: number; discount: number; net: number; paid: number; due: number }>, row) => {
+    categoryTotals: rows.reduce((acc: Record<string, { gross: number; discount: number; net: number; paid: number; due: number; relief: number }>, row) => {
       const key = row.billingCategory;
-      const current = acc[key] || { gross: 0, discount: 0, net: 0, paid: 0, due: 0 };
-      current.gross += row.gross; current.discount += row.discount; current.net += row.net; current.paid += row.paid; current.due += row.due;
-      acc[key] = current; return acc;
+      const current = acc[key] || { gross: 0, discount: 0, net: 0, paid: 0, due: 0, relief: 0 };
+      current.gross += row.gross;
+      current.discount += row.discount;
+      current.net += row.net;
+      current.paid += row.paid;
+      current.due += row.due;
+      current.relief += row.relief;
+      acc[key] = current;
+      return acc;
     }, {}),
   };
 }
@@ -210,8 +180,9 @@ export async function syncPaidServiceWorkflows(projectCode: string, actor = "") 
   const now = new Date().toISOString();
 
   for (const service of snapshot.services) {
-    // Project Operations should start as soon as a billed service has received any payment.
-    // A remaining due balance is financial information, not a reason to hide an active service.
+    // Project Operations should start as soon as a billed service has received
+    // actual payment. Write-offs/relief can settle a due balance but do not
+    // activate delivery work by themselves.
     if (service.net <= 0 || service.paid <= 0) continue;
     const prior = byKey.get(service.serviceKey);
     const changes = {
@@ -226,8 +197,8 @@ export async function syncPaidServiceWorkflows(projectCode: string, actor = "") 
       updated_at: now,
     };
     if (prior) {
-      const rows = await updateRows("project_service_workflows", { id: prior.id }, changes);
-      updated.push(rows[0] || { ...prior, ...changes });
+      const updatedRows = await updateRows("project_service_workflows", { id: prior.id }, changes);
+      updated.push(updatedRows[0] || { ...prior, ...changes });
       continue;
     }
     const row = {
@@ -237,8 +208,8 @@ export async function syncPaidServiceWorkflows(projectCode: string, actor = "") 
       activated_at: now,
       created_at: now,
     };
-    const rows = await insertRows("project_service_workflows", row);
-    activated.push(rows[0] || row);
+    const insertedRows = await insertRows("project_service_workflows", row);
+    activated.push(insertedRows[0] || row);
   }
   return { projectId: projectCode, activated, updated, services: snapshot.services };
 }
