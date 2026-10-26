@@ -69,6 +69,7 @@ export default function FinanceProjectsPage() {
         financeClosed: close,
         financeClosedAt: close ? new Date().toISOString() : null,
       } : item));
+      window.dispatchEvent(new CustomEvent("finance-project-state-changed", { detail: { projectId: project.projectId, closed: close } }));
       setMessage(close ? `${project.projectId} completed in Finance. Its financial entry options are now closed.` : `${project.projectId} reopened in Finance. Financial entry options are available again.`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not update project state.");
