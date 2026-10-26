@@ -28,6 +28,15 @@ function num(value: unknown) {
 function normalized(value: unknown) {
   return text(value, 120).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
 }
+function canonicalPaymentServiceType(value: unknown) {
+  const raw = text(value, 120);
+  const key = normalized(raw);
+  if (!raw) return "";
+  if (["municipality pass", "municipality file pass", "municipality approval", "municipality approval contract"].includes(key)) return "Municipality File Pass";
+  if (key === "soil test" || key.startsWith("soil test ")) return "Soil Test";
+  if (key === "digital survey" || key.startsWith("digital survey ")) return "Digital Survey";
+  return raw;
+}
 function actorOf(user: Record<string, unknown>) {
   return employeeCodeOf(user) || text(user.username || user.Username || user.name || user.Name, 120) || "LAND VIEW";
 }
@@ -52,7 +61,7 @@ export async function POST(request: NextRequest) {
 
     const projectCode = text(body.Project_ID || body.projectId || body.Project_Code, 60).toUpperCase();
     const paymentCategory = normalized(body.Payment_For || body.Income_Category || body.Category);
-    const serviceType = text(body.Service_Type || body.serviceType, 120);
+    const serviceType = canonicalPaymentServiceType(body.Service_Type || body.serviceType);
     const serviceAllocations = Array.isArray(body.Service_Allocations) ? body.Service_Allocations as Array<Record<string, unknown>> : [];
 
     if (action === "savePayment" && (paymentCategory === "other services bill" || paymentCategory === "other services" || paymentCategory === "others bill")) {
@@ -105,7 +114,7 @@ export async function POST(request: NextRequest) {
         idempotencyKey,
       });
     } else {
-      data = await handleLandviewDataAction(action, { ...body, Idempotency_Key: idempotencyKey }, user);
+      data = await handleLandviewDataAction(action, { ...body, Service_Type: serviceType, Idempotency_Key: idempotencyKey }, user);
 
       if (action === "savePayment") {
         const paymentCode = text((data as Record<string, unknown>)?.Payment_ID, 160);
