@@ -16,6 +16,9 @@ function num(value: unknown) {
   const n = Number(text(value).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
+function normStatus(value: unknown) {
+  return text(value).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
 function categoryOf(value: unknown): CategoryKey {
   const raw = text(value).toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
   if (raw.includes("supervision")) return "supervision";
@@ -23,17 +26,21 @@ function categoryOf(value: unknown): CategoryKey {
   return "engineering";
 }
 function activeInvoice(row: Row) {
-  const status = text(row.status).toLowerCase().replace(/[_-]+/g, " ");
+  const status = normStatus(row.status);
   return !new Set(["draft", "cancelled", "canceled", "void", "voided", "rejected"]).has(status);
 }
 function activePayment(row: Row) {
   if (text(row.transaction_type).toLowerCase() === "personal income" || row.affects_business_balance === false) return false;
-  const status = text(row.approval_status || row.status).toLowerCase().replace(/[_-]+/g, " ");
+  const status = normStatus(row.approval_status || row.status);
   return !status || ["approved", "received", "paid", "verified", "complete", "completed", "full paid", "fully paid", "posted"].includes(status);
 }
 function adjustmentMirrorBill(row: Row | undefined) {
   const source = text(row?.created_via).toLowerCase();
   return source.includes("credit note") || source.includes("debit note");
+}
+function paidLegacyBill(row: Row | undefined) {
+  if (!row || !/^LEG-BILL-/i.test(text(row.bill_code))) return false;
+  return ["paid", "full paid", "fully paid"].includes(normStatus(row.status));
 }
 function storedBillNet(row: Row | undefined) {
   if (!row) return 0;
@@ -79,7 +86,7 @@ export async function GET(request: NextRequest) {
     for (const invoice of invoices) {
       if (!activeInvoice(invoice)) continue;
       const bill = billByCode.get(text(invoice.bill_code));
-      if (adjustmentMirrorBill(bill)) continue;
+      if (adjustmentMirrorBill(bill) || paidLegacyBill(bill)) continue;
       const key = text(invoice.project_id);
       const list = invoiceMap.get(key) || [];
       list.push(invoice);
