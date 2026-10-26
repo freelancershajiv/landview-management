@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
 
 type Row = Record<string, unknown>;
@@ -148,16 +148,16 @@ export default function FullBillEditorPage() {
     };
   }, [lines]);
 
-  function selectGroup(group: BillGroup, adjustmentRows = adjustments) {
+  const selectGroup = useCallback((group: BillGroup, adjustmentRows: Row[]) => {
     setSelectedGroup(group.key);
     setLines(linesForGroup(group, adjustmentRows));
     setBillDiscount("");
     setBillDiscountReason("");
     setError("");
     setMessage("");
-  }
+  }, []);
 
-  async function load(raw = fileId, preferredGroup = selectedGroup) {
+  const load = useCallback(async (raw: string, preferredGroup: string) => {
     const id = projectCode(raw);
     if (!id) { setError("Enter a valid File ID, for example LV-157."); return; }
     setFileId(id); setLoading(true); setError(""); setMessage("");
@@ -176,13 +176,14 @@ export default function FullBillEditorPage() {
       const url = new URL(window.location.href); url.searchParams.set("fileId", id); window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
     } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not load the finance record."); }
     finally { setLoading(false); }
-  }
+  }, [selectGroup]);
 
   useEffect(() => {
     const id = projectCode(new URLSearchParams(window.location.search).get("fileId") || "");
-    if (id) { setFileId(id); void load(id, ""); }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!id) return;
+    const timer = window.setTimeout(() => { void load(id, ""); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   function patchLine(key: string, patch: Partial<EditLine>) { setLines((current) => current.map((line) => line.key === key ? { ...line, ...patch } : line)); }
   function addLine() {
@@ -200,12 +201,16 @@ export default function FullBillEditorPage() {
     const candidates = lines.filter((line) => !line.removed && targetNet(line) > 0);
     const basis = candidates.reduce((sum, line) => sum + targetNet(line), 0);
     if (!candidates.length || !(amount > 0) || amount > basis + .01) { setError("Enter a bill discount greater than zero and not more than the current bill value."); return; }
+    const shares = new Map<string, number>();
     let allocated = 0;
-    setLines((current) => current.map((line) => {
-      const index = candidates.findIndex((candidate) => candidate.key === line.key);
-      if (index < 0) return line;
+    candidates.forEach((line, index) => {
       const share = index === candidates.length - 1 ? Math.round((amount - allocated) * 100) / 100 : Math.round((amount * targetNet(line) / basis) * 100) / 100;
       allocated += share;
+      shares.set(line.key, share);
+    });
+    setLines((current) => current.map((line) => {
+      const share = shares.get(line.key);
+      if (share === undefined) return line;
       if (line.isDraft || line.isNew) return { ...line, discount: String(Math.min(num(line.gross), num(line.discount) + share)) };
       return { ...line, revisionMode: "discount", revisionValue: String(share), revisionReason: billDiscountReason.trim() || "Whole bill discount" };
     }));
@@ -283,9 +288,9 @@ export default function FullBillEditorPage() {
     {error ? <div className="fbe-msg bad">{error}</div> : null}{message ? <div className="fbe-msg good">{message}</div> : null}
 
     <div className="fbe-grid">
-      <aside className="fbe-panel"><div className="fbe-panel-title">Bills / Commercial Documents</div><div className="fbe-groups">{!groups.length ? <div style={{padding:18,fontSize:9,color:"var(--lv-text-muted)"}}>No bills loaded for this project.</div> : groups.map((group) => <button key={group.key} className={`fbe-group ${selectedGroup === group.key ? "active" : ""}`} onClick={() => selectGroup(group)}><strong>{group.date || "No date"} · {group.services} service{group.services === 1 ? "" : "s"}</strong><span>{group.firstBill} · Gross {money(group.gross)} · Current {money(group.net)}</span><b className={group.draft ? "" : "issued"}>{group.draft ? "DRAFT — fully editable" : "ISSUED — audited revisions"}</b></button>)}</div></aside>
+      <aside className="fbe-panel"><div className="fbe-panel-title">Bills / Commercial Documents</div><div className="fbe-groups">{!groups.length ? <div style={{padding:18,fontSize:9,color:"var(--lv-text-muted)"}}>No bills loaded for this project.</div> : groups.map((group) => <button key={group.key} className={`fbe-group ${selectedGroup === group.key ? "active" : ""}`} onClick={() => selectGroup(group, adjustments)}><strong>{group.date || "No date"} · {group.services} service{group.services === 1 ? "" : "s"}</strong><span>{group.firstBill} · Gross {money(group.gross)} · Current {money(group.net)}</span><b className={group.draft ? "" : "issued"}>{group.draft ? "DRAFT — fully editable" : "ISSUED — audited revisions"}</b></button>)}</div></aside>
       <section className="fbe-panel">
-        <div className="fbe-toolbar"><div className="fbe-toolbar-left"><button className="fbe-btn" onClick={addLine} disabled={!selectedGroup}>+ Add Service</button><input type="date" defaultValue={lines[0]?.date || today()} onChange={(event) => applyDateToAll(event.target.value)} title="Apply this date to all service rows"/></div><button className="fbe-btn primary" onClick={() => void save()} disabled={saving || !lines.length}>{saving ? "Saving Full Bill…" : "Save Whole Bill"}</button></div>
+        <div className="fbe-toolbar"><div className="fbe-toolbar-left"><button className="fbe-btn" onClick={addLine} disabled={!selectedGroup}>+ Add Service</button><input type="date" defaultValue={lines[0]?.date || ""} onChange={(event) => applyDateToAll(event.target.value)} title="Apply this date to all service rows"/></div><button className="fbe-btn primary" onClick={() => void save()} disabled={saving || !lines.length}>{saving ? "Saving Full Bill…" : "Save Whole Bill"}</button></div>
         <div className="fbe-discount"><strong style={{fontSize:8}}>Whole Bill Discount</strong><input inputMode="decimal" placeholder="Discount amount" value={billDiscount} onChange={(event) => setBillDiscount(event.target.value)}/><input placeholder="Reason / offer / negotiation note" value={billDiscountReason} onChange={(event) => setBillDiscountReason(event.target.value)}/><button className="fbe-btn" onClick={applyBillDiscount} disabled={!lines.length}>Distribute Across Services</button></div>
         <div className="fbe-kpis"><div className="fbe-kpi"><span>Services</span><strong>{summary.services}</strong></div><div className="fbe-kpi"><span>Gross</span><strong>{money(summary.gross)}</strong></div><div className="fbe-kpi"><span>Draft Discounts</span><strong>{money(summary.draftDiscount)}</strong></div><div className="fbe-kpi"><span>Current Net</span><strong>{money(summary.current)}</strong></div><div className="fbe-kpi revised"><span>Revised Net</span><strong>{money(summary.revised)}</strong></div></div>
         <div className="fbe-table-wrap"><table className="fbe-table"><thead><tr><th>Bill / State</th><th>Date</th><th>Category</th><th>Service / Description</th><th>Gross</th><th>Discount / Revision</th><th>Net Preview</th><th>Notes / Reason</th><th>Action</th></tr></thead><tbody>{lines.map((line) => <tr key={line.key} className={line.removed ? "fbe-line-removed" : ""}>
