@@ -6,6 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const FINANCE_ROLES = new Set(["admin", "manager", "accounts", "employee"]);
+const CATEGORY_KEYS: CategoryKey[] = ["engineering", "supervision", "other"];
 type CategoryKey = "engineering" | "supervision" | "other";
 type CategoryAmounts = Record<CategoryKey, number>;
 type Row = Record<string, any>;
@@ -29,6 +30,10 @@ function activeInvoice(row: Row) {
   const status = normStatus(row.status);
   return !new Set(["draft", "cancelled", "canceled", "void", "voided", "rejected"]).has(status);
 }
+function activeBill(row: Row) {
+  const status = normStatus(row.status);
+  return !new Set(["draft", "cancelled", "canceled", "void", "voided", "rejected"]).has(status);
+}
 function activePayment(row: Row) {
   if (text(row.transaction_type).toLowerCase() === "personal income" || row.affects_business_balance === false) return false;
   const status = normStatus(row.approval_status || row.status);
@@ -48,6 +53,25 @@ function storedBillNet(row: Row | undefined) {
   return Math.max(0, num(row.amount) - num(row.discount));
 }
 function emptyAmounts(): CategoryAmounts { return { engineering: 0, supervision: 0, other: 0 }; }
+function reduceAmounts(amounts: CategoryAmounts, reduction: number, preferred: CategoryAmounts = emptyAmounts()) {
+  let remaining = Math.max(0, reduction);
+  for (const key of CATEGORY_KEYS) {
+    if (remaining <= 0.009) break;
+    const preferredReduction = Math.min(amounts[key], preferred[key], remaining);
+    amounts[key] -= preferredReduction;
+    remaining -= preferredReduction;
+  }
+  if (remaining > 0.009) {
+    const byLargestDue = [...CATEGORY_KEYS].sort((a, b) => amounts[b] - amounts[a]);
+    for (const key of byLargestDue) {
+      if (remaining <= 0.009) break;
+      const applied = Math.min(amounts[key], remaining);
+      amounts[key] -= applied;
+      remaining -= applied;
+    }
+  }
+  return Math.max(0, reduction - remaining);
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -60,7 +84,7 @@ export async function GET(request: NextRequest) {
       selectRows("invoices", { select: "id,project_id,invoice_code,bill_code,category,amount,paid_amount_snapshot,due_amount_snapshot,status", limit: 5000 }),
       selectRows("bills", { select: "id,project_id,bill_code,billing_category,category,amount,discount,net_amount,status,created_via", limit: 5000 }),
       selectRows("billing_adjustments", { select: "bill_code,adjustment_type,amount,status", limit: 5000 }),
-      selectRows("payments", { select: "id,project_id,payment_code,payment_date,amount,status,approval_status,transaction_type,affects_business_balance,invoice_unallocated_amount,invoice_allocation_status,created_at", limit: 5000 }),
+      selectRows("payments", { select: "id,project_id,payment_code,payment_date,amount,status,approval_status,transaction_type,affects_business_balance,payment_for,income_category,invoice_unallocated_amount,invoice_allocation_status,created_at", limit: 5000 }),
       selectRows("billing_writeoff_log", { select: "project_id,billing_category,event_type,amount,effective_date,created_at", order: "created_at:asc", limit: 5000 }),
     ]);
 
@@ -80,6 +104,16 @@ export async function GET(request: NextRequest) {
       if (text(adjustment.adjustment_type) === "Debit Note") current.debit += amount;
       else if (text(adjustment.adjustment_type) === "Credit Note") current.credit += amount;
       adjustmentByBill.set(code, current);
+    }
+
+    const projectBilledMap = new Map<string, number>();
+    for (const bill of bills) {
+      if (!activeBill(bill) || adjustmentMirrorBill(bill)) continue;
+      const projectId = text(bill.project_id);
+      if (!projectId) continue;
+      const adjustment = adjustmentByBill.get(text(bill.bill_code)) || { debit: 0, credit: 0 };
+      const effectiveAmount = Math.max(0, storedBillNet(bill) + adjustment.debit - adjustment.credit);
+      projectBilledMap.set(projectId, (projectBilledMap.get(projectId) || 0) + effectiveAmount);
     }
 
     const invoiceMap = new Map<string, Row[]>();
@@ -144,11 +178,18 @@ export async function GET(request: NextRequest) {
       };
 
       let unallocatedAmount = 0;
+      const unallocatedByCategory = emptyAmounts();
+      let activePaymentTotal = 0;
       let lastPaymentDate = "";
       let lastPaymentAmount = 0;
       let lastStamp = -1;
       for (const payment of paymentMap.get(projectUuid) || []) {
-        unallocatedAmount += Math.max(0, num(payment.invoice_unallocated_amount));
+        activePaymentTotal += Math.max(0, num(payment.amount));
+        const unallocated = Math.max(0, num(payment.invoice_unallocated_amount));
+        unallocatedAmount += unallocated;
+        if (unallocated > 0.009) {
+          unallocatedByCategory[categoryOf(payment.income_category || payment.payment_for)] += unallocated;
+        }
         const paymentDate = text(payment.payment_date || payment.created_at);
         const stamp = paymentDate ? new Date(paymentDate).getTime() : 0;
         if (Number.isFinite(stamp) && stamp >= lastStamp) {
@@ -158,8 +199,20 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      const totalDue = collectible.engineering + collectible.supervision + collectible.other;
+      // Invoice allocations remain the first source of truth, but approved money that is
+      // still unallocated must not make the project look more collectible than it is.
+      const appliedUnallocated = reduceAmounts(collectible, unallocatedAmount, unallocatedByCategory);
+      const remainingUnallocated = Math.max(0, unallocatedAmount - appliedUnallocated);
+
       const writeoffTotal = written.engineering + written.supervision + written.other;
+      const projectBilledTotal = projectBilledMap.get(projectUuid) || 0;
+      const projectBalanceDue = Math.max(0, projectBilledTotal - activePaymentTotal - writeoffTotal);
+      const collectibleBeforeCap = collectible.engineering + collectible.supervision + collectible.other;
+      if (collectibleBeforeCap > projectBalanceDue + 0.009) {
+        reduceAmounts(collectible, collectibleBeforeCap - projectBalanceDue);
+      }
+
+      const totalDue = collectible.engineering + collectible.supervision + collectible.other;
       return {
         projectId: text(project.project_code),
         projectName: text(project.project_name),
@@ -172,7 +225,7 @@ export async function GET(request: NextRequest) {
         totalDue,
         invoiceDueTotal,
         writeoffTotal,
-        unallocatedAmount,
+        unallocatedAmount: remainingUnallocated,
         openInvoiceCount,
         lastPaymentDate,
         lastPaymentAmount,
@@ -189,7 +242,7 @@ export async function GET(request: NextRequest) {
     }), { engineering: 0, supervision: 0, other: 0, total: 0, unallocated: 0 });
 
     return NextResponse.json({ success: true, data: { rows, totals } }, {
-      headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "settled-bill-aware-invoice-truth" },
+      headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "project-balance-capped-invoice-truth" },
     });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Could not load due bills." }, {
