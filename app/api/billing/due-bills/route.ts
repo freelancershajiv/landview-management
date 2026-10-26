@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 const FINANCE_ROLES = new Set(["admin", "manager", "accounts", "employee"]);
 type CategoryKey = "engineering" | "supervision" | "other";
 type CategoryAmounts = Record<CategoryKey, number>;
-type Row = Record<string, unknown>;
+type Row = Record<string, any>;
+type AdjustmentAmounts = { debit: number; credit: number };
 
 function text(value: unknown) { return String(value ?? "").trim(); }
 function num(value: unknown) {
@@ -30,11 +31,14 @@ function activePayment(row: Row) {
   const status = text(row.approval_status || row.status).toLowerCase().replace(/[_-]+/g, " ");
   return !status || ["approved", "received", "paid", "verified", "complete", "completed", "full paid", "fully paid", "posted"].includes(status);
 }
-// Receivables follow invoice allocation state; unallocated project money is not treated as invoice payment.
-function invoiceDue(row: Row) {
-  const snapshot = row.due_amount_snapshot;
-  if (snapshot !== undefined && snapshot !== null && text(snapshot) !== "") return Math.max(0, num(snapshot));
-  return Math.max(0, num(row.amount) - num(row.paid_amount_snapshot));
+function adjustmentMirrorBill(row: Row | undefined) {
+  const source = text(row?.created_via).toLowerCase();
+  return source.includes("credit note") || source.includes("debit note");
+}
+function storedBillNet(row: Row | undefined) {
+  if (!row) return 0;
+  if (row.net_amount !== undefined && row.net_amount !== null && text(row.net_amount) !== "") return Math.max(0, num(row.net_amount));
+  return Math.max(0, num(row.amount) - num(row.discount));
 }
 function emptyAmounts(): CategoryAmounts { return { engineering: 0, supervision: 0, other: 0 }; }
 
@@ -44,16 +48,40 @@ export async function GET(request: NextRequest) {
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     if (!FINANCE_ROLES.has(roleOf(user))) return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
 
-    const [projects, invoices, payments, writeoffs] = await Promise.all([
+    const [projects, invoices, bills, adjustments, payments, writeoffs] = await Promise.all([
       selectRows("projects", { select: "id,project_code,project_name,client_name_snapshot,phone_number_snapshot,location", limit: 5000 }),
       selectRows("invoices", { select: "id,project_id,invoice_code,bill_code,category,amount,paid_amount_snapshot,due_amount_snapshot,status", limit: 5000 }),
+      selectRows("bills", { select: "id,project_id,bill_code,billing_category,category,amount,discount,net_amount,status,created_via", limit: 5000 }),
+      selectRows("billing_adjustments", { select: "bill_code,adjustment_type,amount,status", limit: 5000 }),
       selectRows("payments", { select: "id,project_id,payment_code,payment_date,amount,status,approval_status,transaction_type,affects_business_balance,invoice_unallocated_amount,invoice_allocation_status,created_at", limit: 5000 }),
       selectRows("billing_writeoff_log", { select: "project_id,billing_category,event_type,amount,effective_date,created_at", order: "created_at:asc", limit: 5000 }),
     ]);
 
+    const billByCode = new Map<string, Row>();
+    for (const bill of bills) {
+      const code = text(bill.bill_code);
+      if (code) billByCode.set(code, bill);
+    }
+
+    const adjustmentByBill = new Map<string, AdjustmentAmounts>();
+    for (const adjustment of adjustments) {
+      if (text(adjustment.status).toLowerCase() === "void") continue;
+      const code = text(adjustment.bill_code);
+      if (!code) continue;
+      const current = adjustmentByBill.get(code) || { debit: 0, credit: 0 };
+      const amount = Math.max(0, num(adjustment.amount));
+      if (text(adjustment.adjustment_type) === "Debit Note") current.debit += amount;
+      else if (text(adjustment.adjustment_type) === "Credit Note") current.credit += amount;
+      adjustmentByBill.set(code, current);
+    }
+
     const invoiceMap = new Map<string, Row[]>();
     for (const invoice of invoices) {
       if (!activeInvoice(invoice)) continue;
+      const bill = billByCode.get(text(invoice.bill_code));
+      // Credit/Debit Note mirror bills are represented through the adjustment on the original bill.
+      // Ignoring their invoice row prevents the receivables dashboard from double counting corrections.
+      if (adjustmentMirrorBill(bill)) continue;
       const key = text(invoice.project_id);
       const list = invoiceMap.get(key) || [];
       list.push(invoice);
@@ -89,9 +117,14 @@ export async function GET(request: NextRequest) {
       let invoiceDueTotal = 0;
 
       for (const invoice of invoiceMap.get(projectUuid) || []) {
-        const due = invoiceDue(invoice);
+        const billCode = text(invoice.bill_code);
+        const bill = billByCode.get(billCode);
+        const adjustment = adjustmentByBill.get(billCode) || { debit: 0, credit: 0 };
+        const effectiveAmount = Math.max(0, storedBillNet(bill) + adjustment.debit - adjustment.credit);
+        const paid = Math.max(0, num(invoice.paid_amount_snapshot));
+        const due = Math.max(0, effectiveAmount - Math.min(effectiveAmount, paid));
         if (due <= 0.009) continue;
-        categoryDue[categoryOf(invoice.category)] += due;
+        categoryDue[categoryOf(bill?.billing_category || bill?.category || invoice.category)] += due;
         invoiceDueTotal += due;
         openInvoiceCount += 1;
       }
@@ -109,11 +142,11 @@ export async function GET(request: NextRequest) {
       let lastStamp = -1;
       for (const payment of paymentMap.get(projectUuid) || []) {
         unallocatedAmount += Math.max(0, num(payment.invoice_unallocated_amount));
-        const date = text(payment.payment_date || payment.created_at);
-        const stamp = date ? new Date(date).getTime() : 0;
+        const paymentDate = text(payment.payment_date || payment.created_at);
+        const stamp = paymentDate ? new Date(paymentDate).getTime() : 0;
         if (Number.isFinite(stamp) && stamp >= lastStamp) {
           lastStamp = stamp;
-          lastPaymentDate = date;
+          lastPaymentDate = paymentDate;
           lastPaymentAmount = Math.max(0, num(payment.amount));
         }
       }
@@ -149,7 +182,7 @@ export async function GET(request: NextRequest) {
     }), { engineering: 0, supervision: 0, other: 0, total: 0, unallocated: 0 });
 
     return NextResponse.json({ success: true, data: { rows, totals } }, {
-      headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "invoice-allocation-truth" },
+      headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "adjustment-aware-invoice-truth" },
     });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Could not load due bills." }, {
