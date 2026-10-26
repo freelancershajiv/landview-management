@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
-import { normalizeProjectCode, roleOf, selectRows, updateRows } from "@/lib/supabase-data";
+import { employeeCodeOf, insertRows, normalizeProjectCode, roleOf, selectRows, updateRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const EDIT_ROLES = new Set(["admin", "manager", "accounts"]);
 const BILL_CATEGORIES = new Set(["Engineering Bill", "Design Books", "Supervision Bill", "Other Services Bill"]);
+type Row = Record<string, any>;
 
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -21,11 +22,14 @@ function date(value: unknown) {
 function serviceText(value: unknown) {
   return text(value, 1000).replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim();
 }
+function actorOf(user: Row) {
+  return employeeCodeOf(user) || text(user.username || user.Username || user.name || user.Name, 160) || "LAND VIEW";
+}
 
 export async function PATCH(request: NextRequest) {
   try {
     if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
-    const user = await requireLocalSession(request);
+    const user = await requireLocalSession(request) as Row | null;
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     if (!EDIT_ROLES.has(roleOf(user))) return NextResponse.json({ success: false, error: "Admin, manager or accounts access is required to edit bill details." }, { status: 403 });
 
@@ -37,12 +41,18 @@ export async function PATCH(request: NextRequest) {
     if (!found.length) return NextResponse.json({ success: false, error: "Bill was not found." }, { status: 404 });
     const current = found[0];
 
-    const projectCode = normalizeProjectCode(body.Project_ID || body.projectId || "");
+    let projectCode = normalizeProjectCode(body.Project_ID || body.projectId || "");
+    let project: Row | null = null;
     if (projectCode) {
       const projects = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
-      if (!projects.length || projects[0].id !== current.project_id) {
+      project = projects[0] || null;
+      if (!project || project.id !== current.project_id) {
         return NextResponse.json({ success: false, error: "This bill does not belong to the selected project." }, { status: 409 });
       }
+    } else {
+      const projects = await selectRows("projects", { filters: { id: current.project_id }, limit: 1 });
+      project = projects[0] || null;
+      projectCode = text(project?.project_code, 80);
     }
 
     const currentStatus = text(current.status).toLowerCase();
@@ -61,18 +71,49 @@ export async function PATCH(request: NextRequest) {
 
     const notesProvided = Object.prototype.hasOwnProperty.call(body, "Notes") || Object.prototype.hasOwnProperty.call(body, "notes");
     const notes = notesProvided ? text(body.Notes ?? body.notes, 4000) : text(current.notes, 4000);
+    const nextDescription = `[${category}] ${service}`;
+    const before = {
+      billDate: text(current.bill_date, 20),
+      category: text(current.billing_category || current.category, 80),
+      service: serviceText(current.description),
+      notes: text(current.notes, 4000),
+    };
+    const after = { billDate, category, service, notes };
+    const changed = before.billDate !== after.billDate || before.category !== after.category || before.service !== after.service || before.notes !== after.notes;
     const now = new Date().toISOString();
     const rows = await updateRows("bills", { bill_code: billId }, {
       bill_date: billDate,
       billing_category: category,
       category,
-      description: `[${category}] ${service}`,
+      description: nextDescription,
       notes: notes || null,
       source_updated_at: now,
       updated_at: now,
     });
 
-    return NextResponse.json({ success: true, data: rows[0] || null }, {
+    if (changed) {
+      try {
+        await insertRows("billing_events", {
+          project_id: current.project_id,
+          project_code: projectCode || null,
+          contract_id: null,
+          contract_service_id: null,
+          milestone_id: null,
+          event_type: "bill_metadata_revised",
+          event_key: `bill-metadata:${current.id}:${crypto.randomUUID()}`,
+          service_name: service,
+          workflow_status: null,
+          amount: Number(current.net_amount ?? 0) || 0,
+          actor: actorOf(user),
+          details: { billCode: billId, before, after },
+          created_at: now,
+        });
+      } catch (auditError) {
+        console.error("LAND VIEW bill metadata audit event failed:", auditError);
+      }
+    }
+
+    return NextResponse.json({ success: true, data: rows[0] || null, audited: changed }, {
       headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" },
     });
   } catch (error) {
