@@ -9,16 +9,17 @@ begin
   for r in
     select
       a.bill_id,
-      max(a.project_id) as project_id,
-      max(a.project_code) as project_code,
-      max(a.bill_code) as bill_code,
+      b.project_id,
+      a.project_code,
+      a.bill_code,
       max(a.service_name) as service_name,
       sum(a.amount) as discount_amount
     from public.billing_adjustments a
+    join public.bills b on b.id = a.bill_id
     where lower(coalesce(a.status, '')) = 'posted'
       and lower(coalesce(a.adjustment_type, '')) in ('credit', 'credit note')
       and lower(coalesce(a.reason, '')) like 'service discount%'
-    group by a.bill_id
+    group by a.bill_id, b.project_id, a.project_code, a.bill_code
   loop
     update public.bills b
     set discount = round(least(coalesce(b.amount, 0), coalesce(b.discount, 0) + r.discount_amount), 2),
