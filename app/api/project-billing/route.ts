@@ -39,6 +39,9 @@ function serviceDescription(row: Row, fallback: string) {
   const clean = description.replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim();
   return clean || fallback;
 }
+function serviceAdjustmentKey(categoryName: unknown, serviceName: unknown) {
+  return `${text(categoryName).toLowerCase()}|${text(serviceName).toLowerCase().replace(/\s+/g," ")}`;
+}
 function sheet(tab:string,headers:string[],rows:unknown[][],totals:Row={gross:0,discount:0,billed:0,paid:0,due:0,projects:1}) {
   return {tab,tabs:[...TABS],headers,rows:rows.map(r=>r.map(v=>String(v??""))),totals,url:"",updatedAt:new Date().toISOString()};
 }
@@ -185,16 +188,25 @@ export async function GET(request: NextRequest) {
     const eng=groups["Engineering Bill"],books=groups["Design Books"],sup=groups["Supervision Bill"],oth=groups["Other Services Bill"];
     const totalDue=eng.due+books.due+sup.due+oth.due,totalBilled=eng.gross-eng.discount+books.gross-books.discount+sup.gross-sup.discount+oth.gross-oth.discount;
 
-    // Attach posted Credit Notes back to the original service bill. This keeps
-    // the adjustment as an immutable audit record while allowing statements to
-    // show the client's discount beside the service that actually received it.
-    const creditByBillCode = new Map<string, number>();
+    // Attach posted Credit Notes back to the original service bill. The billing
+    // gateway has historically exposed either the UUID or the bill code as
+    // Bill_ID, so index adjustments by both references and keep service/category
+    // as a last-resort compatibility key.
+    const creditByBillRef = new Map<string, number>();
+    const creditByService = new Map<string, number>();
+    const addCredit = (map: Map<string, number>, key: unknown, amount: number) => {
+      const normalized = text(key).toLowerCase();
+      if (!normalized) return;
+      map.set(normalized, (map.get(normalized) || 0) + amount);
+    };
     for (const adjustment of (adjustments as Row[])) {
       if (text(adjustment.status).toLowerCase() === "void") continue;
       if (text(adjustment.adjustment_type).toLowerCase() !== "credit note") continue;
-      const billCode = text(adjustment.bill_code);
-      if (!billCode) continue;
-      creditByBillCode.set(billCode, (creditByBillCode.get(billCode) || 0) + num(adjustment.amount));
+      const amount = Math.max(0, num(adjustment.amount));
+      if (amount <= 0.009) continue;
+      addCredit(creditByBillRef, adjustment.bill_id, amount);
+      addCredit(creditByBillRef, adjustment.bill_code, amount);
+      addCredit(creditByService, serviceAdjustmentKey(adjustment.billing_category, adjustment.service_name), amount);
     }
 
     const billRows=(c:Category)=>groups[c].bills
@@ -202,11 +214,22 @@ export async function GET(request: NextRequest) {
       .map(b=>{
         const kind=adjustmentKind(b);
         const description=kind==="debit" ? `Debit Note — ${serviceDescription(b,c)}` : (b.Description||c);
-        const billCode=text(b.Bill_ID || b.bill_code);
-        const serviceCredit=kind ? 0 : (creditByBillCode.get(billCode) || 0);
+        const billRefs=[b.Bill_ID,b.Bill_Code,b.bill_id,b.bill_code,b.ID,b.id]
+          .map(value=>text(value).toLowerCase())
+          .filter(Boolean);
+        let serviceCredit=0;
+        if (!kind) {
+          for (const ref of billRefs) {
+            const matched = creditByBillRef.get(ref);
+            if (matched !== undefined) { serviceCredit=matched; break; }
+          }
+          if (serviceCredit <= 0.009) {
+            serviceCredit=creditByService.get(serviceAdjustmentKey(c,serviceDescription(b,c))) || 0;
+          }
+        }
         const effectiveDiscount=Math.max(0,num(b.Discount)+serviceCredit);
         const effectiveNet=Math.max(0,num(b.Amount)-effectiveDiscount);
-        return [projectId,description,b.Unit_Price||"",b.Quantity||"",b.Amount||0,b.Bill_ID||"",b.Status||"",effectiveNet,effectiveDiscount];
+        return [projectId,description,b.Unit_Price||"",b.Quantity||"",b.Amount||0,b.Bill_ID||b.Bill_Code||b.bill_code||b.id||"",b.Status||"",effectiveNet,effectiveDiscount];
       });
     const payRows=(c:Category)=>groups[c].payments.map(p=>[projectId,p.Payment_Date||"",[p.Payment_Method,p.Reference_No].filter(Boolean).join(" · ")||"Client Payment",p.Amount||0,p.Approval_Status||"Approved",p.Payment_ID||""]);
     const sheets=[
