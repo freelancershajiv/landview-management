@@ -16,6 +16,7 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         @media(max-width:440px){.finance-section-nav{grid-template-columns:1fr}}
       `}</style>
       <Link href="/admin/finance">Finance Home</Link>
+      <Link href="/admin/finance/projects">Finance Projects</Link>
       <Link className="primary" href="/admin/finance/add-bill">+ Add Bill</Link>
       <Link className="primary" href="/admin/finance/direct-bill">+ New Full Bill</Link>
       <Link className="primary" href="/admin/finance/full-bill-editor">Edit Full Bill</Link>
