@@ -42,6 +42,11 @@ type SingleBillOption = {
   netAmount: number;
   status: string;
 };
+type ReceivableBillItem = SheetInvoices["invoices"][number]["items"][number] & {
+  billId?: string;
+  billPaidAmount?: number;
+  billDueAmount?: number;
+};
 
 function snapshotKey(id: string) {
   return `${BILLING_SNAPSHOT_PREFIX}LV-${id}`;
@@ -69,6 +74,59 @@ function saveBillingSnapshot(id: string, billing: SheetInvoices) {
 function numberValue(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function moneyValue(value: unknown) {
+  const parsed = Number(String(value ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : Number.NaN;
+}
+
+function normalizedService(value: unknown) {
+  return String(value ?? "")
+    .replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function attachCanonicalBillAmounts(billing: SheetInvoices, sheets: FinanceSheetData[], id: string) {
+  const tabByCategory: Record<string, string> = {
+    Engineering: "Design Bill",
+    "Design Books": "Design Books Bill",
+    Supervision: "Supervision Bill",
+    Others: "Others Bill",
+  };
+  const normalizedId = normalizeFileId(id);
+
+  for (const category of billing.invoices) {
+    const tabName = tabByCategory[category.name];
+    if (!tabName) continue;
+    const source = sheets.find((sheet) => sheet.tab === tabName);
+    if (!source) continue;
+    const rows = (source.rows || []).filter((row) => normalizeFileId(String(row[0] || "")) === normalizedId);
+    const used = new Set<number>();
+
+    for (const item of category.items) {
+      const targetService = normalizedService(item.service);
+      const targetAmount = numberValue(item.amount);
+      const index = rows.findIndex((row, rowIndex) => {
+        if (used.has(rowIndex)) return false;
+        if (normalizedService(row[1]) !== targetService) return false;
+        const rowAmount = moneyValue(row[4]);
+        return Number.isFinite(rowAmount) && Math.abs(rowAmount - targetAmount) < 0.01;
+      });
+      if (index < 0) continue;
+      used.add(index);
+      const row = rows[index];
+      const paid = moneyValue(row[9]);
+      const due = moneyValue(row[10]);
+      const extended = item as ReceivableBillItem;
+      extended.billId = String(row[5] || "").trim();
+      if (Number.isFinite(paid)) extended.billPaidAmount = Math.max(0, paid);
+      if (Number.isFinite(due)) extended.billDueAmount = Math.max(0, due);
+    }
+  }
+  return billing;
 }
 
 function singleBillAmounts(item: SheetInvoices["invoices"][number]["items"][number]) {
@@ -121,8 +179,15 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
   const { amount, discount, netAmount } = singleBillAmounts(item);
   const status = String(item.billStatus || "").trim().toLowerCase();
   const fullyPaid = ["paid", "fully paid", "full paid", "settled", "complete", "completed"].includes(status);
-  const paid = fullyPaid ? netAmount : 0;
-  const due = Math.max(0, netAmount - paid);
+  const receivableItem = item as ReceivableBillItem;
+  const explicitPaid = Number(receivableItem.billPaidAmount);
+  const explicitDue = Number(receivableItem.billDueAmount);
+  const paid = Number.isFinite(explicitPaid)
+    ? Math.min(netAmount, Math.max(0, explicitPaid))
+    : fullyPaid ? netAmount : 0;
+  const due = Number.isFinite(explicitDue)
+    ? Math.min(netAmount, Math.max(0, explicitDue))
+    : Math.max(0, netAmount - paid);
   const serviceName = String(item.service || category.name || "Single Bill").trim() || "Single Bill";
 
   const singleCategory = {
@@ -224,7 +289,11 @@ export default function ProjectBillingPage() {
       loadProjectBillingBundle(id),
       landViewApi.getBillingRecords(`LV-${id}`).catch(() => [] as Record<string, unknown>[]),
     ]);
-    const billing = mergeBillingWorkspaceBills(buildSheetInvoices(bundle.sheets, id), databaseBills);
+    const billing = attachCanonicalBillAmounts(
+      mergeBillingWorkspaceBills(buildSheetInvoices(bundle.sheets, id), databaseBills),
+      bundle.sheets,
+      id,
+    );
     return verifySheetInvoicesWithPayments(billing, bundle.payments || []);
   }
 
