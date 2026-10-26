@@ -38,8 +38,8 @@ function adjustmentMirrorBill(row: Row | undefined) {
   const source = text(row?.created_via).toLowerCase();
   return source.includes("credit note") || source.includes("debit note");
 }
-function paidLegacyBill(row: Row | undefined) {
-  if (!row || !/^LEG-BILL-/i.test(text(row.bill_code))) return false;
+function settledBill(row: Row | undefined) {
+  if (!row) return false;
   return ["paid", "full paid", "fully paid"].includes(normStatus(row.status));
 }
 function storedBillNet(row: Row | undefined) {
@@ -86,7 +86,9 @@ export async function GET(request: NextRequest) {
     for (const invoice of invoices) {
       if (!activeInvoice(invoice)) continue;
       const bill = billByCode.get(text(invoice.bill_code));
-      if (adjustmentMirrorBill(bill) || paidLegacyBill(bill)) continue;
+      // A settled bill is authoritative. Older/imported invoice snapshots can remain
+      // PARTIALLY PAID even after the underlying bill has been fully settled.
+      if (adjustmentMirrorBill(bill) || settledBill(bill)) continue;
       const key = text(invoice.project_id);
       const list = invoiceMap.get(key) || [];
       list.push(invoice);
@@ -187,7 +189,7 @@ export async function GET(request: NextRequest) {
     }), { engineering: 0, supervision: 0, other: 0, total: 0, unallocated: 0 });
 
     return NextResponse.json({ success: true, data: { rows, totals } }, {
-      headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "adjustment-aware-invoice-truth" },
+      headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "settled-bill-aware-invoice-truth" },
     });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Could not load due bills." }, {
