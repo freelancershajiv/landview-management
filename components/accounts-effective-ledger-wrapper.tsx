@@ -11,6 +11,7 @@ const NON_EFFECTIVE_EXPENSE_STATUSES = new Set([
   "void",
   "voided",
   "draft",
+  "special ledger",
 ]);
 
 let patched = false;
@@ -43,13 +44,10 @@ function withEffectiveExpenseStatus(data: FinanceSheetData) {
     const status = normalize(row[statusIndex] || "Posted");
     const debit = amount(row[debitIndex]);
 
-    // LAND VIEW's canonical balance deducts a real operating expense as soon
-    // as it exists, even while EMP-0001 approval is pending. The legacy
-    // statement component historically filtered everything except "Posted",
-    // which made its running balance disagree with the canonical balance.
-    // For this compatibility view only, expose effective pending expenses as
-    // Posted so the statement includes the same debit. The database workflow
-    // status remains unchanged.
+    // LAND VIEW's canonical balance deducts a real MAIN-LEDGER operating expense
+    // as soon as it exists, even while EMP-0001 approval is pending. Municipality
+    // File Pass transactions use SPECIAL_LEDGER and must stay isolated in their
+    // own ledger, so they are deliberately never promoted to Posted here.
     if (
       type === "expense" &&
       debit > 0 &&
