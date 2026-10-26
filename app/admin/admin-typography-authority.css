@@ -1,0 +1,173 @@
+/* LAND VIEW Admin typography authority.
+   Final screen-only layer for readable workspace text. It intentionally does
+   not affect print output or client/public surfaces. */
+
+@media screen {
+  .portal-admin {
+    --lv-admin-type-meta: 12px;
+    --lv-admin-type-label: 13px;
+    --lv-admin-type-control: 13px;
+    --lv-admin-type-table-head: 13px;
+    --lv-admin-type-body: 14px;
+    --lv-admin-type-input: 14px;
+    font-size: var(--lv-admin-type-body) !important;
+    line-height: 1.55;
+  }
+
+  .portal-admin :where(p, li, td, dd, dt) {
+    font-size: var(--lv-admin-type-body) !important;
+    line-height: 1.55 !important;
+  }
+
+  .portal-admin :where(th) {
+    font-size: var(--lv-admin-type-table-head) !important;
+    line-height: 1.4 !important;
+  }
+
+  .portal-admin :where(label) {
+    font-size: var(--lv-admin-type-label) !important;
+    line-height: 1.4 !important;
+  }
+
+  .portal-admin :where(small) {
+    font-size: var(--lv-admin-type-meta) !important;
+    line-height: 1.45 !important;
+  }
+
+  .portal-admin :where(button, .btn, [role="button"]) {
+    font-size: var(--lv-admin-type-control) !important;
+  }
+
+  .portal-admin :where(input, select, textarea) {
+    font-size: var(--lv-admin-type-input) !important;
+    line-height: 1.45 !important;
+  }
+
+  /* Navigation used by both Admin and Project Management. */
+  .portal-admin :where(
+    .primary-nav a,
+    .portal-navigation a,
+    .lv-nav-direct,
+    .lv-nav-group-button,
+    .lv-nav-children > a,
+    .admin-mobile-account button,
+    .admin-mobile-account a
+  ) {
+    font-size: 13px !important;
+  }
+
+  .portal-admin :where(.utility-item, .utility-logout, .masthead-brand span) {
+    font-size: 12px !important;
+  }
+
+  .portal-admin .utility-item small {
+    font-size: 12px !important;
+  }
+
+  /* Common compact UI families: never allow functional Admin text below 12px. */
+  .portal-admin :where(
+    [class*="kicker" i],
+    [class*="eyebrow" i],
+    [class*="caption" i],
+    [class*="helper" i],
+    [class*="hint" i]
+  ) {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+  }
+
+  /* Billing 2.0 workspace previously contained 7-10px text. */
+  .portal-admin :where(.b2-head small, .b2-picker label, .b2-project span, .b2-project-meta small,
+    .b2-kpi span, .b2-alert span, .b2-service span, .b2-money span, .b2-next span,
+    .b2-milestone small) {
+    font-size: 12px !important;
+  }
+
+  .portal-admin :where(.b2-head p, .b2-msg, .b2-btn, .b2-tab, .b2-small,
+    .b2-service strong, .b2-money strong, .b2-next strong, .b2-milestone b,
+    .b2-milestone .seq, .b2-event, .b2-event strong, .b2-empty) {
+    font-size: 13px !important;
+  }
+
+  .portal-admin .b2-table th { font-size: 13px !important; }
+  .portal-admin .b2-table td { font-size: 14px !important; }
+  .portal-admin .b2-status { font-size: 12px !important; }
+
+  /* Direct / Full Billing workspace. */
+  .portal-admin :where(.db-field label, .db-project span, .db-stat span, .db-table th, .db-help) {
+    font-size: 12px !important;
+  }
+
+  .portal-admin :where(.db-project strong, .db-table td, .db-delete) {
+    font-size: 13px !important;
+  }
+
+  /* Project Management workspace and chooser. */
+  .portal-admin :where(.pm-chooser-kicker, .pm-option-code, .pm-option-meta, .pm-option-footer,
+    .pm-readonly, .pm-label, .pm-overview-history-head small, .pm-finance-summary-head small,
+    .pm-finance-foot, .pm-sattapur-head small, .pm-sattapur-hold span,
+    .pm-sattapur-stats span, .pm-sattapur-stats small, .pm-sattapur-history-head > span,
+    .pm-source-tag, .pm-cheque-status, .pm-category-tag, .pm-table-footer,
+    .pm-party-add-head span) {
+    font-size: 12px !important;
+  }
+
+  .portal-admin :where(.pm-module-nav button, .pm-overview-history-head button,
+    .pm-sattapur-dashboard-actions button, .pm-category b) {
+    font-size: 13px !important;
+  }
+
+  .portal-admin :where(.pm-overview-type, .pm-sattapur-type) {
+    font-size: 12px !important;
+  }
+
+  .portal-admin .pm-sattapur-table th,
+  .portal-admin .pm-party-table th,
+  .portal-admin .pm-table th {
+    font-size: 13px !important;
+  }
+
+  .portal-admin .pm-sattapur-table td,
+  .portal-admin .pm-party-table td,
+  .portal-admin .pm-table td {
+    font-size: 14px !important;
+  }
+
+  /* Detailed / Summary Estimate mobile rules used to force 9-10px. */
+  .portal-admin .de-table th {
+    font-size: 13px !important;
+  }
+
+  .portal-admin .de-table td {
+    font-size: 14px !important;
+  }
+
+  @media (max-width: 900px) {
+    .portal-admin {
+      --lv-admin-type-body: 14px;
+      --lv-admin-type-input: 16px;
+    }
+
+    .portal-admin .utility-inner::before {
+      font-size: 12px !important;
+    }
+
+    .portal-admin :where(button, .btn, [role="button"], a[class*="button" i]) {
+      font-size: 14px !important;
+    }
+
+    .portal-admin :where(th) {
+      font-size: 13px !important;
+    }
+
+    .portal-admin :where(td) {
+      font-size: 14px !important;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .portal-admin .utility-inner::before {
+      font-size: 12px !important;
+    }
+  }
+}
