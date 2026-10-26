@@ -11,19 +11,22 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         .finance-section-nav{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 18px;padding:9px;border:1px solid var(--theme-line-_313b44,#313b44);border-radius:10px;background:var(--theme-bg-_11181e,#11181e)}
         .finance-section-nav a{display:inline-flex;align-items:center;min-height:36px;padding:8px 11px;border:1px solid var(--theme-line-_36414a,#36414a);border-radius:7px;background:var(--theme-bg-_151d24,#151d24);color:var(--theme-ink-_dbe3e8,#dbe3e8);font-size:11px;font-weight:900;text-decoration:none}
         .finance-section-nav a.primary{border-color:#8b4039;background:#3a211f;color:#ffd0cc}
+        .finance-section-nav a.featured{border-color:var(--lv-brand-border,#d94b45);background:var(--lv-brand-primary,#d94b45);color:#fff;box-shadow:0 5px 18px rgba(217,75,69,.2)}
         .finance-section-nav a:hover{border-color:var(--theme-line-_67737d,#67737d)}
-        @media(max-width:720px){.finance-section-nav{display:grid;grid-template-columns:1fr 1fr}.finance-section-nav a{justify-content:center;text-align:center}}
+        @media(max-width:720px){.finance-section-nav{display:grid;grid-template-columns:1fr 1fr}.finance-section-nav a{justify-content:center;text-align:center}.finance-section-nav a.featured{grid-column:1/-1}}
       `}</style>
-      <Link className="primary" href="/admin/finance/workspace">Billing 2.0</Link>
-      <Link className="primary" href="/admin/finance/bills">Bills</Link>
-      <Link className="primary" href="/admin/finance/direct-bill">+ Add Bill</Link>
+      <Link href="/admin/finance">Finance Home</Link>
+      <Link className="featured" href="/admin/finance/full-bill-editor">Full Bill Editor</Link>
+      <Link className="primary" href="/admin/finance/direct-bill">+ New Full Bill</Link>
+      <Link className="primary" href="/admin/finance/workspace">Billing Workspace</Link>
       <Link className="primary" href="/admin/finance/due-bills">Due Bills</Link>
       <Link className="primary" href="/admin/finance/service-payments">Receive Payment</Link>
+      <Link href="/admin/finance/bills">Bill Items / Audit</Link>
       <Link href="/admin/finance/payment-lifecycle">Invoices / Receipts</Link>
       <Link href="/admin/finance/adjustments">Credit / Debit Notes</Link>
       <Link href="/admin/finance/billing-control">Billing Controls</Link>
       <Link href="/admin/finance/control">Control Center</Link>
-      <Link href="/admin/accounts">Accounts</Link>
+      <Link href="/admin/accounts">Accounts / Ledger</Link>
     </nav>
     {children}
   </>;
