@@ -242,9 +242,9 @@ export default function ProjectBillingDocumentRevamp({
                         <th>SL.</th>
                         <th>DESCRIPTION</th>
                         {engineeringBill ? <>
-                          <th>AMOUNT (BDT)</th>
-                          <th>DISCOUNT (BDT)</th>
-                          <th>NET AMOUNT (BDT)</th>
+                          <th>AMOUNT</th>
+                          <th>DISCOUNT</th>
+                          <th>NET AMOUNT</th>
                         </> : <>
                           <th>RATE (BDT)</th>
                           <th>QTY</th>
@@ -272,7 +272,7 @@ export default function ProjectBillingDocumentRevamp({
                             {engineeringBill ? <>
                               <td>{amountText(amount)}</td>
                               <td>{serviceDiscount > 0.009 ? amountText(serviceDiscount) : "—"}</td>
-                              <td><strong>{amountText(serviceNet)}</strong></td>
+                              <td>{amountText(serviceNet)}</td>
                             </> : <>
                               <td>{soilTest && item.price ? amountText(item.price) : ""}</td>
                               <td>{soilTest && item.quantity ? item.quantity : ""}</td>
@@ -392,9 +392,10 @@ export default function ProjectBillingDocumentRevamp({
           .lvBillTable col:nth-child(1){width:7%!important}.lvBillTable col:nth-child(2){width:42%!important}.lvBillTable col:nth-child(3){width:18%!important}.lvBillTable col:nth-child(4){width:12%!important}.lvBillTable col:nth-child(5){width:21%!important}
           .lvBillTable th:nth-child(3),.lvBillTable td:nth-child(3),.lvBillTable th:nth-child(4),.lvBillTable td:nth-child(4){text-align:center!important}
           .lvBillTable th:nth-child(5),.lvBillTable td:nth-child(5){text-align:right!important;white-space:nowrap!important}
-          .lvEngineeringBillTable col:nth-child(1){width:7%!important}.lvEngineeringBillTable col:nth-child(2){width:43%!important}.lvEngineeringBillTable col:nth-child(3){width:17%!important}.lvEngineeringBillTable col:nth-child(4){width:16%!important}.lvEngineeringBillTable col:nth-child(5){width:17%!important}
+          .lvEngineeringBillTable col:nth-child(1){width:7%!important}.lvEngineeringBillTable col:nth-child(2){width:42%!important}.lvEngineeringBillTable col:nth-child(3){width:17%!important}.lvEngineeringBillTable col:nth-child(4){width:16%!important}.lvEngineeringBillTable col:nth-child(5){width:18%!important}
           .lvEngineeringBillTable th:nth-child(3),.lvEngineeringBillTable td:nth-child(3),.lvEngineeringBillTable th:nth-child(4),.lvEngineeringBillTable td:nth-child(4),.lvEngineeringBillTable th:nth-child(5),.lvEngineeringBillTable td:nth-child(5){text-align:right!important;white-space:nowrap!important}
           .lvEngineeringBillTable td:nth-child(4){color:#d7192d!important;font-weight:800!important}
+          .lvEngineeringBillTable td:nth-child(5){color:#111!important;font-weight:800!important}
 
           .lvTotalsBlock{width:100%!important;margin-top:0!important;border:1px solid #cbd1d6!important;border-top:0!important;box-sizing:border-box!important}
           .lvTotalsBlock>div{display:grid!important;grid-template-columns:minmax(0,1fr) 42mm!important;align-items:center!important;min-height:6.6mm!important;border-top:1px solid #d6dbe0!important}
