@@ -2,31 +2,33 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { handleLandviewDataAction, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
 import { getProjectServiceFinancials } from "@/lib/service-workflow";
+import { loadReceivableAuthority, type PaymentReceivableState, type ReceivableAuthority } from "@/lib/billing-receivable-authority";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
 type Category = "Engineering Bill" | "Design Books" | "Supervision Bill" | "Other Services Bill";
-const TABS = ["Summary","File List","Design Bill","Design Deposit","Design Books Bill","Design Books Deposit","Supervision Bill","S Deposit","Others Bill","Others Bill Deposit"];
+type Group = { bills: Row[]; payments: PaymentReceivableState[]; gross: number; discount: number; paid: number; due: number; preDue: number };
+const TABS = ["Summary", "File List", "Design Bill", "Design Deposit", "Design Books Bill", "Design Books Deposit", "Supervision Bill", "S Deposit", "Others Bill", "Others Bill Deposit"];
 
 function text(v: unknown) { return String(v ?? "").trim(); }
-function num(v: unknown) { const n=Number(text(v).replace(/,/g,"").replace(/[^0-9.-]/g,"")); return Number.isFinite(n)?n:0; }
+function num(v: unknown) { const n = Number(text(v).replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; }
 function category(row: Row): Category {
-  const source=text(
+  const source = text(
     row.Billing_Category || row.billing_category ||
     row.Income_Category || row.income_category ||
     row.Category || row.category ||
     row.Payment_For || row.payment_for ||
-    row.Description || row.description
+    row.Description || row.description,
   ).toLowerCase();
-  if(/design\s*books?/.test(source)) return "Design Books";
-  if(/supervision/.test(source)) return "Supervision Bill";
-  if(/other|soil|survey|municipality|file pass/.test(source)) return "Other Services Bill";
+  if (/design\s*books?/.test(source)) return "Design Books";
+  if (/supervision/.test(source)) return "Supervision Bill";
+  if (/other|soil|survey|municipality|file pass/.test(source)) return "Other Services Bill";
   return "Engineering Bill";
 }
 function effectiveBill(row: Row) {
-  return !["void","voided","cancelled","canceled","rejected"].includes(text(row.Status || row.status).toLowerCase());
+  return !["draft", "void", "voided", "cancelled", "canceled", "rejected", "returned"].includes(text(row.Status || row.status).toLowerCase());
 }
 function adjustmentKind(row: Row) {
   const createdVia = text(row.Created_Via || row.created_via).toLowerCase();
@@ -39,11 +41,17 @@ function serviceDescription(row: Row, fallback: string) {
   const clean = description.replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim();
   return clean || fallback;
 }
-function serviceAdjustmentKey(categoryName: unknown, serviceName: unknown) {
-  return `${text(categoryName).toLowerCase()}|${text(serviceName).toLowerCase().replace(/\s+/g," ")}`;
+function sheet(tab: string, headers: string[], rows: unknown[][], totals: Row = { gross: 0, discount: 0, billed: 0, paid: 0, due: 0, projects: 1 }) {
+  return { tab, tabs: [...TABS], headers, rows: rows.map((r) => r.map((v) => String(v ?? ""))), totals, url: "", updatedAt: new Date().toISOString() };
 }
-function sheet(tab:string,headers:string[],rows:unknown[][],totals:Row={gross:0,discount:0,billed:0,paid:0,due:0,projects:1}) {
-  return {tab,tabs:[...TABS],headers,rows:rows.map(r=>r.map(v=>String(v??""))),totals,url:"",updatedAt:new Date().toISOString()};
+function reduceGroupDue(groups: Record<Category, Group>, categories: Category[], target: number) {
+  let reduction = Math.max(0, categories.reduce((sum, key) => sum + groups[key].due, 0) - Math.max(0, target));
+  for (const key of [...categories].sort((a, b) => groups[b].due - groups[a].due)) {
+    if (reduction <= 0.009) break;
+    const applied = Math.min(groups[key].due, reduction);
+    groups[key].due -= applied;
+    reduction -= applied;
+  }
 }
 
 async function billingV2CommercialSummary(projectCode: string) {
@@ -90,12 +98,7 @@ async function billingV2CommercialSummary(projectCode: string) {
       paid,
       due,
       unbilled,
-      nextBilling: next ? {
-        milestone: next.milestone_name,
-        trigger: next.trigger_status,
-        amount: Math.max(0, num(next.net_amount)),
-        status: next.status,
-      } : null,
+      nextBilling: next ? { milestone: next.milestone_name, trigger: next.trigger_status, amount: Math.max(0, num(next.net_amount)), status: next.status } : null,
     };
   });
 
@@ -107,143 +110,163 @@ async function billingV2CommercialSummary(projectCode: string) {
     unbilled: sum.unbilled + row.unbilled,
   }), { contract: 0, billed: 0, paid: 0, due: 0, unbilled: 0 });
 
-  return {
-    contractStatus: contract.status || "Active",
-    proposalCode: contract.proposal_code || "",
-    totals,
-    services: serviceRows,
-  };
+  return { contractStatus: contract.status || "Active", proposalCode: contract.proposal_code || "", totals, services: serviceRows };
 }
 
-async function billingLifecycle(projectCode: string) {
-  const projectRows = await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 });
-  const project = projectRows[0];
-  if (!project) return { invoices: [], receipts: [], unallocated: 0 };
-  const [invoices, payments] = await Promise.all([
-    selectRows("invoices", { filters: { project_id: project.id }, order: "issue_date:desc,created_at:desc", limit: 2000 }),
-    selectRows("payments", { filters: { project_id: project.id }, order: "payment_date:desc,created_at:desc", limit: 2000 }),
-  ]);
-  const receiptRows = payments.filter((row: Row) => text(row.receipt_url));
+function billingLifecycle(authority: ReceivableAuthority) {
+  const receipts = authority.payments
+    .filter((row) => row.effective && text(row.row.receipt_url))
+    .sort((a, b) => new Date(text(b.row.payment_date || b.row.created_at)).getTime() - new Date(text(a.row.payment_date || a.row.created_at)).getTime());
   return {
-    invoices: invoices.map((row: Row) => ({
-      invoiceCode: row.invoice_code || row.invoice_no || "",
-      billCode: row.bill_code || "",
-      issueDate: row.issue_date || "",
-      dueDate: row.due_date || "",
-      category: row.category || "",
-      amount: num(row.amount),
-      paid: num(row.paid_amount_snapshot),
-      due: num(row.due_amount_snapshot),
-      status: row.status || "ISSUED",
+    invoices: authority.invoices.map((row) => ({
+      invoiceCode: row.invoiceCode,
+      billCode: row.billCode,
+      issueDate: row.row.issue_date || "",
+      dueDate: row.row.due_date || "",
+      category: row.row.category || "",
+      amount: row.amount,
+      paid: row.allocated,
+      due: row.dueBeforeRelief,
+      status: row.settledByBill || row.dueBeforeRelief <= 0.009 ? "PAID" : row.allocated > 0.009 ? "PARTIALLY PAID" : "ISSUED",
     })),
-    receipts: receiptRows.map((row: Row) => ({
-      receiptCode: `RCPT-${row.payment_code}`,
-      paymentCode: row.payment_code || "",
-      date: row.payment_date || "",
-      amount: num(row.amount),
-      allocated: num(row.invoice_allocated_amount),
-      unallocated: num(row.invoice_unallocated_amount),
-      allocationStatus: row.invoice_allocation_status || "Unallocated",
-      method: row.payment_method || "",
-      reference: row.reference_no || "",
-      receiptUrl: row.receipt_url || "",
+    receipts: receipts.map((row) => ({
+      receiptCode: `RCPT-${row.paymentCode}`,
+      paymentCode: row.paymentCode,
+      date: row.row.payment_date || "",
+      amount: row.amount,
+      allocated: row.allocated,
+      unallocated: row.unallocated,
+      allocationStatus: row.unallocated > 0.009 ? (row.allocated > 0.009 ? "Partially Allocated" : "Unallocated") : "Allocated",
+      method: row.row.payment_method || "",
+      reference: row.row.reference_no || "",
+      receiptUrl: row.row.receipt_url || "",
     })),
-    unallocated: receiptRows.reduce((sum: number, row: Row) => sum + Math.max(0, num(row.invoice_unallocated_amount)), 0),
+    unallocated: authority.payments.filter((row) => row.effective).reduce((sum, row) => sum + row.unallocated, 0),
   };
 }
 
 export async function GET(request: NextRequest) {
   try {
-    const projectId=normalizeProjectCode(request.nextUrl.searchParams.get("fileId"));
-    if(!projectId) return NextResponse.json({success:false,error:"Enter a valid File ID such as LV-209."},{status:400});
-    const user=await requireLocalSession(request);
-    if(!user) return NextResponse.json({success:false,error:"Session expired."},{status:401});
+    const projectId = normalizeProjectCode(request.nextUrl.searchParams.get("fileId"));
+    if (!projectId) return NextResponse.json({ success: false, error: "Enter a valid File ID such as LV-209." }, { status: 400 });
+    const user = await requireLocalSession(request);
+    if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     if (roleOf(user as Row) === "client") {
-      const rawIds=String((user as Row).projectIds || (user as Row).Project_IDs || (user as Row).project_ids || "");
-      const allowedIds=new Set(rawIds.split(/[;,\s]+/).map(normalizeProjectCode).filter(Boolean));
-      if (!allowedIds.has(projectId)) return NextResponse.json({success:false,error:"Access denied for this project."},{status:403});
+      const rawIds = String((user as Row).projectIds || (user as Row).Project_IDs || (user as Row).project_ids || "");
+      const allowedIds = new Set(rawIds.split(/[;,\s]+/).map(normalizeProjectCode).filter(Boolean));
+      if (!allowedIds.has(projectId)) return NextResponse.json({ success: false, error: "Access denied for this project." }, { status: 403 });
     }
-    const [project,billing,commercial,lifecycle,adjustments]=await Promise.all([
-      handleLandviewDataAction("getProject",{projectId},user) as Promise<Row>,
-      handleLandviewDataAction("getProjectBilling",{projectId},user) as Promise<Row>,
+
+    const projectRows = await selectRows("projects", { filters: { project_code: projectId }, limit: 1 });
+    const projectRow = projectRows[0];
+    if (!projectRow) return NextResponse.json({ success: false, error: `Project ${projectId} was not found.` }, { status: 404 });
+
+    const [project, billing, commercial, authority] = await Promise.all([
+      handleLandviewDataAction("getProject", { projectId }, user) as Promise<Row>,
+      handleLandviewDataAction("getProjectBilling", { projectId }, user) as Promise<Row>,
       billingV2CommercialSummary(projectId).catch(() => null),
-      billingLifecycle(projectId).catch(() => ({ invoices: [], receipts: [], unallocated: 0 })),
-      selectRows("billing_adjustments", { filters: { project_code: projectId }, order: "posted_at:asc", limit: 2000 }).catch(() => [] as Row[]),
+      loadReceivableAuthority({ projectId: text(projectRow.id) }),
     ]);
-    const bills=((Array.isArray(billing.bills)?billing.bills:[]) as Row[]).filter(effectiveBill);
-    const payments=(Array.isArray(billing.payments)?billing.payments:[]) as Row[];
-    const groups: Record<Category,{bills:Row[];payments:Row[];gross:number;discount:number;paid:number;due:number}>={
-      "Engineering Bill":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
-      "Design Books":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
-      "Supervision Bill":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
-      "Other Services Bill":{bills:[],payments:[],gross:0,discount:0,paid:0,due:0},
-    };
-    // Adjustment mirror bills remain part of the financial totals so Credit Notes
-    // reduce the balance and Debit Notes increase it. They are audit records,
-    // though, not a second delivery of the same service. Keep them out of the
-    // normal service line list below so a discount never creates a duplicate row.
-    for(const b of bills){const g=groups[category(b)];g.bills.push(b);g.gross+=num(b.Amount);g.discount+=num(b.Discount);}
-    for(const p of payments){const g=groups[category(p)];g.payments.push(p);g.paid+=num(p.Amount);}
-    for(const g of Object.values(groups))g.due=Math.max(0,g.gross-g.discount-g.paid);
-    const eng=groups["Engineering Bill"],books=groups["Design Books"],sup=groups["Supervision Bill"],oth=groups["Other Services Bill"];
-    const totalDue=eng.due+books.due+sup.due+oth.due,totalBilled=eng.gross-eng.discount+books.gross-books.discount+sup.gross-sup.discount+oth.gross-oth.discount;
 
-    // Attach posted Credit Notes back to the original service bill. The billing
-    // gateway has historically exposed either the UUID or the bill code as
-    // Bill_ID, so index adjustments by both references and keep service/category
-    // as a last-resort compatibility key.
-    const creditByBillRef = new Map<string, number>();
-    const creditByService = new Map<string, number>();
-    const addCredit = (map: Map<string, number>, key: unknown, amount: number) => {
-      const normalized = text(key).toLowerCase();
-      if (!normalized) return;
-      map.set(normalized, (map.get(normalized) || 0) + amount);
+    const gatewayBills = ((Array.isArray(billing.bills) ? billing.bills : []) as Row[]).filter(effectiveBill);
+    const groups: Record<Category, Group> = {
+      "Engineering Bill": { bills: [], payments: [], gross: 0, discount: 0, paid: 0, due: 0, preDue: 0 },
+      "Design Books": { bills: [], payments: [], gross: 0, discount: 0, paid: 0, due: 0, preDue: 0 },
+      "Supervision Bill": { bills: [], payments: [], gross: 0, discount: 0, paid: 0, due: 0, preDue: 0 },
+      "Other Services Bill": { bills: [], payments: [], gross: 0, discount: 0, paid: 0, due: 0, preDue: 0 },
     };
-    for (const adjustment of (adjustments as Row[])) {
-      if (text(adjustment.status).toLowerCase() === "void") continue;
-      if (text(adjustment.adjustment_type).toLowerCase() !== "credit note") continue;
-      const amount = Math.max(0, num(adjustment.amount));
-      if (amount <= 0.009) continue;
-      addCredit(creditByBillRef, adjustment.bill_id, amount);
-      addCredit(creditByBillRef, adjustment.bill_code, amount);
-      addCredit(creditByService, serviceAdjustmentKey(adjustment.billing_category, adjustment.service_name), amount);
+
+    for (const bill of gatewayBills) groups[category(bill)].bills.push(bill);
+    for (const bill of authority.bills) {
+      const group = groups[category(bill.row)];
+      group.gross += bill.gross + bill.debitAdjustment;
+      group.discount += bill.effectiveDiscount;
+      group.preDue += bill.dueBeforeRelief;
+      group.due += bill.dueBeforeRelief;
+    }
+    for (const payment of authority.payments.filter((row) => row.effective)) {
+      const group = groups[category(payment.row)];
+      group.payments.push(payment);
+      group.paid += payment.amount;
     }
 
-    const billRows=(c:Category)=>groups[c].bills
-      .filter(b=>adjustmentKind(b)!=="credit")
-      .map(b=>{
-        const kind=adjustmentKind(b);
-        const description=kind==="debit" ? `Debit Note — ${serviceDescription(b,c)}` : (b.Description||c);
-        const billRefs=[b.Bill_ID,b.Bill_Code,b.bill_id,b.bill_code,b.ID,b.id]
-          .map(value=>text(value).toLowerCase())
-          .filter(Boolean);
-        let serviceCredit=0;
-        if (!kind) {
-          for (const ref of billRefs) {
-            const matched = creditByBillRef.get(ref);
-            if (matched !== undefined) { serviceCredit=matched; break; }
-          }
-          if (serviceCredit <= 0.009) {
-            serviceCredit=creditByService.get(serviceAdjustmentKey(c,serviceDescription(b,c))) || 0;
-          }
-        }
-        const effectiveDiscount=Math.max(0,num(b.Discount)+serviceCredit);
-        const effectiveNet=Math.max(0,num(b.Amount)-effectiveDiscount);
-        return [projectId,description,b.Unit_Price||"",b.Quantity||"",b.Amount||0,b.Bill_ID||b.Bill_Code||b.bill_code||b.id||"",b.Status||"",effectiveNet,effectiveDiscount];
+    const projectReceivable = authority.projects.get(text(projectRow.id));
+    if (projectReceivable) {
+      reduceGroupDue(groups, ["Engineering Bill", "Design Books"], projectReceivable.engineeringDue);
+      reduceGroupDue(groups, ["Supervision Bill"], projectReceivable.supervisionDue);
+      reduceGroupDue(groups, ["Other Services Bill"], projectReceivable.otherDue);
+    }
+
+    const eng = groups["Engineering Bill"], books = groups["Design Books"], sup = groups["Supervision Bill"], oth = groups["Other Services Bill"];
+    const totalDue = eng.due + books.due + sup.due + oth.due;
+    const totalBilled = eng.gross - eng.discount + books.gross - books.discount + sup.gross - sup.discount + oth.gross - oth.discount;
+
+    const receivableByRef = new Map<string, (typeof authority.bills)[number]>();
+    for (const state of authority.bills) {
+      for (const ref of [state.billId, state.billCode]) {
+        const key = text(ref).toLowerCase();
+        if (key) receivableByRef.set(key, state);
+      }
+    }
+
+    const billRows = (c: Category) => groups[c].bills
+      .filter((b) => adjustmentKind(b) !== "credit")
+      .map((b) => {
+        const kind = adjustmentKind(b);
+        const description = kind === "debit" ? `Debit Note — ${serviceDescription(b, c)}` : (b.Description || b.description || c);
+        const refs = [b.Bill_ID, b.Bill_Code, b.bill_id, b.bill_code, b.ID, b.id].map((value) => text(value).toLowerCase()).filter(Boolean);
+        const state = refs.map((ref) => receivableByRef.get(ref)).find(Boolean);
+        const fallbackDiscount = Math.max(0, num(b.Discount || b.discount));
+        const fallbackNet = Math.max(0, num(b.Net_Amount || b.net_amount || b.Amount || b.amount) - (b.Net_Amount || b.net_amount ? 0 : fallbackDiscount));
+        const effectiveDiscount = state ? state.effectiveDiscount : fallbackDiscount;
+        const effectiveNet = state ? state.effectiveAmount : fallbackNet;
+        const paid = state ? state.paidForReceivable : (["paid", "full paid", "fully paid"].includes(text(b.Status || b.status).toLowerCase()) ? effectiveNet : 0);
+        const due = state ? state.dueBeforeRelief : Math.max(0, effectiveNet - paid);
+        return [
+          projectId,
+          description,
+          b.Unit_Price || b.unit_price || "",
+          b.Quantity || b.quantity || "",
+          b.Amount || b.amount || 0,
+          b.Bill_ID || b.Bill_Code || b.bill_code || b.id || "",
+          b.Status || b.status || "",
+          effectiveNet,
+          effectiveDiscount,
+          paid,
+          due,
+        ];
       });
-    const payRows=(c:Category)=>groups[c].payments.map(p=>[projectId,p.Payment_Date||"",[p.Payment_Method,p.Reference_No].filter(Boolean).join(" · ")||"Client Payment",p.Amount||0,p.Approval_Status||"Approved",p.Payment_ID||""]);
-    const sheets=[
-      sheet("Summary",["FILE ID","Client Name","Project Name","Engineering Bill","Engineering Discount","Engineering Deposit","Engineering Due","Supervision Bill","Supervision Discount","Supervision Deposit","Supervision Due","Other Services Bill","Other Services Discount","Other Services Deposit","Other Services Due","Design Books Bill","Design Books Discount","Design Books Deposit","Design Books Due","Total Due","Status"],[[projectId,project.Client_Name||"",project.Project_Name||"",eng.gross,eng.discount,eng.paid,eng.due,sup.gross,sup.discount,sup.paid,sup.due,oth.gross,oth.discount,oth.paid,oth.due,books.gross,books.discount,books.paid,books.due,totalDue,totalDue>.009?"DUE":totalBilled>0?"FULL PAID":""]]),
-      sheet("File List",["FILE ID","Client Name","Address","Phone","Floor/Story","Build Type","Land Area","Referred By","Ref. Contact"],[[projectId,project.Client_Name||"",project.Location||"",project.Phone_Number||"",project.Floors||"",project.Project_Type||"",project.Plot_Area||"",project.Referred_By||"",project.Ref_Contact||""]]),
-      sheet("Design Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID","Status","Net Amount (BDT)","Discount (BDT)"],billRows("Engineering Bill")),
-      sheet("Design Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Engineering Bill")),
-      sheet("Design Books Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID","Status","Net Amount (BDT)","Discount (BDT)"],billRows("Design Books")),
-      sheet("Design Books Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Design Books")),
-      sheet("Supervision Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID","Status","Net Amount (BDT)","Discount (BDT)"],billRows("Supervision Bill")),
-      sheet("S Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Supervision Bill")),
-      sheet("Others Bill",["FILE ID","Service Name","Rate (BDT)","QTY","Amount (BDT)","Bill ID","Status","Net Amount (BDT)","Discount (BDT)"],billRows("Other Services Bill")),
-      sheet("Others Bill Deposit",["FILE ID","Date","Details","Amount","Verification","Income ID"],payRows("Other Services Bill")),
+
+    const payRows = (c: Category) => groups[c].payments.map((p) => [
+      projectId,
+      p.row.payment_date || "",
+      [p.row.payment_method, p.row.reference_no].filter(Boolean).join(" · ") || "Client Payment",
+      p.amount,
+      "Verified",
+      p.paymentCode,
+    ]);
+
+    const billHeaders = ["FILE ID", "Service Name", "Rate (BDT)", "QTY", "Amount (BDT)", "Bill ID", "Status", "Net Amount (BDT)", "Discount (BDT)", "Paid (BDT)", "Due (BDT)"];
+    const sheets = [
+      sheet("Summary", ["FILE ID", "Client Name", "Project Name", "Engineering Bill", "Engineering Discount", "Engineering Deposit", "Engineering Due", "Supervision Bill", "Supervision Discount", "Supervision Deposit", "Supervision Due", "Other Services Bill", "Other Services Discount", "Other Services Deposit", "Other Services Due", "Design Books Bill", "Design Books Discount", "Design Books Deposit", "Design Books Due", "Total Due", "Status"], [[projectId, project.Client_Name || "", project.Project_Name || "", eng.gross, eng.discount, eng.paid, eng.due, sup.gross, sup.discount, sup.paid, sup.due, oth.gross, oth.discount, oth.paid, oth.due, books.gross, books.discount, books.paid, books.due, totalDue, totalDue > .009 ? "DUE" : totalBilled > 0 ? "FULL PAID" : ""]]),
+      sheet("File List", ["FILE ID", "Client Name", "Address", "Phone", "Floor/Story", "Build Type", "Land Area", "Referred By", "Ref. Contact"], [[projectId, project.Client_Name || "", project.Location || "", project.Phone_Number || "", project.Floors || "", project.Project_Type || "", project.Plot_Area || "", project.Referred_By || "", project.Ref_Contact || ""]]),
+      sheet("Design Bill", billHeaders, billRows("Engineering Bill")),
+      sheet("Design Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Engineering Bill")),
+      sheet("Design Books Bill", billHeaders, billRows("Design Books")),
+      sheet("Design Books Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Design Books")),
+      sheet("Supervision Bill", billHeaders, billRows("Supervision Bill")),
+      sheet("S Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Supervision Bill")),
+      sheet("Others Bill", billHeaders, billRows("Other Services Bill")),
+      sheet("Others Bill Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Other Services Bill")),
     ];
-    return NextResponse.json({success:true,data:{projectId,sheets,payments,commercial,lifecycle,updatedAt:new Date().toISOString(),source:"supabase"}},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase"}});
-  } catch(error){const message=error instanceof Error?error.message:"Project billing request failed.";return NextResponse.json({success:false,error:message},{status:/session/i.test(message)?401:/not found/i.test(message)?404:502,headers:{"Cache-Control":"no-store"}});}
+
+    const lifecycle = billingLifecycle(authority);
+    const payments = authority.payments.filter((row) => row.effective).map((row) => row.row);
+    return NextResponse.json({ success: true, data: { projectId, sheets, payments, commercial, lifecycle, updatedAt: new Date().toISOString(), source: "supabase" } }, {
+      headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "canonical-receivable-authority" },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Project billing request failed.";
+    return NextResponse.json({ success: false, error: message }, { status: /session/i.test(message) ? 401 : /not found/i.test(message) ? 404 : 502, headers: { "Cache-Control": "no-store" } });
+  }
 }
