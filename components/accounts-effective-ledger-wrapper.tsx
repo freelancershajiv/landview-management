@@ -13,6 +13,7 @@ const NON_EFFECTIVE_EXPENSE_STATUSES = new Set([
   "draft",
   "special ledger",
 ]);
+const SPECIAL_LEDGER_STATUS = "special ledger";
 
 let patched = false;
 
@@ -38,16 +39,20 @@ function withEffectiveExpenseStatus(data: FinanceSheetData) {
   const statusIndex = headers.indexOf("Status");
   if (typeIndex < 0 || debitIndex < 0 || statusIndex < 0) return data;
 
-  const rows = (data.rows || []).map((source) => {
+  const rows = (data.rows || []).flatMap((source) => {
     const row = [...source];
     const type = normalize(row[typeIndex]);
     const status = normalize(row[statusIndex] || "Posted");
     const debit = amount(row[debitIndex]);
 
+    // SPECIAL_LEDGER is the isolated Municipality File Pass ledger. Do not send
+    // these rows into Main Accounts at all. Municipality income/expenses remain
+    // under Municipality Accounts until an explicit "Send to Main Ledger"
+    // transfer creates a separate main-ledger transaction.
+    if (status === SPECIAL_LEDGER_STATUS) return [];
+
     // LAND VIEW's canonical balance deducts a real MAIN-LEDGER operating expense
-    // as soon as it exists, even while EMP-0001 approval is pending. Municipality
-    // File Pass transactions use SPECIAL_LEDGER and must stay isolated in their
-    // own ledger, so they are deliberately never promoted to Posted here.
+    // as soon as it exists, even while EMP-0001 approval is pending.
     if (
       type === "expense" &&
       debit > 0 &&
@@ -57,7 +62,7 @@ function withEffectiveExpenseStatus(data: FinanceSheetData) {
       row[statusIndex] = "Posted";
     }
 
-    return row;
+    return [row];
   });
 
   return { ...data, rows };
