@@ -1,13 +1,11 @@
 import Link from "next/link";
 import BillingLocationTagCleaner from "@/components/billing-location-tag-cleaner";
-import FinanceProjectVisibility from "@/components/finance-project-visibility";
 import "./invoices/invoice-revamp-print-fix.css";
 import "./invoices/invoice-column-alignment-fix.css";
 
 export default function FinanceLayout({ children }: { children: React.ReactNode }) {
   return <>
     <BillingLocationTagCleaner />
-    <FinanceProjectVisibility />
     <nav className="finance-section-nav" aria-label="Finance sections">
       <style>{`
         .finance-section-nav{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 18px;padding:9px;border:1px solid var(--theme-line-_313b44,#313b44);border-radius:10px;background:var(--theme-bg-_11181e,#11181e)}
@@ -18,7 +16,6 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
         @media(max-width:440px){.finance-section-nav{grid-template-columns:1fr}}
       `}</style>
       <Link href="/admin/finance">Finance Home</Link>
-      <Link href="/admin/finance/projects">Finance Projects</Link>
       <Link className="primary" href="/admin/finance/add-bill">+ Add Bill</Link>
       <Link className="primary" href="/admin/finance/direct-bill">+ New Full Bill</Link>
       <Link className="primary" href="/admin/finance/full-bill-editor">Edit Full Bill</Link>
