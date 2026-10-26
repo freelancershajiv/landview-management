@@ -72,6 +72,9 @@ function reduceAmounts(amounts: CategoryAmounts, reduction: number, preferred: C
   }
   return Math.max(0, reduction - remaining);
 }
+function compareProjectCodeDesc(a: string, b: string) {
+  return b.localeCompare(a, undefined, { numeric: true, sensitivity: "base" });
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -231,7 +234,7 @@ export async function GET(request: NextRequest) {
         lastPaymentAmount,
       };
     }).filter((row) => row.totalDue > 0.009)
-      .sort((a, b) => b.totalDue - a.totalDue || a.projectId.localeCompare(b.projectId, undefined, { numeric: true }));
+      .sort((a, b) => compareProjectCodeDesc(a.projectId, b.projectId) || b.totalDue - a.totalDue);
 
     const totals = rows.reduce((sum, row) => ({
       engineering: sum.engineering + row.engineeringDue,
