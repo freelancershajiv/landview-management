@@ -114,6 +114,60 @@ export async function POST(request: NextRequest) {
     if (["void", "voided", "cancelled", "canceled", "rejected"].includes(text(bill.status).toLowerCase())) throw new Error("A void or cancelled bill cannot be adjusted.");
     if (text(bill.created_via).toLowerCase().includes("credit note") || text(bill.created_via).toLowerCase().includes("debit note")) throw new Error("Create an adjustment against the original bill, not another adjustment note.");
 
+    const serviceName = serviceFromBill(bill);
+    const serviceKey = workflowServiceKey(serviceName);
+    const billingCategory = text(bill.billing_category || bill.category, 100) || "Engineering Bill";
+
+    // LAND VIEW service discounts are ordinary bill discounts, not accounting
+    // correction documents. Store them directly on the original bill so the
+    // invoice line has one canonical Amount / Discount / Net Amount source.
+    if (type === "Credit Note" && reason.toLowerCase().startsWith("service discount")) {
+      const gross = Math.max(0, num(bill.amount));
+      const previousDiscount = Math.max(0, num(bill.discount));
+      const nextDiscount = Math.round((previousDiscount + adjustmentAmount) * 100) / 100;
+      if (nextDiscount > gross + 0.009) {
+        throw new Error(`Discount cannot exceed the original bill amount of BDT ${gross.toLocaleString("en-BD")}.`);
+      }
+      const updated = await updateRows("bills", { bill_code: billCode }, {
+        discount: nextDiscount,
+        source_updated_at: now,
+        updated_at: now,
+      });
+      await insertRows("billing_events", {
+        project_id: projectRows[0].id,
+        project_code: projectCode,
+        event_type: "service_discount_applied",
+        event_key: `service-discount:${bill.id}:${crypto.randomUUID()}`,
+        service_name: serviceName,
+        amount: adjustmentAmount,
+        actor,
+        details: {
+          billCode,
+          billingCategory,
+          previousDiscount,
+          addedDiscount: adjustmentAmount,
+          newDiscount: nextDiscount,
+          reason,
+          notes: notes || null,
+          storage: "original_bill_discount",
+        },
+        created_at: now,
+      });
+      return json({
+        success: true,
+        data: {
+          kind: "Service Discount",
+          billCode,
+          serviceName,
+          amount: adjustmentAmount,
+          previousDiscount,
+          discount: nextDiscount,
+          netAmount: Math.max(0, gross - nextDiscount),
+          bill: updated[0] || null,
+        },
+      });
+    }
+
     const existing = await selectRows("billing_adjustments", { filters: { bill_id: bill.id }, order: "posted_at:asc", limit: 1000 });
     const active = existing.filter((row) => text(row.status).toLowerCase() !== "void");
     const originalNet = num(bill.net_amount ?? (num(bill.amount) - num(bill.discount)));
@@ -124,9 +178,6 @@ export async function POST(request: NextRequest) {
       throw new Error(`Credit note cannot exceed the remaining adjusted bill value of BDT ${adjustableBalance.toLocaleString("en-BD")}.`);
     }
 
-    const serviceName = serviceFromBill(bill);
-    const serviceKey = workflowServiceKey(serviceName);
-    const billingCategory = text(bill.billing_category || bill.category, 100) || "Engineering Bill";
     const contractRows = await selectRows("project_contracts", { filters: { project_id: projectRows[0].id }, limit: 1 });
     const contract = contractRows[0] || null;
     const serviceRows = contract ? await selectRows("project_contract_services", { filters: { contract_id: contract.id, service_key: serviceKey }, limit: 1 }) : [];
