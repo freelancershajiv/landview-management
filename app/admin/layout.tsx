@@ -22,6 +22,8 @@ import "../color-system-authority.css";
 import "../color-system-compatibility.css";
 // Keep the restored original signature red final in the Admin cascade.
 import "../brand-palette-original.css";
+// Final screen-only typography authority. Keep after route/mobile/theme layers.
+import "./admin-typography-authority.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
