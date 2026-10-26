@@ -18,6 +18,70 @@ const ALLOWED_TABLES = new Set([
   "website_analytics_visitors","website_analytics_sessions","website_analytics_page_views","website_analytics_location_events","website_analytics_interactions","website_leads"
 ]);
 
+const DEFAULT_TABLE_ORDER: Record<string, string> = {
+  projects: "project_code:desc,created_at:desc",
+  clients: "status:asc,name:asc,created_at:desc",
+  employees: "status:asc,employee_code:asc,created_at:asc",
+  project_employees: "employee_id:asc",
+  invoices: "issue_date:desc,created_at:desc,invoice_code:desc",
+  payments: "payment_date:desc,created_at:desc,payment_code:desc",
+  site_visits: "visit_date:desc,created_at:desc,project_id:desc,employee_id:asc",
+  documents: "document_date:desc,created_at:desc,title:asc",
+  bills: "bill_date:desc,created_at:desc,bill_code:desc,project_id:desc",
+  billing_discount_log: "created_at:desc",
+  billing_writeoff_log: "created_at:desc",
+  accounts: "created_at:asc",
+  transfers: "created_at:desc",
+  transactions: "transaction_date:desc,ledger_order:desc,created_at:desc,transaction_code:desc",
+  expenses: "expense_date:desc,created_at:desc,project_id:desc",
+  tasks: "created_at:desc,project_id:desc",
+  attendance: "created_at:desc,employee_id:asc",
+  leave_requests: "start_date:desc,created_at:desc,employee_id:asc",
+  approvals: "transaction_date:desc,created_at:desc",
+  app_users: "employee_code:asc,user_key:asc",
+  app_permissions: "status:asc,created_at:desc",
+  prospective_clients: "status:asc,client_name:asc,created_at:desc",
+  proposals: "created_at:desc,proposal_code:desc",
+  proposal_items: "sort_order:asc,created_at:asc,proposal_code:asc",
+  proposal_activity: "performed_at:desc,proposal_code:desc",
+  drawing_submissions: "created_at:desc,project_code:desc,assigned_employee_code:asc",
+  quotations: "quotation_date:desc,created_at:desc,project_code:desc,quotation_code:desc",
+  certificates: "issued_at:desc,created_at:desc,certificate_code:desc",
+  certificate_requests: "requested_at:desc,project_code:desc",
+  certificate_audit: "created_at:desc,certificate_code:desc",
+  app_audit_log: "created_at:desc",
+  client_document_register: "received_date:desc,created_at:desc,register_code:desc",
+  design_book_register: "created_at:desc,project_id:desc",
+  project_management_ledger: "created_at:desc,updated_at:desc",
+  project_management_summary: "updated_at:desc,created_at:desc",
+  project_contractor_contracts: "created_at:desc",
+  project_contractor_bills: "created_at:desc,bill_code:desc",
+  project_contractor_progress_updates: "created_at:desc",
+  project_supplier_accounts: "updated_at:desc,created_at:desc",
+  project_billing: "project_code:desc,updated_at:desc",
+  project_ledger: "entry_date:desc,created_at:desc,project_id:desc",
+  project_lifecycle_transitions: "created_at:desc,project_code:desc",
+  employee_location_checks: "created_at:desc,employee_code:asc",
+  project_service_workflows: "project_code:desc,created_at:asc",
+  payment_service_allocations: "created_at:asc,payment_code:asc,bill_code:asc",
+  invoice_items: "sort_order:asc,created_at:asc,bill_code:asc",
+  payment_invoice_allocations: "created_at:asc,payment_code:asc,invoice_code:asc",
+  payment_receipts: "issued_at:desc,created_at:desc,payment_code:desc",
+  project_contracts: "project_code:desc,created_at:desc",
+  project_contract_services: "project_code:desc,created_at:asc",
+  billing_milestones: "project_code:desc,sequence_no:asc,created_at:asc",
+  billing_events: "created_at:desc,project_code:desc",
+  billing_adjustments: "posted_at:desc,created_at:desc,project_code:desc",
+  supervision_billing_rules: "project_code:desc,status:asc,created_at:desc",
+  billing_gate_overrides: "created_at:desc,project_code:desc",
+  website_analytics_visitors: "last_seen:desc,first_seen:desc",
+  website_analytics_sessions: "last_activity:desc,started_at:desc",
+  website_analytics_page_views: "visited_at:desc",
+  website_analytics_location_events: "recorded_at:desc",
+  website_analytics_interactions: "occurred_at:desc",
+  website_leads: "created_at:desc,name:asc"
+};
+
 function json(data: unknown, status = 200) {
   return new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
 }
@@ -112,8 +176,11 @@ function makeQuery(input: Record<string, unknown>) {
     const joined = values.map((item) => `"${String(item).replace(/"/g, "")}"`).join(",");
     params.push(`${safeColumn(key)}=in.(${encodeURIComponent(joined)})`);
   }
-  if (input.order) {
-    const orderParts = String(input.order).split(",").map((part) => part.trim()).filter(Boolean);
+  const requestedOrder = String(input.order || "").trim();
+  const table = String(input.table || "").trim();
+  const effectiveOrder = requestedOrder || DEFAULT_TABLE_ORDER[table] || "";
+  if (effectiveOrder) {
+    const orderParts = effectiveOrder.split(",").map((part) => part.trim()).filter(Boolean);
     const orders = orderParts.map((part) => {
       const [column, direction = "asc"] = part.split(":");
       return `${safeColumn(column)}.${direction.toLowerCase() === "desc" ? "desc" : "asc"}`;
@@ -170,7 +237,7 @@ async function selectRowsPaged(input: Record<string, unknown>) {
   const rows: unknown[] = [];
   while (rows.length < desired) {
     const chunkLimit = Math.min(1000, desired - rows.length);
-    const batch = await db(`${table}?${makeQuery({ ...input, limit: chunkLimit, offset })}`) as unknown[];
+    const batch = await db(`${table}?${makeQuery({ ...input, table, limit: chunkLimit, offset })}`) as unknown[];
     if (!Array.isArray(batch) || batch.length === 0) break;
     rows.push(...batch);
     if (batch.length < chunkLimit) break;
@@ -180,7 +247,7 @@ async function selectRowsPaged(input: Record<string, unknown>) {
 }
 
 async function handleAction(action: string, input: Record<string, unknown>) {
-  if (action === "health") return { backend: "supabase", ok: true, version: 15 };
+  if (action === "health") return { backend: "supabase", ok: true, version: 18, globalOrder: true, schemaValidated: true };
   if (action === "trackVisitorAnalytics") return await db("rpc/track_website_analytics_event", { method: "POST", body: JSON.stringify({ p: input }) });
   if (action === "applyBillingDiscount") return await db("rpc/apply_billing_discount", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_discount_date: String(input.discountDate || "").trim() || null, p_notes: String(input.notes || "").trim() || null, p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
   if (action === "applyBillingWriteOff") return await db("rpc/apply_billing_writeoff", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_writeoff_date: String(input.writeoffDate || input.date || "").trim() || null, p_reason: String(input.reason || "").trim(), p_notes: String(input.notes || "").trim(), p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
@@ -191,7 +258,7 @@ async function handleAction(action: string, input: Record<string, unknown>) {
   if (action === "selectRows") return await selectRowsPaged(input);
   if (action === "countRows") {
     const table = tableName(input.table);
-    const result = await db(`${table}?${makeQuery({ ...input, select: "*", limit: 1, offset: 0 })}`, { method: "GET", headers: { Prefer: "count=exact" } }, true) as any;
+    const result = await db(`${table}?${makeQuery({ ...input, table, select: "*", limit: 1, offset: 0 })}`, { method: "GET", headers: { Prefer: "count=exact" } }, true) as any;
     const total = Number(String(result.contentRange || "").split("/")[1] || 0);
     return { count: Number.isFinite(total) ? total : 0 };
   }
