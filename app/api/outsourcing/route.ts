@@ -58,7 +58,7 @@ function freshSnapshot(input: unknown) {
     return { ...job, paid_amount: paid, due_amount: due };
   });
 
-  const parties: Row[] = rawParties.map((party): Row => {
+  const parties: Row[] = rawParties.filter(createdAfterReset).map((party): Row => {
     const partyJobs = jobs.filter((job) => text(job.party_id, 100) === text(party.id, 100));
     const effective = partyJobs.filter((job) => !isCancelled(job));
     const agreed = effective.reduce((sum, job) => sum + num(job.agreed_amount), 0);
