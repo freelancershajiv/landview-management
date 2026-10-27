@@ -1,13 +1,10 @@
-import { getVercelOidcToken } from "@vercel/oidc";
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { roleOf } from "@/lib/supabase-data";
+import { callOutsourcing } from "@/lib/outsourcing-gateway";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const OUTSOURCING_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-outsourcing";
-const AUDIENCE = "https://supabase.landview.internal";
 
 type Row = Record<string, unknown>;
 
@@ -28,34 +25,13 @@ function actorOf(user: Row) {
   );
 }
 
-async function requireFinanceUser(request: NextRequest) {
+async function requireOutsourcingUser(request: NextRequest, write = false) {
   const user = await requireLocalSession(request) as Row | null;
   if (!user) throw new Error("Session expired.");
   const role = roleOf(user);
-  if (role !== "admin" && role !== "manager") throw new Error("Admin or Manager access is required.");
+  const allowed = write ? ["admin", "manager"] : ["admin", "manager", "accounts", "employee"];
+  if (!allowed.includes(role)) throw new Error(write ? "Admin or Manager access is required." : "Finance access is required.");
   return user;
-}
-
-async function callOutsourcing(input: Row) {
-  const oidc = await getVercelOidcToken({ audience: AUDIENCE });
-  if (!oidc) throw new Error("Vercel OIDC token is unavailable.");
-  const response = await fetch(OUTSOURCING_URL, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${oidc}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(input),
-    cache: "no-store",
-    signal: AbortSignal.timeout(20_000),
-  });
-  const json = await response.json().catch(() => null);
-  if (!response.ok || !json?.success) {
-    const error = new Error(String(json?.error || `Outsourcing service returned HTTP ${response.status}.`));
-    (error as Error & { status?: number }).status = response.status;
-    throw error;
-  }
-  return json.data;
 }
 
 function errorResponse(error: unknown) {
@@ -70,7 +46,7 @@ function errorResponse(error: unknown) {
 
 export async function GET(request: NextRequest) {
   try {
-    await requireFinanceUser(request);
+    await requireOutsourcingUser(request, false);
     const data = await callOutsourcing({ action: "snapshot" });
     return NextResponse.json(
       { success: true, data },
@@ -86,7 +62,7 @@ export async function POST(request: NextRequest) {
     if (!sameOrigin(request)) {
       return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
     }
-    const user = await requireFinanceUser(request);
+    const user = await requireOutsourcingUser(request, true);
     const body = await request.json() as Row;
     const action = text(body.action, 80);
     if (!action || action === "snapshot") {

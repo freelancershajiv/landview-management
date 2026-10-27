@@ -3,11 +3,20 @@ import { requireLocalSession } from "@/lib/local-session";
 import { employeeCodeOf, handleLandviewDataAction, insertRows, roleOf, selectRows, supabaseGateway, updateRows } from "@/lib/supabase-data";
 import { syncPaidServiceWorkflows, workflowServiceKey, workflowServiceName } from "@/lib/service-workflow";
 import { getAdjustedProjectServiceFinancials } from "@/lib/billing-adjusted-financials";
+import { callOutsourcingAutomation } from "@/lib/outsourcing-gateway";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const OTHER_SERVICE_TYPES = new Set(["Soil Test", "Digital Survey", "Municipality File Pass"]);
+
+type OutsourcingAllocation = {
+  partyId: string;
+  serviceName: string;
+  serviceKey: string;
+  amount: number;
+  notes: string;
+};
 
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -40,6 +49,22 @@ function canonicalPaymentServiceType(value: unknown) {
 function actorOf(user: Record<string, unknown>) {
   return employeeCodeOf(user) || text(user.username || user.Username || user.name || user.Name, 120) || "LAND VIEW";
 }
+function outsourcingAllocationsOf(body: Record<string, any>): OutsourcingAllocation[] {
+  const rows = Array.isArray(body.Outsourcing_Allocations)
+    ? body.Outsourcing_Allocations as Array<Record<string, unknown>>
+    : [];
+  return rows.map((row) => {
+    const rawService = row.serviceName || row.service || row.serviceType || "";
+    const serviceName = workflowServiceName(rawService) || canonicalPaymentServiceType(rawService);
+    return {
+      partyId: text(row.partyId || row.party_id, 80),
+      serviceName,
+      serviceKey: text(row.serviceKey || row.service_key, 180) || workflowServiceKey(serviceName),
+      amount: Math.max(0, num(row.amount || row.agreedAmount || row.agreed_amount)),
+      notes: text(row.notes, 1000),
+    };
+  }).filter((row) => row.amount > 0 || row.partyId || row.serviceName);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -63,6 +88,7 @@ export async function POST(request: NextRequest) {
     const paymentCategory = normalized(body.Payment_For || body.Income_Category || body.Category);
     const serviceType = canonicalPaymentServiceType(body.Service_Type || body.serviceType);
     const serviceAllocations = Array.isArray(body.Service_Allocations) ? body.Service_Allocations as Array<Record<string, unknown>> : [];
+    const outsourcingAllocations = action === "savePayment" ? outsourcingAllocationsOf(body) : [];
 
     if (action === "savePayment" && (paymentCategory === "other services bill" || paymentCategory === "other services" || paymentCategory === "others bill")) {
       if (!OTHER_SERVICE_TYPES.has(serviceType)) {
@@ -94,6 +120,31 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: `${service.serviceName} allocation cannot exceed its due of BDT ${service.due.toLocaleString("en-BD")}.` }, { status: 400 });
         }
       }
+    }
+
+    if (action === "savePayment" && outsourcingAllocations.length) {
+      if (!projectCode) return NextResponse.json({ success: false, error: "Project is required for outsourcing." }, { status: 400 });
+      for (const allocation of outsourcingAllocations) {
+        if (!allocation.partyId) return NextResponse.json({ success: false, error: `${allocation.serviceName || "Outsourced service"}: choose an outsourcer.` }, { status: 400 });
+        if (!allocation.serviceName || !allocation.serviceKey) return NextResponse.json({ success: false, error: "Every outsourcing allocation must be linked to a service." }, { status: 400 });
+        if (!(allocation.amount > 0)) return NextResponse.json({ success: false, error: `${allocation.serviceName}: outsourcing amount must be greater than zero.` }, { status: 400 });
+      }
+
+      if (paymentCategory.includes("engineering")) {
+        const clientAllocatedKeys = new Set(serviceAllocations
+          .filter((row) => Math.max(0, num(row.amount || row.allocatedAmount)) > 0)
+          .map((row) => workflowServiceKey(row.serviceName || row.service || "")));
+        const invalid = outsourcingAllocations.find((row) => !clientAllocatedKeys.has(row.serviceKey));
+        if (invalid) {
+          return NextResponse.json({ success: false, error: `Allocate client payment to ${invalid.serviceName} before creating its outsourcing bill.` }, { status: 400 });
+        }
+      } else if (serviceType) {
+        const serviceKey = workflowServiceKey(serviceType);
+        const invalid = outsourcingAllocations.find((row) => row.serviceKey !== serviceKey);
+        if (invalid) return NextResponse.json({ success: false, error: "Outsourcing must belong to the service receiving this payment." }, { status: 400 });
+      }
+
+      await callOutsourcingAutomation({ action: "validateAllocations", items: outsourcingAllocations });
     }
 
     let data: unknown;
@@ -157,6 +208,35 @@ export async function POST(request: NextRequest) {
           if (rows.length) await insertRows("payment_service_allocations", rows);
         }
 
+        if (outsourcingAllocations.length) {
+          let outsourcingResult: Record<string, unknown> | null = null;
+          let automationError: unknown = null;
+          for (let attempt = 0; attempt < 2 && !outsourcingResult; attempt += 1) {
+            try {
+              outsourcingResult = await callOutsourcingAutomation({
+                action: "addJobsFromPayment",
+                paymentCode,
+                assignedDate: text(body.Payment_Date || body.Date, 20) || new Date().toISOString().slice(0, 10),
+                items: outsourcingAllocations,
+                actor: actorOf(user),
+              }) as Record<string, unknown>;
+            } catch (error) {
+              automationError = error;
+            }
+          }
+          if (!outsourcingResult) {
+            const warning = automationError instanceof Error ? automationError.message : "Outsourcing automation failed.";
+            console.error("LAND VIEW outsourcing automation failed after payment:", automationError);
+            data = { ...(data as Record<string, unknown>), Outsourcing_Count: 0, Outsourcing_Warning: warning };
+          } else {
+            data = {
+              ...(data as Record<string, unknown>),
+              Outsourcing_Count: Number(outsourcingResult.count || 0),
+              Outsourcing_Jobs: Array.isArray(outsourcingResult.jobs) ? outsourcingResult.jobs : [],
+            };
+          }
+        }
+
         if (projectCode) {
           try { await syncPaidServiceWorkflows(projectCode, actorOf(user)); }
           catch (workflowError) { console.error("LAND VIEW paid-service workflow sync failed after payment:", workflowError); }
@@ -181,7 +261,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error && error.name === "TimeoutError"
       ? "The billing write response timed out. Refresh Billing before trying again so you do not duplicate a transaction."
       : error instanceof Error ? error.message : "Billing write failed.";
-    const status = /required|invalid|cannot exceed|must be greater|choose soil test|allocat/i.test(message) ? 400 : 502;
+    const status = /required|invalid|cannot exceed|must be greater|choose soil test|allocat|outsourc/i.test(message) ? 400 : 502;
     return NextResponse.json({ success: false, error: message }, { status, headers: { "Cache-Control": "no-store" } });
   }
 }
