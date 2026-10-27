@@ -4,6 +4,7 @@ import PortalPreloader from "@/components/portal-preloader";
 import ProjectManagementEnhancements from "@/components/project-management-enhancements";
 import AdminProjectMapDrawer from "@/components/admin-project-map-drawer";
 import ManagementRolePolicyEnforcer from "@/components/management-role-policy-enforcer";
+import OutsourcingVendorLedgerInlineBridge from "@/components/outsourcing-vendor-ledger-inline-bridge";
 import { requirePortalSession } from "@/lib/server-auth";
 import "./admin-brand-theme.css";
 import "./admin-layout-polish.css";
@@ -34,6 +35,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     <AdminProjectMapDrawer />
     <ManagementRolePolicyEnforcer role={role} />
     <ManagementShellV5 initialUser={session.user}>{children}</ManagementShellV5>
+    <OutsourcingVendorLedgerInlineBridge />
     <AdminMobileDock />
   </>;
 }
