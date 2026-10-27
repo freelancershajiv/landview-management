@@ -87,7 +87,9 @@ function reorderVisibleRows(table: HTMLTableElement, stateById: Map<string, Ledg
   const sorted = [...rows].sort((a, b) => {
     const aState = stateById.get(transactionId(a));
     const bState = stateById.get(transactionId(b));
-    return (aState?.position ?? Number.MAX_SAFE_INTEGER) - (bState?.position ?? Number.MAX_SAFE_INTEGER);
+    const dateOrder = String(bState?.date || "").localeCompare(String(aState?.date || ""));
+    if (dateOrder) return dateOrder;
+    return (bState?.position ?? Number.MIN_SAFE_INTEGER) - (aState?.position ?? Number.MIN_SAFE_INTEGER);
   });
 
   const changed = rows.some((row, index) => row !== sorted[index]);
