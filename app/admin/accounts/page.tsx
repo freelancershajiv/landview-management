@@ -1,7 +1,7 @@
 import AccountsEffectiveLedgerWrapper from "@/components/accounts-effective-ledger-wrapper";
 import AccountsCanonicalBalanceBridge from "@/components/accounts-canonical-balance-bridge";
 import AccountsInlineEntryBridge from "@/components/accounts-inline-entry-bridge";
-import AccountsOutsourcingPaymentOverlay from "@/components/accounts-outsourcing-payment-overlay";
+import AccountsOutsourcingRedirectBridge from "@/components/accounts-outsourcing-redirect-bridge";
 import AccountsDashboardPolish from "@/components/accounts-dashboard-polish";
 import LedgerOrderEnhancer from "@/components/ledger-order-enhancer";
 
@@ -11,7 +11,7 @@ export default function AccountsPage() {
       <AccountsDashboardPolish />
       <AccountsEffectiveLedgerWrapper />
       <AccountsInlineEntryBridge />
-      <AccountsOutsourcingPaymentOverlay />
+      <AccountsOutsourcingRedirectBridge />
       <LedgerOrderEnhancer />
       <AccountsCanonicalBalanceBridge />
     </>
