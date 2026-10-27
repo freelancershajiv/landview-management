@@ -77,6 +77,7 @@ export default function AccountsEntryPanel({ type, onTypeChange, onClose, onSave
   const [outsourcingData, setOutsourcingData] = useState<OutsourcingData | null>(null);
   const [outsourcingLoading, setOutsourcingLoading] = useState(false);
   const [outsourcingError, setOutsourcingError] = useState("");
+  const [outsourcingReloadKey, setOutsourcingReloadKey] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -104,7 +105,7 @@ export default function AccountsEntryPanel({ type, onTypeChange, onClose, onSave
         if (!cancelled) setOutsourcingLoading(false);
       });
     return () => { cancelled = true; };
-  }, [type, expenseMode, outsourcingData, outsourcingLoading]);
+  }, [type, expenseMode, outsourcingData, outsourcingReloadKey]);
 
   const jobs = useMemo(() => (outsourcingData?.jobs || []).filter((job) => {
     const due = Number(job.due_amount || 0);
@@ -258,7 +259,7 @@ export default function AccountsEntryPanel({ type, onTypeChange, onClose, onSave
         .aep-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}.aep-tab,.aep-close{border:1px solid var(--theme-line-_3a4751,#3a4751);border-radius:8px;background:var(--theme-bg-_111920,#111920);color:var(--theme-ink-_b8c2c8,#b8c2c8);padding:7px 10px;font-size:9px;font-weight:900;cursor:pointer}
         .aep-tab.active.income{border-color:var(--theme-line-_315f42,#315f42);background:var(--theme-bg-_152a1e,#152a1e);color:var(--theme-ink-_9ee5b7,#9ee5b7)}
         .aep-tab.active.expense{border-color:var(--theme-line-_6e3439,#6e3439);background:var(--theme-bg-_321b1d,#321b1d);color:var(--theme-ink-_ffaaa5,#ffaaa5)}
-        .aep-body{padding:14px 15px}.aep-error{margin-bottom:10px;padding:9px 10px;border:1px solid var(--theme-line-_73363a,#73363a);border-radius:8px;background:var(--theme-bg-_351b1d,#351b1d);color:var(--theme-ink-_ffaaa5,#ffaaa5);font-size:9px}
+        .aep-body{padding:14px 15px}.aep-error{margin-bottom:10px;padding:9px 10px;border:1px solid var(--theme-line-_73363a,#73363a);border-radius:8px;background:var(--theme-bg-_351b1d,#351b1d);color:var(--theme-ink-_ffaaa5,#ffaaa5);font-size:9px}.aep-error.wide4{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px}.aep-retry{border:1px solid #8c4549;border-radius:6px;background:#4a2528;color:#ffd0cd;padding:5px 9px;font-size:8px;font-weight:900;cursor:pointer;white-space:nowrap}
         .aep-fields{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px}.aep-fields label{display:grid;gap:5px;color:var(--theme-ink-_87929a,#87929a);font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.03em}.aep-fields label.wide2{grid-column:span 2}.aep-fields label.wide4{grid-column:1/-1}
         .aep-fields input,.aep-fields select,.aep-fields textarea{width:100%;min-width:0;border:1px solid var(--theme-line-_35424b,#35424b);border-radius:7px;background:var(--theme-bg-_091016,#091016);color:var(--theme-ink-_edf1f4,#edf1f4);padding:9px 10px;font-size:10px}.aep-fields textarea{min-height:62px;resize:vertical}.aep-fields input::placeholder,.aep-fields textarea::placeholder{color:var(--theme-ink-_65727b,#65727b)}
         .aep-fields input:disabled,.aep-fields select:disabled{opacity:.72;cursor:not-allowed;background:var(--theme-bg-_111920,#111920)}
@@ -268,7 +269,7 @@ export default function AccountsEntryPanel({ type, onTypeChange, onClose, onSave
         .aep-submit{grid-column:1/-1;min-height:40px;border:0;border-radius:8px;color:#fff;font-size:10px;font-weight:900;cursor:pointer}.aep-submit.income{background:#1d5f3d}.aep-submit.expense{background:#c7262d}.aep-submit:disabled{opacity:.45;cursor:not-allowed}
         .aep-note{grid-column:1/-1;color:var(--theme-ink-_75828b,#75828b);font-size:8px;line-height:1.45}
         @media(max-width:900px){.aep-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.aep-fields label.wide4{grid-column:1/-1}.aep-outsourcing-card{grid-template-columns:1fr 1fr 1fr}}
-        @media(max-width:560px){.aep-head{align-items:flex-start;flex-direction:column}.aep-fields{grid-template-columns:1fr}.aep-fields label.wide2,.aep-fields label.wide4,.aep-submit,.aep-note{grid-column:auto}.aep-type-row,.aep-outsourcing-card,.aep-out-loading{grid-column:auto}.aep-type-row{display:grid;grid-template-columns:1fr 1fr}.aep-outsourcing-card{grid-template-columns:1fr}}
+        @media(max-width:560px){.aep-head{align-items:flex-start;flex-direction:column}.aep-fields{grid-template-columns:1fr}.aep-fields label.wide2,.aep-fields label.wide4,.aep-submit,.aep-note{grid-column:auto}.aep-type-row,.aep-outsourcing-card,.aep-out-loading,.aep-error.wide4{grid-column:auto}.aep-type-row{display:grid;grid-template-columns:1fr 1fr}.aep-outsourcing-card{grid-template-columns:1fr}}
       `}</style>
       <div className="aep-head">
         <div className="aep-title"><small>NEW LEDGER ENTRY</small><h2>{type === "income" ? "Add income" : "Add expense"}</h2></div>
@@ -288,7 +289,7 @@ export default function AccountsEntryPanel({ type, onTypeChange, onClose, onSave
 
           {isOutsourcing && <>
             {outsourcingLoading && <div className="aep-out-loading">Loading open outsourcing work…</div>}
-            {outsourcingError && <div className="aep-error wide4">{outsourcingError}</div>}
+            {outsourcingError && <div className="aep-error wide4"><span>{outsourcingError}</span><button type="button" className="aep-retry" onClick={() => { setOutsourcingError(""); setOutsourcingData(null); setOutsourcingReloadKey((value) => value + 1); }}>Retry</button></div>}
             <label className="wide4">Outsourcing Job
               <select required value={outsourcingJobId} onChange={(e) => selectOutsourcingJob(e.target.value)} disabled={outsourcingLoading}>
                 <option value="">Choose project, service and outsourced person / firm</option>
