@@ -31,6 +31,11 @@ function carriedIntoActiveWorkspace(row: Row) {
   return createdAfterReset(row) || text(row.notes, 2500).includes(ACTIVE_CARRY_MARKER);
 }
 
+function isReleasedCarry(row: Row) {
+  const notes = text(row.notes, 2500).toUpperCase();
+  return notes.includes(ACTIVE_CARRY_MARKER) && notes.includes("RELEASE STATUS: RELEASED");
+}
+
 function isVoided(row: Row) {
   return text(row.status, 40).toUpperCase() === "VOID";
 }
@@ -47,8 +52,15 @@ function freshSnapshot(input: unknown) {
 
   const resetJobs = rawJobs.filter(carriedIntoActiveWorkspace);
   const jobIds = new Set(resetJobs.map((job) => text(job.id, 100)).filter(Boolean));
+  const releasedCarryJobIds = new Set(
+    resetJobs.filter(isReleasedCarry).map((job) => text(job.id, 100)).filter(Boolean),
+  );
   const referencedPartyIds = new Set(resetJobs.map((job) => text(job.party_id, 100)).filter(Boolean));
-  const resetPayments = rawPayments.filter((payment) => jobIds.has(text(payment.job_id, 100)) && createdAfterReset(payment));
+  const resetPayments = rawPayments.filter((payment) => {
+    const jobId = text(payment.job_id, 100);
+    if (!jobIds.has(jobId)) return false;
+    return createdAfterReset(payment) || releasedCarryJobIds.has(jobId);
+  });
 
   const paidByJob = new Map<string, number>();
   for (const payment of resetPayments) {
