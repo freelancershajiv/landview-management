@@ -1,16 +1,15 @@
 import { getVercelOidcToken } from "@vercel/oidc";
 
 const OUTSOURCING_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-outsourcing";
-const OUTSOURCING_AUTOMATION_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-outsourcing-automation";
 const AUDIENCE = "https://supabase.landview.internal";
 
 type Row = Record<string, unknown>;
 
-async function callEndpoint(url: string, input: Row, timeoutMs: number) {
+export async function callOutsourcing(input: Row, timeoutMs = 20_000) {
   const oidc = await getVercelOidcToken({ audience: AUDIENCE });
   if (!oidc) throw new Error("Vercel OIDC token is unavailable.");
 
-  const response = await fetch(url, {
+  const response = await fetch(OUTSOURCING_URL, {
     method: "POST",
     headers: {
       authorization: `Bearer ${oidc}`,
@@ -28,12 +27,4 @@ async function callEndpoint(url: string, input: Row, timeoutMs: number) {
     throw error;
   }
   return json.data;
-}
-
-export async function callOutsourcing(input: Row, timeoutMs = 20_000) {
-  return callEndpoint(OUTSOURCING_URL, input, timeoutMs);
-}
-
-export async function callOutsourcingAutomation(input: Row, timeoutMs = 20_000) {
-  return callEndpoint(OUTSOURCING_AUTOMATION_URL, input, timeoutMs);
 }
