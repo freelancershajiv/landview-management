@@ -51,14 +51,14 @@ function freshSnapshot(input: unknown) {
     paidByJob.set(jobId, (paidByJob.get(jobId) || 0) + num(payment.amount));
   }
 
-  const jobs = resetJobs.map((job) => {
+  const jobs: Row[] = resetJobs.map((job): Row => {
     const paid = paidByJob.get(text(job.id, 100)) || 0;
     const agreed = num(job.agreed_amount);
     const due = isCancelled(job) ? 0 : Math.max(0, agreed - paid);
     return { ...job, paid_amount: paid, due_amount: due };
   });
 
-  const parties = rawParties.map((party) => {
+  const parties: Row[] = rawParties.map((party): Row => {
     const partyJobs = jobs.filter((job) => text(job.party_id, 100) === text(party.id, 100));
     const effective = partyJobs.filter((job) => !isCancelled(job));
     const agreed = effective.reduce((sum, job) => sum + num(job.agreed_amount), 0);
@@ -68,7 +68,7 @@ function freshSnapshot(input: unknown) {
     return { ...party, agreed_amount: agreed, paid_amount: paid, due_amount: due, active_jobs: activeJobs };
   });
 
-  const effectiveJobs = jobs.filter((job) => !isCancelled(job));
+  const effectiveJobs: Row[] = jobs.filter((job) => !isCancelled(job));
   return {
     ...data,
     resetAt: OUTSOURCING_RESET_AT,
