@@ -9,6 +9,7 @@ export default function OutsourcingProjectFirstCleanup() {
   useEffect(() => {
     let observer: MutationObserver | null = null;
     let cancelled = false;
+    let autoOpenedForRoute = false;
 
     const apply = () => {
       if (cancelled) return false;
@@ -21,7 +22,8 @@ export default function OutsourcingProjectFirstCleanup() {
       const financeButton = financeGroup.querySelector<HTMLButtonElement>(".lv-nav-group-button");
       const onOutsourcing = pathname === "/admin/finance/outsourcing" || pathname.startsWith("/admin/finance/outsourcing/");
 
-      if (onOutsourcing && financeButton?.getAttribute("aria-expanded") !== "true") {
+      if (onOutsourcing && !autoOpenedForRoute && financeButton?.getAttribute("aria-expanded") !== "true") {
+        autoOpenedForRoute = true;
         financeButton?.click();
         return false;
       }
@@ -46,7 +48,7 @@ export default function OutsourcingProjectFirstCleanup() {
         outsourcingLink.removeAttribute("aria-current");
       }
 
-      // Finance → Outsourcing is now the full control center. Restore every native
+      // Finance → Outsourcing is the full control center. Restore every native
       // outsourcing action that the previous project-first bridge used to hide.
       if (onOutsourcing) {
         const actions = document.querySelector<HTMLElement>(".outsource-page .out-actions");
