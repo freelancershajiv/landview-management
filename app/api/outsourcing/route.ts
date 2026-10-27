@@ -8,6 +8,7 @@ export const dynamic = "force-dynamic";
 
 const OUTSOURCING_RESET_AT = "2026-10-28T00:10:43+06:00";
 const OUTSOURCING_RESET_MS = Date.parse(OUTSOURCING_RESET_AT);
+const ACTIVE_CARRY_MARKER = "[ACTIVE-OUTSOURCING]";
 
 type Row = Record<string, unknown>;
 
@@ -26,6 +27,10 @@ function createdAfterReset(row: Row) {
   return Number.isFinite(ms) && ms >= OUTSOURCING_RESET_MS;
 }
 
+function carriedIntoActiveWorkspace(row: Row) {
+  return createdAfterReset(row) || text(row.notes, 2500).includes(ACTIVE_CARRY_MARKER);
+}
+
 function isVoided(row: Row) {
   return text(row.status, 40).toUpperCase() === "VOID";
 }
@@ -40,8 +45,9 @@ function freshSnapshot(input: unknown) {
   const rawPayments = Array.isArray(data.payments) ? data.payments as Row[] : [];
   const rawParties = Array.isArray(data.parties) ? data.parties as Row[] : [];
 
-  const resetJobs = rawJobs.filter(createdAfterReset);
+  const resetJobs = rawJobs.filter(carriedIntoActiveWorkspace);
   const jobIds = new Set(resetJobs.map((job) => text(job.id, 100)).filter(Boolean));
+  const referencedPartyIds = new Set(resetJobs.map((job) => text(job.party_id, 100)).filter(Boolean));
   const resetPayments = rawPayments.filter((payment) => jobIds.has(text(payment.job_id, 100)) && createdAfterReset(payment));
 
   const paidByJob = new Map<string, number>();
@@ -58,15 +64,17 @@ function freshSnapshot(input: unknown) {
     return { ...job, paid_amount: paid, due_amount: due };
   });
 
-  const parties: Row[] = rawParties.filter(createdAfterReset).map((party): Row => {
-    const partyJobs = jobs.filter((job) => text(job.party_id, 100) === text(party.id, 100));
-    const effective = partyJobs.filter((job) => !isCancelled(job));
-    const agreed = effective.reduce((sum, job) => sum + num(job.agreed_amount), 0);
-    const paid = partyJobs.reduce((sum, job) => sum + num(job.paid_amount), 0);
-    const due = effective.reduce((sum, job) => sum + num(job.due_amount), 0);
-    const activeJobs = effective.filter((job) => text(job.status, 40).toLowerCase() !== "completed").length;
-    return { ...party, agreed_amount: agreed, paid_amount: paid, due_amount: due, active_jobs: activeJobs };
-  });
+  const parties: Row[] = rawParties
+    .filter((party) => createdAfterReset(party) || referencedPartyIds.has(text(party.id, 100)))
+    .map((party): Row => {
+      const partyJobs = jobs.filter((job) => text(job.party_id, 100) === text(party.id, 100));
+      const effective = partyJobs.filter((job) => !isCancelled(job));
+      const agreed = effective.reduce((sum, job) => sum + num(job.agreed_amount), 0);
+      const paid = partyJobs.reduce((sum, job) => sum + num(job.paid_amount), 0);
+      const due = effective.reduce((sum, job) => sum + num(job.due_amount), 0);
+      const activeJobs = effective.filter((job) => text(job.status, 40).toLowerCase() !== "completed").length;
+      return { ...party, agreed_amount: agreed, paid_amount: paid, due_amount: due, active_jobs: activeJobs };
+    });
 
   const effectiveJobs: Row[] = jobs.filter((job) => !isCancelled(job));
   return {
