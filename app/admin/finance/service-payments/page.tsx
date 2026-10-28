@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type Row = Record<string, any>;
 type Category = "Engineering Bill" | "Other Services Bill" | "Supervision Bill";
+const CATEGORY_ORDER: Category[] = ["Engineering Bill", "Other Services Bill", "Supervision Bill"];
 
 function money(v: unknown) {
   const n = Number(v || 0);
@@ -71,7 +72,12 @@ export default function ReceivePaymentPage() {
     setLoading(true); setError(""); setMessage("");
     try {
       const next = await workflowGet(`mode=billing&projectId=${encodeURIComponent(id)}`);
+      const loadedServices: Row[] = Array.isArray(next?.services) ? next.services : [];
+      const nextCategory = loadedServices.some((service) => service.billingCategory === category)
+        ? category
+        : CATEGORY_ORDER.find((item) => loadedServices.some((service) => service.billingCategory === item)) || "Engineering Bill";
       setData(next);
+      setCategory(nextCategory);
       setAllocations({});
       setPaymentAmount("");
       setSelectedService("");
@@ -191,7 +197,7 @@ export default function ReceivePaymentPage() {
       <div className="rp-field"><label>Deposit Account</label><input value={account} onChange={(e) => setAccount(e.target.value)} /></div>
     </section>
 
-    <div className="rp-tabs">{(["Engineering Bill","Other Services Bill","Supervision Bill"] as Category[]).map((item) => <button key={item} className={`rp-tab ${category === item ? "active" : ""}`} onClick={() => { setCategory(item); setAllocations({}); setPaymentAmount(""); setSelectedService(""); }}>{item}</button>)}</div>
+    <div className="rp-tabs">{CATEGORY_ORDER.map((item) => <button key={item} className={`rp-tab ${category === item ? "active" : ""}`} onClick={() => { setCategory(item); setAllocations({}); setPaymentAmount(""); setSelectedService(""); }}>{item}</button>)}</div>
 
     {data ? <>
       <section className="rp-card rp-summary"><div className="rp-stat"><span>Gross</span><strong>{money(categorySummary.gross)}</strong></div><div className="rp-stat"><span>Discount</span><strong>{money(categorySummary.discount)}</strong></div><div className="rp-stat"><span>Net</span><strong>{money(categorySummary.net)}</strong></div><div className="rp-stat"><span>Paid</span><strong className="rp-paid">{money(categorySummary.paid)}</strong></div><div className="rp-stat"><span>Due</span><strong className="rp-due">{money(categorySummary.due)}</strong></div></section>
