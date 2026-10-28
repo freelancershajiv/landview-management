@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 const EDIT_ROLES = new Set(["admin", "manager", "accounts"]);
 const REMOVE_ROLES = new Set(["admin", "manager"]);
-const BILL_CATEGORIES = new Set(["Engineering Bill", "Design Books", "Supervision Bill", "Other Services Bill"]);
+const BILL_CATEGORIES = new Set(["Engineering Bill", "Supervision Bill", "Other Services Bill"]);
 
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -25,6 +25,10 @@ function date(value: unknown) {
 }
 function draftOnly(current: Record<string, unknown>) {
   return text(current.status).toLowerCase() === "draft";
+}
+function billingCategory(value: unknown) {
+  const raw = text(value, 80);
+  return raw === "Design Books" ? "Engineering Bill" : raw;
 }
 
 async function findBillForProject(billId: string, projectCode: string) {
@@ -55,12 +59,23 @@ export async function PATCH(request: NextRequest) {
     if ("error" in lookup) return lookup.error;
     if (!draftOnly(lookup.current)) return NextResponse.json({ success: false, error: "Posted/issued bills are locked. Use the Full Bill Editor discount control or a financial correction for issued bills." }, { status: 409 });
 
-    const category = text(body.Billing_Category || body.Category || body.category, 80);
+    const category = billingCategory(body.Billing_Category || body.Category || body.category);
     if (!BILL_CATEGORIES.has(category)) return NextResponse.json({ success: false, error: "Choose a valid billing category." }, { status: 400 });
     const gross = num(body.Amount);
     const discount = num(body.Discount ?? 0);
     if (!(gross > 0)) return NextResponse.json({ success: false, error: "Enter a valid gross bill amount." }, { status: 400 });
     if (!Number.isFinite(discount) || discount < 0 || discount > gross) return NextResponse.json({ success: false, error: "Discount must be between zero and the gross bill amount." }, { status: 400 });
+
+    const quantityProvided = Object.prototype.hasOwnProperty.call(body, "Quantity") || Object.prototype.hasOwnProperty.call(body, "QTY");
+    const rateProvided = Object.prototype.hasOwnProperty.call(body, "Unit_Price") || Object.prototype.hasOwnProperty.call(body, "Rate");
+    const quantity = quantityProvided ? num(body.Quantity ?? body.QTY) : (Number(lookup.current.quantity) > 0 ? Number(lookup.current.quantity) : 1);
+    const unitPrice = rateProvided ? num(body.Unit_Price ?? body.Rate) : (Number(lookup.current.unit_price) > 0 ? Number(lookup.current.unit_price) : gross / Math.max(quantity, 1));
+    if (!(quantity > 0)) return NextResponse.json({ success: false, error: "Quantity must be greater than zero." }, { status: 400 });
+    if (!(unitPrice > 0)) return NextResponse.json({ success: false, error: "Unit rate must be greater than zero." }, { status: 400 });
+    if (Math.abs(quantity * unitPrice - gross) > .02) {
+      return NextResponse.json({ success: false, error: "Quantity × Unit Rate must equal the gross bill amount." }, { status: 400 });
+    }
+
     const billDate = date(body.Bill_Date || body.Date);
     if (!billDate) return NextResponse.json({ success: false, error: "Enter a valid bill date." }, { status: 400 });
     const rawDescription = text(body.Description || body.Service || body.Particulars, 1000);
@@ -73,6 +88,8 @@ export async function PATCH(request: NextRequest) {
       billing_category: category,
       category,
       description: `[${category}] ${service}`,
+      quantity,
+      unit_price: unitPrice,
       amount: gross,
       discount,
       notes: text(body.Notes || body.notes, 2000) || null,
