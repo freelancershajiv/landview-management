@@ -3,31 +3,29 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { landViewApi, type BillingBookData } from "@/lib/api";
+import {
+  BILL_CATEGORIES,
+  BILL_SERVICE_CATALOG,
+  type BillCategory,
+  type BillEntryMode,
+  normalizedBillPricing,
+  numberValue,
+  serviceDefinition,
+} from "@/lib/billing-entry";
 
-type BillCategory = "Engineering Bill" | "Supervision Bill" | "Other Services Bill";
 type BillState = "Draft" | "Issued";
 type ProjectRow = Record<string, unknown>;
-type ServiceLine = { id: string; category: BillCategory; service: string; amount: string; discount: string };
+type ServiceLine = {
+  id: string;
+  category: BillCategory;
+  service: string;
+  entryMode: BillEntryMode;
+  quantity: string;
+  unitPrice: string;
+  amount: string;
+  discount: string;
+};
 type ApiEnvelope = { success?: boolean; error?: string; message?: string; data?: unknown };
-
-const DEFAULT_SERVICES: Array<{ category: BillCategory; service: string }> = [
-  { category: "Engineering Bill", service: "Architectural Design" },
-  { category: "Engineering Bill", service: "Structural Design" },
-  { category: "Engineering Bill", service: "3D Design – Exterior" },
-  { category: "Engineering Bill", service: "3D Design – Interior" },
-  { category: "Engineering Bill", service: "Electrical Design" },
-  { category: "Engineering Bill", service: "Fire Safety Design" },
-  { category: "Engineering Bill", service: "Plumbing Design" },
-  { category: "Engineering Bill", service: "Plan Approval Design" },
-  { category: "Engineering Bill", service: "Estimate & Costing" },
-  { category: "Engineering Bill", service: "Design Books" },
-  { category: "Other Services Bill", service: "Municipality Land NOC" },
-  { category: "Other Services Bill", service: "Fire Service Approval" },
-  { category: "Other Services Bill", service: "Municipality Approval" },
-  { category: "Other Services Bill", service: "District Vetting Committee Approval" },
-  { category: "Other Services Bill", service: "Consultancy Fees" },
-  { category: "Other Services Bill", service: "Submission Fees" },
-];
 
 function text(value: unknown) { return String(value ?? "").trim(); }
 function field(record: ProjectRow, keys: string[]) {
@@ -42,10 +40,6 @@ function normalizeProjectId(value: unknown) {
   const match = raw.match(/^(?:LV[\s_-]*)?0*(\d+)$/i);
   return match ? `LV-${Number(match[1])}` : raw;
 }
-function numberValue(value: unknown) {
-  const parsed = Number(text(value).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
 function money(value: number) {
   return new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(value || 0);
 }
@@ -54,7 +48,19 @@ function today() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 function freshLines(): ServiceLine[] {
-  return DEFAULT_SERVICES.map((item, index) => ({ id: `default-${index}`, ...item, amount: "", discount: "" }));
+  return BILL_SERVICE_CATALOG.map((item, index) => ({
+    id: `default-${index}`,
+    category: item.category,
+    service: item.service,
+    entryMode: item.defaultMode,
+    quantity: "1",
+    unitPrice: "",
+    amount: "",
+    discount: "",
+  }));
+}
+function pricingFor(line: ServiceLine) {
+  return normalizedBillPricing({ mode: line.entryMode, quantity: line.quantity, unitPrice: line.unitPrice, amount: line.amount });
 }
 async function writeBill(payload: Record<string, unknown>) {
   const response = await fetch("/api/billing/write", {
@@ -109,16 +115,43 @@ export default function DirectFullBillWorkspace() {
 
   const selectedProject = useMemo(() => projectOptions.find((project) => project.id === normalizeProjectId(projectId)), [projectOptions, projectId]);
   const existing = useMemo(() => (book?.projects || []).find((project) => normalizeProjectId(project.projectId) === normalizeProjectId(projectId)), [book, projectId]);
-  const activeLines = useMemo(() => lines.filter((line) => numberValue(line.amount) > 0), [lines]);
-  const grossTotal = useMemo(() => activeLines.reduce((sum, line) => sum + numberValue(line.amount), 0), [activeLines]);
+  const activeLines = useMemo(() => lines.filter((line) => pricingFor(line).gross > 0), [lines]);
+  const grossTotal = useMemo(() => activeLines.reduce((sum, line) => sum + pricingFor(line).gross, 0), [activeLines]);
   const discountTotal = useMemo(() => activeLines.reduce((sum, line) => sum + Math.max(0, numberValue(line.discount)), 0), [activeLines]);
   const netTotal = Math.max(0, grossTotal - discountTotal);
   const existingBilled = numberValue(existing?.billed);
   const existingPaid = numberValue(existing?.paid);
   const projectedDue = Math.max(0, existingBilled + netTotal - existingPaid);
 
-  function updateLine(id: string, patch: Partial<ServiceLine>) { setLines((current) => current.map((line) => line.id === id ? { ...line, ...patch } : line)); }
-  function addCustomLine() { setLines((current) => [...current, { id: `custom-${crypto.randomUUID()}`, category: "Engineering Bill", service: "", amount: "", discount: "" }]); }
+  function updateLine(id: string, patch: Partial<ServiceLine>) {
+    setLines((current) => current.map((line) => line.id === id ? { ...line, ...patch } : line));
+  }
+  function updateService(id: string, value: string) {
+    setLines((current) => current.map((line) => {
+      if (line.id !== id) return line;
+      const definition = serviceDefinition(value);
+      return definition ? { ...line, service: value, category: definition.category, entryMode: definition.defaultMode } : { ...line, service: value };
+    }));
+  }
+  function updateCategory(id: string, category: BillCategory) {
+    setLines((current) => current.map((line) => {
+      if (line.id !== id) return line;
+      if (serviceDefinition(line.service)) return line;
+      return { ...line, category, entryMode: category === "Other Services Bill" && !line.amount && !line.unitPrice ? "quantity_rate" : line.entryMode };
+    }));
+  }
+  function addCustomLine() {
+    setLines((current) => [...current, {
+      id: `custom-${crypto.randomUUID()}`,
+      category: "Engineering Bill",
+      service: "",
+      entryMode: "flat_amount",
+      quantity: "1",
+      unitPrice: "",
+      amount: "",
+      discount: "",
+    }]);
+  }
   function deleteLine(id: string) { setLines((current) => current.filter((line) => line.id !== id)); }
   function restoreStandardServices() { setLines(freshLines()); setError(""); }
 
@@ -126,13 +159,15 @@ export default function DirectFullBillWorkspace() {
     const normalizedId = normalizeProjectId(projectId);
     if (!normalizedId || !selectedProject) { setError("Choose a valid existing LAND VIEW File ID / project first."); return; }
     if (!/^\d{4}-\d{2}-\d{2}$/.test(billDate)) { setError("Choose a valid bill date."); return; }
-    if (!activeLines.length) { setError("Enter an amount for at least one service."); return; }
+    if (!activeLines.length) { setError("Enter a rate/quantity or flat amount for at least one service."); return; }
     for (const line of activeLines) {
       if (!line.service.trim()) { setError("Every billed line needs a service / description."); return; }
-      const gross = numberValue(line.amount);
+      const pricing = pricingFor(line);
       const discount = numberValue(line.discount);
-      if (!(gross > 0)) { setError(`Enter a valid amount for ${line.service || "the service"}.`); return; }
-      if (discount < 0 || discount > gross) { setError(`Discount for ${line.service} must be between zero and the gross amount.`); return; }
+      if (line.entryMode === "quantity_rate" && !(numberValue(line.quantity) > 0)) { setError(`Quantity for ${line.service} must be greater than zero.`); return; }
+      if (line.entryMode === "quantity_rate" && !(numberValue(line.unitPrice) > 0)) { setError(`Enter a valid unit rate for ${line.service}.`); return; }
+      if (!(pricing.gross > 0)) { setError(`Enter a valid amount for ${line.service || "the service"}.`); return; }
+      if (discount < 0 || discount > pricing.gross) { setError(`Discount for ${line.service} must be between zero and the gross amount.`); return; }
     }
 
     setSaving(true); setError(""); setMessage(""); setSavedProjectId(""); setSavedState("");
@@ -140,12 +175,21 @@ export default function DirectFullBillWorkspace() {
     try {
       const batchId = crypto.randomUUID();
       for (const [index, line] of activeLines.entries()) {
-        const gross = numberValue(line.amount);
+        const pricing = pricingFor(line);
         const discount = numberValue(line.discount);
         await writeBill({
-          Project_ID: normalizedId, Bill_Date: billDate, Description: `[${line.category}] ${line.service.trim()}`,
-          Amount: gross, Discount: discount, Status: status, Billing_Category: line.category, Category: line.category,
-          Created_Via: "Direct Full Billing", Notes: ["Direct / Full Bill — no proposal required", notes.trim()].filter(Boolean).join(" | "),
+          Project_ID: normalizedId,
+          Bill_Date: billDate,
+          Description: `[${line.category}] ${line.service.trim()}`,
+          Quantity: pricing.quantity,
+          Unit_Price: pricing.unitPrice,
+          Amount: pricing.gross,
+          Discount: discount,
+          Status: status,
+          Billing_Category: line.category,
+          Category: line.category,
+          Created_Via: "Direct Full Billing",
+          Notes: ["Direct / Full Bill — no proposal required", notes.trim()].filter(Boolean).join(" | "),
           Idempotency_Key: `direct-full-${batchId}-${index}`,
         });
         saved += 1;
@@ -165,7 +209,7 @@ export default function DirectFullBillWorkspace() {
 
   return <div className="direct-bill-page">
     <style>{`
-      .direct-bill-page{color:var(--theme-ink-_e8edf1,#e8edf1);line-height:1.45}.db-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px}.db-head small{display:block;color:#ef6c66;font-weight:900;letter-spacing:.11em}.db-head h1{margin:5px 0 0;font-size:32px;color:var(--theme-ink-_f8fafc,#f8fafc)}.db-actions,.db-row-actions{display:flex;gap:8px;flex-wrap:wrap}.db-btn{border:1px solid var(--theme-line-_3b454e,#3b454e);background:var(--theme-bg-_151d24,#151d24);color:var(--theme-ink-_edf1f4,#edf1f4);padding:10px 13px;border-radius:8px;font-weight:850;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:40px}.db-btn.primary{background:#d94b45;border-color:#d94b45;color:#fff}.db-btn.draft{border-color:#8a7440;background:#292417;color:#f6dc9a}.db-btn:disabled{opacity:.55;cursor:not-allowed}.db-note{padding:11px 13px;border:1px solid var(--theme-line-_31513d,#31513d);background:var(--theme-bg-_18281f,#18281f);color:var(--theme-ink-_a9deb8,#a9deb8);border-radius:8px;margin-bottom:14px}.db-note.error{border-color:#67352f;background:#34201e;color:#ffaaa3}.db-panel{border:1px solid var(--theme-line-_313b44,#313b44);border-radius:11px;background:var(--theme-bg-_11181e,#11181e);padding:16px;margin-bottom:14px}.db-panel h2{margin:0 0 12px;font-size:18px}.db-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.db-field{display:grid;gap:6px}.db-field.full{grid-column:1/-1}.db-field label{font-size:10px;font-weight:900;color:var(--theme-ink-_aab5bd,#aab5bd);text-transform:uppercase;letter-spacing:.05em}.db-field input,.db-field select,.db-field textarea{min-height:42px;padding:9px 10px;border:1px solid var(--theme-line-_36414a,#36414a);border-radius:7px;background:var(--theme-bg-_0d141a,#0d141a);color:var(--theme-ink-_fff,#fff);color-scheme:dark}.db-field textarea{min-height:76px;resize:vertical}.db-project{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}.db-project div,.db-stat{border:1px solid var(--theme-line-_35414a,#35414a);border-radius:8px;background:var(--theme-bg-_0f171d,#0f171d);padding:10px}.db-project span,.db-stat span{display:block;color:var(--theme-ink-_8f9aa3,#8f9aa3);font-size:9px;text-transform:uppercase;letter-spacing:.05em}.db-project strong,.db-stat strong{display:block;margin-top:4px;font-size:12px;word-break:break-word}.db-table{overflow:auto;border:1px solid var(--theme-line-_303b44,#303b44);border-radius:9px}.db-table table{width:100%;border-collapse:collapse;min-width:940px}.db-table th,.db-table td{padding:9px;border-bottom:1px solid var(--theme-line-_28323a,#28323a);text-align:left;font-size:11px}.db-table th{font-size:9px;text-transform:uppercase;color:var(--theme-ink-_8f9aa3,#8f9aa3);letter-spacing:.05em}.db-table input,.db-table select{width:100%;min-height:38px;padding:7px 8px;border:1px solid var(--theme-line-_36414a,#36414a);border-radius:6px;background:var(--theme-bg-_0d141a,#0d141a);color:var(--theme-ink-_fff,#fff);color-scheme:dark}.db-service{min-width:240px}.db-money{width:130px}.db-delete{border:1px solid #73363a;background:#351b1d;color:#ffaaa5;border-radius:7px;padding:8px 10px;font-weight:900;cursor:pointer;white-space:nowrap}.db-delete:disabled{opacity:.5;cursor:not-allowed}.db-bottom{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.db-summary{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:8px;margin-top:14px}.db-stat strong{font-size:17px}.db-due strong{color:#ff9e97}.db-paid strong{color:#a9deb8}.db-submit{display:flex;justify-content:flex-end;gap:8px;margin-top:15px;flex-wrap:wrap}.db-help{font-size:11px;color:var(--theme-ink-_9da9b2,#9da9b2);margin:8px 0 0}@media(max-width:900px){.db-head{align-items:flex-start;flex-direction:column}.db-grid{grid-template-columns:1fr}.db-field.full{grid-column:auto}.db-project{grid-template-columns:1fr 1fr}.db-summary{grid-template-columns:1fr 1fr}}@media(max-width:600px){.db-project,.db-summary{grid-template-columns:1fr}.db-actions{width:100%}.db-actions .db-btn{flex:1}.db-submit{flex-direction:column}.db-submit .db-btn{width:100%}}
+      .direct-bill-page{color:var(--theme-ink-_e8edf1,#e8edf1);line-height:1.45}.db-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px}.db-head small{display:block;color:#ef6c66;font-weight:900;letter-spacing:.11em}.db-head h1{margin:5px 0 0;font-size:32px;color:var(--theme-ink-_f8fafc,#f8fafc)}.db-actions,.db-row-actions{display:flex;gap:8px;flex-wrap:wrap}.db-btn{border:1px solid var(--theme-line-_3b454e,#3b454e);background:var(--theme-bg-_151d24,#151d24);color:var(--theme-ink-_edf1f4,#edf1f4);padding:10px 13px;border-radius:8px;font-weight:850;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:40px}.db-btn.primary{background:#d94b45;border-color:#d94b45;color:#fff}.db-btn.draft{border-color:#8a7440;background:#292417;color:#f6dc9a}.db-btn:disabled{opacity:.55;cursor:not-allowed}.db-note{padding:11px 13px;border:1px solid var(--theme-line-_31513d,#31513d);background:var(--theme-bg-_18281f,#18281f);color:var(--theme-ink-_a9deb8,#a9deb8);border-radius:8px;margin-bottom:14px}.db-note.error{border-color:#67352f;background:#34201e;color:#ffaaa3}.db-panel{border:1px solid var(--theme-line-_313b44,#313b44);border-radius:11px;background:var(--theme-bg-_11181e,#11181e);padding:16px;margin-bottom:14px}.db-panel h2{margin:0 0 12px;font-size:18px}.db-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.db-field{display:grid;gap:6px}.db-field.full{grid-column:1/-1}.db-field label{font-size:10px;font-weight:900;color:var(--theme-ink-_aab5bd,#aab5bd);text-transform:uppercase;letter-spacing:.05em}.db-field input,.db-field select,.db-field textarea{min-height:42px;padding:9px 10px;border:1px solid var(--theme-line-_36414a,#36414a);border-radius:7px;background:var(--theme-bg-_0d141a,#0d141a);color:var(--theme-ink-_fff,#fff);color-scheme:dark}.db-field textarea{min-height:76px;resize:vertical}.db-project{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}.db-project div,.db-stat{border:1px solid var(--theme-line-_35414a,#35414a);border-radius:8px;background:var(--theme-bg-_0f171d,#0f171d);padding:10px}.db-project span,.db-stat span{display:block;color:var(--theme-ink-_8f9aa3,#8f9aa3);font-size:9px;text-transform:uppercase;letter-spacing:.05em}.db-project strong,.db-stat strong{display:block;margin-top:4px;font-size:12px;word-break:break-word}.db-table{overflow:auto;border:1px solid var(--theme-line-_303b44,#303b44);border-radius:9px}.db-table table{width:100%;border-collapse:collapse;min-width:1320px}.db-table th,.db-table td{padding:8px;border-bottom:1px solid var(--theme-line-_28323a,#28323a);text-align:left;font-size:11px;vertical-align:middle}.db-table th{font-size:9px;text-transform:uppercase;color:var(--theme-ink-_8f9aa3,#8f9aa3);letter-spacing:.05em}.db-table input,.db-table select{width:100%;min-height:38px;padding:7px 8px;border:1px solid var(--theme-line-_36414a,#36414a);border-radius:6px;background:var(--theme-bg-_0d141a,#0d141a);color:var(--theme-ink-_fff,#fff);color-scheme:dark}.db-table input:disabled{opacity:.55}.db-service{min-width:220px}.db-mode{width:145px}.db-qty{width:85px}.db-money{width:125px}.db-gross{white-space:nowrap}.db-delete{border:1px solid #73363a;background:#351b1d;color:#ffaaa5;border-radius:7px;padding:8px 10px;font-weight:900;cursor:pointer;white-space:nowrap}.db-delete:disabled{opacity:.5;cursor:not-allowed}.db-bottom{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.db-summary{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:8px;margin-top:14px}.db-stat strong{font-size:17px}.db-due strong{color:#ff9e97}.db-paid strong{color:#a9deb8}.db-submit{display:flex;justify-content:flex-end;gap:8px;margin-top:15px;flex-wrap:wrap}.db-help{font-size:11px;color:var(--theme-ink-_9da9b2,#9da9b2);margin:8px 0 0}@media(max-width:900px){.db-head{align-items:flex-start;flex-direction:column}.db-grid{grid-template-columns:1fr}.db-field.full{grid-column:auto}.db-project{grid-template-columns:1fr 1fr}.db-summary{grid-template-columns:1fr 1fr}}@media(max-width:600px){.db-project,.db-summary{grid-template-columns:1fr}.db-actions{width:100%}.db-actions .db-btn{flex:1}.db-submit{flex-direction:column}.db-submit .db-btn{width:100%}}
     `}</style>
 
     <header className="db-head">
@@ -173,7 +217,7 @@ export default function DirectFullBillWorkspace() {
       <div className="db-actions"><Link className="db-btn" href="/admin/finance">← Finance Home</Link>{savedProjectId && <Link className="db-btn primary" href={savedState === "Draft" ? `/admin/finance/full-bill-editor?fileId=${encodeURIComponent(savedProjectId)}` : `/admin/finance/invoices?fileId=${encodeURIComponent(savedProjectId)}`}>{savedState === "Draft" ? "Review draft" : "Open invoice"}</Link>}</div>
     </header>
 
-    <div className="db-note"><strong>Prepare first, issue when ready.</strong> Select any existing File ID and enter the complete service values. Save as Draft when the bill still needs review or negotiation; Issue Now only when the commercial value is final.</div>
+    <div className="db-note"><strong>One pricing model everywhere.</strong> Every service can be entered as Quantity × Rate or Flat Amount. Other Services default to Quantity × Rate, so Soil Test, Survey, Municipality work and similar items can carry proper quantities.</div>
     {error && <div className="db-note error">{error}</div>}
     {message && <div className="db-note">{message}</div>}
 
@@ -190,13 +234,24 @@ export default function DirectFullBillWorkspace() {
 
     <section className="db-panel">
       <h2>Complete Service Billing</h2>
-      <div className="db-table"><table><thead><tr><th>Category</th><th>Service / Description</th><th>Gross BDT</th><th>Discount BDT</th><th>Net</th><th>Action</th></tr></thead><tbody>{lines.map((line) => {
-        const gross = Math.max(0, numberValue(line.amount));
+      <div className="db-table"><table><thead><tr><th>Category</th><th>Service / Description</th><th>Entry Type</th><th>Qty</th><th>Rate / Flat BDT</th><th>Gross</th><th>Discount</th><th>Net</th><th>Action</th></tr></thead><tbody>{lines.map((line) => {
+        const pricing = pricingFor(line);
         const discount = Math.max(0, numberValue(line.discount));
-        return <tr key={line.id}><td><select value={line.category} disabled={saving} onChange={(event) => updateLine(line.id, { category: event.target.value as BillCategory })}><option>Engineering Bill</option><option>Supervision Bill</option><option>Other Services Bill</option></select></td><td className="db-service"><input value={line.service} disabled={saving} onChange={(event) => updateLine(line.id, { service: event.target.value })}/></td><td className="db-money"><input inputMode="decimal" value={line.amount} disabled={saving} onChange={(event) => updateLine(line.id, { amount: event.target.value })} placeholder="0"/></td><td className="db-money"><input inputMode="decimal" value={line.discount} disabled={saving} onChange={(event) => updateLine(line.id, { discount: event.target.value })} placeholder="0"/></td><td><strong>{money(Math.max(0, gross - discount))}</strong></td><td><button type="button" className="db-delete" disabled={saving} onClick={() => deleteLine(line.id)}>Delete</button></td></tr>;
+        return <tr key={line.id}>
+          <td><select value={line.category} disabled={saving || Boolean(serviceDefinition(line.service))} onChange={(event) => updateCategory(line.id, event.target.value as BillCategory)}>{BILL_CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></td>
+          <td className="db-service"><input list="direct-full-service-list" value={line.service} disabled={saving} onChange={(event) => updateService(line.id, event.target.value)}/></td>
+          <td className="db-mode"><select value={line.entryMode} disabled={saving} onChange={(event) => updateLine(line.id, { entryMode: event.target.value as BillEntryMode })}><option value="quantity_rate">Qty × Rate</option><option value="flat_amount">Flat Amount</option></select></td>
+          <td className="db-qty"><input inputMode="decimal" value={line.entryMode === "quantity_rate" ? line.quantity : "1"} disabled={saving || line.entryMode === "flat_amount"} onChange={(event) => updateLine(line.id, { quantity: event.target.value })} placeholder="1"/></td>
+          <td className="db-money"><input inputMode="decimal" value={line.entryMode === "quantity_rate" ? line.unitPrice : line.amount} disabled={saving} onChange={(event) => updateLine(line.id, line.entryMode === "quantity_rate" ? { unitPrice: event.target.value } : { amount: event.target.value })} placeholder="0"/></td>
+          <td className="db-gross"><strong>{money(pricing.gross)}</strong></td>
+          <td className="db-money"><input inputMode="decimal" value={line.discount} disabled={saving} onChange={(event) => updateLine(line.id, { discount: event.target.value })} placeholder="0"/></td>
+          <td className="db-gross"><strong>{money(Math.max(0, pricing.gross - discount))}</strong></td>
+          <td><button type="button" className="db-delete" disabled={saving} onClick={() => deleteLine(line.id)}>Delete</button></td>
+        </tr>;
       })}</tbody></table></div>
+      <datalist id="direct-full-service-list">{BILL_SERVICE_CATALOG.map((item) => <option key={item.service} value={item.service}/>)}</datalist>
       {lines.length === 0 && <div className="db-note" style={{marginTop:12}}>No service rows remain. Restore the standard services or add a custom service.</div>}
-      <div className="db-bottom"><div className="db-row-actions"><button type="button" className="db-btn" disabled={saving} onClick={addCustomLine}>+ Custom service</button><button type="button" className="db-btn" disabled={saving} onClick={restoreStandardServices}>Restore standard services</button></div><span className="db-help">Only rows with an amount greater than zero are saved. Each service can have its own discount.</span></div>
+      <div className="db-bottom"><div className="db-row-actions"><button type="button" className="db-btn" disabled={saving} onClick={addCustomLine}>+ Custom service</button><button type="button" className="db-btn" disabled={saving} onClick={restoreStandardServices}>Restore standard services</button></div><span className="db-help">Only rows with a computed gross greater than zero are saved. Quantity and Unit Rate are stored with each bill.</span></div>
 
       <div className="db-summary">
         <div className="db-stat"><span>Already billed</span><strong>{money(existingBilled)}</strong></div>
@@ -205,8 +260,8 @@ export default function DirectFullBillWorkspace() {
         <div className="db-stat"><span>Gross / Discount</span><strong>{money(grossTotal)} / {money(discountTotal)}</strong></div>
         <div className="db-stat db-due"><span>Projected due</span><strong>{money(projectedDue)}</strong></div>
       </div>
-      <p className="db-help">Projected due = existing net billed + this full bill − all payments already recorded for the project. A Draft lets you review/edit the entire bill before it becomes an issued financial document.</p>
-      <div className="db-submit"><Link className="db-btn" href="/admin/finance">Cancel</Link><button type="button" className="db-btn draft" disabled={saving || loading} onClick={() => void createFullBill("Draft")}>{saving ? "Saving…" : `Save as Draft${activeLines.length ? ` · ${activeLines.length} item${activeLines.length === 1 ? "" : "s"}` : ""}`}</button><button type="button" className="db-btn primary" disabled={saving || loading} onClick={() => void createFullBill("Issued")}>{saving ? "Saving…" : `Issue Now${activeLines.length ? ` · ${activeLines.length} item${activeLines.length === 1 ? "" : "s"}` : ""}`}</button></div>
+      <p className="db-help">Projected due = existing net billed + this full bill − all payments already recorded for the project. A Draft lets you review/edit quantity, rate and discount before it becomes an issued financial document.</p>
+      <div className="db-submit"><Link className="db-btn" href="/admin/finance">Cancel</Link><button type="button" className="db-btn draft" disabled={saving || loading} onClick={() => void createFullBill("Draft")}>{saving ? "Saving…" : `Save as Draft${activeLines.length ? ` · ${activeLines.length} item${activeLines.length === 1 ? "" : "s"}` : ""}`}</button><button type="button" className="db-btn primary" disabled={saving || loading} onClick={() => void createFullBill("Issued")}>{saving ? "Issuing…" : `Issue Now${activeLines.length ? ` · ${activeLines.length} item${activeLines.length === 1 ? "" : "s"}` : ""}`}</button></div>
     </section>
   </div>;
 }
