@@ -86,6 +86,8 @@ export default function AddBillPage() {
   }).filter((item) => item.id).sort((a, b) => a.id.localeCompare(b.id, undefined, { numeric: true })), [projects]);
 
   const selected = options.find((item) => item.id === normalizeProjectId(projectId));
+  const knownService = serviceDefinition(service);
+  const effectiveCategory = knownService?.category || category;
   const pricing = normalizedBillPricing({ mode: entryMode, quantity, unitPrice, amount });
   const gross = pricing.gross;
   const discountAmount = Math.max(0, numberValue(discount));
@@ -101,8 +103,9 @@ export default function AddBillPage() {
   }
 
   function changeCategory(next: BillCategory) {
+    if (knownService) return;
     setCategory(next);
-    if (!serviceDefinition(service) && next === "Other Services Bill" && !amount && !unitPrice) {
+    if (next === "Other Services Bill" && !amount && !unitPrice) {
       setEntryMode("quantity_rate");
       if (!quantity) setQuantity("1");
     }
@@ -123,9 +126,9 @@ export default function AddBillPage() {
       await saveBill({
         Project_ID: id,
         Bill_Date: billDate,
-        Billing_Category: category,
-        Category: category,
-        Description: `[${category}] ${service.trim()}`,
+        Billing_Category: effectiveCategory,
+        Category: effectiveCategory,
+        Description: `[${effectiveCategory}] ${service.trim()}`,
         Quantity: pricing.quantity,
         Unit_Price: pricing.unitPrice,
         Amount: gross,
@@ -137,6 +140,7 @@ export default function AddBillPage() {
       });
       setMessage(`${service.trim()} added to ${id}${status === "Draft" ? " as Draft" : " and issued"}.`);
       setService("");
+      setCategory("Engineering Bill");
       setEntryMode("flat_amount");
       setQuantity("1");
       setUnitPrice("");
@@ -154,7 +158,7 @@ export default function AddBillPage() {
       .ab-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:14px}.ab-head small{font-size:8px;font-weight:950;letter-spacing:.13em;color:var(--lv-brand-text)}.ab-head h1{margin:5px 0 3px;font-size:30px}.ab-head p{margin:0;color:var(--lv-text-muted);font-size:9px;line-height:1.5}.ab-actions{display:flex;gap:7px;flex-wrap:wrap}
       .ab-btn{min-height:38px;padding:0 12px;border:1px solid var(--lv-border-default);border-radius:8px;background:var(--lv-surface-input);color:var(--lv-text-primary);font-size:8px;font-weight:950;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}.ab-btn.primary{background:var(--lv-brand-primary);border-color:var(--lv-brand-border);color:var(--lv-text-inverse)}.ab-btn:disabled{opacity:.55;cursor:not-allowed}
       .ab-msg{padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:9px}.ab-msg.bad{background:var(--lv-danger-soft);color:var(--lv-danger)}.ab-msg.good{background:var(--lv-success-soft);color:var(--lv-success)}
-      .ab-panel{border:1px solid var(--lv-border-default);border-radius:11px;background:var(--lv-surface-panel);padding:15px}.ab-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.ab-field{display:grid;gap:6px}.ab-field.full{grid-column:1/-1}.ab-field label,.ab-field>span{font-size:8px;font-weight:950;letter-spacing:.07em;text-transform:uppercase;color:var(--lv-text-muted)}.ab-field input,.ab-field select,.ab-field textarea{width:100%;min-height:42px;border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);padding:9px 10px}.ab-field textarea{min-height:80px;resize:vertical}.ab-project{grid-column:1/-1;padding:10px 11px;border:1px solid var(--lv-border-subtle);border-radius:8px;background:var(--lv-surface-muted);font-size:9px;color:var(--lv-text-muted)}.ab-project strong{color:var(--lv-text-primary)}
+      .ab-panel{border:1px solid var(--lv-border-default);border-radius:11px;background:var(--lv-surface-panel);padding:15px}.ab-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.ab-field{display:grid;gap:6px}.ab-field.full{grid-column:1/-1}.ab-field label,.ab-field>span{font-size:8px;font-weight:950;letter-spacing:.07em;text-transform:uppercase;color:var(--lv-text-muted)}.ab-field input,.ab-field select,.ab-field textarea{width:100%;min-height:42px;border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);padding:9px 10px}.ab-field select:disabled{opacity:.62}.ab-field textarea{min-height:80px;resize:vertical}.ab-project{grid-column:1/-1;padding:10px 11px;border:1px solid var(--lv-border-subtle);border-radius:8px;background:var(--lv-surface-muted);font-size:9px;color:var(--lv-text-muted)}.ab-project strong{color:var(--lv-text-primary)}
       .ab-mode-note{grid-column:1/-1;padding:9px 10px;border:1px solid var(--lv-border-subtle);border-radius:8px;background:var(--lv-surface-muted);font-size:8px;color:var(--lv-text-muted)}
       .ab-summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:12px}.ab-stat{padding:10px;border:1px solid var(--lv-border-subtle);border-radius:8px;background:var(--lv-surface-muted)}.ab-stat span{display:block;font-size:7px;font-weight:900;text-transform:uppercase;color:var(--lv-text-muted)}.ab-stat strong{display:block;margin-top:5px;font-size:17px}.ab-stat.net strong{color:var(--lv-brand-text)}.ab-submit{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
       @media(max-width:700px){.ab-head{align-items:flex-start;flex-direction:column}.ab-actions{width:100%}.ab-actions .ab-btn{flex:1}.ab-grid{grid-template-columns:1fr}.ab-field.full,.ab-project,.ab-mode-note{grid-column:auto}.ab-summary{grid-template-columns:1fr 1fr}.ab-submit{flex-direction:column}.ab-submit .ab-btn{width:100%}}
@@ -174,7 +178,7 @@ export default function AddBillPage() {
         {selected ? <div className="ab-project"><strong>{selected.id}</strong> · {selected.client || "Client not set"}{selected.name ? ` · ${selected.name}` : ""}</div> : null}
         <label className="ab-field"><span>Bill Date</span><input type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)}/></label>
         <label className="ab-field"><span>Status</span><select value={status} onChange={(e) => setStatus(e.target.value as BillState)}><option value="Issued">Issued</option><option value="Draft">Draft</option></select></label>
-        <label className="ab-field"><span>Billing Category</span><select value={category} onChange={(e) => changeCategory(e.target.value as BillCategory)}>{BILL_CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></label>
+        <label className="ab-field"><span>Billing Category</span><select value={effectiveCategory} disabled={Boolean(knownService)} onChange={(e) => changeCategory(e.target.value as BillCategory)}>{BILL_CATEGORIES.map((item) => <option key={item}>{item}</option>)}</select></label>
         <label className="ab-field"><span>Service / Description</span><input list="finance-add-bill-services" value={service} onChange={(e) => changeService(e.target.value)} placeholder="Select or type service"/><datalist id="finance-add-bill-services">{BILL_SERVICE_CATALOG.map((item) => <option key={item.service} value={item.service}/>)}</datalist></label>
         <label className="ab-field"><span>Entry Type</span><select value={entryMode} onChange={(e) => setEntryMode(e.target.value as BillEntryMode)}><option value="quantity_rate">Quantity × Rate</option><option value="flat_amount">Flat Amount</option></select></label>
         {entryMode === "quantity_rate" ? <>
