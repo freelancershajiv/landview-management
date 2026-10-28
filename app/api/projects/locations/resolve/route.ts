@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
-import { roleOf } from "@/lib/supabase-data";
 import { resolveGoogleMapsLocation } from "@/lib/google-maps-location";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MANAGE_ROLES = new Set(["admin", "manager"]);
 const GEO_SOURCE = "https://iqbalhasandev.github.io/bangladesh-geo-json/bangladesh-geo.json";
 const MODERN_NAMES: Record<string, string> = { Chattagram:"Chattogram", Barisal:"Barishal", Comilla:"Cumilla", Jessore:"Jashore", Bogra:"Bogura" };
 
@@ -43,16 +41,16 @@ function first(...values: unknown[]) { for(const value of values){const found=te
 function stripAdmin(value: unknown) {
   return modern(value).replace(/\s+(?:Division|District|Zila|Zilla|Upazila|Thana|Union Parishad|Union|Paurashava|Pourashava|Municipality|City Corporation)$/i,"").trim();
 }
+function compact(parts: unknown[]) { return parts.map((part)=>text(part,250)).filter(Boolean).join(", "); }
 
 export async function POST(request: NextRequest) {
   try {
     if (!sameOrigin(request)) return NextResponse.json({ success:false, error:"Invalid request origin." }, { status:403 });
     const user=await requireLocalSession(request);
     if(!user)return NextResponse.json({success:false,error:"Session expired."},{status:401});
-    if(!MANAGE_ROLES.has(roleOf(user)))return NextResponse.json({success:false,error:"Admin or manager access is required."},{status:403});
 
     const body=await request.json() as Record<string,unknown>;
-    const locationTag=text(body.locationTag||body.Location_Tag,4000);
+    const locationTag=text(body.locationTag||body.Location_Tag||body.location||body.url||body.value,4000);
     if(!locationTag)return NextResponse.json({success:false,error:"Paste a Google Maps location link or coordinates first."},{status:400});
 
     const point=await resolveGoogleMapsLocation(locationTag);
@@ -65,7 +63,7 @@ export async function POST(request: NextRequest) {
     reverseUrl.searchParams.set("addressdetails","1");
     reverseUrl.searchParams.set("zoom","18");
     reverseUrl.searchParams.set("accept-language","en");
-    const reverseResponse=await fetch(reverseUrl,{cache:"no-store",headers:{"user-agent":"LAND VIEW Architects & Engineers project-location-admin/1.0 (https://landview.com.bd)",accept:"application/json"},signal:AbortSignal.timeout(12000)});
+    const reverseResponse=await fetch(reverseUrl,{cache:"no-store",headers:{"user-agent":"LAND VIEW Architects & Engineers project-location-admin/1.1 (https://landview.com.bd)",accept:"application/json"},signal:AbortSignal.timeout(12000)});
     if(!reverseResponse.ok)throw new Error(`Reverse geocoder returned ${reverseResponse.status}.`);
     const reverse=await reverseResponse.json() as { address?:Address; display_name?:string };
     const address=reverse.address||{};
@@ -99,8 +97,15 @@ export async function POST(request: NextRequest) {
     else if(unionPlace){localBodyName=modern(unionPlace.name);localBodyType="Union Parishad";}
     else {localBodyName=stripAdmin(first(...localCandidates));localBodyType=localBodyName?"Other":"";}
 
+    const wardNo=first(address.ward,address.ward_number).replace(/^ward\s*/i,"");
+    const villageArea=first(address.neighbourhood,address.quarter,address.suburb,address.village,address.hamlet,address.residential);
+    const road=first(address.road,address.pedestrian,address.path,address.highway);
+    const holding=first(address.house_number,address.house_name,address.building);
+    const roadHolding=compact([holding,road]);
+    const normalizedLocationTag=`https://www.google.com/maps?q=${point.latitude},${point.longitude}`;
+
     return NextResponse.json({success:true,data:{
-      locationTag,
+      locationTag:normalizedLocationTag,
       latitude:point.latitude,
       longitude:point.longitude,
       division,
@@ -108,6 +113,9 @@ export async function POST(request: NextRequest) {
       upazilaThana,
       localBodyType,
       localBodyName,
+      wardNo,
+      villageArea,
+      roadHolding,
       displayName:text(reverse.display_name,1000),
       matched:{division:Boolean(divisionPlace),district:Boolean(districtPlace),upazila:Boolean(upazilaPlace),localBody:Boolean(unionPlace||paurashavaPlace)},
     }},{headers:{"Cache-Control":"no-store, max-age=0"}});
