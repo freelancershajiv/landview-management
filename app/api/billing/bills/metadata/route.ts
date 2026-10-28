@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const EDIT_ROLES = new Set(["admin", "manager", "accounts"]);
-const BILL_CATEGORIES = new Set(["Engineering Bill", "Design Books", "Supervision Bill", "Other Services Bill"]);
+const BILL_CATEGORIES = new Set(["Engineering Bill", "Supervision Bill", "Other Services Bill"]);
 type Row = Record<string, any>;
 
 function sameOrigin(request: NextRequest) {
@@ -21,6 +21,10 @@ function date(value: unknown) {
 }
 function serviceText(value: unknown) {
   return text(value, 1000).replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim();
+}
+function canonicalCategory(value: unknown) {
+  const raw = text(value, 80);
+  return raw === "Design Books" ? "Engineering Bill" : raw;
 }
 function actorOf(user: Row) {
   return employeeCodeOf(user) || text(user.username || user.Username || user.name || user.Name, 160) || "LAND VIEW";
@@ -60,7 +64,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Voided or cancelled bills cannot be edited." }, { status: 409 });
     }
 
-    const category = text(body.Billing_Category || body.Category || body.category || current.billing_category || current.category, 80);
+    const category = canonicalCategory(body.Billing_Category || body.Category || body.category || current.billing_category || current.category);
     if (!BILL_CATEGORIES.has(category)) return NextResponse.json({ success: false, error: "Choose a valid billing category." }, { status: 400 });
 
     const billDate = date(body.Bill_Date || body.Date || current.bill_date);
@@ -74,7 +78,7 @@ export async function PATCH(request: NextRequest) {
     const nextDescription = `[${category}] ${service}`;
     const before = {
       billDate: text(current.bill_date, 20),
-      category: text(current.billing_category || current.category, 80),
+      category: canonicalCategory(current.billing_category || current.category),
       service: serviceText(current.description),
       notes: text(current.notes, 4000),
     };
