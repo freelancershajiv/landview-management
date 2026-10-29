@@ -261,6 +261,7 @@ async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhats
     await projectQueueRequest(token, {
       projectCode,
       message: formatClientSiteVisitMessage(payload),
+      media: directMedia(payload),
       dedupeKey: `client-site-visit:${text(payload.visitId, 120)}`,
       source: "site-visit",
     });
