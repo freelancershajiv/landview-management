@@ -126,16 +126,55 @@ const siteOutboxSendReplacement = String.raw`    const jid = await ensureGroup(r
     )
     const messageId = String(sent?.key?.id || messageIdHint || '')`
 
-const clientOutboxSendMarker = String.raw`    const sent = await sock.sendMessage(String(row.to_jid), { text: String(row.message || '').slice(0, 4000) })
-    const messageId = String(sent?.key?.id || '')`
+const clientOutboxSendMarker = String.raw`    const jid = String(row.to_jid)
+    const media = queuedClientMedia(row.media_json)
+    const sentIds = []
 
-const clientOutboxSendReplacement = String.raw`    const messageIdHint = await stableWhatsAppMessageId('client-outbox:' + String(row.dedupe_key || row.id || ''))
-    const sent = await sock.sendMessage(
-      String(row.to_jid),
+    for (const item of media) {
+      const sentMedia = await sock.sendMessage(jid, {
+        image: item.image,
+        mimetype: item.mimeType,
+        caption: item.caption || undefined,
+      })
+      const mediaId = String(sentMedia?.key?.id || '')
+      if (mediaId) sentIds.push(mediaId)
+    }
+
+    const sentText = await sock.sendMessage(jid, { text: String(row.message || '').slice(0, 4000) })
+    const textMessageId = String(sentText?.key?.id || '')
+    if (textMessageId) sentIds.push(textMessageId)
+    const messageId = textMessageId || sentIds[0] || ''`
+
+const clientOutboxSendReplacement = String.raw`    const jid = String(row.to_jid)
+    const media = queuedClientMedia(row.media_json)
+    const sentIds = []
+    const baseKey = 'client-outbox:' + String(row.dedupe_key || row.id || '')
+
+    for (let index = 0; index < media.length; index += 1) {
+      const item = media[index]
+      const mediaMessageId = await stableWhatsAppMessageId('media:' + index + ':' + baseKey)
+      const sentMedia = await sock.sendMessage(
+        jid,
+        {
+          image: item.image,
+          mimetype: item.mimeType,
+          caption: item.caption || undefined,
+        },
+        mediaMessageId ? { messageId: mediaMessageId } : undefined,
+      )
+      const mediaId = String(sentMedia?.key?.id || mediaMessageId || '')
+      if (mediaId) sentIds.push(mediaId)
+    }
+
+    const textMessageIdHint = await stableWhatsAppMessageId('text:' + baseKey)
+    const sentText = await sock.sendMessage(
+      jid,
       { text: String(row.message || '').slice(0, 4000) },
-      messageIdHint ? { messageId: messageIdHint } : undefined,
+      textMessageIdHint ? { messageId: textMessageIdHint } : undefined,
     )
-    const messageId = String(sent?.key?.id || messageIdHint || '')`
+    const textMessageId = String(sentText?.key?.id || textMessageIdHint || '')
+    if (textMessageId) sentIds.push(textMessageId)
+    const messageId = textMessageId || sentIds[0] || ''`
 
 const adminSendMarker = String.raw`app.post('/admin/send-group', async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
