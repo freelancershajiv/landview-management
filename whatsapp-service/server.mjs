@@ -69,7 +69,7 @@ async function useSupabaseAuthState(sessionId) {
     return deserialize(row?.value)
   }
   async function writeData(keyId, value) {
-    await store('authSet', { sessionId, keyId, value: serialize(value) })
+    await store('authSet', { sessionId, keyId, value })
   }
   async function writeMany(items) {
     if (!items.length) return
@@ -725,6 +725,20 @@ async function handleClientInbound(event, sock) {
   }
 }
 
+function queuedClientMedia(value) {
+  if (!Array.isArray(value)) return []
+  return value.slice(0, 8).map((item) => {
+    const mimeType = String(item?.mimeType || 'image/jpeg').trim().toLowerCase()
+    const base64 = String(item?.base64 || '').trim().replace(/^data:[^;]+;base64,/i, '')
+    const caption = String(item?.caption || '').trim().slice(0, 700)
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) return null
+    if (!base64 || !/^[A-Za-z0-9+/=\r\n]+$/.test(base64)) return null
+    const image = Buffer.from(base64, 'base64')
+    if (!image.length || image.length > 4 * 1024 * 1024) return null
+    return { mimeType, image, caption }
+  }).filter(Boolean)
+}
+
 async function processClientOutboxOnce() {
   const sock = clientSession.state.sock
   if (!sock || clientSession.state.connection !== 'open') return false
@@ -741,10 +755,28 @@ async function processClientOutboxOnce() {
         return true
       }
     }
-    const sent = await sock.sendMessage(String(row.to_jid), { text: String(row.message || '').slice(0, 4000) })
-    const messageId = String(sent?.key?.id || '')
+
+    const jid = String(row.to_jid)
+    const media = queuedClientMedia(row.media_json)
+    const sentIds = []
+
+    for (const item of media) {
+      const sentMedia = await sock.sendMessage(jid, {
+        image: item.image,
+        mimetype: item.mimeType,
+        caption: item.caption || undefined,
+      })
+      const mediaId = String(sentMedia?.key?.id || '')
+      if (mediaId) sentIds.push(mediaId)
+    }
+
+    const sentText = await sock.sendMessage(jid, { text: String(row.message || '').slice(0, 4000) })
+    const textMessageId = String(sentText?.key?.id || '')
+    if (textMessageId) sentIds.push(textMessageId)
+    const messageId = textMessageId || sentIds[0] || ''
+
     await store('clientOutboxSent', { id: row.id, messageId })
-    logger.info({ outboxId: row.id, messageId }, 'Client WhatsApp message sent')
+    logger.info({ outboxId: row.id, messageId, mediaCount: media.length }, 'Client WhatsApp message sent')
   } catch (error) {
     const reason = String(error?.message || error).slice(0, 1000)
     await store('clientOutboxRetry', { id: row.id, attemptCount: row.attempt_count, error: reason }).catch(() => null)
