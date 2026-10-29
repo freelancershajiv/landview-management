@@ -69,7 +69,7 @@ async function useSupabaseAuthState(sessionId) {
     return deserialize(row?.value)
   }
   async function writeData(keyId, value) {
-    await store('authSet', { sessionId, keyId, value })
+    await store('authSet', { sessionId, keyId, value: serialize(value) })
   }
   async function writeMany(items) {
     if (!items.length) return
