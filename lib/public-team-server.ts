@@ -35,6 +35,14 @@ function publicPositionFromBio(value: unknown) {
   return "";
 }
 
+function publicTeamRank(member: PublicTeamMember) {
+  const source = [member.department, member.position, member.designation, member.title].map(cleanPublicTeamText).join(" ").toLowerCase();
+  if (/structur/.test(source)) return 0;
+  if (/architect/.test(source)) return 1;
+  if (/project engineer|project management|supervision|site|coordination/.test(source)) return 2;
+  return 3;
+}
+
 export function normalizePublicTeamImageUrl(url?: string, size = "w1000") {
   const value = String(url || "").trim();
   if (!value) return "";
@@ -57,7 +65,7 @@ export const getPublicTeamForSeo = cache(async function getPublicTeamForSeo(): P
       order: "display_order:asc,name:asc",
       limit: 1000,
     });
-    return rows.map((row: any) => {
+    const members = rows.map((row: any) => {
       const bio = cleanPublicTeamText(row.public_bio);
       const designation = cleanPublicTeamText(row.designation);
       const publicTitle = cleanPublicTeamText(row.public_title);
@@ -77,8 +85,14 @@ export const getPublicTeamForSeo = cache(async function getPublicTeamForSeo(): P
         photoUrl: String(row.photo_url || "").trim(),
         linkedInUrl: String(row.linkedin_url || "").trim(),
         displayOrder: Number(row.display_order ?? 9999),
-      };
+      } satisfies PublicTeamMember;
     });
+
+    return members.sort((a, b) =>
+      publicTeamRank(a) - publicTeamRank(b) ||
+      Number(a.displayOrder ?? 9999) - Number(b.displayOrder ?? 9999) ||
+      cleanPublicTeamText(a.name).localeCompare(cleanPublicTeamText(b.name))
+    );
   } catch (error) {
     console.warn("LAND VIEW public team Supabase read failed", {
       message: error instanceof Error ? error.message.slice(0, 180) : "Unknown error",
