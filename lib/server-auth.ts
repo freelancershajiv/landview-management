@@ -1,7 +1,6 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { ACTING_USER_COOKIE, QUICK_USER_COOKIE, SESSION_COOKIE, readSignedActingWorkspaceUser } from "@/lib/local-session";
+import { SESSION_COOKIE } from "@/lib/local-session";
 import { hasCapability, type Capability } from "@/lib/permissions";
 
 export type PortalRole = "admin" | "manager" | "employee" | "client";
@@ -26,8 +25,6 @@ type ValidationResult =
   | { kind: "ok"; json: SessionPayload }
   | { kind: "auth" }
   | { kind: "transient" };
-
-const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 
 function normalizeHost(value: string | null | undefined) {
   return String(value || "")
@@ -66,33 +63,6 @@ function redirectForRole(role: PortalRole): never {
   loginRedirect();
 }
 
-function hmac(value: string) {
-  return createHmac("sha256", PROXY_SECRET).update(value).digest("hex");
-}
-
-function secureEqual(a: string, b: string) {
-  const aa = Buffer.from(String(a || ""), "utf8");
-  const bb = Buffer.from(String(b || ""), "utf8");
-  return aa.length === bb.length && timingSafeEqual(aa, bb);
-}
-
-function readSignedWorkspaceUser(value: string | undefined): SessionUser | null {
-  if (!PROXY_SECRET) return null;
-  const text = String(value || "");
-  const dot = text.lastIndexOf(".");
-  if (dot < 1) return null;
-  const payload = text.slice(0, dot);
-  const signature = text.slice(dot + 1);
-  if (!secureEqual(signature, hmac(`quick-user|${payload}`))) return null;
-  try {
-    const user = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as SessionUser;
-    const role = roleOf(user);
-    return ["admin", "manager", "employee", "client"].includes(role) ? user : null;
-  } catch {
-    return null;
-  }
-}
-
 function isExplicitAuthFailure(response: Response, json: SessionPayload) {
   if (response.status === 401) return true;
   if (json?.data?.authenticated === false) return true;
@@ -117,10 +87,10 @@ async function validateSession(url: string, cookieHeader: string): Promise<Valid
       cache: "no-store",
     });
 
-    const text = await response.text();
+    const body = await response.text();
     let json: SessionPayload;
     try {
-      json = JSON.parse(text) as SessionPayload;
+      json = JSON.parse(body) as SessionPayload;
     } catch {
       return { kind: "transient" };
     }
@@ -139,36 +109,16 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
   const cookieStore = await cookies();
   const requestHeaders = await headers();
 
-  // Keep the authoritative portal guard on the same v2 cookie names that
-  // login-fast/session-refresh mint. Reading legacy v1 cookies here can let a
-  // stale admin identity override a freshly authenticated employee session.
-  const sessionCookie = cookieStore.get(SESSION_COOKIE)?.value;
-  if (!sessionCookie) loginRedirect();
+  // Presence of the access cookie is only an early gate. The user identity used
+  // by protected pages always comes from /api/session-fast after Supabase token
+  // validation (and refresh when appropriate). A signed quick-user cookie is no
+  // longer accepted as authoritative page authentication.
+  if (!cookieStore.get(SESSION_COOKIE)?.value) loginRedirect();
 
-  // Fast path: normal login and Quick PIN login both mint this server-signed,
-  // HttpOnly identity cookie. Verify it locally instead of making another
-  // Supabase round trip on every page navigation.
-  const signedUser = readSignedWorkspaceUser(cookieStore.get(QUICK_USER_COOKIE)?.value);
-  if (signedUser) {
-    const signedRole = roleOf(signedUser);
-    const actingUser = signedRole === "admin"
-      ? readSignedActingWorkspaceUser(cookieStore.get(ACTING_USER_COOKIE)?.value) as SessionUser | null
-      : null;
-    const effectiveUser = actingUser || signedUser;
-    const role = roleOf(effectiveUser);
-    if (allowedRoles.includes(role)) return { user: effectiveUser, role };
-    redirectForRole(role);
-  }
-
-  // Compatibility path for sessions without the signed identity cookie.
   const incomingHost = normalizeHost(requestHeaders.get("host"));
-  const host = trustedHosts().has(incomingHost)
-    ? incomingHost
-    : "app.landview.com.bd";
-
+  const host = trustedHosts().has(incomingHost) ? incomingHost : "app.landview.com.bd";
   const isLocal = host === "localhost" || host === "127.0.0.1";
-  const protocol = isLocal ? "http" : "https";
-  const origin = `${protocol}://${host}`;
+  const origin = `${isLocal ? "http" : "https"}://${host}`;
   const cookieHeader = cookieStore
     .getAll()
     .map(({ name, value }) => `${name}=${encodeURIComponent(value)}`)
@@ -181,20 +131,15 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
 
   if (validation.kind === "auth") loginRedirect();
   if (validation.kind !== "ok") {
-    throw new Error("LAND VIEW could not validate the current session temporarily. Your sign-in has been preserved; refresh this page to retry.");
+    throw new Error(
+      "LAND VIEW could not validate the current session temporarily. Your sign-in has been preserved; refresh this page to retry.",
+    );
   }
 
-  const json = validation.json;
-  const user = json.data!.user!;
-  const originalRole = roleOf(user);
-  const actingUser = originalRole === "admin"
-    ? readSignedActingWorkspaceUser(cookieStore.get(ACTING_USER_COOKIE)?.value) as SessionUser | null
-    : null;
-  const effectiveUser = actingUser || user;
-  const role = roleOf(effectiveUser);
-
+  const user = validation.json.data!.user!;
+  const role = roleOf(user);
   if (!allowedRoles.includes(role)) redirectForRole(role);
-  return { user: effectiveUser, role };
+  return { user, role };
 }
 
 /**
