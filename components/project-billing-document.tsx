@@ -231,9 +231,9 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
     if (!items.length) return <p className={styles.empty}>No bill records.</p>;
     return <div className={styles.tableWrap}><table className={styles.billTable}>
       <thead><tr><th>SL.</th><th>Description</th><th>Rate (BDT)</th><th>QTY</th><th>Amount (BDT)</th></tr></thead>
-      <tbody>{items.map((item,index)=>{ const soilTest=isSoilTestService(item.service); return <tr key={`${item.service}-${index}`}>
+      <tbody>{items.map((item,index)=>{ const showPricing=isSoilTestService(item.service)||Boolean(item.price||item.quantity); return <tr key={`${item.service}-${index}`}>
         <td>{index+1}</td><td>{standardServiceLabel(item.service)||item.service||"—"}</td>
-        <td>{soilTest&&item.price?amountText(item.price):""}</td><td>{soilTest&&item.quantity?item.quantity:""}</td>
+        <td>{showPricing&&item.price?amountText(item.price):""}</td><td>{showPricing&&item.quantity?item.quantity:""}</td>
         <td className={styles.moneyCell}>{amountText(item.amount)}</td>
       </tr>; })}</tbody>
     </table></div>;
