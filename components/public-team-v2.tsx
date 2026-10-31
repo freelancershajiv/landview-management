@@ -6,6 +6,7 @@ import type { PublicTeamMember } from "@/lib/public-team-server";
 
 const POSITION_PREFIX = "__POSITION__:";
 const LEADERSHIP_WORDS = ["founder", "director", "general manager", "manager", "head", "chief", "principal", "lead"];
+const DEPARTMENT_ORDER = ["Structural Engineering", "Architecture", "Project Delivery"];
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -73,6 +74,14 @@ function departmentLabel(member: PublicTeamMember) {
   return department || "Other";
 }
 
+function departmentSort(a: string, b: string) {
+  const aIndex = DEPARTMENT_ORDER.indexOf(a);
+  const bIndex = DEPARTMENT_ORDER.indexOf(b);
+  const aRank = aIndex === -1 ? DEPARTMENT_ORDER.length : aIndex;
+  const bRank = bIndex === -1 ? DEPARTMENT_ORDER.length : bIndex;
+  return aRank - bRank || a.localeCompare(b);
+}
+
 function isLeadership(member: PublicTeamMember) {
   const { position } = memberView(member);
   return LEADERSHIP_WORDS.some((word) => position.toLowerCase().includes(word));
@@ -104,7 +113,7 @@ function MemberCard({ member, featured = false }: { member: PublicTeamMember; fe
 export default function PublicTeamV2({ members }: { members: PublicTeamMember[] }) {
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("All");
-  const departments = useMemo(() => ["All", ...Array.from(new Set(members.map(departmentLabel).filter(Boolean))).sort((a, b) => a.localeCompare(b))], [members]);
+  const departments = useMemo(() => ["All", ...Array.from(new Set(members.map(departmentLabel).filter(Boolean))).sort(departmentSort)], [members]);
   const leadership = useMemo(() => members.filter(isLeadership).slice(0, 4), [members]);
   const leadershipSet = useMemo(() => new Set(leadership), [leadership]);
   const filtered = useMemo(() => {
