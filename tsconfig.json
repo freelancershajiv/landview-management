@@ -20,6 +20,7 @@
     ],
     "paths": {
       "@/components/project-billing-document": ["./components/project-billing-document-revamp"],
+      "@/lib/supabase-data": ["./lib/supabase-data-secure"],
       "@/*": ["./*"]
     }
   },
