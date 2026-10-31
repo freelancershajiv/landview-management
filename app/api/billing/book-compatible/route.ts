@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { requireLocalSession } from "@/lib/local-session";
+import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { selectRows } from "@/lib/supabase-data";
 import {
   billingAmount,
@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
 type CategoryNumbers = { gross: number; discount: number; billed: number; paid: number; due: number };
+const FINANCE_ROLES = new Set(["admin", "manager", "accounts"]);
 
 function emptyCategory(): CategoryNumbers {
   return { gross: 0, discount: 0, billed: 0, paid: 0, due: 0 };
@@ -24,6 +25,9 @@ export async function GET(request: NextRequest) {
     const user = await requireLocalSession(request);
     if (!user) {
       return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
+    }
+    if (!FINANCE_ROLES.has(roleOf(user))) {
+      return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
     }
 
     const [projects, bills, payments] = await Promise.all([
