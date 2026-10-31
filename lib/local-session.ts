@@ -4,8 +4,6 @@ import { supabaseAuthGateway } from "@/lib/supabase-auth";
 
 const PROXY_SECRET = process.env.LAND_VIEW_PROXY_SECRET || "";
 
-// v2 auth cookies are persistent across browser restarts. Successful token
-// refreshes renew their lifetime; explicit logout still clears them immediately.
 export const SESSION_COOKIE = "landview_session_v2";
 export const REFRESH_COOKIE = "landview_refresh_v2";
 export const QUICK_USER_COOKIE = "landview_quick_user_v2";
@@ -14,7 +12,8 @@ export const DEVICE_COOKIE = "landview_device";
 export const ACTING_USER_COOKIE = "landview_acting_user_v1";
 
 const SESSION_READ_CACHE_MS = 5_000;
-const SESSION_MAX_AGE_SECONDS = 400 * 24 * 60 * 60;
+const STANDARD_SESSION_MAX_AGE_SECONDS = 24 * 60 * 60;
+const REMEMBERED_SESSION_MAX_AGE_SECONDS = 60 * 24 * 60 * 60;
 
 export type WorkspaceUser = Record<string, unknown>;
 
@@ -85,12 +84,13 @@ export function userIdOf(user: WorkspaceUser | null | undefined) {
 }
 
 /**
- * Keep authenticated sessions across browser restarts. Browsers can cap the
- * lifetime of persistent cookies, so each successful refresh renews this
- * rolling window. Logout still clears the cookies immediately.
+ * Normal sign-ins remain valid for one day. Explicit "remember me" sign-ins
+ * receive a rolling 60-day browser lifetime. Supabase token validation remains
+ * authoritative, so revocation or server-side expiry can still end either
+ * session earlier.
  */
-export function sessionMaxAge(_remembered: boolean): number {
-  return SESSION_MAX_AGE_SECONDS;
+export function sessionMaxAge(remembered: boolean): number {
+  return remembered ? REMEMBERED_SESSION_MAX_AGE_SECONDS : STANDARD_SESSION_MAX_AGE_SECONDS;
 }
 
 function cacheKey(token: string) {
@@ -142,8 +142,8 @@ export async function requireLocalSession(request: NextRequest): Promise<Workspa
   if (roleOf(original) !== "admin") return original;
 
   // Admin API routes must always authenticate with the original Admin identity.
-  // The acting EMP-0002 cookie is only for viewing/using employee-side pages and
-  // must never make Admin APIs reject the same signed-in Admin as an employee.
+  // The acting employee cookie is only for employee-side browsing and must not
+  // change the identity used by admin APIs.
   if (request.nextUrl.pathname.startsWith("/api/admin/")) return original;
 
   const acting = readSignedActingWorkspaceUser(request.cookies.get(ACTING_USER_COOKIE)?.value);
