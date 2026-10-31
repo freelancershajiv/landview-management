@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GET as legacyGET, POST as legacyPOST } from "../document-register/route";
-import { employeeCodeOf, requireLocalSession, roleOf } from "@/lib/local-session";
+import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { isAllowedRequestOrigin } from "@/lib/request-origin";
-import { selectRows } from "@/lib/supabase-data";
+import { employeeCodeOf, selectRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
