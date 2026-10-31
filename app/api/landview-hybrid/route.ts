@@ -1,6 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { GET as legacyGET, POST as legacyPOST } from "../landview/route";
-import { ACTING_USER_COOKIE, QUICK_USER_COOKIE, REMEMBER_COOKIE, SESSION_COOKIE, requireLocalSession, revokeLocalSession } from "@/lib/local-session";
+import {
+  ACTING_USER_COOKIE,
+  QUICK_USER_COOKIE,
+  REFRESH_COOKIE,
+  REMEMBER_COOKIE,
+  SESSION_COOKIE,
+  requireLocalSession,
+  revokeLocalSession,
+} from "@/lib/local-session";
+import { isAllowedRequestOrigin } from "@/lib/request-origin";
 import {
   handleLandviewDataAction,
   normalizeProjectCode,
@@ -34,15 +43,8 @@ const ADMIN_ONLY_DATA_WRITES = new Set([
   "initializeErpSheets",
 ]);
 const FINANCE_WRITES = new Set(["savePayment", "createPayment", "reviewChairmanPendingApproval"]);
+const FINANCE_ROLES = new Set(["admin", "manager", "accounts"]);
 
-function originAllowed(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return process.env.NODE_ENV !== "production" || request.headers.get("sec-fetch-site") === "same-origin";
-  try {
-    const host = new URL(origin).hostname.toLowerCase();
-    return host === "app.landview.com.bd" || host === "localhost" || host === "127.0.0.1" || host.endsWith(".vercel.app");
-  } catch { return false; }
-}
 function numberOf(value: unknown) {
   const n = Number(String(value ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
@@ -156,6 +158,7 @@ async function mirrorInvoice(sourceData: unknown, input: Record<string, unknown>
 function clearSessionCookies(response: NextResponse) {
   const options = { httpOnly:true, secure:process.env.NODE_ENV === "production", sameSite:"lax" as const, path:"/", maxAge:0 };
   response.cookies.set(SESSION_COOKIE,"",options);
+  response.cookies.set(REFRESH_COOKIE,"",options);
   response.cookies.set(QUICK_USER_COOKIE,"",options);
   response.cookies.set(ACTING_USER_COOKIE,"",options);
   response.cookies.set(REMEMBER_COOKIE,"",options);
@@ -178,7 +181,10 @@ export async function GET(request: NextRequest) {
     if (action === "getSession") return ok({ authenticated:true, user, remembered:request.cookies.get(REMEMBER_COOKIE)?.value === "1", backend:"supabase" });
     const input: Record<string, unknown> = {};
     request.nextUrl.searchParams.forEach((value, key) => { if (key !== "action") input[key] = value; });
-    if (action === "getFinanceSheet") return ok(await financeCompatibilitySheet(input.tab, user));
+    if (action === "getFinanceSheet") {
+      if (!FINANCE_ROLES.has(roleOf(user))) return NextResponse.json({ success:false, error:"Finance access is required." }, { status:403 });
+      return ok(await financeCompatibilitySheet(input.tab, user));
+    }
     return ok(await handleLandviewDataAction(action, input, user));
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -191,7 +197,7 @@ export async function POST(request: NextRequest) {
   const copy = request.clone();
   const input = await copy.json().catch(() => ({})) as Record<string, unknown>;
   const action = String(input.action || "").trim();
-  if (!originAllowed(request)) return NextResponse.json({ success:false, error:"Invalid request origin." }, { status:403 });
+  if (!isAllowedRequestOrigin(request)) return NextResponse.json({ success:false, error:"Invalid request origin." }, { status:403 });
 
   if (action === "logout") {
     const token = request.cookies.get(SESSION_COOKIE)?.value || "";
@@ -215,8 +221,11 @@ export async function POST(request: NextRequest) {
     if ((ADMIN_ONLY_DATA_WRITES.has(action) || isInvoiceGeneration) && !["admin","manager","accounts"].includes(role)) {
       return NextResponse.json({ success:false, error:"Management access is required." }, { status:403 });
     }
-    if (FINANCE_WRITES.has(action) && !["admin","manager","accounts","employee"].includes(role)) {
+    if (FINANCE_WRITES.has(action) && !FINANCE_ROLES.has(role)) {
       return NextResponse.json({ success:false, error:"Finance access is required." }, { status:403 });
+    }
+    if (isWorkflowCompat && !["admin","manager"].includes(role)) {
+      return NextResponse.json({ success:false, error:"Management access is required." }, { status:403 });
     }
 
     if (isWorkflowCompat) {
