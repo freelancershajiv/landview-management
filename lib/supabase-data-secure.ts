@@ -25,6 +25,11 @@ const CLIENT_READ_ACTIONS = new Set([
   "getPayments",
   "getInvoices",
 ]);
+const CLIENT_AGGREGATE_PROJECT_ACTIONS = new Set([
+  "getBillingRecords",
+  "getPayments",
+  "getInvoices",
+]);
 const EMPLOYEE_ALLOWED_ACTIONS = new Set([
   "getDashboard",
   "getProjects",
@@ -138,10 +143,15 @@ async function requireProjectAccess(user: WorkspaceUser, input: Row) {
   if (!allowed.has(projectCode)) throw new Error("Permission denied for this project.");
 }
 
+function projectCodeFromRow(row: Row) {
+  return normalizeProjectCode(
+    row.Project_ID || row.projectId || row.fileId || row.project_code || row.File_ID ||
+    row.Project_ID_Snapshot || row.project_code_snapshot || row.projectIdSnapshot,
+  );
+}
+
 function filterByProjectCode(rows: Row[], allowed: Set<string>) {
-  return rows.filter((row) => allowed.has(normalizeProjectCode(
-    row.Project_ID || row.projectId || row.fileId || row.project_code || row.File_ID,
-  )));
+  return rows.filter((row) => allowed.has(projectCodeFromRow(row)));
 }
 
 function clientVisible(value: unknown) {
@@ -207,6 +217,11 @@ async function handleClientAction(action: string, input: Row, user: WorkspaceUse
     const rows = await handleUnsafeLandviewDataAction(action, input, user) as Row[];
     const scoped = filterByProjectCode(rows, allowed);
     return action === "getDocuments" ? scoped.filter((row) => clientVisible(row.Client_Visible)) : scoped;
+  }
+
+  if (CLIENT_AGGREGATE_PROJECT_ACTIONS.has(action) && !projectCodeFrom(input)) {
+    const rows = await handleUnsafeLandviewDataAction(action, input, user) as Row[];
+    return filterByProjectCode(rows, allowed);
   }
 
   await requireProjectAccess(user, input);
