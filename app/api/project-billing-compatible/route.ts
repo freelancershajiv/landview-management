@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 type Row = Record<string, any>;
 type Category = "Engineering Bill" | "Design Books" | "Supervision Bill" | "Other Services Bill";
 const TABS = ["Summary","File List","Design Bill","Design Deposit","Design Books Bill","Design Books Deposit","Supervision Bill","S Deposit","Others Bill","Others Bill Deposit"];
+const FINANCE_ROLES = new Set(["admin", "manager", "accounts"]);
 
 function sheet(tab:string, headers:string[], rows:unknown[][], totals:Row={gross:0,discount:0,billed:0,paid:0,due:0,projects:1}) {
   return { tab, tabs:[...TABS], headers, rows:rows.map(row=>row.map(value=>String(value??""))), totals, url:"", updatedAt:new Date().toISOString() };
@@ -54,10 +55,14 @@ export async function GET(request: NextRequest) {
     if (!projectId) return NextResponse.json({success:false,error:"Enter a valid File ID such as LV-209."},{status:400});
     const user = await requireLocalSession(request) as Row | null;
     if (!user) return NextResponse.json({success:false,error:"Session expired."},{status:401});
-    if (roleOf(user) === "client") {
-      const rawIds=String(user.projectIds || user.Project_IDs || user.project_ids || "");
+
+    const role = roleOf(user);
+    if (role === "client") {
+      const rawIds=String(user.projectIds || user.Project_IDs || user.project_ids || user.Project_ID || "");
       const allowedIds=new Set(rawIds.split(/[;,\s]+/).map(normalizeProjectCode).filter(Boolean));
       if(!allowedIds.has(projectId)) return NextResponse.json({success:false,error:"Access denied for this project."},{status:403});
+    } else if (!FINANCE_ROLES.has(role)) {
+      return NextResponse.json({success:false,error:"Finance access is required."},{status:403});
     }
 
     const projectRows = await selectRows("projects", { filters: { project_code: projectId }, limit: 1 });
@@ -104,5 +109,5 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({success:true,data:{projectId,bills:legacyBills,payments:legacyPayments,totalBill:totalBilled,totalPaid,due:Math.max(0,totalBilled-totalPaid)}},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase-billing-compatible"}});
     }
     return NextResponse.json({success:true,data:{projectId,sheets,payments:legacyPayments,updatedAt:new Date().toISOString(),source:"supabase-billing-compatible"}},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase-billing-compatible"}});
-  } catch(error){const message=error instanceof Error?error.message:"Project billing request failed.";return NextResponse.json({success:false,error:message},{status:/session/i.test(message)?401:/not found/i.test(message)?404:500,headers:{"Cache-Control":"no-store"}});}
+  } catch(error){const message=error instanceof Error?error.message:"Project billing request failed.";return NextResponse.json({success:false,error:message},{status:/session/i.test(message)?401:/access|required/i.test(message)?403:/not found/i.test(message)?404:500,headers:{"Cache-Control":"no-store"}});}
 }
