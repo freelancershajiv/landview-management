@@ -220,17 +220,23 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     if (!category || !Number.isFinite(billAmount) || billAmount <= 0) continue;
 
     const service = description.replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim() || "Service";
-    const alreadyIncluded = category.items.some((item) =>
+    const unitPrice = String(recordValue(record, ["Unit_Price", "Unit Price", "Rate", "unit_price"])).trim();
+    const quantity = String(recordValue(record, ["Quantity", "Qty", "QTY", "quantity"])).trim();
+    const alreadyIncluded = category.items.find((item) =>
       normalizedBillDescription(item.service) === normalizedBillDescription(service) && Math.abs(item.amount - billAmount) < 0.01,
     );
-    if (alreadyIncluded) continue;
+    if (alreadyIncluded) {
+      if (!String(alreadyIncluded.price ?? "").trim() && unitPrice) alreadyIncluded.price = unitPrice;
+      if (!String(alreadyIncluded.quantity ?? "").trim() && quantity) alreadyIncluded.quantity = quantity;
+      continue;
+    }
 
     const netAmountValue = Number(recordValue(record, ["Net_Amount", "Net Amount"]));
     const discountValue = Number(recordValue(record, ["Discount", "Bill_Discount", "Bill Discount"]));
     const nextItem = {
       service,
-      price: "",
-      quantity: "",
+      price: unitPrice,
+      quantity,
       amount: billAmount,
       billStatus: status || undefined,
       billNetAmount: Number.isFinite(netAmountValue) ? netAmountValue : undefined,
