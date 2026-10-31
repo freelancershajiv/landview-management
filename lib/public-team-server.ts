@@ -17,12 +17,22 @@ export type PublicTeamMember = {
   displayOrder?: number;
 };
 
+const POSITION_PREFIX = "__POSITION__:";
+
 function cleanPublicTeamText(value: unknown) {
   return String(value ?? "")
     .replace(/\bArchicture\b/gi, "Architecture")
     .replace(/\bArchitectre\b/gi, "Architecture")
     .replace(/\s+\n/g, "\n")
     .trim();
+}
+
+function publicPositionFromBio(value: unknown) {
+  for (const line of cleanPublicTeamText(value).split(/\r?\n/)) {
+    const item = line.trim();
+    if (item.startsWith(POSITION_PREFIX)) return item.slice(POSITION_PREFIX.length).trim();
+  }
+  return "";
 }
 
 export function normalizePublicTeamImageUrl(url?: string, size = "w1000") {
@@ -43,25 +53,32 @@ export function normalizePublicTeamImageUrl(url?: string, size = "w1000") {
 export const getPublicTeamForSeo = cache(async function getPublicTeamForSeo(): Promise<PublicTeamMember[]> {
   try {
     const rows = await selectRows("employees", {
-      filters: { public_display: true },
+      filters: { public_display: true, status: "Active" },
       order: "display_order:asc,name:asc",
       limit: 1000,
     });
-    return rows.map((row: any) => ({
-      name: cleanPublicTeamText(row.name),
-      title: cleanPublicTeamText(row.public_title || row.designation),
-      designation: cleanPublicTeamText(row.designation || row.public_title),
-      position: cleanPublicTeamText(row.public_title || row.designation),
-      department: cleanPublicTeamText(row.department),
-      degree: "",
-      degrees: "",
-      speciality: "",
-      specialities: "",
-      bio: cleanPublicTeamText(row.public_bio),
-      photoUrl: String(row.photo_url || "").trim(),
-      linkedInUrl: String(row.linkedin_url || "").trim(),
-      displayOrder: Number(row.display_order ?? 9999),
-    }));
+    return rows.map((row: any) => {
+      const bio = cleanPublicTeamText(row.public_bio);
+      const designation = cleanPublicTeamText(row.designation);
+      const publicTitle = cleanPublicTeamText(row.public_title);
+      const position = publicPositionFromBio(bio) || designation || publicTitle;
+
+      return {
+        name: cleanPublicTeamText(row.name),
+        title: publicTitle,
+        designation,
+        position,
+        department: cleanPublicTeamText(row.department),
+        degree: "",
+        degrees: "",
+        speciality: "",
+        specialities: "",
+        bio,
+        photoUrl: String(row.photo_url || "").trim(),
+        linkedInUrl: String(row.linkedin_url || "").trim(),
+        displayOrder: Number(row.display_order ?? 9999),
+      };
+    });
   } catch (error) {
     console.warn("LAND VIEW public team Supabase read failed", {
       message: error instanceof Error ? error.message.slice(0, 180) : "Unknown error",
