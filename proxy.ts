@@ -14,6 +14,7 @@ const STRICT_APP_POSTS = new Set([
   "/api/document-register",
   "/api/service-workflow",
   "/api/outsourcing",
+  "/api/task-center",
 ]);
 
 const RATE_LIMITED_POSTS: Record<string, { limit: number; windowMs: number }> = {
@@ -27,10 +28,7 @@ type RateLimitGlobal = typeof globalThis & { __landviewRateBuckets?: Map<string,
 const rateBuckets = ((globalThis as RateLimitGlobal).__landviewRateBuckets ??= new Map<string, RateBucket>());
 
 function normalizeHost(value: string | null | undefined) {
-  return String(value || "")
-    .split(":")[0]
-    .trim()
-    .toLowerCase();
+  return String(value || "").split(":")[0].trim().toLowerCase();
 }
 
 function trustedVercelHosts() {
@@ -120,6 +118,7 @@ function compatibilitySecurityRewrite(request: NextRequest) {
     "/api/document-register": "/api/document-register-secure",
     "/api/service-workflow": "/api/service-workflow-secure",
     "/api/outsourcing": "/api/outsourcing-secure",
+    "/api/task-center": "/api/task-center-secure",
     "/api/landview": "/api/landview-secure",
   };
   const target = rewrites[url.pathname];
