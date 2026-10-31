@@ -5,8 +5,28 @@ import { useMemo, useState } from "react";
 import type { PublicTeamMember } from "@/lib/public-team-server";
 
 const POSITION_PREFIX = "__POSITION__:";
-const LEADERSHIP_WORDS = ["founder", "director", "general manager", "manager", "head", "chief", "principal", "lead"];
-const DEPARTMENT_ORDER = ["Structural Engineering", "Architecture", "Project Delivery"];
+const DEPARTMENT_ORDER = ["Structural Engineering", "Architecture", "Project Engineering"];
+
+const DEPARTMENT_META: Record<string, { eyebrow: string; title: string; description: string; className: string }> = {
+  "Structural Engineering": {
+    eyebrow: "STRUCTURE & TECHNICAL DESIGN",
+    title: "Structural Engineering",
+    description: "Structural analysis, RCC design, technical review and engineering coordination for safe, efficient and buildable projects.",
+    className: "structural",
+  },
+  Architecture: {
+    eyebrow: "ARCHITECTURE & DESIGN",
+    title: "Architecture",
+    description: "Planning, architectural design and design coordination shaped around function, context, proportion and the client brief.",
+    className: "architecture",
+  },
+  "Project Engineering": {
+    eyebrow: "SITE & PROJECT DELIVERY",
+    title: "Project Engineering",
+    description: "Site supervision, project coordination and field-level engineering that connect the design office with construction on site.",
+    className: "project",
+  },
+};
 
 function text(value: unknown) {
   return String(value ?? "").trim();
@@ -67,10 +87,10 @@ function memberView(member: PublicTeamMember) {
 function departmentLabel(member: PublicTeamMember) {
   const { department, position, specialities } = memberView(member);
   const source = [department, position, ...specialities].join(" ").toLowerCase();
+  if (/structur/.test(source)) return "Structural Engineering";
   if (/architect/.test(source)) return "Architecture";
-  if (/structur|civil/.test(source)) return "Structural Engineering";
+  if (/project engineer|project management|supervision|site|coordination/.test(source)) return "Project Engineering";
   if (/electrical|electric/.test(source)) return "Electrical Engineering";
-  if (/project management|supervision|site|coordination/.test(source)) return "Project Delivery";
   return department || "Other";
 }
 
@@ -82,40 +102,91 @@ function departmentSort(a: string, b: string) {
   return aRank - bRank || a.localeCompare(b);
 }
 
-function isLeadership(member: PublicTeamMember) {
-  const { position } = memberView(member);
-  return LEADERSHIP_WORDS.some((word) => position.toLowerCase().includes(word));
+function departmentMeta(label: string) {
+  return DEPARTMENT_META[label] || {
+    eyebrow: "SPECIALIST DISCIPLINE",
+    title: label,
+    description: "Specialist consultancy and technical support integrated with LAND VIEW's wider project delivery team.",
+    className: "other",
+  };
 }
 
-function MemberCard({ member, featured = false }: { member: PublicTeamMember; featured?: boolean }) {
+function initialsFor(name?: string) {
+  return text(name || "LV").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+}
+
+function ProfileDetails({ member, compact = false }: { member: PublicTeamMember; compact?: boolean }) {
   const { position, department, degrees, specialities } = memberView(member);
-  const photo = normalizePhotoUrl(member.photoUrl, featured ? "w1400" : "w900");
-  const initials = text(member.name || "LV").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
-  return <article className={`tv2-card${featured ? " tv2-card-featured" : ""}`}>
-    <div className="tv2-photo-wrap">
-      {photo ? <img className="tv2-photo" src={photo} alt={`${text(member.name) || "LAND VIEW team member"}${position ? ` — ${position}` : ""}`} /> : <div className="tv2-photo-fallback">{initials}</div>}
-      <span className="tv2-dept-chip">{departmentLabel(member)}</span>
-    </div>
-    <div className="tv2-card-copy">
+  return <div className="tv2-profile-copy">
+    <div className="tv2-profile-heading">
       <h3>{text(member.name) || "LAND VIEW Team Member"}</h3>
       {position ? <p className="tv2-position">{position}</p> : null}
       {department && department !== position ? <p className="tv2-department">{department}</p> : null}
-      {degrees.length ? <div className="tv2-block"><span className="tv2-label">Qualifications</span><div className="tv2-lines">{degrees.map((item, index) => <span key={`${item}-${index}`}>{item}</span>)}</div></div> : null}
-      {specialities.length ? <div className="tv2-block"><span className="tv2-label">Specialities</span><div className="tv2-tags">{specialities.slice(0, 6).map((item, index) => <span key={`${item}-${index}`}>{item}</span>)}</div></div> : null}
-      <div className="tv2-card-actions">
-        {member.linkedInUrl ? <a href={member.linkedInUrl} target="_blank" rel="noopener noreferrer">LinkedIn ↗</a> : null}
-        <Link href="/projects">View Projects</Link>
+    </div>
+    {degrees.length ? <div className="tv2-block"><span className="tv2-label">Qualifications</span><div className="tv2-lines">{degrees.slice(0, compact ? 3 : 5).map((item, index) => <span key={`${item}-${index}`}>{item}</span>)}</div></div> : null}
+    {specialities.length ? <div className="tv2-block"><span className="tv2-label">Professional profile</span><div className="tv2-tags">{specialities.slice(0, compact ? 4 : 7).map((item, index) => <span key={`${item}-${index}`}>{item}</span>)}</div></div> : null}
+    <div className="tv2-card-actions">
+      {member.linkedInUrl ? <a href={member.linkedInUrl} target="_blank" rel="noopener noreferrer">LinkedIn ↗</a> : null}
+      <Link href="/projects">View Projects</Link>
+    </div>
+  </div>;
+}
+
+function LeadProfile({ member, department }: { member: PublicTeamMember; department: string }) {
+  const meta = departmentMeta(department);
+  const { position } = memberView(member);
+  const photo = normalizePhotoUrl(member.photoUrl, "w1600");
+  return <article className="tv2-lead-card">
+    <div className="tv2-lead-photo-wrap">
+      {photo ? <img className="tv2-photo" src={photo} alt={`${text(member.name) || "LAND VIEW team member"}${position ? ` — ${position}` : ""}`} /> : <div className="tv2-photo-fallback">{initialsFor(member.name)}</div>}
+      <span className="tv2-profile-index">LEAD PROFILE</span>
+      <span className="tv2-dept-chip">{meta.title}</span>
+    </div>
+    <ProfileDetails member={member} />
+  </article>;
+}
+
+function SupportProfile({ member }: { member: PublicTeamMember }) {
+  const department = departmentLabel(member);
+  const meta = departmentMeta(department);
+  const { position } = memberView(member);
+  const photo = normalizePhotoUrl(member.photoUrl, "w1000");
+  return <article className="tv2-card">
+    <div className="tv2-photo-wrap">
+      {photo ? <img className="tv2-photo" src={photo} alt={`${text(member.name) || "LAND VIEW team member"}${position ? ` — ${position}` : ""}`} /> : <div className="tv2-photo-fallback">{initialsFor(member.name)}</div>}
+      <span className="tv2-dept-chip">{meta.title}</span>
+    </div>
+    <ProfileDetails member={member} compact />
+  </article>;
+}
+
+function DepartmentSection({ label, members, number }: { label: string; members: PublicTeamMember[]; number: number }) {
+  const meta = departmentMeta(label);
+  const lead = members[0];
+  const support = members.slice(1);
+  return <section className={`tv2-discipline tv2-discipline-${meta.className}`} id={`team-${meta.className}`}>
+    <div className="tv2-container">
+      <div className="tv2-discipline-head">
+        <div className="tv2-discipline-number">{String(number).padStart(2, "0")}</div>
+        <div className="tv2-discipline-title">
+          <span className="tv2-kicker">{meta.eyebrow}</span>
+          <h2>{meta.title}</h2>
+        </div>
+        <p>{meta.description}</p>
+      </div>
+      <div className={`tv2-discipline-layout${support.length ? " has-support" : " solo"}`}>
+        <LeadProfile member={lead} department={label} />
+        {support.length ? <div className="tv2-support-grid">{support.map((member, index) => <SupportProfile key={`${text(member.name)}-${index}`} member={member} />)}</div> : null}
       </div>
     </div>
-  </article>;
+  </section>;
 }
 
 export default function PublicTeamV2({ members }: { members: PublicTeamMember[] }) {
   const [query, setQuery] = useState("");
   const [department, setDepartment] = useState("All");
-  const departments = useMemo(() => ["All", ...Array.from(new Set(members.map(departmentLabel).filter(Boolean))).sort(departmentSort)], [members]);
-  const leadership = useMemo(() => members.filter(isLeadership).slice(0, 4), [members]);
-  const leadershipSet = useMemo(() => new Set(leadership), [leadership]);
+
+  const departments = useMemo(() => Array.from(new Set(members.map(departmentLabel).filter(Boolean))).sort(departmentSort), [members]);
   const filtered = useMemo(() => {
     const term = query.trim().toLowerCase();
     return members.filter((member) => {
@@ -125,22 +196,30 @@ export default function PublicTeamV2({ members }: { members: PublicTeamMember[] 
       return (department === "All" || dept === department) && (!term || haystack.includes(term));
     });
   }, [members, query, department]);
-  const directory = filtered.filter((member) => !leadershipSet.has(member) || query || department !== "All");
+
+  const sections = useMemo(() => departments
+    .map((label) => ({ label, members: filtered.filter((member) => departmentLabel(member) === label) }))
+    .filter((group) => group.members.length), [departments, filtered]);
 
   return <>
     <section className="tv2-summary"><div className="tv2-container tv2-summary-grid">
-      <div><span className="tv2-kicker">PEOPLE BEHIND THE PROJECTS</span><h2>One coordinated consultancy team.</h2></div>
-      <div className="tv2-summary-stats"><div><strong>{members.length}</strong><span>Public team members</span></div><div><strong>{Math.max(0, departments.length - 1)}</strong><span>Disciplines</span></div><div><strong>{leadership.length}</strong><span>Leadership roles</span></div></div>
+      <div><span className="tv2-kicker">PEOPLE BEHIND THE PROJECTS</span><h2>A studio built around specialist disciplines.</h2></div>
+      <div className="tv2-summary-stats">
+        <div><strong>{members.length}</strong><span>Public team members</span></div>
+        <div><strong>{departments.length}</strong><span>Disciplines</span></div>
+        <div><strong>01—03</strong><span>Core delivery groups</span></div>
+      </div>
     </div></section>
 
-    {leadership.length ? <section className="tv2-section"><div className="tv2-container"><div className="tv2-section-head"><div><span className="tv2-kicker">LEADERSHIP & COORDINATION</span><h2>Project direction starts here.</h2></div><p>Publicly listed leadership and coordination roles are shown first, based on the position data maintained by LAND VIEW.</p></div><div className="tv2-featured-grid">{leadership.map((member, index) => <MemberCard key={`lead-${text(member.name)}-${index}`} member={member} featured />)}</div></div></section> : null}
-
-    <section className="tv2-directory"><div className="tv2-container">
-      <div className="tv2-section-head"><div><span className="tv2-kicker">TEAM DIRECTORY</span><h2>Find the right discipline.</h2></div><p>Search by name, role, qualification or speciality, or filter the public directory by discipline.</p></div>
-      <div className="tv2-tools"><label className="tv2-search"><span>Search team</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, role, qualification or speciality…" /></label><div className="tv2-filters" role="group" aria-label="Filter team by discipline">{departments.map((item) => <button type="button" key={item} className={department === item ? "active" : ""} onClick={() => setDepartment(item)}>{item}</button>)}</div></div>
-      <div className="tv2-result-line"><strong>{filtered.length}</strong> team member{filtered.length === 1 ? "" : "s"} shown</div>
-      {directory.length ? <div className="tv2-grid">{directory.map((member, index) => <MemberCard key={`${text(member.name)}-${index}`} member={member} />)}</div> : filtered.length && leadership.length && !query && department === "All" ? null : <div className="tv2-empty">No public team member matches this search or discipline.</div>}
+    <section className="tv2-studio-tools"><div className="tv2-container tv2-tools-inner">
+      <label className="tv2-search"><span>Search the studio</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, role, qualification or speciality…" /></label>
+      <div className="tv2-filters" role="group" aria-label="Filter team by discipline">
+        {["All", ...departments].map((item) => <button type="button" key={item} className={department === item ? "active" : ""} onClick={() => setDepartment(item)}>{item}</button>)}
+      </div>
+      <div className="tv2-result-line"><strong>{filtered.length}</strong><span>profile{filtered.length === 1 ? "" : "s"}</span></div>
     </div></section>
+
+    {sections.length ? sections.map((group) => <DepartmentSection key={group.label} label={group.label} members={group.members} number={departments.indexOf(group.label) + 1} />) : <section className="tv2-directory"><div className="tv2-container"><div className="tv2-empty">No public team member matches this search or discipline.</div></div></section>}
 
     <section className="tv2-cta"><div className="tv2-container tv2-cta-inner"><div><span className="tv2-kicker">WORK WITH LAND VIEW</span><h2>Bring architecture, engineering and site coordination together.</h2><p>Explore the services our team provides, review published projects, or send your project brief directly to LAND VIEW.</p></div><div className="tv2-cta-actions"><Link href="/services">Explore Services</Link><Link href="/projects" className="secondary">View Projects</Link><Link href="/contact" className="secondary">Start an Enquiry</Link></div></div></section>
   </>;
