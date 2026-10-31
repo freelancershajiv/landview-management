@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 
 const COOKIE_NAME = "landview_session_v2";
 const PROTECTED = ["/admin", "/employee", "/client", "/account", "/projectmanagement"];
+const STRICT_APP_POSTS = new Set([
+  "/api/login-fast",
+  "/api/session-fast",
+  "/api/session-refresh",
+  "/api/client-access",
+  "/api/landview",
+  "/api/landview-hybrid",
+  "/api/project-management",
+]);
 
 const RATE_LIMITED_POSTS: Record<string, { limit: number; windowMs: number }> = {
   "/api/login-fast": { limit: 12, windowMs: 5 * 60_000 },
@@ -39,6 +48,21 @@ function isAppHost(host: string) {
     host === "127.0.0.1" ||
     trustedVercelHosts().has(host)
   );
+}
+
+function strictAppOriginResponse(request: NextRequest, path: string) {
+  if (request.method !== "POST" || !STRICT_APP_POSTS.has(path)) return null;
+  const origin = request.headers.get("origin");
+
+  if (!origin) {
+    if (process.env.NODE_ENV !== "production" || request.headers.get("sec-fetch-site") === "same-origin") return null;
+    return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
+  }
+
+  try {
+    if (isAppHost(normalizeHost(new URL(origin).hostname))) return null;
+  } catch {}
+  return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
 }
 
 function isProtectedPath(path: string) {
@@ -122,6 +146,9 @@ function billingCompatibilityRewrite(request: NextRequest) {
 export function proxy(request: NextRequest) {
   const host = normalizeHost(request.headers.get("host"));
   const path = request.nextUrl.pathname;
+
+  const invalidOrigin = strictAppOriginResponse(request, path);
+  if (invalidOrigin) return invalidOrigin;
 
   const limited = rateLimitResponse(request, path);
   if (limited) return limited;
