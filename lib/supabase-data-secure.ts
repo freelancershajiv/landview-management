@@ -1,42 +1,19 @@
 import {
-  deleteRows,
   employeeCodeOf,
-  getSiteVisitMediaUrl,
   handleLandviewDataAction as handleUnsafeLandviewDataAction,
-  insertRows,
   normalizeProjectCode,
   roleOf,
   selectRows,
-  SUPABASE_DATA_GET_ACTIONS,
-  SUPABASE_DATA_POST_ACTIONS,
-  supabaseGateway,
-  updateRows,
-  uploadSiteVisitMedia,
-  upsertRows,
   type WorkspaceUser,
 } from "./supabase-data";
 
-export {
-  deleteRows,
-  employeeCodeOf,
-  getSiteVisitMediaUrl,
-  insertRows,
-  normalizeProjectCode,
-  roleOf,
-  selectRows,
-  SUPABASE_DATA_GET_ACTIONS,
-  SUPABASE_DATA_POST_ACTIONS,
-  supabaseGateway,
-  updateRows,
-  uploadSiteVisitMedia,
-  upsertRows,
-};
-export type { WorkspaceUser };
+// Preserve the complete low-level module surface for existing imports while
+// replacing only handleLandviewDataAction with the guarded implementation below.
+export * from "./supabase-data";
 
 type Row = Record<string, any>;
 
 const MANAGEMENT_ROLES = new Set(["admin", "manager"]);
-const FINANCE_ROLES = new Set(["admin", "manager", "accounts"]);
 const CLIENT_READ_ACTIONS = new Set([
   "getDashboard",
   "getProjects",
@@ -47,6 +24,17 @@ const CLIENT_READ_ACTIONS = new Set([
   "getBillingRecords",
   "getPayments",
   "getInvoices",
+]);
+const EMPLOYEE_ALLOWED_ACTIONS = new Set([
+  "getDashboard",
+  "getProjects",
+  "getProject",
+  "getProjectEmployees",
+  "getDocuments",
+  "getSiteVisits",
+  "getErpRecords",
+  "createDocument",
+  "createSiteVisit",
 ]);
 const EMPLOYEE_FINANCE_ACTIONS = new Set([
   "getBillingDashboard",
@@ -113,9 +101,25 @@ function userProjectCodes(user: WorkspaceUser) {
   return Array.from(new Set(values));
 }
 
+/**
+ * Employee project scope comes from the authoritative assignment tables rather
+ * than a legacy API response. This prevents a future regression in getProjects
+ * from silently widening employee access.
+ */
 async function employeeProjectCodes(user: WorkspaceUser) {
-  const projects = await handleUnsafeLandviewDataAction("getProjects", {}, user) as Row[];
-  return Array.from(new Set(projects.map((row) => normalizeProjectCode(row.Project_ID || row.projectId)).filter(Boolean)));
+  const code = text(employeeCodeOf(user)).toUpperCase();
+  if (!code) return [];
+
+  const employees = await selectRows("employees", { filters: { employee_code: code }, limit: 1 });
+  const employeeId = employees[0]?.id;
+  if (!employeeId) return [];
+
+  const links = await selectRows("project_employees", { filters: { employee_id: employeeId }, limit: 5000 });
+  const projectIds = Array.from(new Set(links.map((row) => row.project_id).filter(Boolean)));
+  if (!projectIds.length) return [];
+
+  const projects = await selectRows("projects", { inFilters: { id: projectIds }, limit: 5000 });
+  return Array.from(new Set(projects.map((row) => normalizeProjectCode(row.project_code)).filter(Boolean)));
 }
 
 async function accessibleProjectCodes(user: WorkspaceUser) {
@@ -135,7 +139,14 @@ async function requireProjectAccess(user: WorkspaceUser, input: Row) {
 }
 
 function filterByProjectCode(rows: Row[], allowed: Set<string>) {
-  return rows.filter((row) => allowed.has(normalizeProjectCode(row.Project_ID || row.projectId || row.fileId)));
+  return rows.filter((row) => allowed.has(normalizeProjectCode(
+    row.Project_ID || row.projectId || row.fileId || row.project_code || row.File_ID,
+  )));
+}
+
+function clientVisible(value: unknown) {
+  if (value === true) return true;
+  return ["true", "yes", "1", "visible", "client"].includes(text(value).toLowerCase());
 }
 
 async function safeDashboard(user: WorkspaceUser) {
@@ -177,9 +188,6 @@ async function safeEmployeeErp(action: string, input: Row, user: WorkspaceUser) 
     return rows.filter((row) => text(row.Requested_By || row.Employee_ID).toUpperCase() === employeeCode);
   }
 
-  // Mutating generic ERP records is too broad for an employee because the base
-  // handler can change assignment/approval fields. Employee self-service uses
-  // dedicated endpoints; keep this compatibility route management-only.
   throw new Error("Management access is required for ERP changes.");
 }
 
@@ -198,7 +206,7 @@ async function handleClientAction(action: string, input: Row, user: WorkspaceUse
     if (projectCodeFrom(input)) await requireProjectAccess(user, input);
     const rows = await handleUnsafeLandviewDataAction(action, input, user) as Row[];
     const scoped = filterByProjectCode(rows, allowed);
-    return action === "getDocuments" ? scoped.filter((row) => row.Client_Visible === true) : scoped;
+    return action === "getDocuments" ? scoped.filter((row) => clientVisible(row.Client_Visible)) : scoped;
   }
 
   await requireProjectAccess(user, input);
@@ -207,18 +215,18 @@ async function handleClientAction(action: string, input: Row, user: WorkspaceUse
 
 async function handleEmployeeAction(action: string, input: Row, user: WorkspaceUser) {
   if (EMPLOYEE_FINANCE_ACTIONS.has(action)) throw new Error("Finance access is required.");
-  if (action === "getEmployees" || action === "getChairmanPendingApprovals") {
-    throw new Error("Management access is required.");
-  }
-  if (["createEmployee", "updateEmployee", "deleteEmployee", "initializeErpSheets"].includes(action)) {
-    // The underlying handler still evaluates explicit permission overrides for
-    // permission-aware management actions. Generic initialization remains admin.
-    if (action === "initializeErpSheets") throw new Error("Management access is required.");
-  }
+  if (!EMPLOYEE_ALLOWED_ACTIONS.has(action)) throw new Error("Employee access is not available for this action.");
+
   if (action === "getDashboard") return safeDashboard(user);
-  if (action === "getErpRecords" || action === "createErpRecord" || action === "updateErpRecord") {
-    return safeEmployeeErp(action, input, user);
+
+  if (action === "getProjects") {
+    const allowed = await accessibleProjectCodes(user) as Set<string>;
+    const rows = await handleUnsafeLandviewDataAction(action, input, user) as Row[];
+    return filterByProjectCode(rows, allowed);
   }
+
+  if (action === "getErpRecords") return safeEmployeeErp(action, input, user);
+
   if (PROJECT_SCOPED_ACTIONS.has(action)) await requireProjectAccess(user, input);
 
   if (action === "getDocuments" || action === "getSiteVisits") {
