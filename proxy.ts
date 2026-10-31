@@ -143,6 +143,13 @@ function billingCompatibilityRewrite(request: NextRequest) {
   return null;
 }
 
+function landviewSecurityRewrite(request: NextRequest) {
+  if (request.nextUrl.pathname !== "/api/landview") return null;
+  const url = request.nextUrl.clone();
+  url.pathname = "/api/landview-secure";
+  return NextResponse.rewrite(url);
+}
+
 export function proxy(request: NextRequest) {
   const host = normalizeHost(request.headers.get("host"));
   const path = request.nextUrl.pathname;
@@ -155,6 +162,9 @@ export function proxy(request: NextRequest) {
 
   const billingRewrite = billingCompatibilityRewrite(request);
   if (billingRewrite) return billingRewrite;
+
+  const securedLegacy = landviewSecurityRewrite(request);
+  if (securedLegacy) return securedLegacy;
 
   // Public content has one production URL; keep workspaces on the app host.
   if (host === "app.landview.com.bd" && (path === "/services" || path.startsWith("/services/") || path === "/projects" || path.startsWith("/projects/") || path === "/team" || path === "/contact")) {
