@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAuthGateway } from "@/lib/supabase-auth";
+import { isAllowedRequestOrigin } from "@/lib/request-origin";
 import {
   ACTING_USER_COOKIE,
   DEVICE_COOKIE,
@@ -28,17 +29,6 @@ function cookieOptions(maxAge: number) {
   };
 }
 
-function allowedOrigin(request: NextRequest) {
-  const origin = request.headers.get("origin");
-  if (!origin) return process.env.NODE_ENV !== "production" || request.headers.get("sec-fetch-site") === "same-origin";
-  try {
-    const host = new URL(origin).hostname.toLowerCase();
-    return host === "app.landview.com.bd" || host === "localhost" || host === "127.0.0.1" || host.endsWith(".vercel.app");
-  } catch {
-    return false;
-  }
-}
-
 function normalizeUserId(value: unknown) {
   const raw = String(value || "").trim();
   if (/^admin$/i.test(raw)) return "admin";
@@ -48,7 +38,7 @@ function normalizeUserId(value: unknown) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!allowedOrigin(request)) {
+  if (!isAllowedRequestOrigin(request)) {
     return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
   }
 
