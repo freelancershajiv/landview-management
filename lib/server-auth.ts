@@ -79,11 +79,14 @@ function isExplicitAuthFailure(response: Response, json: SessionPayload) {
   ].includes(message);
 }
 
-async function validateSession(url: string, cookieHeader: string): Promise<ValidationResult> {
+async function validateSession(url: string, cookieHeader: string, method: "GET" | "POST" = "GET"): Promise<ValidationResult> {
   try {
     const response = await fetch(url, {
-      method: "GET",
-      headers: { cookie: cookieHeader },
+      method,
+      headers: {
+        cookie: cookieHeader,
+        ...(method === "POST" ? { origin: new URL(url).origin } : {}),
+      },
       cache: "no-store",
     });
 
@@ -110,9 +113,8 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
   const requestHeaders = await headers();
 
   // Presence of the access cookie is only an early gate. The user identity used
-  // by protected pages always comes from /api/session-fast after Supabase token
-  // validation (and refresh when appropriate). A signed quick-user cookie is no
-  // longer accepted as authoritative page authentication.
+  // by protected pages always comes from the session bootstrap endpoint after
+  // Supabase validation/refresh. Quick-user cookies are never authoritative.
   if (!cookieStore.get(SESSION_COOKIE)?.value) loginRedirect();
 
   const incomingHost = normalizeHost(requestHeaders.get("host"));
@@ -124,9 +126,10 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
     .map(({ name, value }) => `${name}=${encodeURIComponent(value)}`)
     .join("; ");
 
-  let validation = await validateSession(`${origin}/api/session-fast`, cookieHeader);
+  // POST is intentional: session-fast may rotate refresh credentials.
+  let validation = await validateSession(`${origin}/api/session-fast`, cookieHeader, "POST");
   if (validation.kind === "transient") {
-    validation = await validateSession(`${origin}/api/landview?action=getSession`, cookieHeader);
+    validation = await validateSession(`${origin}/api/landview?action=getSession`, cookieHeader, "GET");
   }
 
   if (validation.kind === "auth") loginRedirect();
