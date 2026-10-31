@@ -33,7 +33,7 @@ export const BILL_SERVICE_CATALOG: BillServiceDefinition[] = [
   { category: "Other Services Bill", service: "Soil Test", defaultMode: "quantity_rate" },
   { category: "Other Services Bill", service: "Digital Survey", defaultMode: "quantity_rate" },
   { category: "Other Services Bill", service: "Municipality File Pass", defaultMode: "quantity_rate" },
-  { category: "Supervision Bill", service: "Site Supervision", defaultMode: "flat_amount" },
+  { category: "Supervision Bill", service: "Site Supervision", defaultMode: "quantity_rate" },
 ];
 
 function clean(value: unknown) {
