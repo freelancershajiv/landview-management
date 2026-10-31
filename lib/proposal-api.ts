@@ -7,6 +7,8 @@ export type ProposalItem = {
   Unit: string;
   Rate: number;
   Amount: number;
+  Discount?: number;
+  Net_Amount?: number;
   Sort_Order?: number;
   Category?: string;
   Notes?: string;
@@ -76,10 +78,55 @@ export type ProposalConversionResult = {
   supervisionRequired?: boolean;
 };
 
+type ProposalItemDiscount = {
+  Item_ID: string;
+  Discount: number;
+  Net_Amount: number;
+};
+
 async function parse(response: Response) {
   const json = await response.json().catch(() => null);
   if (!response.ok || !json?.success) throw new Error(String(json?.error || json?.message || "Proposal request failed."));
   return json.data;
+}
+
+function normalizeItemAmounts(item: ProposalItem): ProposalItem {
+  const quantity = Math.max(0, Number(item.Quantity) || 0);
+  const rate = Math.max(0, Number(item.Rate) || 0);
+  const amount = Math.max(0, Number(item.Amount) || quantity * rate);
+  const discount = Math.min(amount, Math.max(0, Number(item.Discount) || 0));
+  return { ...item, Quantity: quantity, Rate: rate, Amount: amount, Discount: discount, Net_Amount: Math.max(0, amount - discount) };
+}
+
+function mergeDiscounts(bundle: ProposalBundle, discounts: ProposalItemDiscount[]): ProposalBundle {
+  const byId = new Map(discounts.map((row) => [String(row.Item_ID || ""), row]));
+  return {
+    ...bundle,
+    items: (bundle.items || []).map((item) => {
+      const row = item.Item_ID ? byId.get(String(item.Item_ID)) : undefined;
+      return normalizeItemAmounts({
+        ...item,
+        Discount: row?.Discount ?? item.Discount ?? 0,
+        Net_Amount: row?.Net_Amount ?? item.Net_Amount,
+      });
+    }),
+  };
+}
+
+async function loadItemDiscounts(proposalId: string): Promise<ProposalItemDiscount[]> {
+  const url = new URL("/api/proposal-item-discounts", window.location.origin);
+  url.searchParams.set("proposalId", proposalId);
+  return (await parse(await fetch(url.toString(), { credentials: "same-origin", cache: "no-store" }))) || [];
+}
+
+async function saveItemDiscounts(proposalId: string, items: ProposalItem[]): Promise<ProposalItemDiscount[]> {
+  return (await parse(await fetch("/api/proposal-item-discounts", {
+    method: "POST",
+    credentials: "same-origin",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ proposalId, items: items.map((item) => ({ Item_ID: item.Item_ID, Discount: Number(item.Discount) || 0, Net_Amount: Number(item.Net_Amount) || 0 })) }),
+  }))) || [];
 }
 
 export async function getProposalPermissions() {
@@ -103,19 +150,31 @@ export async function getProposal(id: string): Promise<ProposalBundle> {
   url.searchParams.set("module", "proposalsV2");
   url.searchParams.set("op", "get");
   url.searchParams.set("id", id);
-  return parse(await fetch(url.toString(), { credentials: "same-origin", cache: "no-store" }));
+  const bundle = await parse(await fetch(url.toString(), { credentials: "same-origin", cache: "no-store" })) as ProposalBundle;
+  return mergeDiscounts(bundle, await loadItemDiscounts(id));
 }
 
 export async function saveProposal(record: ProposalRecord, items: ProposalItem[]): Promise<ProposalBundle> {
+  const normalizedItems = items.map(normalizeItemAmounts);
   const action = record.Proposal_ID ? "updateErpRecord" : "createErpRecord";
   const response = await fetch("/api/landview", {
     method: "POST",
     credentials: "same-origin",
     cache: "no-store",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, module: "proposalsV2", id: record.Proposal_ID || "", op: "save", record: { ...record, items }, items }),
+    body: JSON.stringify({ action, module: "proposalsV2", id: record.Proposal_ID || "", op: "save", record: { ...record, items: normalizedItems }, items: normalizedItems }),
   });
-  return parse(response);
+  const bundle = await parse(response) as ProposalBundle;
+  const proposalId = String(bundle.proposal?.Proposal_ID || record.Proposal_ID || "");
+  if (!proposalId) return bundle;
+
+  const submittedById = new Map(normalizedItems.filter((item) => item.Item_ID).map((item) => [String(item.Item_ID), item]));
+  const persisted = (bundle.items || []).map((item, index) => {
+    const source = (item.Item_ID ? submittedById.get(String(item.Item_ID)) : undefined) || normalizedItems[index] || item;
+    return normalizeItemAmounts({ ...item, Discount: source.Discount ?? 0, Net_Amount: source.Net_Amount });
+  });
+  const discounts = await saveItemDiscounts(proposalId, persisted);
+  return mergeDiscounts({ ...bundle, items: persisted }, discounts);
 }
 
 export async function updateProposalAction(id: string, op: "print" | "status" | "convert", data: Record<string, unknown> = {}): Promise<ProposalBundle> {
@@ -126,7 +185,8 @@ export async function updateProposalAction(id: string, op: "print" | "status" | 
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "updateErpRecord", module: "proposalsV2", id, op, ...data }),
   });
-  return parse(response);
+  const bundle = await parse(response) as ProposalBundle;
+  return mergeDiscounts(bundle, await loadItemDiscounts(id));
 }
 
 export async function getProposalConversionPreview(id: string): Promise<ProposalConversionPreview> {
