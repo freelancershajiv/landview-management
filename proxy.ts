@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const COOKIE_NAME = "landview_session_v2";
-const PROTECTED = ["/admin", "/employee", "/client"];
+const PROTECTED = ["/admin", "/employee", "/client", "/account", "/projectmanagement"];
 
 const RATE_LIMITED_POSTS: Record<string, { limit: number; windowMs: number }> = {
   "/api/login-fast": { limit: 12, windowMs: 5 * 60_000 },
