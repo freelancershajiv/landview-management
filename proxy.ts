@@ -12,6 +12,7 @@ const STRICT_APP_POSTS = new Set([
   "/api/project-management",
   "/api/billing-verification",
   "/api/document-register",
+  "/api/service-workflow",
 ]);
 
 const RATE_LIMITED_POSTS: Record<string, { limit: number; windowMs: number }> = {
@@ -152,6 +153,10 @@ function compatibilitySecurityRewrite(request: NextRequest) {
   }
   if (url.pathname === "/api/document-register") {
     url.pathname = "/api/document-register-secure";
+    return NextResponse.rewrite(url);
+  }
+  if (url.pathname === "/api/service-workflow") {
+    url.pathname = "/api/service-workflow-secure";
     return NextResponse.rewrite(url);
   }
   if (url.pathname === "/api/landview") {
