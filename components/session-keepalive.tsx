@@ -5,7 +5,11 @@ import { useEffect } from "react";
 const KEEPALIVE_MS = 10 * 60 * 1000;
 
 function isPortalPath(pathname: string) {
-  return pathname.startsWith("/admin") || pathname.startsWith("/employee") || pathname.startsWith("/client");
+  return pathname.startsWith("/admin") ||
+    pathname.startsWith("/employee") ||
+    pathname.startsWith("/client") ||
+    pathname.startsWith("/account") ||
+    pathname.startsWith("/projectmanagement");
 }
 
 export default function SessionKeepAlive() {
@@ -17,8 +21,8 @@ export default function SessionKeepAlive() {
     const ping = async () => {
       if (stopped || document.visibilityState === "hidden") return;
       try {
-        await fetch("/api/session-refresh", {
-          method: "GET",
+        await fetch("/api/session-fast", {
+          method: "POST",
           cache: "no-store",
           credentials: "same-origin",
           headers: { "x-landview-keepalive": "1" },
