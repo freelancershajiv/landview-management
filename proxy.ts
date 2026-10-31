@@ -10,6 +10,8 @@ const STRICT_APP_POSTS = new Set([
   "/api/landview",
   "/api/landview-hybrid",
   "/api/project-management",
+  "/api/billing-verification",
+  "/api/document-register",
 ]);
 
 const RATE_LIMITED_POSTS: Record<string, { limit: number; windowMs: number }> = {
@@ -90,7 +92,6 @@ function rateLimitResponse(request: NextRequest, path: string) {
   bucket.count += 1;
   rateBuckets.set(key, bucket);
 
-  // Opportunistic cleanup keeps warm edge instances from retaining stale keys.
   if (rateBuckets.size > 1500) {
     for (const [entryKey, entry] of rateBuckets) {
       if (entry.resetAt <= now) rateBuckets.delete(entryKey);
@@ -143,11 +144,21 @@ function billingCompatibilityRewrite(request: NextRequest) {
   return null;
 }
 
-function landviewSecurityRewrite(request: NextRequest) {
-  if (request.nextUrl.pathname !== "/api/landview") return null;
+function compatibilitySecurityRewrite(request: NextRequest) {
   const url = request.nextUrl.clone();
-  url.pathname = "/api/landview-secure";
-  return NextResponse.rewrite(url);
+  if (url.pathname === "/api/billing-verification") {
+    url.pathname = "/api/billing-verification-secure";
+    return NextResponse.rewrite(url);
+  }
+  if (url.pathname === "/api/document-register") {
+    url.pathname = "/api/document-register-secure";
+    return NextResponse.rewrite(url);
+  }
+  if (url.pathname === "/api/landview") {
+    url.pathname = "/api/landview-secure";
+    return NextResponse.rewrite(url);
+  }
+  return null;
 }
 
 export function proxy(request: NextRequest) {
@@ -163,10 +174,9 @@ export function proxy(request: NextRequest) {
   const billingRewrite = billingCompatibilityRewrite(request);
   if (billingRewrite) return billingRewrite;
 
-  const securedLegacy = landviewSecurityRewrite(request);
-  if (securedLegacy) return securedLegacy;
+  const securedCompatibility = compatibilitySecurityRewrite(request);
+  if (securedCompatibility) return securedCompatibility;
 
-  // Public content has one production URL; keep workspaces on the app host.
   if (host === "app.landview.com.bd" && (path === "/services" || path.startsWith("/services/") || path === "/projects" || path.startsWith("/projects/") || path === "/team" || path === "/contact")) {
     return NextResponse.redirect(new URL(path + request.nextUrl.search, "https://www.landview.com.bd"), 308);
   }
@@ -176,16 +186,12 @@ export function proxy(request: NextRequest) {
   }
 
   if (isProtectedPath(path)) {
-    // Protected workspaces should never render on the public website host.
-    // Redirect to the management app before doing any cookie checks.
     if (!isAppHost(host)) {
       return NextResponse.redirect(
         new URL(path + request.nextUrl.search, "https://app.landview.com.bd")
       );
     }
 
-    // This is only an early UX gate. The server layouts and Supabase backend
-    // perform authoritative session + role validation.
     if (!request.cookies.get(COOKIE_NAME)?.value) {
       const login = new URL("/login", request.url);
       login.searchParams.set("next", path);
