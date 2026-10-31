@@ -79,14 +79,11 @@ function isExplicitAuthFailure(response: Response, json: SessionPayload) {
   ].includes(message);
 }
 
-async function validateSession(url: string, cookieHeader: string, method: "GET" | "POST" = "GET"): Promise<ValidationResult> {
+async function validateSession(url: string, cookieHeader: string): Promise<ValidationResult> {
   try {
     const response = await fetch(url, {
-      method,
-      headers: {
-        cookie: cookieHeader,
-        ...(method === "POST" ? { origin: new URL(url).origin } : {}),
-      },
+      method: "GET",
+      headers: { cookie: cookieHeader },
       cache: "no-store",
     });
 
@@ -112,9 +109,9 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
   const cookieStore = await cookies();
   const requestHeaders = await headers();
 
-  // Presence of the access cookie is only an early gate. The user identity used
-  // by protected pages always comes from the session bootstrap endpoint after
-  // Supabase validation/refresh. Quick-user cookies are never authoritative.
+  // Presence of the access cookie is only an early gate. Protected page identity
+  // always comes from a real Supabase access-token validation. Refresh-token
+  // rotation is intentionally browser-side so Set-Cookie reaches the browser.
   if (!cookieStore.get(SESSION_COOKIE)?.value) loginRedirect();
 
   const incomingHost = normalizeHost(requestHeaders.get("host"));
@@ -126,10 +123,9 @@ export async function requirePortalSession(allowedRoles: PortalRole[]) {
     .map(({ name, value }) => `${name}=${encodeURIComponent(value)}`)
     .join("; ");
 
-  // POST is intentional: session-fast may rotate refresh credentials.
-  let validation = await validateSession(`${origin}/api/session-fast`, cookieHeader, "POST");
+  let validation = await validateSession(`${origin}/api/session-fast`, cookieHeader);
   if (validation.kind === "transient") {
-    validation = await validateSession(`${origin}/api/landview?action=getSession`, cookieHeader, "GET");
+    validation = await validateSession(`${origin}/api/landview?action=getSession`, cookieHeader);
   }
 
   if (validation.kind === "auth") loginRedirect();
