@@ -14,17 +14,21 @@ const FINANCE_EMPLOYEE_ID = String(
 ).trim().toUpperCase()
 
 async function applyRateLimitReconnectGuard() {
-  const gatewayPath = new URL('./gateway.mjs', import.meta.url)
-  const marker = 'scheduleReconnect(code === DisconnectReason.restartRequired ? 1000 : 5000)'
-  const replacement = 'scheduleReconnect(code === DisconnectReason.restartRequired ? 1000 : code === 429 ? 60000 : 5000)'
-  const source = await readFile(gatewayPath, 'utf8')
-  if (source.includes(replacement)) return
-  if (!source.includes(marker)) {
-    console.warn('[WhatsApp startup] Could not install the HTTP 429 reconnect cooldown because the gateway marker changed.')
-    return
+  try {
+    const gatewayPath = new URL('./gateway.mjs', import.meta.url)
+    const marker = 'scheduleReconnect(code === DisconnectReason.restartRequired ? 1000 : 5000)'
+    const replacement = 'scheduleReconnect(code === DisconnectReason.restartRequired ? 1000 : code === 429 ? 60000 : 5000)'
+    const source = await readFile(gatewayPath, 'utf8')
+    if (source.includes(replacement)) return
+    if (!source.includes(marker)) {
+      console.warn('[WhatsApp startup] Could not install the HTTP 429 reconnect cooldown because the gateway marker changed.')
+      return
+    }
+    await writeFile(gatewayPath, source.replace(marker, replacement), 'utf8')
+    console.info('[WhatsApp startup] HTTP 429 reconnect cooldown enabled (60 seconds).')
+  } catch (error) {
+    console.warn(`[WhatsApp startup] Could not install the HTTP 429 reconnect cooldown: ${String(error?.message || error)}`)
   }
-  await writeFile(gatewayPath, source.replace(marker, replacement), 'utf8')
-  console.info('[WhatsApp startup] HTTP 429 reconnect cooldown enabled (60 seconds).')
 }
 
 await applyRateLimitReconnectGuard()
