@@ -15,8 +15,14 @@ function num(v: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 function today() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
 }
 async function readJson(response: Response, fallback: string) {
   const json = await response.json().catch(() => null);
@@ -44,7 +50,7 @@ export default function ReceivePaymentPage() {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [allocations, setAllocations] = useState<Record<string, string>>({});
   const [selectedService, setSelectedService] = useState("");
-  const [date, setDate] = useState(today());
+  const [paymentDate, setPaymentDate] = useState(today());
   const [method, setMethod] = useState("Bank Transfer");
   const [account, setAccount] = useState("Bank Account");
   const [reference, setReference] = useState("");
@@ -122,6 +128,7 @@ export default function ReceivePaymentPage() {
 
   async function pay() {
     if (!projectId || !data) return setError("Choose a project first.");
+    if (!paymentDate) return setError("Choose a payment date.");
     const amount = Math.max(0, num(paymentAmount));
     if (!(amount > 0)) return setError("Enter a payment amount.");
     if (amount > categorySummary.due + 0.01) return setError(`Payment cannot exceed ${money(categorySummary.due)} due.`);
@@ -136,7 +143,7 @@ export default function ReceivePaymentPage() {
         }
         await savePayment({
           Project_ID: projectId,
-          Payment_Date: date,
+          Payment_Date: paymentDate,
           Amount: amount,
           Payment_Method: method,
           Deposit_Account: account,
@@ -160,7 +167,7 @@ export default function ReceivePaymentPage() {
         const serviceType = service.serviceName === "Municipality Approval Contract" ? "Municipality File Pass" : service.serviceName;
         await savePayment({
           Project_ID: projectId,
-          Payment_Date: date,
+          Payment_Date: paymentDate,
           Amount: amount,
           Payment_Method: method,
           Deposit_Account: account,
@@ -184,7 +191,7 @@ export default function ReceivePaymentPage() {
 
   return <main className="rp">
     <style>{`
-      .rp{max-width:1450px;margin:0 auto;color:var(--lv-text-primary)}.rp *{box-sizing:border-box}.rp-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:15px}.rp-head small{font-size:8px;font-weight:950;letter-spacing:.12em;color:var(--lv-brand-text)}.rp-head h1{margin:5px 0 0;font-size:27px}.rp-head p{margin:5px 0 0;font-size:9px;color:var(--lv-text-secondary)}.rp-card{border:1px solid var(--lv-border-default);border-radius:12px;background:var(--lv-surface-panel)}.rp-select{display:grid;grid-template-columns:1.5fr repeat(3,minmax(150px,.55fr));gap:9px;padding:13px;margin-bottom:12px}.rp-field label{display:block;margin-bottom:5px;font-size:7px;font-weight:900;text-transform:uppercase;color:var(--lv-text-muted)}.rp-field input,.rp-field select,.rp-field textarea{width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);font-size:9px}.rp-tabs{display:flex;gap:6px;margin-bottom:12px}.rp-tab{padding:9px 12px;border:1px solid var(--lv-border-default);border-radius:8px;background:var(--lv-surface-panel);color:var(--lv-text-secondary);font-size:8px;font-weight:900;cursor:pointer}.rp-tab.active{background:var(--lv-brand-primary);border-color:var(--lv-brand-border);color:var(--lv-text-inverse)}.rp-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px;margin-bottom:12px}.rp-stat{padding:11px;border:1px solid var(--lv-border-subtle);border-radius:9px;background:var(--lv-surface-muted)}.rp-stat span{display:block;font-size:7px;text-transform:uppercase;color:var(--lv-text-muted)}.rp-stat strong{display:block;margin-top:6px;font-size:15px}.rp-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(330px,.7fr);gap:12px}.rp-table{overflow:auto}.rp-table table{width:100%;border-collapse:collapse;min-width:800px}.rp-table th,.rp-table td{padding:10px;border-bottom:1px solid var(--lv-border-subtle);font-size:8px;text-align:left}.rp-table th{background:var(--lv-surface-muted);color:var(--lv-text-muted);text-transform:uppercase}.rp-table input{width:115px;padding:7px;border:1px solid var(--lv-border-default);border-radius:6px;background:var(--lv-surface-input);color:var(--lv-text-primary)}.rp-form{display:grid;gap:9px;padding:13px}.rp-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.rp-btn{min-height:39px;border:1px solid var(--lv-brand-border);border-radius:8px;background:var(--lv-brand-primary);color:var(--lv-text-inverse);font-size:9px;font-weight:950;cursor:pointer}.rp-btn:disabled{opacity:.5}.rp-msg{margin-bottom:12px;padding:10px 12px;border-radius:8px;font-size:9px}.rp-msg.bad{background:var(--lv-danger-soft);color:var(--lv-danger)}.rp-msg.good{background:var(--lv-success-soft);color:var(--lv-success)}.rp-empty{padding:28px;text-align:center;color:var(--lv-text-muted);font-size:9px}.rp-due{color:var(--lv-danger);font-weight:900}.rp-paid{color:var(--lv-success);font-weight:900}@media(max-width:950px){.rp-select{grid-template-columns:1fr 1fr}.rp-summary{grid-template-columns:repeat(2,1fr)}.rp-layout{grid-template-columns:1fr}}@media(max-width:600px){.rp-select,.rp-two{grid-template-columns:1fr}.rp-summary{grid-template-columns:1fr 1fr}.rp-head{align-items:flex-start;flex-direction:column}}
+      .rp{max-width:1450px;margin:0 auto;color:var(--lv-text-primary)}.rp *{box-sizing:border-box}.rp-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:15px}.rp-head small{font-size:8px;font-weight:950;letter-spacing:.12em;color:var(--lv-brand-text)}.rp-head h1{margin:5px 0 0;font-size:27px}.rp-head p{margin:5px 0 0;font-size:9px;color:var(--lv-text-secondary)}.rp-card{border:1px solid var(--lv-border-default);border-radius:12px;background:var(--lv-surface-panel)}.rp-select{display:grid;grid-template-columns:1fr;gap:9px;padding:13px;margin-bottom:12px}.rp-field label{display:block;margin-bottom:5px;font-size:7px;font-weight:900;text-transform:uppercase;color:var(--lv-text-muted)}.rp-field input,.rp-field select,.rp-field textarea{width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);font-size:9px}.rp-tabs{display:flex;gap:6px;margin-bottom:12px}.rp-tab{padding:9px 12px;border:1px solid var(--lv-border-default);border-radius:8px;background:var(--lv-surface-panel);color:var(--lv-text-secondary);font-size:8px;font-weight:900;cursor:pointer}.rp-tab.active{background:var(--lv-brand-primary);border-color:var(--lv-brand-border);color:var(--lv-text-inverse)}.rp-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px;margin-bottom:12px}.rp-stat{padding:11px;border:1px solid var(--lv-border-subtle);border-radius:9px;background:var(--lv-surface-muted)}.rp-stat span{display:block;font-size:7px;text-transform:uppercase;color:var(--lv-text-muted)}.rp-stat strong{display:block;margin-top:6px;font-size:15px}.rp-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(330px,.7fr);gap:12px}.rp-table{overflow:auto}.rp-table table{width:100%;border-collapse:collapse;min-width:800px}.rp-table th,.rp-table td{padding:10px;border-bottom:1px solid var(--lv-border-subtle);font-size:8px;text-align:left}.rp-table th{background:var(--lv-surface-muted);color:var(--lv-text-muted);text-transform:uppercase}.rp-table input{width:115px;padding:7px;border:1px solid var(--lv-border-default);border-radius:6px;background:var(--lv-surface-input);color:var(--lv-text-primary)}.rp-form{display:grid;gap:9px;padding:13px}.rp-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.rp-btn{min-height:39px;border:1px solid var(--lv-brand-border);border-radius:8px;background:var(--lv-brand-primary);color:var(--lv-text-inverse);font-size:9px;font-weight:950;cursor:pointer}.rp-btn:disabled{opacity:.5}.rp-msg{margin-bottom:12px;padding:10px 12px;border-radius:8px;font-size:9px}.rp-msg.bad{background:var(--lv-danger-soft);color:var(--lv-danger)}.rp-msg.good{background:var(--lv-success-soft);color:var(--lv-success)}.rp-empty{padding:28px;text-align:center;color:var(--lv-text-muted);font-size:9px}.rp-due{color:var(--lv-danger);font-weight:900}.rp-paid{color:var(--lv-success);font-weight:900}@media(max-width:950px){.rp-summary{grid-template-columns:repeat(2,1fr)}.rp-layout{grid-template-columns:1fr}}@media(max-width:600px){.rp-two{grid-template-columns:1fr}.rp-summary{grid-template-columns:1fr 1fr}.rp-head{align-items:flex-start;flex-direction:column}}
     `}</style>
 
     <header className="rp-head"><div><small>LAND VIEW / FINANCE</small><h1>Receive Payment</h1><p>Receive and allocate client money only. Discounts and posted bill corrections are handled elsewhere.</p></div></header>
@@ -192,9 +199,6 @@ export default function ReceivePaymentPage() {
 
     <section className="rp-card rp-select">
       <div className="rp-field"><label>Project / File ID</label><select value={projectId} onChange={(e) => { setProjectId(e.target.value); void loadProject(e.target.value); }}><option value="">Choose project</option>{projects.map((p) => <option key={p.projectId || p.project_code} value={p.projectId || p.project_code}>{p.projectId || p.project_code} · {p.ownerName || p.projectName || p.project_name || "Project"}</option>)}</select></div>
-      <div className="rp-field"><label>Date</label><input type="date" value={date} onChange={(e) => setDate(e.target.value)} /></div>
-      <div className="rp-field"><label>Method</label><select value={method} onChange={(e) => setMethod(e.target.value)}><option>Bank Transfer</option><option>Cash</option><option>bKash</option><option>Nagad</option><option>Cheque</option><option>Card</option><option>Other</option></select></div>
-      <div className="rp-field"><label>Deposit Account</label><input value={account} onChange={(e) => setAccount(e.target.value)} /></div>
     </section>
 
     <div className="rp-tabs">{CATEGORY_ORDER.map((item) => <button key={item} className={`rp-tab ${category === item ? "active" : ""}`} onClick={() => { setCategory(item); setAllocations({}); setPaymentAmount(""); setSelectedService(""); }}>{item}</button>)}</div>
@@ -205,8 +209,15 @@ export default function ReceivePaymentPage() {
         <section className="rp-card rp-table"><table><thead><tr><th>Service</th><th>Net</th><th>Paid</th><th>Due</th>{category === "Engineering Bill" && <th>Allocate</th>}</tr></thead><tbody>{categoryServices.map((service) => <tr key={service.serviceKey}><td><strong>{service.serviceName}</strong></td><td>{money(serviceNet(service))}</td><td className="rp-paid">{money(service.paid)}</td><td className="rp-due">{money(serviceDue(service))}</td>{category === "Engineering Bill" && <td><input inputMode="decimal" value={allocations[service.serviceKey] || ""} onChange={(e) => setAllocations((current) => ({ ...current, [service.serviceKey]: e.target.value }))} /></td>}</tr>)}</tbody></table>{!categoryServices.length && <div className="rp-empty">No billed services in this category.</div>}</section>
         <section className="rp-card rp-form">
           {category !== "Engineering Bill" && <div className="rp-field"><label>Service</label><select value={selectedService} onChange={(e) => setSelectedService(e.target.value)}><option value="">Choose service</option>{categoryServices.map((service) => <option key={service.serviceKey} value={service.serviceKey}>{service.serviceName} · Due {money(serviceDue(service))}</option>)}</select></div>}
-          <div className="rp-field"><label>Payment Amount</label><input inputMode="decimal" value={paymentAmount} onChange={(e) => autoAllocate(e.target.value)} placeholder="0" /></div>
+          <div className="rp-two">
+            <div className="rp-field"><label>Payment Amount</label><input inputMode="decimal" value={paymentAmount} onChange={(e) => autoAllocate(e.target.value)} placeholder="0" /></div>
+            <div className="rp-field"><label>Payment Date</label><input type="date" required value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} /></div>
+          </div>
           {category === "Engineering Bill" && <div className="rp-field"><label>Allocated</label><input readOnly value={money(allocatedTotal)} /></div>}
+          <div className="rp-two">
+            <div className="rp-field"><label>Payment Method</label><select value={method} onChange={(e) => setMethod(e.target.value)}><option>Bank Transfer</option><option>Cash</option><option>bKash</option><option>Nagad</option><option>Cheque</option><option>Card</option><option>Other</option></select></div>
+            <div className="rp-field"><label>Deposit Account</label><input value={account} onChange={(e) => setAccount(e.target.value)} /></div>
+          </div>
           <div className="rp-two"><div className="rp-field"><label>Reference</label><input value={reference} onChange={(e) => setReference(e.target.value)} /></div><div className="rp-field"><label>Category Due</label><input readOnly value={money(categorySummary.due)} /></div></div>
           <div className="rp-field"><label>Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
           <button className="rp-btn" disabled={busy || loading || !categoryServices.length} onClick={() => void pay()}>{busy ? "Saving…" : "Save Payment"}</button>
