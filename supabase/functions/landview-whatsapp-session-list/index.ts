@@ -79,7 +79,7 @@ Deno.serve(async (req: Request) => {
 
     const unique = new Map<string, { employeeId: string; sessionId: string }>();
     for (const row of Array.isArray(rows) ? rows : []) {
-      if (row?.value?.registered !== true) continue;
+      if (!String(row?.value?.me?.id || "").trim()) continue;
       const item = employeeFromSessionId(row?.session_id);
       if (item) unique.set(item.employeeId, item);
     }
