@@ -4,6 +4,12 @@ const SESSION_LIST_URL = String(
   process.env.WHATSAPP_SESSION_LIST_URL ||
   'https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-session-list'
 ).trim()
+const RESTORE_SPACING_MS = Math.max(5000, Number(process.env.WHATSAPP_RESTORE_SPACING_MS || 12000))
+const FINANCE_EMPLOYEE_ID = String(
+  process.env.WHATSAPP_FINANCE_EMPLOYEE_ID ||
+  process.env.WHATSAPP_ADMIN_EMPLOYEE_ID ||
+  'EMP-0002'
+).trim().toUpperCase()
 
 await import('./bootstrap.mjs')
 
@@ -25,7 +31,12 @@ async function pairedEmployeeIds() {
     throw new Error(String(json?.error || `WhatsApp session list returned HTTP ${response.status}.`))
   }
   const rows = Array.isArray(json?.data?.employees) ? json.data.employees : []
-  return [...new Set(rows.map((row) => String(row?.employeeId || '').trim().toUpperCase()).filter(Boolean))]
+  const ids = [...new Set(rows.map((row) => String(row?.employeeId || '').trim().toUpperCase()).filter(Boolean))]
+  return ids.sort((a, b) => {
+    if (a === FINANCE_EMPLOYEE_ID) return -1
+    if (b === FINANCE_EMPLOYEE_ID) return 1
+    return a.localeCompare(b)
+  })
 }
 
 async function wakeEmployee(employeeId) {
@@ -37,14 +48,16 @@ async function wakeEmployee(employeeId) {
   })
   const json = await response.json().catch(() => null)
   if (!response.ok || json?.ok === false) {
-    throw new Error(String(json?.error || `Employee status returned HTTP ${response.status}.`))
+    const error = new Error(String(json?.error || `Employee status returned HTTP ${response.status}.`))
+    error.status = response.status
+    throw error
   }
   return json
 }
 
 async function restorePairedEmployeeSessions() {
   if (!BOT_TOKEN) return
-  await sleep(750)
+  await sleep(1000)
   const employeeIds = await pairedEmployeeIds()
   if (!employeeIds.length) {
     console.info('[WhatsApp startup] No paired employee sessions found to restore.')
@@ -52,21 +65,27 @@ async function restorePairedEmployeeSessions() {
   }
 
   let restored = 0
-  for (let index = 0; index < employeeIds.length; index += 3) {
-    const batch = employeeIds.slice(index, index + 3)
-    const results = await Promise.allSettled(batch.map((employeeId) => wakeEmployee(employeeId)))
-    results.forEach((result, resultIndex) => {
-      const employeeId = batch[resultIndex]
-      if (result.status === 'fulfilled') {
-        restored += 1
-        console.info(`[WhatsApp startup] Restore started for ${employeeId}.`)
+  for (let index = 0; index < employeeIds.length; index += 1) {
+    const employeeId = employeeIds[index]
+    try {
+      await wakeEmployee(employeeId)
+      restored += 1
+      console.info(`[WhatsApp startup] Restore started for ${employeeId}.`)
+    } catch (error) {
+      const status = Number(error?.status || 0)
+      if (status === 429) {
+        console.warn(`[WhatsApp startup] ${employeeId} was rate-limited; leaving it for the normal reconnect path instead of retrying immediately.`)
       } else {
-        console.error(`[WhatsApp startup] Could not restore ${employeeId}: ${String(result.reason?.message || result.reason)}`)
+        console.error(`[WhatsApp startup] Could not restore ${employeeId}: ${String(error?.message || error)}`)
       }
-    })
-    if (index + 3 < employeeIds.length) await sleep(250)
+    }
+
+    if (index < employeeIds.length - 1) {
+      await sleep(RESTORE_SPACING_MS)
+    }
   }
-  console.info(`[WhatsApp startup] Restore triggered for ${restored}/${employeeIds.length} paired employee session(s).`)
+
+  console.info(`[WhatsApp startup] Restore triggered for ${restored}/${employeeIds.length} paired employee session(s), one at a time.`)
 }
 
 restorePairedEmployeeSessions().catch((error) => {
