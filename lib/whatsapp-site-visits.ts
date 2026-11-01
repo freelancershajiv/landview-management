@@ -273,12 +273,66 @@ async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhats
   }
 }
 
+async function queueAdminSiteVisitFallback(
+  token: string,
+  groupInviteCode: string,
+  payload: SiteVisitWhatsAppPayload,
+  employeeReason?: string,
+): Promise<SiteVisitWhatsAppResult> {
+  const visitId = text(payload.visitId, 120);
+  if (!visitId) {
+    return { status: "failed", reason: "Site Visit ID is missing, so fail-safe delivery could not be queued." };
+  }
+
+  // The durable Admin Bot outbox is text based. Remove inline media from the
+  // formatter so the already-uploaded R2 photo URLs remain visible in fallback messages.
+  const fallbackPayload: SiteVisitWhatsAppPayload = {
+    ...payload,
+    mediaItems: [],
+    visitPhotoBase64: undefined,
+    problemPhotoBase64: undefined,
+  };
+
+  try {
+    const queued = await botStoreRequest(token, {
+      action: "enqueue",
+      dedupeKey: `site-visit-fallback:${visitId}`,
+      message: formatSiteVisitWhatsAppMessage(fallbackPayload),
+      groupInviteCode,
+    });
+    await wakeBot(token, "/wake");
+
+    const queueStatus = text(queued?.status, 40).toLowerCase();
+    const reasonPrefix = queueStatus === "sent"
+      ? "Employee WhatsApp was unavailable; the existing Admin Bot fail-safe message is already sent."
+      : "Employee WhatsApp was unavailable; Site Visit group delivery is safely queued through the Admin Bot with automatic retries.";
+    const reason = [reasonPrefix, text(employeeReason, 500)].filter(Boolean).join(" ");
+
+    return {
+      status: queueStatus === "sent" ? "sent" : "queued",
+      mediaCount: 0,
+      reason,
+    };
+  } catch (error: any) {
+    const fallbackError = text(error?.message || "Admin Bot fail-safe queue failed.", 500);
+    const original = text(employeeReason, 500);
+    return {
+      status: "failed",
+      reason: ["Employee WhatsApp was unavailable and the Admin Bot fail-safe queue also failed.", original, fallbackError]
+        .filter(Boolean)
+        .join(" "),
+    };
+  }
+}
+
 async function waitForEmployeeWhatsApp(
   base: string,
   token: string,
   employeeId: string,
 ): Promise<{ ready: boolean; reason?: string }> {
-  const deadline = Date.now() + 60_000;
+  // Give the employee session a short opportunity to reconnect. If it is still
+  // unavailable, the durable Admin Bot outbox takes over instead of failing the visit.
+  const deadline = Date.now() + 20_000;
   let lastState = "";
   let lastError = "";
 
@@ -289,7 +343,7 @@ async function waitForEmployeeWhatsApp(
         method: "GET",
         headers: { "x-land-view-bot-token": token },
         cache: "no-store",
-        signal: AbortSignal.timeout(Math.max(1_500, Math.min(15_000, remaining))),
+        signal: AbortSignal.timeout(Math.max(1_500, Math.min(10_000, remaining))),
       });
       const json = await response.json().catch(() => null) as any;
       lastState = text(json?.connection, 80);
@@ -315,7 +369,7 @@ async function waitForEmployeeWhatsApp(
     ready: false,
     reason: detail
       ? `Employee WhatsApp did not become ready in time (${detail}).`
-      : "Employee WhatsApp did not become ready in time. Please try the Site Visit again after the WhatsApp connection is open.",
+      : "Employee WhatsApp did not become ready in time.",
   };
 }
 
@@ -396,13 +450,16 @@ export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPaylo
   }
 
   try {
-    const result = await sendFromEmployeeWhatsApp(token, groupInviteCode, payload);
+    const employeeResult = await sendFromEmployeeWhatsApp(token, groupInviteCode, payload);
+    const result = employeeResult.status === "skipped"
+      ? await queueAdminSiteVisitFallback(token, groupInviteCode, payload, employeeResult.reason)
+      : employeeResult;
     await clientUpdate;
     return recordSiteVisitWhatsAppResult(payload, result);
   } catch (error: any) {
     await clientUpdate;
-    const reason = text(error?.message || "Employee WhatsApp send request failed.", 500);
-    console.error("[site-visit-whatsapp] employee send error", { message: reason });
+    const reason = text(error?.message || "Employee WhatsApp send failed unexpectedly.", 500);
+    console.error("[site-visit-whatsapp] send error", { message: reason });
     return recordSiteVisitWhatsAppResult(payload, { status: "failed", reason });
   }
 }
