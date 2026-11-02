@@ -38,25 +38,41 @@ function optionalBillingAmount(value: unknown) {
 
 function legacyDiscountMetadata(value: unknown, amount: number): { description: string; discount?: number } {
   const description = cleanBillDescription(value);
-  const patterns = [
+  const percentagePatterns = [
     /(?:\s*[|–—-]\s*)?\(?\s*discount\s*:?\s*(\d+(?:\.\d+)?)\s*%\s*\)?/i,
     /(?:\s*[|–—-]\s*)?\(?\s*(\d+(?:\.\d+)?)\s*%\s*discount\s*\)?/i,
   ];
+  const amountPatterns = [
+    /(?:\s*[|–—-]\s*)?\(?\s*discount\s*:?\s*(?:bdt\s*|tk\.?\s*|৳\s*)?([0-9][0-9,]*(?:\.\d+)?)\s*\)?/i,
+    /(?:\s*[|–—-]\s*)?\(?\s*(?:bdt\s*|tk\.?\s*|৳\s*)?([0-9][0-9,]*(?:\.\d+)?)\s*discount\s*\)?/i,
+  ];
 
-  for (const pattern of patterns) {
+  const cleanDescription = (matchText: string) => description
+    .replace(matchText, " ")
+    .replace(/^\s*[|–—-]\s*/, "")
+    .replace(/\s*[|–—-]\s*$/, "")
+    .replace(/\s{2,}/g, " ")
+    .trim();
+
+  for (const pattern of percentagePatterns) {
     const match = description.match(pattern);
     if (!match) continue;
     const percentage = Number(match[1]);
     if (!Number.isFinite(percentage) || percentage < 0 || percentage > 100) continue;
-    const cleaned = description
-      .replace(match[0], " ")
-      .replace(/^\s*[|–—-]\s*/, "")
-      .replace(/\s*[|–—-]\s*$/, "")
-      .replace(/\s{2,}/g, " ")
-      .trim();
     return {
-      description: cleaned,
+      description: cleanDescription(match[0]),
       discount: Math.max(0, amount) * percentage / 100,
+    };
+  }
+
+  for (const pattern of amountPatterns) {
+    const match = description.match(pattern);
+    if (!match) continue;
+    const discount = Number(String(match[1]).replace(/,/g, ""));
+    if (!Number.isFinite(discount) || discount < 0) continue;
+    return {
+      description: cleanDescription(match[0]),
+      discount: Math.min(Math.max(0, amount), discount),
     };
   }
 
@@ -129,10 +145,6 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
         ...(billDiscount !== undefined ? { billDiscount } : {}),
       };
     });
-    // Credit-note mirror bills preserve audit history in the database but are
-    // not real service lines. Older/cached payloads can still contain them as
-    // zero-amount rows with a positive discount. Keep the discount in Summary
-    // while preventing a duplicate service row from being printed.
     const items = sortServicesByStandardOrder(rawItems.filter((item) => !(
       Math.abs(Number(item.amount || 0)) <= 0.009 &&
       Number(item.billDiscount || 0) > 0.009 &&
@@ -147,18 +159,10 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
       incomeId: String(row[5] || "").trim(),
     }));
 
-    // A payment can arrive from both the legacy billing sheet and the
-    // canonical payment table. The verification step reconciles those two
-    // sources, but duplicate rows inside the sheet itself would otherwise be
-    // displayed and counted twice. Only collapse rows when they have the same
-    // explicit payment ID, or the same date + amount + details with no ID.
     const seenPaymentKeys = new Set<string>();
     const payments = rawPayments.filter((payment) => {
       const dateKey = verificationDateKey(payment.date);
       const detailsKey = String(payment.details ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-      // Without an explicit payment ID, include the payment details in the
-      // fallback identity. Two legitimate payments can have the same date
-      // and amount (for example, two separate BDT 5,000 receipts on one day).
       const identityKey = payment.incomeId
         ? "id:" + payment.incomeId
         : "fallback:" + dateKey + "|" + payment.amount.toFixed(2) + "|" + detailsKey;
@@ -233,9 +237,6 @@ function recalculateBilling(billing: SheetInvoices) {
   for (const category of billing.invoices) {
     category.items = sortServicesByStandardOrder(category.items);
     const itemGross = category.items.reduce((sum, item) => sum + item.amount, 0);
-    // The Summary row is authoritative for posted adjustments. Preserve a
-    // higher canonical gross (for example a Debit Note) even when adjustment
-    // mirror rows are intentionally hidden from the printable service list.
     category.gross = Math.max(Number(category.gross || 0), itemGross);
     category.paid = category.payments.reduce((sum, payment) => sum + payment.amount, 0);
     category.due = category.gross - category.discount - category.paid;
@@ -253,11 +254,6 @@ function normalizedBillDescription(value: unknown) {
     .replace(/\s+/g, " ");
 }
 
-/**
- * Compatibility safeguard for sessions backed by an older Apps Script bundle.
- * Canonical project-billing responses already contain the Bills rows, so this
- * function must never append the same service/amount a second time.
- */
 export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills: Record<string, unknown>[]) {
   for (const record of databaseBills || []) {
     const status = String(recordValue(record, ["Status", "Bill_Status", "Bill Status"])).trim().toLowerCase();
@@ -270,9 +266,6 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     const createdVia = String(recordValue(record, ["Created_Via", "Created Via"])).trim();
     if (/credit note|debit note/i.test(createdVia)) continue;
     const categoryName = categoryFromWorkspaceValue(explicitCategory || prefix?.[1] || "");
-    // Billing records created directly in Supabase are canonical too. Older
-    // records may have the workspace prefix/metadata, but newly added bills
-    // can legitimately have Created_Via=Supabase and no Notes.
     const workspaceEntry =
       Boolean(prefix) ||
       /billing workspace/i.test(notes) ||
@@ -375,23 +368,16 @@ export function verifySheetInvoicesWithPayments(billing: SheetInvoices, database
       rawDate: String(recordValue(record, ["Payment_Date", "Payment Date", "payment_date", "Date", "date"])).trim(),
       amount: verificationAmount(recordValue(record, ["Amount", "amount", "Payment_Amount", "Payment Amount", "payment_amount"])),
       id: String(recordValue(record, ["Payment_ID", "Payment ID", "PaymentId", "payment_code", "Income_ID", "Income ID", "income_id"])).trim(),
-      // Income_Category is the canonical billing bucket. Payment_For may be a
-      // human-readable purpose (for example "6th Floor R.C.C Bill"), so only
-      // use it as a fallback when no canonical category is present.
       category: incomeCategory || paymentForCategory,
     };
   });
   const used = new Set<number>();
 
-  // Historical ledger mirrors are verification/accounting records, not new
-  // client receipts. They must never be appended to paid billing.
   const isHistoricalLedgerPayment = (id: string) =>
     /^(TXN-HIST-|TXN-LEDGER-)/i.test(id);
 
   for (const category of billing.invoices) {
     for (const payment of category.payments) {
-      // Canonical compatibility rows carry the Payment_ID directly. Mark that
-      // source record consumed even when the row is already verified.
       if (payment.incomeId) {
         const exactIndex = candidates.findIndex((candidate) => !used.has(candidate.index) && candidate.id === payment.incomeId);
         if (exactIndex >= 0) {
@@ -426,9 +412,6 @@ export function verifySheetInvoicesWithPayments(billing: SheetInvoices, database
     const category = billing.invoices.find((item) => item.name === candidate.category);
     if (!category) continue;
 
-    // If a canonical record has the same explicit payment ID as a billing
-    // row, it was consumed above. Do not use date + amount alone here:
-    // multiple legitimate receipts can share both values.
     const method = String(recordValue(candidate.record, ["Payment_Method", "Payment Method", "Method"])).trim();
     const reference = String(recordValue(candidate.record, ["Reference_No", "Reference No", "Reference"])).trim();
     category.payments.push({
