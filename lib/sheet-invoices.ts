@@ -23,6 +23,46 @@ function cleanBillDescription(value: unknown) {
     .trim();
 }
 
+function hasBillingValue(value: unknown) {
+  return value !== undefined && value !== null && String(value).trim() !== "";
+}
+
+function optionalBillingAmount(value: unknown) {
+  if (!hasBillingValue(value)) return undefined;
+  try {
+    return sheetAmount(String(value));
+  } catch {
+    return undefined;
+  }
+}
+
+function legacyDiscountMetadata(value: unknown, amount: number): { description: string; discount?: number } {
+  const description = cleanBillDescription(value);
+  const patterns = [
+    /(?:\s*[|–—-]\s*)?\(?\s*discount\s*:?\s*(\d+(?:\.\d+)?)\s*%\s*\)?/i,
+    /(?:\s*[|–—-]\s*)?\(?\s*(\d+(?:\.\d+)?)\s*%\s*discount\s*\)?/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = description.match(pattern);
+    if (!match) continue;
+    const percentage = Number(match[1]);
+    if (!Number.isFinite(percentage) || percentage < 0 || percentage > 100) continue;
+    const cleaned = description
+      .replace(match[0], " ")
+      .replace(/^\s*[|–—-]\s*/, "")
+      .replace(/\s*[|–—-]\s*$/, "")
+      .replace(/\s{2,}/g, " ")
+      .trim();
+    return {
+      description: cleaned,
+      discount: Math.max(0, amount) * percentage / 100,
+    };
+  }
+
+  return { description };
+}
+
 export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
   const id = normalizeFileId(input);
   if (!id) throw new Error("Enter a valid File ID, such as 209 or LV-209.");
@@ -63,15 +103,32 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
   ];
 
   const invoices = categories.map((category) => {
-    const rawItems = matching(category.bill).map((row) => ({
-      service: cleanBillDescription(row[1]),
-      price: row[2],
-      quantity: row[3],
-      amount: sheetAmount(row[4]),
-      ...(String(row[6] || "").trim() ? { billStatus: String(row[6]).trim().toLowerCase() } : {}),
-      ...(String(row[7] || "").trim() ? { billNetAmount: sheetAmount(row[7]) } : {}),
-      ...(String(row[8] || "").trim() ? { billDiscount: sheetAmount(row[8]) } : {}),
-    }));
+    const rawItems = matching(category.bill).map((row) => {
+      const amount = sheetAmount(row[4]);
+      const legacy = legacyDiscountMetadata(row[1], amount);
+      const hasExplicitNet = hasBillingValue(row[7]);
+      const hasExplicitDiscount = hasBillingValue(row[8]);
+      const explicitDiscount = hasExplicitDiscount ? Math.max(0, sheetAmount(row[8])) : undefined;
+      const billDiscount = explicitDiscount !== undefined
+        ? explicitDiscount
+        : !hasExplicitNet ? legacy.discount : undefined;
+      const billNetAmount = hasExplicitNet
+        ? Math.max(0, sheetAmount(row[7]))
+        : billDiscount !== undefined
+          ? Math.max(0, amount - billDiscount)
+          : undefined;
+      const status = String(row[6] ?? "").trim();
+
+      return {
+        service: legacy.description,
+        price: row[2],
+        quantity: row[3],
+        amount,
+        ...(status ? { billStatus: status.toLowerCase() } : {}),
+        ...(billNetAmount !== undefined ? { billNetAmount } : {}),
+        ...(billDiscount !== undefined ? { billDiscount } : {}),
+      };
+    });
     // Credit-note mirror bills preserve audit history in the database but are
     // not real service lines. Older/cached payloads can still contain them as
     // zero-amount rows with a positive discount. Keep the discount in Summary
@@ -79,7 +136,7 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
     const items = sortServicesByStandardOrder(rawItems.filter((item) => !(
       Math.abs(Number(item.amount || 0)) <= 0.009 &&
       Number(item.billDiscount || 0) > 0.009 &&
-      Math.abs(Number(item.billNetAmount || 0)) <= 0.009
+      Math.abs(Number(item.billNetAmount ?? 0)) <= 0.009
     )));
 
     const rawPayments = matching(category.deposit).map((row) => ({
@@ -113,7 +170,14 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
     const itemGross = items.reduce((total, row) => total + row.amount, 0);
     const gross = summary.length > category.grossIndex ? sheetAmount(summary[category.grossIndex]) : itemGross;
     const paid = payments.reduce((total, row) => total + row.amount, 0);
-    const discount = summary.length > category.discountIndex ? sheetAmount(summary[category.discountIndex]) : 0;
+    const itemDiscount = items.reduce((total, row) => {
+      const explicitDiscount = Number(row.billDiscount);
+      if (Number.isFinite(explicitDiscount)) return total + Math.max(0, explicitDiscount);
+      const explicitNet = Number(row.billNetAmount);
+      return Number.isFinite(explicitNet) ? total + Math.max(0, row.amount - explicitNet) : total;
+    }, 0);
+    const summaryDiscount = summary[category.discountIndex];
+    const discount = hasBillingValue(summaryDiscount) ? sheetAmount(summaryDiscount) : itemDiscount;
     const due = gross - discount - paid;
 
     return { name: category.name, items, payments, gross, discount, paid, due };
@@ -184,7 +248,7 @@ function recalculateBilling(billing: SheetInvoices) {
 }
 
 function normalizedBillDescription(value: unknown) {
-  return cleanBillDescription(value)
+  return legacyDiscountMetadata(value, 0).description
     .toLowerCase()
     .replace(/\s+/g, " ");
 }
@@ -219,28 +283,40 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     const billAmount = Number(String(recordValue(record, ["Amount", "Bill_Amount", "Bill Amount"]) || 0).replace(/,/g, "").replace(/[^0-9.-]/g, ""));
     if (!category || !Number.isFinite(billAmount) || billAmount <= 0) continue;
 
-    const service = description.replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim() || "Service";
+    const legacy = legacyDiscountMetadata(description, billAmount);
+    const service = legacy.description || "Service";
     const unitPrice = String(recordValue(record, ["Unit_Price", "Unit Price", "Rate", "unit_price"])).trim();
     const quantity = String(recordValue(record, ["Quantity", "Qty", "QTY", "quantity"])).trim();
+    const explicitNetAmount = optionalBillingAmount(recordValue(record, ["Net_Amount", "Net Amount"]));
+    const explicitDiscount = optionalBillingAmount(recordValue(record, ["Discount", "Bill_Discount", "Bill Discount"]));
+    const billDiscount = explicitDiscount !== undefined
+      ? Math.max(0, explicitDiscount)
+      : explicitNetAmount === undefined ? legacy.discount : undefined;
+    const billNetAmount = explicitNetAmount !== undefined
+      ? Math.max(0, explicitNetAmount)
+      : billDiscount !== undefined
+        ? Math.max(0, billAmount - billDiscount)
+        : undefined;
+
     const alreadyIncluded = category.items.find((item) =>
       normalizedBillDescription(item.service) === normalizedBillDescription(service) && Math.abs(item.amount - billAmount) < 0.01,
     );
     if (alreadyIncluded) {
       if (!String(alreadyIncluded.price ?? "").trim() && unitPrice) alreadyIncluded.price = unitPrice;
       if (!String(alreadyIncluded.quantity ?? "").trim() && quantity) alreadyIncluded.quantity = quantity;
+      if (!hasBillingValue(alreadyIncluded.billDiscount) && billDiscount !== undefined) alreadyIncluded.billDiscount = billDiscount;
+      if (!hasBillingValue(alreadyIncluded.billNetAmount) && billNetAmount !== undefined) alreadyIncluded.billNetAmount = billNetAmount;
       continue;
     }
 
-    const netAmountValue = Number(recordValue(record, ["Net_Amount", "Net Amount"]));
-    const discountValue = Number(recordValue(record, ["Discount", "Bill_Discount", "Bill Discount"]));
     const nextItem = {
       service,
       price: unitPrice,
       quantity,
       amount: billAmount,
       billStatus: status || undefined,
-      billNetAmount: Number.isFinite(netAmountValue) ? netAmountValue : undefined,
-      billDiscount: Number.isFinite(discountValue) ? discountValue : undefined,
+      billNetAmount,
+      billDiscount,
     };
     category.items.push(nextItem as typeof category.items[number]);
   }
