@@ -57,13 +57,16 @@ export function toFinanceInvoice(bundle: ProposalBundle, proposalId: string): Sh
     return {
       name: group.name,
       items: group.items.map((item) => {
+        const amount = grossOf(item);
         const itemDiscount = serviceDiscountOf(item);
         const label = item.Description ? `${standardServiceLabel(item.Service) || item.Service} — ${item.Description}` : (standardServiceLabel(item.Service) || item.Service);
         return {
-          service: itemDiscount > 0 ? `${label} · Discount ৳${itemDiscount.toLocaleString("en-BD")}` : label,
+          service: label,
           price: String(Number(item.Rate) || 0),
           quantity: String(Number(item.Quantity) || 0),
-          amount: grossOf(item),
+          amount,
+          billDiscount: itemDiscount,
+          billNetAmount: Math.max(0, roundMoney(amount - itemDiscount)),
         };
       }),
       payments: [],
