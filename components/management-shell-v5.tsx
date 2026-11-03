@@ -30,6 +30,10 @@ const SIDEBAR: SidebarEntry[] = [
     item: { href: "/admin", label: "Dashboard", icon: "⌂", permission: "dashboard.view" },
   },
   {
+    kind: "link",
+    item: { href: "/admin/todo", label: "To Do", icon: "✓", permission: "dashboard.view" },
+  },
+  {
     kind: "group",
     label: "Projects",
     icon: "▣",
