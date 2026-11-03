@@ -13,7 +13,9 @@ export type TodoItem = {
   status: "To Do" | "In Progress" | "Done";
   priority: "Low" | "Normal" | "High" | "Urgent";
   due_date?: string | null;
+  reference_type?: "None" | "Project" | "Proposal";
   project_code?: string | null;
+  proposal_code?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
   completed_at?: string | null;
