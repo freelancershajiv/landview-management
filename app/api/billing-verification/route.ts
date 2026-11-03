@@ -109,6 +109,13 @@ export async function POST(request: NextRequest) {
     const input = await request.json();
     const fileId = cleanText(input?.fileId, 30).toUpperCase();
     const billCode = cleanText(input?.billCode, 120).toUpperCase();
+    const documentKind = cleanText(input?.documentKind, 30).toLowerCase();
+    if (documentKind && !["project", "due"].includes(documentKind)) {
+      return NextResponse.json({ success: false, error: "Invalid statement type." }, { status: 400 });
+    }
+    if (billCode && documentKind) {
+      return NextResponse.json({ success: false, error: "Choose either a single invoice or a project statement." }, { status: 400 });
+    }
     if (billCode && !/^BILL-[A-Z0-9-]{5,100}$/.test(billCode)) {
       return NextResponse.json({ success: false, error: "Invalid bill identifier." }, { status: 400 });
     }
@@ -177,9 +184,42 @@ export async function POST(request: NextRequest) {
         },
       });
     }
+    let statementRef = "";
+    if (documentKind) {
+      const project = (await selectRows("projects", {
+        filters: { project_code: fileId }, select: "id,project_code", limit: 1,
+      }))[0];
+      if (!project) return NextResponse.json({ success: false, error: "Project not found." }, { status: 404 });
+      const authority = await loadReceivableAuthority({ projectId: project.id });
+      const balance = authority.projects.get(String(project.id));
+      if (!balance) return NextResponse.json({ success: false, error: "Project billing was not found." }, { status: 404 });
+      if (documentKind === "due" && balance.totalDue <= 0.009) {
+        return NextResponse.json({ success: false, error: "There is no outstanding due balance." }, { status: 409 });
+      }
+      const date = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date()).replace(/-/g, "");
+      statementRef = `${documentKind === "due" ? "DUE" : "STMT"}-${fileId}-${date}`;
+      await insertRows("app_audit_log", {
+        actor_user_key: String((user as any).userId || (user as any).User_ID || (user as any).username || role),
+        actor_role: role,
+        action: "billing.statement.generated",
+        target: fileId,
+        outcome: "success",
+        entity_type: "billing_statement",
+        entity_id: fileId,
+        source: "lv-auto-invoice",
+        request_path: request.nextUrl.pathname,
+        details: {
+          fileId, documentKind, statementRef,
+          net: balance.billed,
+          paid: balance.paid,
+          due: balance.totalDue,
+          generatedAt: new Date().toISOString(),
+        },
+      });
+    }
     const origin = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
     const url = `${origin}/verify/${encodeURIComponent(token)}`;
-    return NextResponse.json({ success: true, url, fileId, billCode: billCode || null, invoiceCode: invoiceCode || null, permanent: true }, {
+    return NextResponse.json({ success: true, url, fileId, billCode: billCode || null, invoiceCode: invoiceCode || null, statementRef: statementRef || null, permanent: true }, {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
   } catch (error: any) {
