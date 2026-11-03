@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import PublicInvoiceActions from "@/components/public-invoice-actions";
 import { verifyProjectVerification } from "@/lib/billing-verification";
-import { loadPublicBillingVerification } from "@/lib/public-billing-verification";
+import { loadPublicBillVerification, loadPublicBillingVerification } from "@/lib/public-billing-verification";
 import styles from "../verify.module.css";
 
 export const dynamic = "force-dynamic";
@@ -47,7 +47,9 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
 
   let record;
   try {
-    record = await loadPublicBillingVerification(verified.fileId);
+    record = verified.version === 5
+      ? await loadPublicBillVerification(verified.fileId, verified.billCode)
+      : await loadPublicBillingVerification(verified.fileId);
   } catch (error: any) {
     return (
       <main className={styles.shell}>
@@ -86,7 +88,7 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
 
         <section className={styles.invoiceTitle}>
           <div>
-            <span>PROJECT BILLING STATEMENT</span>
+            <span>{verified.version === 5 ? "INDIVIDUAL VERIFIED INVOICE" : "PROJECT BILLING STATEMENT"}</span>
             <h1>{record.invoiceId}</h1>
           </div>
           <div className={record.status === "FULL PAID" ? styles.invoicePaidStamp : styles.invoiceDueStamp}>{record.status}</div>
@@ -170,7 +172,9 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
           <div className={styles.invoiceGrandDue}><span>Current Due</span><strong>{money(record.totals.due)}</strong></div>
         </section>
 
-        <p className={styles.notice}>This is a live, read-only LAND VIEW billing statement. The printed QR remains the same; approved bills, discounts and payments update the figures shown here automatically.</p>
+        <p className={styles.notice}>{verified.version === 5
+          ? "Invoice-specific live verification. Only payments allocated to this invoice are included. The original issue date is preserved; balances update after approved allocations and corrections."
+          : "This is a live, read-only LAND VIEW project statement. Approved bills, discounts and payments update the figures shown here automatically."}</p>
 
         <footer>
           <strong>LAND VIEW — Engineers and Architects</strong>
