@@ -1,6 +1,7 @@
 import AdminTodoBoard from "@/components/admin-todo-board";
 import AdminTodoManagementDashboard from "@/components/admin-todo-management-dashboard";
 import AdminTodoWorkloadCenter from "@/components/admin-todo-workload-center";
+import AdminTodoManagementAlerts from "@/components/admin-todo-management-alerts";
 import AdminTodoWorkflowCenter from "@/components/admin-todo-workflow-center";
 import TodoCollaborationCenter from "@/components/todo-collaboration-center";
 import TodoChecklistCenter from "@/components/todo-checklist-center";
@@ -14,6 +15,7 @@ export default async function TodoPage() {
   return <>
     <AdminTodoManagementDashboard />
     <AdminTodoWorkloadCenter />
+    <AdminTodoManagementAlerts />
     <AdminTodoBoard />
     <AdminTodoWorkflowCenter />
     <TodoChecklistCenter mode="admin" />

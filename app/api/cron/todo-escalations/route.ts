@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processTodoEscalations } from "@/lib/todo-workload";
+import { processManagementNotifications } from "@/lib/todo-management-notifications";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
 export const maxDuration=60;
@@ -9,6 +10,6 @@ function authorized(request:NextRequest){
 }
 export async function GET(request:NextRequest){
   if(!authorized(request))return NextResponse.json({success:false,error:"Unauthorized."},{status:401});
-  try{const result=await processTodoEscalations();return NextResponse.json({success:true,data:result},{headers:{"Cache-Control":"no-store"}});}
+  try{const escalations=await processTodoEscalations();const notifications=await processManagementNotifications();return NextResponse.json({success:true,data:{...escalations,notifications}},{headers:{"Cache-Control":"no-store"}});}
   catch(err){return NextResponse.json({success:false,error:err instanceof Error?err.message:"Escalation scan failed."},{status:500});}
 }
