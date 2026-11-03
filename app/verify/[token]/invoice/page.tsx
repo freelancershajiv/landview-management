@@ -72,7 +72,7 @@ export default async function PublicInvoicePage({ params }: { params: Promise<{ 
   return (
     <main className={`${styles.shell} ${styles.invoiceShell}`}>
       <div className={styles.invoiceActionBar}>
-        <PublicInvoiceActions summaryUrl={summaryUrl} />
+        <PublicInvoiceActions summaryUrl={verified.version === 5 ? null : summaryUrl} />
       </div>
 
       <article className={`${styles.card} ${styles.invoiceCard}`}>
