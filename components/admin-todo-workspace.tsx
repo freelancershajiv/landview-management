@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
-type Tab = "overview" | "board" | "workflow" | "collaboration" | "planning" | "management";
+type Tab = "overview" | "board" | "workflow" | "collaboration" | "planning" | "management" | "reports";
 type View = "checklist" | "files" | "templates" | "rules" | "reminders" | "workload" | "alerts";
 type Navigation = { tab: Tab; view: View | "" };
 type TabDetail = { id: Tab; label: string; subtitle: string; description: string };
@@ -16,6 +16,7 @@ const TABS: TabDetail[] = [
   { id: "collaboration", label: "Collaboration", subtitle: "Checklists & files", description: "Manage task checklists, conversations, attachments, and activity history." },
   { id: "planning", label: "Planning", subtitle: "Templates & automation", description: "Configure templates, recurring work, event automations, and due reminders." },
   { id: "management", label: "Management", subtitle: "People & alerts", description: "Balance team workload, review escalations, and configure notification limits." },
+  { id: "reports", label: "Reports & Views", subtitle: "Excel · PDF", description: "Filter, save and export management To Do reports." },
 ];
 
 const SUBTABS: Record<Tab, ViewDetail[]> = {
@@ -31,6 +32,7 @@ const SUBTABS: Record<Tab, ViewDetail[]> = {
     { id: "rules", label: "Automation Rules", description: "Create To Dos automatically from new project, payment, proposal, site, and document events." },
     { id: "reminders", label: "Due Times & Reminders", description: "Manage exact deadlines and opt-in employee WhatsApp reminders." },
   ],
+  reports: [],
   management: [
     { id: "workload", label: "Workload & Escalations", description: "Compare workload scores and manage overdue task escalations." },
     { id: "alerts", label: "Alerts & Limits", description: "Set workload limits and review optional management notifications." },
@@ -54,6 +56,7 @@ const Rules = dynamic(() => import("./admin-todo-automation-center"), { loading:
 const Reminders = dynamic(() => import("./admin-todo-reminder-center"), { loading: LoadingPanel });
 const Workload = dynamic(() => import("./admin-todo-workload-center"), { loading: LoadingPanel });
 const Alerts = dynamic(() => import("./admin-todo-management-alerts"), { loading: LoadingPanel });
+const Reports = dynamic(() => import("./admin-todo-reports"), { loading: LoadingPanel });
 
 function defaultView(tab: Tab): View | "" {
   return SUBTABS[tab][0]?.id || "";
@@ -236,6 +239,7 @@ export default function AdminTodoWorkspace() {
       {navigation.tab === "planning" && navigation.view === "reminders" && <Reminders />}
       {navigation.tab === "management" && navigation.view === "workload" && <Workload />}
       {navigation.tab === "management" && navigation.view === "alerts" && <Alerts />}
+      {navigation.tab === "reports" && <Reports />}
     </section>
     <p className="tws-footer">
       Each section uses the existing LAND VIEW records and management permissions. Task links open the correct item in the To Do Board; Workflow changes remain explicit actions.
