@@ -187,8 +187,11 @@ export default function ProjectBillingDocumentRevamp({
         {printCategories.map((category, index) => {
           const gross = Number(category.gross || 0);
           const discount = Number(category.discount || 0);
-          const due = Math.max(0, Number(category.due || 0));
           const grandTotal = Math.max(0, gross - discount);
+          const paid = Math.max(0, Number(category.paid || 0));
+          // Never print FULL PAID for a positive net bill without enough
+          // bill-specific payments, even when a stale due snapshot says zero.
+          const due = Math.max(0, Number(category.due || 0), grandTotal - paid);
           const fullyPaid = due <= 0.009;
           const engineeringBill = isEngineeringCategory(category.name);
 
