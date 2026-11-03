@@ -125,7 +125,7 @@ export default function ProjectBillingDocumentRevamp({
 
   const statementRef = dueOnly
     ? `DUE-${result.id.replace(/^LV-/, "")}-${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date()).replace(/-/g, "")}`
-    : `INV-${result.id.replace(/^LV-/, "")}-01`;
+    : result.document?.invoiceCode || `STMT-${result.id}-${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date()).replace(/-/g, "")}`;
   const displayBilling = useMemo(() => {
     if (!dueOnly) return result;
     const dueInvoices = result.invoices
@@ -315,6 +315,10 @@ export default function ProjectBillingDocumentRevamp({
                   </div>
                 </>}
 
+                <div className="lvReconciledPaymentRow" style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 9px", border: "1px solid #cbd1d6", fontSize: 11, fontWeight: 800 }}>
+                  <span>Received: BDT {amountText(paid)}</span>
+                  <span>Balance Due: BDT {amountText(due)}</span>
+                </div>
                 {fullyPaid ? (
                   <div className="lvPaidBlock">
                     <div><strong>Payment Status</strong><span>All payments completed. This invoice has been fully settled.</span></div>
@@ -322,6 +326,7 @@ export default function ProjectBillingDocumentRevamp({
                   </div>
                 ) : (
                   <div className="lvDueBlock">
+                    <div className="lvDueRow"><strong>Payment Status</strong><b>{paid > 0.009 ? "PARTIALLY PAID" : "UNPAID"}</b></div>
                     <div className="lvDueRow"><strong>Due Amount (BDT)</strong><b>{amountText(due)}</b></div>
                     <div className="lvWordsRow"><strong>{dueOnly ? "Due Bill Amount in Words:" : "In Words:"}</strong><span>{amountInWords(due)}</span></div>
                   </div>
@@ -334,6 +339,7 @@ export default function ProjectBillingDocumentRevamp({
                   <span>Address: Land View, F.Rahman AC Market (2nd Floor), SSK Road, Feni Sadar, Feni</span>
                   <span>Contact No: +88 0140 80 80 400</span>
                   <span>+88 01902 500 400</span>
+                  {result.document?.kind === "single" && <span>Generated: {new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", dateStyle: "medium", timeStyle: "short" }).format(new Date(result.document.generatedAt || Date.now()))}</span>}
                 </div>
               </footer>
             </article>
