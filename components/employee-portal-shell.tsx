@@ -5,6 +5,7 @@ import { landViewApi } from "@/lib/api";
 import EmployeeCommandCenter, { type EmployeeCommandView } from "@/components/employee-command-center";
 import EmployeeTaskCenter from "@/components/employee-task-center";
 import EmployeeTodoCenter from "@/components/employee-todo-center";
+import TodoChecklistCenter from "@/components/todo-checklist-center";
 import TodoCollaborationCenter from "@/components/todo-collaboration-center";
 import EmployeeSiteVisitAssignments from "@/components/employee-site-visit-assignments";
 import EmployeeWhatsAppConnect from "@/components/employee-whatsapp-connect";
@@ -131,7 +132,7 @@ export default function EmployeePortalShell() {
         <EmployeeWhatsAppConnect />
         <EmployeeCommandCenter view="dashboard" />
       </div>}
-      {active === "todo" && <><EmployeeTodoCenter /><TodoCollaborationCenter mode="employee" /></>}
+      {active === "todo" && <><EmployeeTodoCenter /><TodoChecklistCenter mode="employee" /><TodoCollaborationCenter mode="employee" /></>}
       {active === "visits" && <EmployeeSiteVisitAssignments />}
       {active === "visits" && <EmployeeProjectStageStrip visitMode />}
       {active === "visits" && <EmployeeSiteVisitCenter />}
