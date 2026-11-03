@@ -323,6 +323,18 @@ export default function AdminTodoBoard() {
     };
   }, [items, employeeById]);
 
+  useEffect(() => {
+    const createNew = () => {
+      resetForm();
+      setSearch("");
+      setNotice("");
+      setError("");
+      window.requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    };
+    window.addEventListener("landview:todo:new", createNew);
+    return () => window.removeEventListener("landview:todo:new", createNew);
+  }, []);
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft.title.trim() || busy) return;
