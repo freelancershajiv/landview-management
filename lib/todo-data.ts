@@ -17,6 +17,7 @@ export type TodoItem = {
   project_code?: string | null;
   proposal_code?: string | null;
   workflow_id?: string | null;
+  assigned_employee_id?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
   completed_at?: string | null;
