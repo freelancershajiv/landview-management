@@ -33,6 +33,25 @@ function priority(value: unknown) {
   return ["Low", "Normal", "High", "Urgent"].includes(raw) ? raw : "Normal";
 }
 
+function referenceType(value: unknown, projectCode = "", proposalCode = "") {
+  const raw = text(value, 40);
+  if (raw === "Project" || raw === "Proposal" || raw === "None") return raw;
+  if (proposalCode) return "Proposal";
+  if (projectCode) return "Project";
+  return "None";
+}
+
+function normalizeProjectCode(value: unknown) {
+  const raw = text(value, 80).toUpperCase();
+  if (!raw) return "";
+  const match = raw.match(/^(?:LV[-\s]?)?(\d+)$/);
+  return match ? `LV-${String(Number(match[1])).padStart(3, "0")}` : raw;
+}
+
+function normalizeProposalCode(value: unknown) {
+  return text(value, 100).toUpperCase();
+}
+
 function isoDate(value: unknown) {
   const raw = text(value, 20);
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
@@ -98,13 +117,24 @@ async function db(path: string, init: RequestInit = {}) {
 function cleanItem(input: Row, createdBy = "", isUpdate = false) {
   const now = new Date().toISOString();
   const nextStatus = status(input.status ?? input.Status);
+  const rawProjectCode = normalizeProjectCode(input.projectCode ?? input.project_code ?? input.Project_ID);
+  const rawProposalCode = normalizeProposalCode(input.proposalCode ?? input.proposal_code ?? input.Proposal_ID);
+  const nextReferenceType = referenceType(input.referenceType ?? input.reference_type ?? input.Reference_Type, rawProjectCode, rawProposalCode);
+  const projectCode = nextReferenceType === "Project" ? rawProjectCode : "";
+  const proposalCode = nextReferenceType === "Proposal" ? rawProposalCode : "";
+
+  if (nextReferenceType === "Project" && !projectCode) throw new Error("Project ID is required when linking a To Do to a project.");
+  if (nextReferenceType === "Proposal" && !proposalCode) throw new Error("Proposal ID is required when linking a To Do to a proposal.");
+
   const item: Row = {
     title: text(input.title ?? input.Title, 240),
     description: text(input.description ?? input.Description, 4000) || null,
     status: nextStatus,
     priority: priority(input.priority ?? input.Priority),
     due_date: isoDate(input.dueDate ?? input.due_date ?? input.Due_Date),
-    project_code: text(input.projectCode ?? input.project_code ?? input.Project_ID, 80) || null,
+    reference_type: nextReferenceType,
+    project_code: projectCode || null,
+    proposal_code: proposalCode || null,
     assigned_to: text(input.assignedTo ?? input.assigned_to ?? input.Assigned_To, 200) || null,
     updated_at: now,
     completed_at: nextStatus === "Done" ? now : null,
@@ -120,7 +150,7 @@ function cleanItem(input: Row, createdBy = "", isUpdate = false) {
 
 async function handleAction(input: Row) {
   const action = text(input.action, 40).toLowerCase();
-  if (action === "health") return { ok: true, backend: "standalone-todo", version: 1 };
+  if (action === "health") return { ok: true, backend: "standalone-todo", version: 2, references: ["None", "Project", "Proposal"] };
   if (action === "list") {
     return await db("todo_items?select=*&order=updated_at.desc,created_at.desc&limit=2000");
   }
