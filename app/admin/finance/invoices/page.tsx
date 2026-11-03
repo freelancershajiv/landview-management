@@ -23,10 +23,15 @@ const BILLING_SNAPSHOT_PREFIX = "landview_billing_snapshot_v4:";
 const BILLING_SNAPSHOT_TTL_MS = 0;
 
 type BillingSnapshot = { savedAt: number; billing: SheetInvoices };
+type InvoiceHistoryEntry = {
+  id: string; invoiceCode: string; billCode: string; documentKind?: string; generatedAt: string; actor: string;
+  net: number; paid: number; due: number;
+};
 type ProjectBillingBundle = {
   projectId: string;
   sheets: FinanceSheetData[];
   payments: Record<string, unknown>[];
+  billPayments: { billCode: string; invoiceCode: string; paymentCode: string; date: string; amount: number; details: string }[];
   updatedAt?: string;
   mode?: string;
 };
@@ -44,8 +49,11 @@ type SingleBillOption = {
 };
 type ReceivableBillItem = SheetInvoices["invoices"][number]["items"][number] & {
   billId?: string;
+  billInvoiceCode?: string;
+  billIssueDate?: string;
   billPaidAmount?: number;
   billDueAmount?: number;
+  billPayments?: SheetInvoices["invoices"][number]["payments"];
 };
 
 function snapshotKey(id: string) {
@@ -89,7 +97,10 @@ function normalizedService(value: unknown) {
     .replace(/\s+/g, " ");
 }
 
-function attachCanonicalBillAmounts(billing: SheetInvoices, sheets: FinanceSheetData[], id: string) {
+function attachCanonicalBillAmounts(
+  billing: SheetInvoices, sheets: FinanceSheetData[], id: string,
+  allocatedPayments: ProjectBillingBundle["billPayments"] = [],
+) {
   const tabByCategory: Record<string, string> = {
     Engineering: "Design Bill",
     "Design Books": "Design Books Bill",
@@ -122,6 +133,17 @@ function attachCanonicalBillAmounts(billing: SheetInvoices, sheets: FinanceSheet
       const due = moneyValue(row[10]);
       const extended = item as ReceivableBillItem;
       extended.billId = String(row[5] || "").trim();
+      extended.billInvoiceCode = String(row[11] || "").trim();
+      extended.billIssueDate = String(row[12] || "").trim();
+      extended.billPayments = allocatedPayments
+        .filter((payment) => payment.billCode.toLowerCase() === extended.billId?.toLowerCase())
+        .map((payment) => ({
+          date: payment.date,
+          details: payment.details,
+          amount: Math.max(0, numberValue(payment.amount)),
+          verification: "Verified" as const,
+          incomeId: payment.paymentCode,
+        }));
       // The receivable endpoint owns each bill's payment allocation. A project-level
       // or category-level payment must never make an unrelated single bill paid.
       if (Number.isFinite(paid)) extended.billPaidAmount = Math.max(0, paid);
@@ -202,7 +224,7 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
     ...category,
     name: serviceName,
     items: [item],
-    payments: [],
+    payments: receivableItem.billPayments || [],
     gross: amount,
     discount,
     paid,
@@ -211,7 +233,19 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
 
   return {
     ...result,
-    client: { ...result.client, status: due > 0.009 ? (paid > 0.009 ? "Partially Paid / Due" : "Unpaid / Due") : "Full Paid" },
+    client: {
+      ...result.client,
+      status: due > 0.009 ? (paid > 0.009 ? "Partially Paid / Due" : "Unpaid / Due") : "Full Paid",
+      issueDate: receivableItem.billIssueDate || result.client.issueDate,
+    },
+    document: {
+      kind: "single",
+      category: category.name,
+      invoiceCode: receivableItem.billInvoiceCode || (receivableItem.billId?.startsWith("BILL-") ? `INV-${receivableItem.billId}` : ""),
+      billCode: receivableItem.billId || "",
+      issueDate: receivableItem.billIssueDate || "",
+      generatedAt: new Date().toISOString(),
+    },
     invoices: [singleCategory],
     totals: {
       ...result.totals,
@@ -236,6 +270,7 @@ async function loadProjectBillingBundle(id: string): Promise<ProjectBillingBundl
     projectId: String(json.data.projectId || `LV-${id}`),
     sheets: json.data.sheets as FinanceSheetData[],
     payments: Array.isArray(json.data.payments) ? json.data.payments : [],
+    billPayments: Array.isArray(json.data.billPayments) ? json.data.billPayments : [],
     updatedAt: String(json.data.updatedAt || ""),
     mode: String(json.data.mode || ""),
   };
@@ -253,6 +288,10 @@ export default function ProjectBillingPage() {
   const [singleBillOpen, setSingleBillOpen] = useState(false);
   const [singleBillSelection, setSingleBillSelection] = useState("");
   const [singleBillPrint, setSingleBillPrint] = useState<SheetInvoices | null>(null);
+  const [singleBillVerificationUrl, setSingleBillVerificationUrl] = useState("");
+  const [generatingSingleBill, setGeneratingSingleBill] = useState(false);
+  const [archivingStatement, setArchivingStatement] = useState(false);
+  const [invoiceHistory, setInvoiceHistory] = useState<InvoiceHistoryEntry[]>([]);
   const [fileListProjects, setFileListProjects] = useState<FileListProject[]>([]);
   const [fileListLoading, setFileListLoading] = useState(true);
   const [fileListError, setFileListError] = useState("");
@@ -279,6 +318,18 @@ export default function ProjectBillingPage() {
     return () => { active = false; };
   }, []);
 
+  async function loadInvoiceHistory(file: string) {
+    try {
+      const response = await fetch(`/api/billing-document-history?fileId=${encodeURIComponent(file)}`, {
+        credentials: "same-origin", cache: "no-store",
+      });
+      const json = await response.json();
+      if (response.ok && json?.success && Array.isArray(json.data)) setInvoiceHistory(json.data as InvoiceHistoryEntry[]);
+    } catch {
+      // History is supplemental; the document remains usable if the audit read is unavailable.
+    }
+  }
+
   async function createVerification(billing: SheetInvoices, version: number) {
     try {
       const response = await fetch("/api/billing-verification", {
@@ -302,6 +353,7 @@ export default function ProjectBillingPage() {
       mergeBillingWorkspaceBills(buildSheetInvoices(bundle.sheets, id), databaseBills),
       bundle.sheets,
       id,
+      bundle.billPayments,
     );
     return verifySheetInvoicesWithPayments(billing, bundle.payments || []);
   }
@@ -312,6 +364,7 @@ export default function ProjectBillingPage() {
       if (version !== request.current) return;
       saveBillingSnapshot(id, billing);
       setResult(billing);
+      void loadInvoiceHistory(billing.id);
       setVerificationUrl(""); setVerificationError("");
       void createVerification(billing, version);
       setError("");
@@ -330,6 +383,7 @@ export default function ProjectBillingPage() {
     setFileId(`LV-${id}`);
     setError(""); setVerificationUrl(""); setVerificationError("");
     setSingleBillOpen(false); setSingleBillSelection(""); setSingleBillPrint(null);
+            setSingleBillVerificationUrl(""); setInvoiceHistory([]);
 
     const snapshot = readBillingSnapshot(id);
     if (snapshot) {
@@ -359,6 +413,7 @@ export default function ProjectBillingPage() {
       restored = true;
       setSingleBillPrint(null);
       setSingleBillSelection("");
+      setSingleBillVerificationUrl("");
     };
     window.addEventListener("afterprint", restore, { once: true });
     const printTimer = window.setTimeout(() => { void printBillingPdf(singleBillPrint); }, 160);
@@ -370,8 +425,32 @@ export default function ProjectBillingPage() {
     };
   }, [singleBillPrint]);
 
-  function generateDueBill() {
+  async function archiveStatement(kind: "project" | "due") {
+    if (!result || archivingStatement) return false;
+    setArchivingStatement(true);
+    setError("");
+    try {
+      const response = await fetch("/api/billing-verification", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileId: result.id, documentKind: kind }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not archive the statement."));
+      void loadInvoiceHistory(result.id);
+      return true;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not archive the statement.");
+      return false;
+    } finally {
+      setArchivingStatement(false);
+    }
+  }
+
+  async function generateDueBill() {
     if (!result || Number(result.totals.due || 0) <= 0.009) return;
+    if (!(await archiveStatement("due"))) return;
     setSingleBillOpen(false);
     setSingleBillPrint(null);
     setDueOnly(true);
@@ -385,16 +464,38 @@ export default function ProjectBillingPage() {
     setSingleBillOpen(true);
   }
 
-  function generateSingleBill() {
-    if (!result || !singleBillSelection) return;
+  async function generateSingleBill() {
+    if (!result || !singleBillSelection || generatingSingleBill) return;
     const single = buildSingleBill(result, singleBillSelection);
-    if (!single) {
-      setError("The selected bill could not be generated. Refresh billing and try again.");
+    const billCode = single?.document?.billCode;
+    if (!single || !billCode?.startsWith("BILL-")) {
+      setError("An issued bill reference is required. Refresh billing before generating this invoice.");
       return;
     }
-    setSingleBillOpen(false);
-    setDueOnly(false);
-    setSingleBillPrint(single);
+    setGeneratingSingleBill(true);
+    setError("");
+    try {
+      const response = await fetch("/api/billing-verification", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileId: single.id, billCode }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json?.success || !json?.url || !json?.invoiceCode) {
+        throw new Error(String(json?.error || "Could not verify or archive this invoice."));
+      }
+      single.document = { ...single.document, kind: "single", invoiceCode: String(json.invoiceCode) };
+      setSingleBillVerificationUrl(String(json.url));
+      setSingleBillOpen(false);
+      setDueOnly(false);
+      setSingleBillPrint(single);
+      void loadInvoiceHistory(single.id);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not generate the invoice.");
+    } finally {
+      setGeneratingSingleBill(false);
+    }
   }
 
   async function load(event: FormEvent) {
@@ -425,16 +526,16 @@ export default function ProjectBillingPage() {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 8, flexWrap: "wrap" }}>
             <EmailInvoiceButton result={result} verificationUrl={verificationUrl} className={styles.printButton} />
             <WhatsAppInvoiceButton result={result} verificationUrl={verificationUrl} className={styles.printButton} />
-            <button className={styles.printButton} type="button" onClick={openSingleBillGenerator} disabled={singleBillPrint !== null || refreshing}>
+            <button className={styles.printButton} type="button" onClick={openSingleBillGenerator} disabled={singleBillPrint !== null || refreshing || generatingSingleBill}>
               {refreshing ? "Refreshing Bills…" : singleBillPrint ? "Generating Single Bill…" : "Generate Single Bill"}
             </button>
             {Number(result.totals.due || 0) > 0.009 && (
-              <button className={styles.printButton} type="button" onClick={generateDueBill} disabled={dueOnly || singleBillPrint !== null}>
+              <button className={styles.printButton} type="button" onClick={() => void generateDueBill()} disabled={dueOnly || singleBillPrint !== null || archivingStatement}>
                 {dueOnly ? "Generating Due Bill…" : "Generate Due Bill"}
               </button>
             )}
-            <button className={styles.printButton} type="button" onClick={() => printBillingPdf(result)} disabled={singleBillPrint !== null}>Print / Save PDF</button>
-            <button className={styles.printButton} type="button" onClick={() => void saveBillingJpg(result).catch((error) => window.alert(error instanceof Error ? error.message : "Could not save JPG."))} disabled={singleBillPrint !== null}>Save JPG</button>
+            <button className={styles.printButton} type="button" onClick={() => void (async () => { if (await archiveStatement("project")) await printBillingPdf(result); })()} disabled={singleBillPrint !== null || archivingStatement}>Print / Save PDF</button>
+            <button className={styles.printButton} type="button" onClick={() => void (async () => { if (await archiveStatement("project")) await saveBillingJpg(result); })().catch((error) => setError(error instanceof Error ? error.message : "Could not save JPG."))} disabled={singleBillPrint !== null || archivingStatement}>Save JPG</button>
           </div>
         )}
       </div>
@@ -449,6 +550,7 @@ export default function ProjectBillingPage() {
           onChange={(event) => {
             setFileId(event.target.value); setResult(null); setError(""); setVerificationUrl(""); setVerificationError("");
             setSingleBillOpen(false); setSingleBillSelection(""); setSingleBillPrint(null);
+            setSingleBillVerificationUrl(""); setInvoiceHistory([]);
             request.current++; setBusy(false); setRefreshing(false);
           }}
           required autoComplete="off"
@@ -510,13 +612,27 @@ export default function ProjectBillingPage() {
 
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "14px 22px 20px", borderTop: "1px solid rgba(140,160,155,.20)" }}>
               <button className={styles.printButton} type="button" onClick={() => setSingleBillOpen(false)}>Cancel</button>
-              <button className={styles.printButton} type="button" onClick={generateSingleBill} disabled={!singleBillSelection}>Generate Selected Bill</button>
+              <button className={styles.printButton} type="button" onClick={() => void generateSingleBill()} disabled={!singleBillSelection || generatingSingleBill}>{generatingSingleBill ? "Verifying and Archiving…" : "Generate Selected Bill"}</button>
             </div>
           </section>
         </div>
       )}
 
-      {visibleBilling && <ProjectBillingDocument result={visibleBilling} verificationUrl={verificationUrl} verificationError={verificationError} dueOnly={Boolean(dueOnly && !singleBillPrint)} />}
+      {visibleBilling && <ProjectBillingDocument result={visibleBilling} verificationUrl={singleBillPrint ? singleBillVerificationUrl : verificationUrl} verificationError={verificationError} dueOnly={Boolean(dueOnly && !singleBillPrint)} />}
+      {result && invoiceHistory.length > 0 && !singleBillPrint && (
+        <section style={{ marginTop: 24, padding: 16, border: "1px solid var(--border, #cbd5d1)", borderRadius: 12 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>Billing Document History</h2>
+          <p style={{ fontSize: 12, marginBottom: 12 }}>Archived invoice and statement snapshots record each generated document and its balance at that time.</p>
+          <div style={{ display: "grid", gap: 8 }}>
+            {invoiceHistory.map((entry) => (
+              <div key={entry.id} style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 9, padding: 10, border: "1px solid var(--border, #cbd5d1)", borderRadius: 8, fontSize: 12 }}>
+                <div><strong>{entry.invoiceCode || entry.billCode}</strong><div>{entry.documentKind === "single" ? "Single Invoice" : entry.documentKind === "due" ? "Due Statement" : "Project Statement"} · {entry.generatedAt ? new Date(entry.generatedAt).toLocaleString("en-BD", { timeZone: "Asia/Dhaka" }) : "—"} · {entry.actor}</div></div>
+                <div style={{ textAlign: "right" }}>Net ৳{entry.net.toLocaleString("en-BD")} · Paid ৳{entry.paid.toLocaleString("en-BD")}<div style={{ fontWeight: 800 }}>Due ৳{entry.due.toLocaleString("en-BD")}</div></div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

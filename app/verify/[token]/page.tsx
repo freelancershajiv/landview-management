@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { verifyProjectVerification } from "@/lib/billing-verification";
 import { loadPublicBillingVerification } from "@/lib/public-billing-verification";
 import styles from "./verify.module.css";
@@ -57,6 +58,10 @@ export default async function VerifyBillingPage({ params }: { params: Promise<{ 
         </section>
       </main>
     );
+  }
+
+  if (verified.version === 5) {
+    redirect(`/verify/${encodeURIComponent(decodedToken)}/invoice`);
   }
 
   let record;

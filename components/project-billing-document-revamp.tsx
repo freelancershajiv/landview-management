@@ -15,6 +15,7 @@ type BillingItem = SheetInvoices["invoices"][number]["items"][number] & {
   billStatus?: string;
   billNetAmount?: number;
   billDiscount?: number;
+  billDueAmount?: number;
 };
 
 type Props = {
@@ -124,35 +125,47 @@ export default function ProjectBillingDocumentRevamp({
   }, [verificationUrl]);
 
   const statementRef = dueOnly
-    ? `DUE-${result.id.replace(/^LV-/, "")}-${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date()).replace(/-/g, "")}`
-    : `INV-${result.id.replace(/^LV-/, "")}-01`;
+    ? `DUE-${result.id}-${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date()).replace(/-/g, "")}`
+    : result.document?.invoiceCode || `STMT-${result.id}-${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date()).replace(/-/g, "")}`;
   const displayBilling = useMemo(() => {
     if (!dueOnly) return result;
     const dueInvoices = result.invoices
       .filter((category) => Number(category.due || 0) > 0.009)
       .map((category) => {
+        const dueBalance = Math.max(0, Number(category.due || 0));
         const sourceItems = category.items as BillingItem[];
-        const statusTrackedItems = sourceItems.filter((item) => item.billStatus);
-        const outstandingItems = statusTrackedItems.length
-          ? statusTrackedItems.filter((item) => !["paid", "fully paid", "full paid", "cancelled", "canceled", "void", "voided"].includes(String(item.billStatus || "").trim().toLowerCase()))
-          : [];
-        const dueItems = outstandingItems.length
-          ? outstandingItems.map((item) => ({ ...item, amount: Number.isFinite(item.amount) ? Math.max(0, Number(item.amount)) : 0 }))
-          : [{ service: `Outstanding ${category.name} balance`, price: "", quantity: "", amount: Math.max(0, Number(category.due || 0)) }];
-        const dueGross = outstandingItems.length
-          ? outstandingItems.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? Math.max(0, Number(item.amount)) : 0), 0)
-          : Math.max(0, Number(category.due || 0));
-        const dueDiscount = outstandingItems.length
-          ? outstandingItems.reduce((sum, item) => sum + (Number.isFinite(item.billDiscount) ? Math.max(0, Number(item.billDiscount)) : 0), 0)
-          : 0;
-        const dueNet = Math.max(0, dueGross - dueDiscount);
+        const allocatedBills = sourceItems.filter((item) =>
+          typeof item.billDueAmount === "number" && Number.isFinite(item.billDueAmount) && item.billDueAmount > 0.009,
+        );
+        const itemizedDue = allocatedBills.reduce((sum, item) => sum + Math.max(0, Number(item.billDueAmount)), 0);
+        // If every remaining taka can be traced to a canonical bill, itemize it.
+        // Otherwise show the authoritative outstanding balance instead of
+        // accidentally re-billing the full amount of partially paid items.
+        const canItemize = allocatedBills.length > 0 && Math.abs(itemizedDue - dueBalance) <= 0.01;
+        const dueItems = canItemize
+          ? allocatedBills.map((item) => ({
+              ...item,
+              price: "",
+              quantity: "",
+              amount: Math.max(0, Number(item.billDueAmount)),
+              billNetAmount: Math.max(0, Number(item.billDueAmount)),
+              billDiscount: 0,
+            }))
+          : [{
+              service: `Outstanding ${category.name} balance`,
+              price: "",
+              quantity: "",
+              amount: dueBalance,
+              billNetAmount: dueBalance,
+              billDiscount: 0,
+            }];
         return {
           ...category,
           items: dueItems,
-          gross: dueGross,
-          discount: dueDiscount,
+          gross: dueBalance,
+          discount: 0,
           paid: 0,
-          due: dueNet,
+          due: dueBalance,
           payments: [],
         };
       });
@@ -193,7 +206,7 @@ export default function ProjectBillingDocumentRevamp({
           // bill-specific payments, even when a stale due snapshot says zero.
           const due = Math.max(0, Number(category.due || 0), grandTotal - paid);
           const fullyPaid = due <= 0.009;
-          const engineeringBill = isEngineeringCategory(category.name);
+          const engineeringBill = isEngineeringCategory(result.document?.kind === "single" ? result.document.category : category.name);
 
           return (
             <article className={`${styles.printPage} lvInvoicePage`} key={`${category.name}-${index}`}>
@@ -226,7 +239,7 @@ export default function ProjectBillingDocumentRevamp({
               </header>
 
               <section className="lvInfoBoard">
-                <div className="lvInfoRow"><span>Invoice ID</span><strong>{statementRef}</strong><span>Issue Date</span><strong>{issueDate}</strong></div>
+                <div className="lvInfoRow"><span>{result.document?.kind === "single" ? "Invoice ID" : "Statement Ref"}</span><strong>{statementRef}</strong><span>Issue Date</span><strong>{issueDate}</strong></div>
                 <div className="lvInfoRow"><span>Owner Name</span><strong>{result.client.name || "—"}</strong><span>File ID</span><strong>{result.client.fileId || result.id || "—"}</strong></div>
                 <div className="lvInfoRow"><span>Contact No</span><strong>{result.client.phone || "—"}</strong><span>Project Type</span><strong>{result.client.type || "—"}</strong></div>
                 <div className="lvInfoRow"><span>Referred By</span><strong>{result.client.referredBy || "—"}</strong><span>Floor/Story</span><strong>{result.client.floor || "—"}</strong></div>
@@ -315,6 +328,10 @@ export default function ProjectBillingDocumentRevamp({
                   </div>
                 </>}
 
+                <div className="lvReconciledPaymentRow" style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 9px", border: "1px solid #cbd1d6", fontSize: 11, fontWeight: 800 }}>
+                  <span>Received: BDT {amountText(paid)}</span>
+                  <span>Balance Due: BDT {amountText(due)}</span>
+                </div>
                 {fullyPaid ? (
                   <div className="lvPaidBlock">
                     <div><strong>Payment Status</strong><span>All payments completed. This invoice has been fully settled.</span></div>
@@ -322,6 +339,7 @@ export default function ProjectBillingDocumentRevamp({
                   </div>
                 ) : (
                   <div className="lvDueBlock">
+                    <div className="lvDueRow"><strong>Payment Status</strong><b>{paid > 0.009 ? "PARTIALLY PAID" : "UNPAID"}</b></div>
                     <div className="lvDueRow"><strong>Due Amount (BDT)</strong><b>{amountText(due)}</b></div>
                     <div className="lvWordsRow"><strong>{dueOnly ? "Due Bill Amount in Words:" : "In Words:"}</strong><span>{amountInWords(due)}</span></div>
                   </div>
@@ -334,6 +352,7 @@ export default function ProjectBillingDocumentRevamp({
                   <span>Address: Land View, F.Rahman AC Market (2nd Floor), SSK Road, Feni Sadar, Feni</span>
                   <span>Contact No: +88 0140 80 80 400</span>
                   <span>+88 01902 500 400</span>
+                  <span>Generated: {new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", dateStyle: "medium", timeStyle: "short" }).format(new Date(result.document?.generatedAt || Date.now()))}</span>
                 </div>
               </footer>
             </article>

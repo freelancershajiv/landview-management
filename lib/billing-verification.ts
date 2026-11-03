@@ -4,6 +4,11 @@ export type ProjectVerificationPayload = {
   version: 4;
   fileId: string;
 };
+export type InvoiceVerificationPayload = {
+  version: 5;
+  fileId: string;
+  billCode: string;
+};
 
 function secret() {
   const value = process.env.LAND_VIEW_VERIFICATION_SECRET || process.env.LAND_VIEW_PROXY_SECRET || "";
@@ -33,7 +38,17 @@ export function signProjectVerification(fileId: string) {
   return `${body}.${signatureFor(body)}`;
 }
 
-export function verifyProjectVerification(token: string): ProjectVerificationPayload | null {
+export function signBillVerification(fileId: string, billCode: string) {
+  const normalizedFile = String(fileId || "").trim().toUpperCase();
+  const normalizedBill = String(billCode || "").trim().toUpperCase();
+  if (!/^LV-\d+$/.test(normalizedFile) || !/^BILL-[A-Z0-9-]{5,100}$/.test(normalizedBill)) {
+    throw new Error("Invalid invoice or bill identifier.");
+  }
+  const body = encode(JSON.stringify({ v: 5, f: normalizedFile, b: normalizedBill }));
+  return `${body}.${signatureFor(body)}`;
+}
+
+export function verifyProjectVerification(token: string): ProjectVerificationPayload | InvoiceVerificationPayload | null {
   const [body, signature, extra] = String(token || "").split(".");
   if (!body || !signature || extra) return null;
 
@@ -44,6 +59,15 @@ export function verifyProjectVerification(token: string): ProjectVerificationPay
 
   try {
     const payload = JSON.parse(decode(body)) as any;
+
+    // Individually signed invoice QR: project and immutable bill identifier.
+    // Amounts remain live and are read from canonical allocations, never the token.
+    if (Number(payload?.v) === 5) {
+      const fileId = String(payload?.f || "").trim().toUpperCase();
+      const billCode = String(payload?.b || "").trim().toUpperCase();
+      if (!/^LV-\d+$/.test(fileId) || !/^BILL-[A-Z0-9-]{5,100}$/.test(billCode)) return null;
+      return { version: 5, fileId, billCode };
+    }
 
     // Current permanent project QR.
     if (Number(payload?.v) === 4) {

@@ -222,6 +222,9 @@ export async function GET(request: NextRequest) {
         const effectiveNet = state ? state.effectiveAmount : fallbackNet;
         const paid = state ? state.paidForReceivable : (["paid", "full paid", "fully paid"].includes(text(b.Status || b.status).toLowerCase()) ? effectiveNet : 0);
         const due = state ? state.dueBeforeRelief : Math.max(0, effectiveNet - paid);
+        const billInvoice = authority.invoices.find((invoice) =>
+          invoice.billCode.toLowerCase() === text(state?.billCode || b.bill_code || b.Bill_Code).toLowerCase(),
+        );
         return [
           projectId,
           description,
@@ -234,6 +237,8 @@ export async function GET(request: NextRequest) {
           effectiveDiscount,
           paid,
           due,
+          billInvoice?.invoiceCode || "",
+          billInvoice?.row.issue_date || b.bill_date || b.Bill_Date || "",
         ];
       });
 
@@ -246,7 +251,7 @@ export async function GET(request: NextRequest) {
       p.paymentCode,
     ]);
 
-    const billHeaders = ["FILE ID", "Service Name", "Rate (BDT)", "QTY", "Amount (BDT)", "Bill ID", "Status", "Net Amount (BDT)", "Discount (BDT)", "Paid (BDT)", "Due (BDT)"];
+    const billHeaders = ["FILE ID", "Service Name", "Rate (BDT)", "QTY", "Amount (BDT)", "Bill ID", "Status", "Net Amount (BDT)", "Discount (BDT)", "Paid (BDT)", "Due (BDT)", "Invoice Code", "Issue Date"];
     const sheets = [
       sheet("Summary", ["FILE ID", "Client Name", "Project Name", "Engineering Bill", "Engineering Discount", "Engineering Deposit", "Engineering Due", "Supervision Bill", "Supervision Discount", "Supervision Deposit", "Supervision Due", "Other Services Bill", "Other Services Discount", "Other Services Deposit", "Other Services Due", "Design Books Bill", "Design Books Discount", "Design Books Deposit", "Design Books Due", "Total Due", "Status"], [[projectId, project.Client_Name || "", project.Project_Name || "", eng.gross, eng.discount, eng.paid, eng.due, sup.gross, sup.discount, sup.paid, sup.due, oth.gross, oth.discount, oth.paid, oth.due, books.gross, books.discount, books.paid, books.due, totalDue, totalDue > .009 ? "DUE" : totalBilled > 0 ? "FULL PAID" : ""]]),
       sheet("File List", ["FILE ID", "Client Name", "Address", "Phone", "Floor/Story", "Build Type", "Land Area", "Referred By", "Ref. Contact"], [[projectId, project.Client_Name || "", project.Location || "", project.Phone_Number || "", project.Floors || "", project.Project_Type || "", project.Plot_Area || "", project.Referred_By || "", project.Ref_Contact || ""]]),
@@ -262,7 +267,30 @@ export async function GET(request: NextRequest) {
 
     const lifecycle = billingLifecycle(authority);
     const payments = authority.payments.filter((row) => row.effective).map((row) => row.row);
-    return NextResponse.json({ success: true, data: { projectId, sheets, payments, commercial, lifecycle, updatedAt: new Date().toISOString(), source: "supabase" } }, {
+    // Only allocations to the exact invoice may appear on a single-bill receipt.
+    // Never distribute a payment from another bill merely because the category matches.
+    const allocations = await selectRows("payment_invoice_allocations", {
+      select: "id,payment_id,invoice_id,allocated_amount",
+      filters: { project_id: projectRow.id },
+      limit: 20000,
+    });
+    const invoiceById = new Map(authority.invoices.map((invoice) => [invoice.invoiceId, invoice]));
+    const paymentById = new Map(authority.payments.filter((payment) => payment.effective).map((payment) => [payment.paymentId, payment]));
+    const billPayments = allocations.flatMap((allocation: Row) => {
+      const invoice = invoiceById.get(text(allocation.invoice_id));
+      const payment = paymentById.get(text(allocation.payment_id));
+      const amount = Math.max(0, num(allocation.allocated_amount));
+      if (!invoice?.billCode || !payment || amount <= 0.009) return [];
+      return [{
+        billCode: invoice.billCode,
+        invoiceCode: invoice.invoiceCode,
+        paymentCode: payment.paymentCode,
+        date: payment.row.payment_date || "",
+        amount,
+        details: [payment.row.payment_method, payment.row.reference_no].filter(Boolean).join(" · ") || "Client Payment",
+      }];
+    });
+    return NextResponse.json({ success: true, data: { projectId, sheets, payments, billPayments, commercial, lifecycle, updatedAt: new Date().toISOString(), source: "supabase" } }, {
       headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "canonical-receivable-authority" },
     });
   } catch (error) {

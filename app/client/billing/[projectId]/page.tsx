@@ -198,6 +198,23 @@ export default function ClientBillingPage() {
     return () => { active = false; };
   }, [requestedId]);
 
+  async function printAuditedBilling() {
+    if (!result) return;
+    try {
+      const response = await fetch("/api/billing-verification", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileId: result.id, documentKind: "project" }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not record billing statement generation."));
+      await printBillingPdf(result);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Could not prepare the billing statement.");
+    }
+  }
+
   if (busy) return <div className={styles.loading}>Preparing your LAND VIEW billing statement…</div>;
   if (error) return <div className={styles.workspace}><div className={styles.error} role="alert">{error}</div><Link href="/client">← Back to client portal</Link></div>;
   if (!result) return null;
@@ -214,7 +231,7 @@ export default function ClientBillingPage() {
           <h1>Project Billing Statement</h1>
           <p>This is the same LAND VIEW billing statement format used by the Accounts/Admin portal, limited to your authorized project.</p>
         </div>
-        <button className={styles.printButton} type="button" onClick={() => printBillingPdf(result)}>Print / Save PDF</button>
+        <button className={styles.printButton} type="button" onClick={() => void printAuditedBilling()}>Print / Save PDF</button>
       </div>
 
       {commercial && <section style={{ marginBottom: 18, padding: 14, border: "1px solid var(--lv-border-default)", borderRadius: 12, background: "var(--lv-surface-panel)" }}>
