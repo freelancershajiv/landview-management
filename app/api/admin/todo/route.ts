@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
-import { createTodoItem, deleteTodoItem, listTodoItems, updateTodoItem } from "@/lib/todo-data";
+import { recordAuditEvent } from "@/lib/audit-log";
+import { selectRows, updateRows } from "@/lib/supabase-data";
+import { workflowStatusesForService } from "@/lib/service-workflow";
+import { createTodoItem, deleteTodoItem, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, unknown>;
+
+function text(value: unknown, max = 1000) {
+  return String(value ?? "").trim().slice(0, max);
+}
 
 function originAllowed(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -35,6 +42,21 @@ async function requireTodoUser(request: NextRequest) {
   return user;
 }
 
+function todoPayload(todo: TodoItem, status: TodoItem["status"] = todo.status) {
+  return {
+    title: todo.title,
+    description: todo.description || "",
+    status,
+    priority: todo.priority,
+    dueDate: todo.due_date || "",
+    referenceType: todo.reference_type || (todo.project_code ? "Project" : todo.proposal_code ? "Proposal" : "None"),
+    projectCode: todo.project_code || "",
+    proposalCode: todo.proposal_code || "",
+    workflowId: todo.workflow_id || "",
+    assignedTo: todo.assigned_to || "",
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     await requireTodoUser(request);
@@ -52,13 +74,80 @@ export async function POST(request: NextRequest) {
     const input = await request.json().catch(() => ({})) as Row;
     const action = String(input.action || "").trim().toLowerCase();
     if (action === "create") {
-      const createdBy = String(user.name || user.Name || userIdOf(user) || "LAND VIEW").trim();
+      const createdBy = String((user as Row).name || (user as Row).Name || userIdOf(user) || "LAND VIEW").trim();
       return ok(await createTodoItem((input.item || {}) as Row, createdBy));
     }
     if (action === "update") {
       const todoCode = String(input.todoCode || "").trim();
       if (!todoCode) throw new Error("To Do code is required.");
       return ok(await updateTodoItem(todoCode, (input.item || {}) as Row));
+    }
+    if (action === "completewithworkflow") {
+      const todoCode = text(input.todoCode, 80);
+      if (!todoCode) throw new Error("To Do code is required.");
+
+      const todos = await listTodoItems();
+      const todo = todos.find((row) => row.todo_code === todoCode);
+      if (!todo) throw new Error("To Do item was not found.");
+      if (todo.reference_type !== "Project" || !todo.project_code || !todo.workflow_id) {
+        throw new Error("This To Do is not linked to a Project Workflow service.");
+      }
+
+      const workflowRows = await selectRows("project_service_workflows", { filters: { id: todo.workflow_id }, limit: 1 });
+      if (!workflowRows.length) throw new Error("The linked Workflow service was not found.");
+      const workflow = workflowRows[0] as Record<string, any>;
+      if (text(workflow.project_code, 80).toUpperCase() !== text(todo.project_code, 80).toUpperCase()) {
+        throw new Error("The linked Workflow service does not belong to this project.");
+      }
+
+      const statuses = workflowStatusesForService(workflow.service_name);
+      const finalStatus = String(statuses[statuses.length - 1] || "").trim();
+      if (!finalStatus) throw new Error("The Workflow service has no completion status.");
+      const previousStatus = text(workflow.status, 120);
+      const now = new Date().toISOString();
+      const userRow = user as Row;
+      const who = text(userRow.employeeId || userRow.Employee_ID || userRow.userId || userRow.User_ID || userRow.username || userRow.Username || userRow.name || userRow.Name || userIdOf(user) || "LAND VIEW", 160);
+      let workflowChanged = false;
+
+      if (previousStatus !== finalStatus) {
+        await updateRows("project_service_workflows", { id: todo.workflow_id }, { status: finalStatus, updated_by: who, updated_at: now });
+        workflowChanged = true;
+      }
+
+      let updatedTodo: TodoItem;
+      try {
+        updatedTodo = await updateTodoItem(todoCode, todoPayload(todo, "Done"));
+      } catch (todoError) {
+        if (workflowChanged) {
+          try {
+            await updateRows("project_service_workflows", { id: todo.workflow_id }, { status: previousStatus, updated_by: who, updated_at: new Date().toISOString() });
+          } catch {}
+        }
+        throw todoError;
+      }
+
+      await recordAuditEvent({
+        user,
+        request,
+        action: "todo_complete_with_workflow",
+        entityType: "todo",
+        entityId: todoCode,
+        before: { todoStatus: todo.status, workflowStatus: previousStatus },
+        after: { todoStatus: "Done", workflowStatus: finalStatus },
+        details: { projectId: todo.project_code, workflowId: todo.workflow_id, service: workflow.service_name },
+        source: "todo",
+      });
+
+      return ok({
+        todo: updatedTodo,
+        workflow: {
+          id: todo.workflow_id,
+          projectId: todo.project_code,
+          serviceName: workflow.service_name,
+          previousStatus,
+          status: finalStatus,
+        },
+      });
     }
     if (action === "delete") {
       const todoCode = String(input.todoCode || "").trim();
@@ -68,6 +157,6 @@ export async function POST(request: NextRequest) {
     throw new Error("Unsupported To Do action.");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported/i.test(message) ? 400 : 500);
+    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion/i.test(message) ? 400 : 500);
   }
 }
