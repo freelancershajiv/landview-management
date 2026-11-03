@@ -133,7 +133,8 @@ export async function buildTodoReport(filtersInput:unknown) {
     if(filters.workflow==="Unlinked"&&r.workflow)return false;
     if(filters.dueFrom&&(!r.dueDate||r.dueDate<filters.dueFrom))return false;
     if(filters.dueTo&&(!r.dueDate||r.dueDate>filters.dueTo))return false;
-    const created=r.createdAt.slice(0,10);
+    const creationMs=Date.parse(r.createdAt);
+    const created=Number.isFinite(creationMs)?new Date(creationMs+6*60*60*1000).toISOString().slice(0,10):"";
     if(filters.createdFrom&&created<filters.createdFrom)return false;
     if(filters.createdTo&&created>filters.createdTo)return false;
     if(filters.deadline==="Overdue"&&!(r.overdueDays>0))return false;

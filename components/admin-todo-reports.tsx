@@ -248,7 +248,7 @@ export default function AdminTodoReports(){
         <td><strong>{row.title}</strong>{row.client&&<small>{row.client}</small>}</td>
         <td>{row.status}</td><td>{row.priority}</td><td>{row.employee}</td><td>{row.reference}</td>
         <td>{row.workflow?row.workflow+" · "+row.workflowStatus:"—"}</td>
-        <td>{row.dueDate||"—"}{row.dueTime&&<small>{row.dueTime.slice(0,5)} BDT</small>}</td>
+        <td>{row.dueDate||"—"}{row.dueTime&&<small>{row.dueTime.slice(0,5)} Dhaka</small>}</td>
         <td>{row.overdueDays>0?row.overdueDays+" day(s)":"—"}</td>
        </tr>)}</tbody>
       </table>
