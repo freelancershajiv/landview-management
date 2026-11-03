@@ -49,6 +49,9 @@ function todoPayload(todo: TodoItem, status: TodoItem["status"] = todo.status) {
     status,
     priority: todo.priority,
     dueDate: todo.due_date || "",
+    dueTime: todo.due_time || "",
+    reminderEnabled: todo.reminder_enabled === true,
+    reminderMinutesBefore: todo.reminder_enabled === true ? todo.reminder_minutes_before : null,
     referenceType: todo.reference_type || (todo.project_code ? "Project" : todo.proposal_code ? "Proposal" : "None"),
     projectCode: todo.project_code || "",
     proposalCode: todo.proposal_code || "",
@@ -211,6 +214,6 @@ export async function POST(request: NextRequest) {
     throw new Error("Unsupported To Do action.");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion|only an active employee/i.test(message) ? 400 : 500);
+    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion|only an active employee|reminder/i.test(message) ? 400 : 500);
   }
 }
