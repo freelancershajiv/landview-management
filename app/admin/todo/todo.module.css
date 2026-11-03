@@ -562,3 +562,59 @@
     flex: 1 1 140px;
   }
 }
+
+
+/* Upgrade 13 — multi-select and bulk task actions */
+.bulkToolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+}
+
+.bulkToolbar button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  border: 1px solid #d6dce3;
+  border-radius: 8px;
+  background: #fff;
+  color: #303841;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.bulkToolbar button:hover:not(:disabled) { border-color: #a51d25; color: #a51d25; }
+.bulkToolbar button:disabled { opacity: 0.5; cursor: default; }
+
+.bulkCheck {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 10px;
+  color: #45515c;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  user-select: none;
+}
+.bulkCheck input {
+  height: 16px;
+  width: 16px;
+  margin: 0;
+  accent-color: #a51d25;
+  cursor: pointer;
+}
+.bulkCheck input:disabled { cursor: default; opacity: 0.55; }
+.bulkSelected {
+  outline: 2px solid #a51d25;
+  outline-offset: -2px;
+  background: #fffcfc;
+}
+@media (max-width: 700px) {
+  .bulkToolbar { width: 100%; }
+  .bulkToolbar button { flex: 1 1 150px; }
+}

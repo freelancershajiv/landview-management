@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import styles from "@/app/admin/todo/todo.module.css";
+import AdminTodoBulkActions, { type BulkResult } from "@/components/admin-todo-bulk-actions";
 
 type TodoStatus = "To Do" | "In Progress" | "Done";
 type TodoPriority = "Low" | "Normal" | "High" | "Urgent";
@@ -191,6 +192,8 @@ export default function AdminTodoBoard() {
   const [search, setSearch] = useState("");
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editingCode, setEditingCode] = useState("");
+  const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
+  const [bulkBusy, setBulkBusy] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
 
   async function load() {
@@ -265,6 +268,40 @@ export default function AdminTodoBoard() {
     });
   }, [items, search, workflowById, employeeById, projectByCode, proposalByCode]);
 
+  const selectedItems = useMemo(() => {
+    const byCode = new Map(items.map(item => [item.todo_code, item]));
+    return selectedCodes.map(code => byCode.get(code)).filter((item): item is TodoItem => Boolean(item && item.status !== "Done"));
+  }, [items, selectedCodes]);
+
+  function toggleSelection(item: TodoItem) {
+    if (busy || bulkBusy || loading || item.status === "Done") return;
+    setSelectedCodes(previous => previous.includes(item.todo_code)
+      ? previous.filter(code => code !== item.todo_code)
+      : previous.length < 25 ? [...previous, item.todo_code] : previous);
+    if (!selectedCodes.includes(item.todo_code) && selectedCodes.length >= 25) {
+      setError("You can select up to 25 open To Dos in a single batch.");
+    }
+  }
+
+  function selectMatchingOpen() {
+    if (busy || bulkBusy || loading) return;
+    const available = filteredItems.filter(item => item.status !== "Done");
+    setSelectedCodes(available.slice(0, 25).map(item => item.todo_code));
+    setNotice(available.length > 25
+      ? "Selected the first 25 matching open To Dos. Narrow the search to bulk-edit others."
+      : available.length ? "Selected " + available.length + " matching open To Do(s)." : "No matching open To Dos to select.");
+    setError("");
+  }
+
+  function bulkApplied(results: BulkResult[]) {
+    const cleared = new Set(results.filter(result => result.status === "updated" || result.status === "skipped").map(result => result.todoCode));
+    setSelectedCodes(previous => previous.filter(code => !cleared.has(code)));
+    if (editingCode && cleared.has(editingCode)) resetForm();
+    if (results.some(result => result.status === "updated")) {
+      window.dispatchEvent(new Event("landview:todo:changed"));
+    }
+  }
+
   const counts = useMemo(() => ({
     total: items.length,
     open: items.filter((item) => item.status !== "Done").length,
@@ -337,7 +374,7 @@ export default function AdminTodoBoard() {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!draft.title.trim() || busy) return;
+    if (!draft.title.trim() || busy || bulkBusy) return;
 
     const projectCode = normalizeProjectCode(draft.referenceCode);
     const proposalCode = normalizeProposalCode(draft.referenceCode);
@@ -396,7 +433,7 @@ export default function AdminTodoBoard() {
   }
 
   async function changeStatus(item: TodoItem, nextStatus: TodoStatus) {
-    if (busy || item.status === nextStatus) return;
+    if (busy || bulkBusy || item.status === nextStatus) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -416,7 +453,7 @@ export default function AdminTodoBoard() {
   }
 
   async function completeWithWorkflow(item: TodoItem) {
-    if (busy || !item.workflow_id) return;
+    if (busy || bulkBusy || !item.workflow_id) return;
     const workflow = workflowById.get(item.workflow_id);
     if (!workflow) {
       setError("The linked Workflow service is no longer available.");
@@ -446,7 +483,7 @@ export default function AdminTodoBoard() {
   }
 
   async function remove(item: TodoItem) {
-    if (busy || !window.confirm(`Delete “${item.title}”?`)) return;
+    if (busy || bulkBusy || !window.confirm(`Delete “${item.title}”?`)) return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -492,7 +529,7 @@ export default function AdminTodoBoard() {
           <h1>To Do</h1>
           <p>Projects, Proposals and Employees are now selected from live LAND VIEW records. Project Workflow remains optional and only changes through Complete + Workflow.</p>
         </div>
-        <button className={styles.refreshButton} type="button" onClick={() => void load()} disabled={loading || busy}>
+        <button className={styles.refreshButton} type="button" onClick={() => void load()} disabled={loading || busy || bulkBusy}>
           {loading ? "Loading…" : "Refresh"}
         </button>
       </section>
@@ -633,7 +670,7 @@ export default function AdminTodoBoard() {
           <button
             className={styles.primaryButton}
             type="submit"
-            disabled={busy || !draft.title.trim() || (draft.referenceType === "Project" && !selectedProject) || (draft.referenceType === "Proposal" && !selectedProposal) || Boolean(draft.assignedEmployeeCode.trim() && !selectedEmployee)}
+            disabled={busy || bulkBusy || !draft.title.trim() || (draft.referenceType === "Project" && !selectedProject) || (draft.referenceType === "Proposal" && !selectedProposal) || Boolean(draft.assignedEmployeeCode.trim() && !selectedEmployee)}
           >
             {busy ? "Saving…" : editingCode ? "Save changes" : "Add To Do"}
           </button>
@@ -646,13 +683,29 @@ export default function AdminTodoBoard() {
       <section className={styles.toolbar}>
         <div>
           <h2>Task board</h2>
-          <p>{filteredItems.length} item{filteredItems.length === 1 ? "" : "s"} shown</p>
+          <p>{filteredItems.length} item{filteredItems.length === 1 ? "" : "s"} shown · {selectedItems.length} selected</p>
+          <div className={styles.bulkToolbar}>
+            <button type="button" onClick={selectMatchingOpen} disabled={busy || bulkBusy || loading || !filteredItems.some(item => item.status !== "Done")}>
+              Select matching open (up to 25)
+            </button>
+            <button type="button" onClick={() => setSelectedCodes([])} disabled={busy || bulkBusy || selectedCodes.length === 0}>
+              Clear selection
+            </button>
+          </div>
         </div>
         <label className={styles.searchBox}>
           <span className={styles.srOnly}>Search To Do items</span>
           <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search task, project, proposal, employee, workflow…" />
         </label>
       </section>
+
+      <AdminTodoBulkActions
+        selected={selectedItems}
+        employees={options.employees}
+        disabled={busy || loading}
+        onBusyChange={setBulkBusy}
+        onApplied={bulkApplied}
+      />
 
       {loading && !items.length ? <div className={styles.emptyState}>Loading To Do items…</div> : null}
       {!loading && !filteredItems.length ? <div className={styles.emptyState}>No To Do items match this view.</div> : null}
@@ -676,7 +729,17 @@ export default function AdminTodoBoard() {
                   const linkedProject = item.project_code ? projectByCode.get(normalizeProjectCode(item.project_code)) : undefined;
                   const linkedProposal = item.proposal_code ? proposalByCode.get(normalizeProposalCode(item.proposal_code)) : undefined;
                   return (
-                    <article className={`${styles.todoCard} ${isOverdue(item) ? styles.overdueCard : ""}`} key={item.todo_code}>
+                    <article className={`${styles.todoCard} ${isOverdue(item) ? styles.overdueCard : ""} ${selectedCodes.includes(item.todo_code) ? styles.bulkSelected : ""}`} key={item.todo_code}>
+                      {item.status !== "Done" && <label className={styles.bulkCheck}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${item.todo_code} for bulk actions`}
+                          checked={selectedCodes.includes(item.todo_code)}
+                          disabled={busy || bulkBusy || loading || (!selectedCodes.includes(item.todo_code) && selectedCodes.length >= 25)}
+                          onChange={() => toggleSelection(item)}
+                        />
+                        <span>Select for bulk action</span>
+                      </label>}
                       <div className={styles.cardTopline}>
                         <span className={`${styles.priority} ${styles[`priority${item.priority}`] || ""}`}>{item.priority}</span>
                         <span className={styles.code}>{item.todo_code}</span>
@@ -696,11 +759,11 @@ export default function AdminTodoBoard() {
                         {isOverdue(item) ? <span className={styles.overdueText}>Overdue</span> : null}
                       </div>
                       <div className={styles.cardActions}>
-                        <select aria-label={`Status for ${item.title}`} value={item.status} disabled={busy} onChange={(event) => void changeStatus(item, event.target.value as TodoStatus)}>
+                        <select aria-label={`Status for ${item.title}`} value={item.status} disabled={busy || bulkBusy} onChange={(event) => void changeStatus(item, event.target.value as TodoStatus)}>
                           <option>To Do</option><option>In Progress</option><option>Done</option>
                         </select>
-                        <button type="button" onClick={() => startEdit(item)} disabled={busy}>Edit</button>
-                        <button className={styles.dangerButton} type="button" onClick={() => void remove(item)} disabled={busy}>Delete</button>
+                        <button type="button" onClick={() => startEdit(item)} disabled={busy || bulkBusy}>Edit</button>
+                        <button className={styles.dangerButton} type="button" onClick={() => void remove(item)} disabled={busy || bulkBusy}>Delete</button>
                       </div>
                       {referenceType === "Project" ? (
                         <div className={styles.workflowActions}>
@@ -709,14 +772,14 @@ export default function AdminTodoBoard() {
                             <button
                               className={styles.workflowPrimary}
                               type="button"
-                              disabled={busy || (item.status === "Done" && workflowDone)}
+                              disabled={busy || bulkBusy || (item.status === "Done" && workflowDone)}
                               onClick={() => void completeWithWorkflow(item)}
                             >
                               {workflowDone ? (item.status === "Done" ? "Workflow completed" : "Complete To Do") : item.status === "Done" ? "Update Workflow" : "Complete + Workflow"}
                             </button>
                           ) : null}
                           {item.workflow_id && item.status !== "Done" ? (
-                            <button type="button" disabled={busy} onClick={() => void changeStatus(item, "Done")}>Complete only</button>
+                            <button type="button" disabled={busy || bulkBusy} onClick={() => void changeStatus(item, "Done")}>Complete only</button>
                           ) : null}
                         </div>
                       ) : null}
