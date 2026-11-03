@@ -61,6 +61,16 @@ function todoPayload(todo: TodoItem, status: TodoItem["status"] = todo.status) {
   };
 }
 
+function preserveSchedule(item: Row, todo: TodoItem) {
+  const next: Row = { ...item };
+  if (!("dueTime" in next) && !("due_time" in next)) next.dueTime = todo.due_time || "";
+  if (!("reminderEnabled" in next) && !("reminder_enabled" in next)) next.reminderEnabled = todo.reminder_enabled === true;
+  if (!("reminderMinutesBefore" in next) && !("reminder_minutes_before" in next)) {
+    next.reminderMinutesBefore = todo.reminder_enabled === true ? todo.reminder_minutes_before : null;
+  }
+  return next;
+}
+
 async function todoOptions() {
   const [projects, proposals, employees, workflows] = await Promise.all([
     selectRows("projects", { order: "project_code:desc", limit: 5000 }),
@@ -137,7 +147,10 @@ export async function POST(request: NextRequest) {
     if (action === "update") {
       const todoCode = String(input.todoCode || "").trim();
       if (!todoCode) throw new Error("To Do code is required.");
-      return ok(await updateTodoItem(todoCode, (input.item || {}) as Row));
+      const todos = await listTodoItems();
+      const current = todos.find((row) => row.todo_code === todoCode);
+      if (!current) throw new Error("To Do item was not found.");
+      return ok(await updateTodoItem(todoCode, preserveSchedule((input.item || {}) as Row, current)));
     }
     if (action === "completewithworkflow") {
       const todoCode = text(input.todoCode, 80);
