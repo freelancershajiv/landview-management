@@ -123,6 +123,7 @@ function cleanItem(input: Row, createdBy = "", isUpdate = false) {
   const projectCode = nextReferenceType === "Project" ? rawProjectCode : "";
   const proposalCode = nextReferenceType === "Proposal" ? rawProposalCode : "";
   const workflowId = nextReferenceType === "Project" ? text(input.workflowId ?? input.workflow_id ?? input.Workflow_ID, 80) : "";
+  const assignedEmployeeId = text(input.assignedEmployeeId ?? input.assigned_employee_id ?? input.Assigned_Employee_ID, 80);
 
   if (nextReferenceType === "Project" && !projectCode) throw new Error("Project ID is required when linking a To Do to a project.");
   if (nextReferenceType === "Proposal" && !proposalCode) throw new Error("Proposal ID is required when linking a To Do to a proposal.");
@@ -137,6 +138,7 @@ function cleanItem(input: Row, createdBy = "", isUpdate = false) {
     project_code: projectCode || null,
     proposal_code: proposalCode || null,
     workflow_id: workflowId || null,
+    assigned_employee_id: assignedEmployeeId || null,
     assigned_to: text(input.assignedTo ?? input.assigned_to ?? input.Assigned_To, 200) || null,
     updated_at: now,
     completed_at: nextStatus === "Done" ? now : null,
@@ -148,6 +150,22 @@ function cleanItem(input: Row, createdBy = "", isUpdate = false) {
     item.created_at = now;
   }
   return item;
+}
+
+async function validateReferenceLink(item: Row) {
+  if (item.reference_type === "Project") {
+    const code = normalizeProjectCode(item.project_code);
+    const result = await db(`projects?select=id,project_code&project_code=eq.${encodeURIComponent(code)}&limit=1`);
+    if (!Array.isArray(result) || !result.length) throw new Error(`Project ${code} was not found.`);
+    item.project_code = code;
+    return;
+  }
+  if (item.reference_type === "Proposal") {
+    const code = normalizeProposalCode(item.proposal_code);
+    const result = await db(`proposals?select=proposal_code&proposal_code=eq.${encodeURIComponent(code)}&limit=1`);
+    if (!Array.isArray(result) || !result.length) throw new Error(`Proposal ${code} was not found.`);
+    item.proposal_code = code;
+  }
 }
 
 async function validateWorkflowLink(item: Row) {
@@ -162,16 +180,32 @@ async function validateWorkflowLink(item: Row) {
   }
 }
 
+async function validateEmployeeLink(item: Row) {
+  const employeeId = text(item.assigned_employee_id, 80);
+  if (!employeeId) return;
+  const result = await db(`employees?select=id,employee_code,name,status&id=eq.${encodeURIComponent(employeeId)}&limit=1`);
+  const employee = Array.isArray(result) ? result[0] : null;
+  if (!employee) throw new Error("Selected employee was not found.");
+  if (text(employee.status, 40).toLowerCase() !== "active") throw new Error("Only an active employee can be assigned a To Do.");
+  item.assigned_to = `${text(employee.employee_code, 80)} · ${text(employee.name, 120)}`;
+}
+
+async function validateLinks(item: Row) {
+  await validateReferenceLink(item);
+  await validateWorkflowLink(item);
+  await validateEmployeeLink(item);
+}
+
 async function handleAction(input: Row) {
   const action = text(input.action, 40).toLowerCase();
-  if (action === "health") return { ok: true, backend: "standalone-todo", version: 3, references: ["None", "Project", "Proposal"], workflowLink: true };
+  if (action === "health") return { ok: true, backend: "standalone-todo", version: 4, references: ["None", "Project", "Proposal"], workflowLink: true, employeeAssignment: true };
   if (action === "list") {
     return await db("todo_items?select=*&order=updated_at.desc,created_at.desc&limit=2000");
   }
   if (action === "create") {
     const raw = input.item && typeof input.item === "object" ? input.item as Row : input;
     const row = cleanItem(raw, text(input.createdBy, 200), false);
-    await validateWorkflowLink(row);
+    await validateLinks(row);
     const result = await db("todo_items", {
       method: "POST",
       headers: { Prefer: "return=representation" },
@@ -184,7 +218,7 @@ async function handleAction(input: Row) {
     if (!code) throw new Error("To Do code is required.");
     const raw = input.item && typeof input.item === "object" ? input.item as Row : input;
     const row = cleanItem(raw, "", true);
-    await validateWorkflowLink(row);
+    await validateLinks(row);
     const result = await db(`todo_items?todo_code=eq.${encodeURIComponent(code)}`, {
       method: "PATCH",
       headers: { Prefer: "return=representation" },
