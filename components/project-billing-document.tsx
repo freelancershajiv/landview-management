@@ -189,7 +189,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
     catch { return { url: "", error: "Could not generate the invoice QR. Reload the billing statement and try again." }; }
   }, [verificationUrl]);
   const qrUrl = qr.url;
-  const statementRef = `INV-${result.id.replace(/^LV-/, "")}-01`;
+  const statementRef = result.document?.invoiceCode || `STMT-${result.id}-${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date()).replace(/-/g, "")}`;
   const projectStatus = result.client.status || (result.totals.due > 0 ? "Partial / Due" : "Full Paid");
   const activeCategories = result.invoices.filter(hasBillingData);
   const dueCategories = activeCategories.filter((category) => Number(category.due || 0) > 0.009);
