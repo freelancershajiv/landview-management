@@ -13,6 +13,13 @@ export type TodoItem = {
   status: "To Do" | "In Progress" | "Done";
   priority: "Low" | "Normal" | "High" | "Urgent";
   due_date?: string | null;
+  due_time?: string | null;
+  reminder_enabled?: boolean;
+  reminder_minutes_before?: number | null;
+  reminder_sent_at?: string | null;
+  overdue_notified_at?: string | null;
+  notification_last_attempt_at?: string | null;
+  notification_last_error?: string | null;
   reference_type?: "None" | "Project" | "Proposal";
   project_code?: string | null;
   proposal_code?: string | null;
