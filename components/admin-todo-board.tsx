@@ -212,6 +212,9 @@ export default function AdminTodoBoard() {
 
   useEffect(() => {
     void load();
+    const refresh = () => void load();
+    window.addEventListener("landview:todo:changed", refresh);
+    return () => window.removeEventListener("landview:todo:changed", refresh);
   }, []);
 
   const workflows = options.workflows || [];

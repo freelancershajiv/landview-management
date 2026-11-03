@@ -16,7 +16,7 @@ const ALLOWED_TABLES = new Set([
   "project_service_workflows","payment_service_allocations","invoice_items","payment_invoice_allocations","payment_receipts",
   "project_contracts","project_contract_services","billing_milestones","billing_events","billing_adjustments","supervision_billing_rules","billing_gate_overrides",
   "todo_items","todo_subtasks","todo_comments","todo_attachments","todo_templates","todo_template_subtasks","todo_template_runs",
-  "todo_automation_rules","todo_automation_events","project_service_documents",
+  "todo_automation_rules","todo_automation_events","project_service_documents","todo_escalations",
   "website_analytics_visitors","website_analytics_sessions","website_analytics_page_views","website_analytics_location_events","website_analytics_interactions","website_leads"
 ]);
 

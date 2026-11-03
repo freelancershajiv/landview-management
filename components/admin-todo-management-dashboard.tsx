@@ -122,7 +122,8 @@ export default function AdminTodoManagementDashboard() {
     const refresh = () => { setNow(Date.now()); if (document.visibilityState==="visible") void load(true); };
     const interval = window.setInterval(refresh,60000);
     window.addEventListener("focus",refresh);
-    return () => { window.clearInterval(interval); window.removeEventListener("focus",refresh); };
+    window.addEventListener("landview:todo:changed",refresh);
+    return () => { window.clearInterval(interval); window.removeEventListener("focus",refresh); window.removeEventListener("landview:todo:changed",refresh); };
   }, []);
 
   const items = data.items || [];
