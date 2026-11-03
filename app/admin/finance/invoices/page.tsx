@@ -27,6 +27,7 @@ type ProjectBillingBundle = {
   projectId: string;
   sheets: FinanceSheetData[];
   payments: Record<string, unknown>[];
+  billPayments: { billCode: string; invoiceCode: string; paymentCode: string; date: string; amount: number; details: string }[];
   updatedAt?: string;
   mode?: string;
 };
@@ -44,8 +45,11 @@ type SingleBillOption = {
 };
 type ReceivableBillItem = SheetInvoices["invoices"][number]["items"][number] & {
   billId?: string;
+  billInvoiceCode?: string;
+  billIssueDate?: string;
   billPaidAmount?: number;
   billDueAmount?: number;
+  billPayments?: SheetInvoices["invoices"][number]["payments"];
 };
 
 function snapshotKey(id: string) {
@@ -89,7 +93,10 @@ function normalizedService(value: unknown) {
     .replace(/\s+/g, " ");
 }
 
-function attachCanonicalBillAmounts(billing: SheetInvoices, sheets: FinanceSheetData[], id: string) {
+function attachCanonicalBillAmounts(
+  billing: SheetInvoices, sheets: FinanceSheetData[], id: string,
+  allocatedPayments: ProjectBillingBundle["billPayments"] = [],
+) {
   const tabByCategory: Record<string, string> = {
     Engineering: "Design Bill",
     "Design Books": "Design Books Bill",
@@ -122,6 +129,17 @@ function attachCanonicalBillAmounts(billing: SheetInvoices, sheets: FinanceSheet
       const due = moneyValue(row[10]);
       const extended = item as ReceivableBillItem;
       extended.billId = String(row[5] || "").trim();
+      extended.billInvoiceCode = String(row[11] || "").trim();
+      extended.billIssueDate = String(row[12] || "").trim();
+      extended.billPayments = allocatedPayments
+        .filter((payment) => payment.billCode.toLowerCase() === extended.billId?.toLowerCase())
+        .map((payment) => ({
+          date: payment.date,
+          details: payment.details,
+          amount: Math.max(0, numberValue(payment.amount)),
+          verification: "Verified" as const,
+          incomeId: payment.paymentCode,
+        }));
       // The receivable endpoint owns each bill's payment allocation. A project-level
       // or category-level payment must never make an unrelated single bill paid.
       if (Number.isFinite(paid)) extended.billPaidAmount = Math.max(0, paid);
@@ -202,7 +220,7 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
     ...category,
     name: serviceName,
     items: [item],
-    payments: [],
+    payments: receivableItem.billPayments || [],
     gross: amount,
     discount,
     paid,
@@ -211,7 +229,18 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
 
   return {
     ...result,
-    client: { ...result.client, status: due > 0.009 ? (paid > 0.009 ? "Partially Paid / Due" : "Unpaid / Due") : "Full Paid" },
+    client: {
+      ...result.client,
+      status: due > 0.009 ? (paid > 0.009 ? "Partially Paid / Due" : "Unpaid / Due") : "Full Paid",
+      issueDate: receivableItem.billIssueDate || result.client.issueDate,
+    },
+    document: {
+      kind: "single",
+      invoiceCode: receivableItem.billInvoiceCode || (receivableItem.billId?.startsWith("BILL-") ? `INV-${receivableItem.billId}` : ""),
+      billCode: receivableItem.billId || "",
+      issueDate: receivableItem.billIssueDate || "",
+      generatedAt: new Date().toISOString(),
+    },
     invoices: [singleCategory],
     totals: {
       ...result.totals,
@@ -236,6 +265,7 @@ async function loadProjectBillingBundle(id: string): Promise<ProjectBillingBundl
     projectId: String(json.data.projectId || `LV-${id}`),
     sheets: json.data.sheets as FinanceSheetData[],
     payments: Array.isArray(json.data.payments) ? json.data.payments : [],
+    billPayments: Array.isArray(json.data.billPayments) ? json.data.billPayments : [],
     updatedAt: String(json.data.updatedAt || ""),
     mode: String(json.data.mode || ""),
   };
@@ -302,6 +332,7 @@ export default function ProjectBillingPage() {
       mergeBillingWorkspaceBills(buildSheetInvoices(bundle.sheets, id), databaseBills),
       bundle.sheets,
       id,
+      bundle.billPayments,
     );
     return verifySheetInvoicesWithPayments(billing, bundle.payments || []);
   }
