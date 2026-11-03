@@ -213,7 +213,7 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
 }
 
 export type SheetInvoices = ReturnType<typeof buildSheetInvoices> & {
-  document?: { kind: "single" | "due" | "project"; invoiceCode?: string; billCode?: string; issueDate?: string; generatedAt?: string };
+  document?: { kind: "single" | "due" | "project"; invoiceCode?: string; billCode?: string; category?: string; issueDate?: string; generatedAt?: string };
 };
 
 type InvoiceCategoryName = "Engineering" | "Design Books" | "Supervision" | "Others";
