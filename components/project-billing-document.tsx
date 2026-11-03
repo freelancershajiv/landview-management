@@ -258,7 +258,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
       {qrUrl && <div className={styles.sheetHeaderQr}><img data-billing-qr="true" className={styles.sheetHeaderQrImage} src={qrUrl} loading="eager" alt={`Verify ${result.id}`} width={96} height={96}/><small>Scan to verify</small></div>}
     </header>
     <section className={styles.sheetInfoBoard}>
-      <div className={styles.sheetInfoRow}><span>Invoice ID</span><strong>{statementRef}</strong><span>Issue Date</span><strong>{issueDate}</strong></div>
+      <div className={styles.sheetInfoRow}><span>{result.document?.kind === "single" ? "Invoice ID" : "Statement Ref"}</span><strong>{statementRef}</strong><span>Issue Date</span><strong>{issueDate}</strong></div>
       <div className={styles.sheetInfoRow}><span>Owner Name</span><strong>{result.client.name || "—"}</strong><span>File ID</span><strong>{result.client.fileId || result.id || "—"}</strong></div>
       <div className={styles.sheetInfoRow}><span>Contact No</span><strong>{result.client.phone || "—"}</strong><span>Project Type</span><strong>{result.client.type || "—"}</strong></div>
       <div className={styles.sheetInfoRow}><span>Referred By</span><strong>{result.client.referredBy || "—"}</strong><span>Floor/Story</span><strong>{result.client.floor || "—"}</strong></div>
