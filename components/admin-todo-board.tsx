@@ -19,6 +19,7 @@ type TodoItem = {
   project_code?: string | null;
   proposal_code?: string | null;
   workflow_id?: string | null;
+  assigned_employee_id?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
   completed_at?: string | null;
@@ -32,7 +33,40 @@ type WorkflowItem = {
   serviceName: string;
   status: string;
   statuses: string[];
-  lifecyclePhase?: string;
+  workflowType?: string;
+};
+
+type ProjectOption = {
+  id: string;
+  projectCode: string;
+  clientName: string;
+  projectName: string;
+  location: string;
+  lifecyclePhase: string;
+};
+
+type ProposalOption = {
+  proposalCode: string;
+  clientName: string;
+  projectTitle: string;
+  location: string;
+  status: string;
+  convertedProjectCode: string;
+};
+
+type EmployeeOption = {
+  id: string;
+  employeeCode: string;
+  name: string;
+  designation: string;
+  department: string;
+};
+
+type TodoOptions = {
+  projects: ProjectOption[];
+  proposals: ProposalOption[];
+  employees: EmployeeOption[];
+  workflows: WorkflowItem[];
 };
 
 type Draft = {
@@ -44,7 +78,7 @@ type Draft = {
   referenceType: TodoReferenceType;
   referenceCode: string;
   workflowId: string;
-  assignedTo: string;
+  assignedEmployeeCode: string;
 };
 
 const EMPTY_DRAFT: Draft = {
@@ -56,8 +90,10 @@ const EMPTY_DRAFT: Draft = {
   referenceType: "None",
   referenceCode: "",
   workflowId: "",
-  assignedTo: "",
+  assignedEmployeeCode: "",
 };
+
+const EMPTY_OPTIONS: TodoOptions = { projects: [], proposals: [], employees: [], workflows: [] };
 
 const COLUMNS: Array<{ status: TodoStatus; label: string; hint: string }> = [
   { status: "To Do", label: "To Do", hint: "Not started" },
@@ -65,8 +101,8 @@ const COLUMNS: Array<{ status: TodoStatus; label: string; hint: string }> = [
   { status: "Done", label: "Done", hint: "Completed" },
 ];
 
-async function request<T>(method: "GET" | "POST", body?: Record<string, unknown>): Promise<T> {
-  const response = await fetch("/api/admin/todo", {
+async function request<T>(method: "GET" | "POST", body?: Record<string, unknown>, query = ""): Promise<T> {
+  const response = await fetch(`/api/admin/todo${query}`, {
     method,
     credentials: "same-origin",
     cache: "no-store",
@@ -76,16 +112,6 @@ async function request<T>(method: "GET" | "POST", body?: Record<string, unknown>
   const json = await response.json().catch(() => null);
   if (!response.ok || !json?.success) throw new Error(String(json?.error || "To Do request failed."));
   return json.data as T;
-}
-
-async function loadWorkflowItems(): Promise<WorkflowItem[]> {
-  const response = await fetch("/api/service-workflow?mode=project", {
-    credentials: "same-origin",
-    cache: "no-store",
-  });
-  const json = await response.json().catch(() => null);
-  if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not load Workflow services."));
-  return Array.isArray(json.data?.workflows) ? json.data.workflows as WorkflowItem[] : [];
 }
 
 function isOverdue(item: TodoItem) {
@@ -122,6 +148,10 @@ function normalizeProjectCode(value: string) {
   return match ? `LV-${String(Number(match[1])).padStart(3, "0")}` : raw;
 }
 
+function normalizeProposalCode(value: string) {
+  return value.trim().toUpperCase();
+}
+
 function itemPayload(item: TodoItem, statusOverride?: TodoStatus) {
   const referenceType = referenceTypeOf(item);
   const referenceCode = referenceCodeOf(item);
@@ -135,6 +165,7 @@ function itemPayload(item: TodoItem, statusOverride?: TodoStatus) {
     projectCode: referenceType === "Project" ? referenceCode : "",
     proposalCode: referenceType === "Proposal" ? referenceCode : "",
     workflowId: referenceType === "Project" ? item.workflow_id || "" : "",
+    assignedEmployeeId: item.assigned_employee_id || "",
     assignedTo: item.assigned_to || "",
   };
 }
@@ -146,7 +177,7 @@ function finalWorkflowStatus(workflow?: WorkflowItem) {
 
 export default function AdminTodoBoard() {
   const [items, setItems] = useState<TodoItem[]>([]);
-  const [workflows, setWorkflows] = useState<WorkflowItem[]>([]);
+  const [options, setOptions] = useState<TodoOptions>(EMPTY_OPTIONS);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -160,12 +191,12 @@ export default function AdminTodoBoard() {
     setLoading(true);
     setError("");
     try {
-      const [todoItems, workflowItems] = await Promise.all([
+      const [todoItems, liveOptions] = await Promise.all([
         request<TodoItem[]>("GET"),
-        loadWorkflowItems(),
+        request<TodoOptions>("GET", undefined, "?mode=options"),
       ]);
       setItems(todoItems);
-      setWorkflows(workflowItems);
+      setOptions(liveOptions || EMPTY_OPTIONS);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load To Do items.");
     } finally {
@@ -177,35 +208,53 @@ export default function AdminTodoBoard() {
     void load();
   }, []);
 
+  const workflows = options.workflows || [];
   const workflowById = useMemo(() => new Map(workflows.map((workflow) => [workflow.id, workflow])), [workflows]);
+  const projectByCode = useMemo(() => new Map(options.projects.map((project) => [normalizeProjectCode(project.projectCode), project])), [options.projects]);
+  const proposalByCode = useMemo(() => new Map(options.proposals.map((proposal) => [normalizeProposalCode(proposal.proposalCode), proposal])), [options.proposals]);
+  const employeeById = useMemo(() => new Map(options.employees.map((employee) => [employee.id, employee])), [options.employees]);
+  const employeeByCode = useMemo(() => new Map(options.employees.map((employee) => [employee.employeeCode.toUpperCase(), employee])), [options.employees]);
+
+  const selectedProject = draft.referenceType === "Project" ? projectByCode.get(normalizeProjectCode(draft.referenceCode)) : undefined;
+  const selectedProposal = draft.referenceType === "Proposal" ? proposalByCode.get(normalizeProposalCode(draft.referenceCode)) : undefined;
+  const selectedEmployee = draft.assignedEmployeeCode.trim() ? employeeByCode.get(draft.assignedEmployeeCode.trim().toUpperCase()) : undefined;
 
   const projectWorkflows = useMemo(() => {
-    if (draft.referenceType !== "Project" || !draft.referenceCode.trim()) return [];
-    const projectCode = normalizeProjectCode(draft.referenceCode);
+    if (!selectedProject) return [];
     return workflows
-      .filter((workflow) => normalizeProjectCode(String(workflow.projectId || "")) === projectCode)
+      .filter((workflow) => normalizeProjectCode(String(workflow.projectId || "")) === normalizeProjectCode(selectedProject.projectCode))
       .sort((a, b) => a.serviceName.localeCompare(b.serviceName));
-  }, [draft.referenceCode, draft.referenceType, workflows]);
+  }, [selectedProject, workflows]);
 
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return items;
     return items.filter((item) => {
       const workflow = item.workflow_id ? workflowById.get(item.workflow_id) : undefined;
+      const employee = item.assigned_employee_id ? employeeById.get(item.assigned_employee_id) : undefined;
+      const project = item.project_code ? projectByCode.get(normalizeProjectCode(item.project_code)) : undefined;
+      const proposal = item.proposal_code ? proposalByCode.get(normalizeProposalCode(item.proposal_code)) : undefined;
       return [
         item.title,
         item.description,
         item.project_code,
+        project?.clientName,
+        project?.projectName,
         item.proposal_code,
+        proposal?.clientName,
+        proposal?.projectTitle,
         item.reference_type,
         item.assigned_to,
+        employee?.employeeCode,
+        employee?.name,
+        employee?.designation,
         item.priority,
         item.status,
         workflow?.serviceName,
         workflow?.status,
       ].some((value) => String(value || "").toLowerCase().includes(query));
     });
-  }, [items, search, workflowById]);
+  }, [items, search, workflowById, employeeById, projectByCode, proposalByCode]);
 
   const counts = useMemo(() => ({
     total: items.length,
@@ -220,6 +269,7 @@ export default function AdminTodoBoard() {
   }
 
   function startEdit(item: TodoItem) {
+    const employee = item.assigned_employee_id ? employeeById.get(item.assigned_employee_id) : undefined;
     setEditingCode(item.todo_code);
     setDraft({
       title: item.title || "",
@@ -230,7 +280,7 @@ export default function AdminTodoBoard() {
       referenceType: referenceTypeOf(item),
       referenceCode: referenceCodeOf(item),
       workflowId: item.workflow_id || "",
-      assignedTo: item.assigned_to || "",
+      assignedEmployeeCode: employee?.employeeCode || "",
     });
     setNotice("");
     setError("");
@@ -240,10 +290,30 @@ export default function AdminTodoBoard() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft.title.trim() || busy) return;
-    if (draft.referenceType !== "None" && !draft.referenceCode.trim()) {
-      setError(`${draft.referenceType} ID is required when linking this To Do.`);
+
+    const projectCode = normalizeProjectCode(draft.referenceCode);
+    const proposalCode = normalizeProposalCode(draft.referenceCode);
+    const exactProject = draft.referenceType === "Project" ? projectByCode.get(projectCode) : undefined;
+    const exactProposal = draft.referenceType === "Proposal" ? proposalByCode.get(proposalCode) : undefined;
+    const exactEmployee = draft.assignedEmployeeCode.trim() ? employeeByCode.get(draft.assignedEmployeeCode.trim().toUpperCase()) : undefined;
+
+    if (draft.referenceType === "Project" && !exactProject) {
+      setError("Choose a valid Project from the LAND VIEW project list.");
       return;
     }
+    if (draft.referenceType === "Proposal" && !exactProposal) {
+      setError("Choose a valid Proposal from the LAND VIEW proposal list.");
+      return;
+    }
+    if (draft.assignedEmployeeCode.trim() && !exactEmployee) {
+      setError("Choose an active Employee from the LAND VIEW employee list.");
+      return;
+    }
+    if (draft.workflowId && !projectWorkflows.some((workflow) => workflow.id === draft.workflowId)) {
+      setError("Choose a Workflow service that belongs to the selected Project.");
+      return;
+    }
+
     setBusy(true);
     setError("");
     setNotice("");
@@ -255,10 +325,11 @@ export default function AdminTodoBoard() {
         priority: draft.priority,
         dueDate: draft.dueDate,
         referenceType: draft.referenceType,
-        projectCode: draft.referenceType === "Project" ? draft.referenceCode : "",
-        proposalCode: draft.referenceType === "Proposal" ? draft.referenceCode : "",
+        projectCode: draft.referenceType === "Project" ? projectCode : "",
+        proposalCode: draft.referenceType === "Proposal" ? proposalCode : "",
         workflowId: draft.referenceType === "Project" ? draft.workflowId : "",
-        assignedTo: draft.assignedTo,
+        assignedEmployeeId: exactEmployee?.id || "",
+        assignedTo: exactEmployee ? `${exactEmployee.employeeCode} · ${exactEmployee.name}` : "",
       };
       if (editingCode) {
         await request<TodoItem>("POST", { action: "update", todoCode: editingCode, item });
@@ -345,11 +416,33 @@ export default function AdminTodoBoard() {
 
   return (
     <main className={styles.page}>
+      <datalist id="todo-project-options">
+        {options.projects.map((project) => (
+          <option key={project.id || project.projectCode} value={project.projectCode}>
+            {[project.clientName, project.projectName, project.location, project.lifecyclePhase].filter(Boolean).join(" · ")}
+          </option>
+        ))}
+      </datalist>
+      <datalist id="todo-proposal-options">
+        {options.proposals.map((proposal) => (
+          <option key={proposal.proposalCode} value={proposal.proposalCode}>
+            {[proposal.clientName, proposal.projectTitle, proposal.location, proposal.status].filter(Boolean).join(" · ")}
+          </option>
+        ))}
+      </datalist>
+      <datalist id="todo-employee-options">
+        {options.employees.map((employee) => (
+          <option key={employee.id} value={employee.employeeCode}>
+            {[employee.name, employee.designation, employee.department].filter(Boolean).join(" · ")}
+          </option>
+        ))}
+      </datalist>
+
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>LAND VIEW WORKSPACE</span>
           <h1>To Do</h1>
-          <p>General, Project and Proposal tasks stay separate. Project To Dos can optionally link to an existing Workflow service, and Workflow only changes when you choose Complete + Workflow.</p>
+          <p>Projects, Proposals and Employees are now selected from live LAND VIEW records. Project Workflow remains optional and only changes through Complete + Workflow.</p>
         </div>
         <button className={styles.refreshButton} type="button" onClick={() => void load()} disabled={loading || busy}>
           {loading ? "Loading…" : "Refresh"}
@@ -409,20 +502,48 @@ export default function AdminTodoBoard() {
               <option value="Proposal">Proposal</option>
             </select>
           </label>
-          {draft.referenceType !== "None" ? (
+
+          {draft.referenceType === "Project" ? (
             <label>
-              <span>{draft.referenceType} ID *</span>
+              <span>Project *</span>
               <input
+                list="todo-project-options"
                 value={draft.referenceCode}
                 onChange={(event) => setDraft((prev) => ({ ...prev, referenceCode: event.target.value, workflowId: "" }))}
-                onBlur={() => draft.referenceType === "Project" && setDraft((prev) => ({ ...prev, referenceCode: normalizeProjectCode(prev.referenceCode) }))}
-                placeholder={draft.referenceType === "Project" ? "e.g. LV-209" : "e.g. PROP-2026-0001"}
-                maxLength={100}
+                onBlur={() => setDraft((prev) => ({ ...prev, referenceCode: normalizeProjectCode(prev.referenceCode) }))}
+                placeholder="Search LV ID, client or project"
+                autoComplete="off"
                 required
               />
+              <small className={styles.fieldHint}>
+                {selectedProject
+                  ? [selectedProject.clientName, selectedProject.projectName, selectedProject.location, selectedProject.lifecyclePhase].filter(Boolean).join(" · ")
+                  : "Choose a Project from the live LAND VIEW project list."}
+              </small>
             </label>
           ) : null}
-          {draft.referenceType === "Project" && draft.referenceCode.trim() ? (
+
+          {draft.referenceType === "Proposal" ? (
+            <label>
+              <span>Proposal *</span>
+              <input
+                list="todo-proposal-options"
+                value={draft.referenceCode}
+                onChange={(event) => setDraft((prev) => ({ ...prev, referenceCode: event.target.value, workflowId: "" }))}
+                onBlur={() => setDraft((prev) => ({ ...prev, referenceCode: normalizeProposalCode(prev.referenceCode) }))}
+                placeholder="Search proposal ID or client"
+                autoComplete="off"
+                required
+              />
+              <small className={styles.fieldHint}>
+                {selectedProposal
+                  ? [selectedProposal.clientName, selectedProposal.projectTitle, selectedProposal.location, selectedProposal.status].filter(Boolean).join(" · ")
+                  : "Choose a Proposal from the live LAND VIEW proposal list."}
+              </small>
+            </label>
+          ) : null}
+
+          {draft.referenceType === "Project" && selectedProject ? (
             <label>
               <span>Workflow service (optional)</span>
               <select value={draft.workflowId} onChange={(event) => setDraft((prev) => ({ ...prev, workflowId: event.target.value }))}>
@@ -432,21 +553,40 @@ export default function AdminTodoBoard() {
                 ))}
               </select>
               <small className={styles.fieldHint}>
-                {projectWorkflows.length ? "Link only when this To Do should be able to update that service." : "No active Workflow services found for this Project ID."}
+                {projectWorkflows.length ? "Services are loaded automatically from the selected project." : "This project has no active Workflow services yet."}
               </small>
             </label>
           ) : null}
+
           <label>
-            <span>Assigned to</span>
-            <input value={draft.assignedTo} onChange={(event) => setDraft((prev) => ({ ...prev, assignedTo: event.target.value }))} placeholder="Name or employee ID" maxLength={200} />
+            <span>Assigned employee</span>
+            <input
+              list="todo-employee-options"
+              value={draft.assignedEmployeeCode}
+              onChange={(event) => setDraft((prev) => ({ ...prev, assignedEmployeeCode: event.target.value.toUpperCase() }))}
+              placeholder="Search employee ID or name"
+              autoComplete="off"
+            />
+            <small className={styles.fieldHint}>
+              {selectedEmployee
+                ? `${selectedEmployee.name} · ${selectedEmployee.designation || selectedEmployee.department || selectedEmployee.employeeCode}`
+                : draft.assignedEmployeeCode.trim()
+                  ? "Choose an active employee from the list."
+                  : `${options.employees.length} active employee${options.employees.length === 1 ? "" : "s"} available.`}
+            </small>
           </label>
+
           <label className={styles.fieldWide}>
             <span>Description</span>
             <textarea value={draft.description} onChange={(event) => setDraft((prev) => ({ ...prev, description: event.target.value }))} placeholder="Notes, instructions, follow-up details…" rows={3} maxLength={4000} />
           </label>
         </div>
         <div className={styles.formActions}>
-          <button className={styles.primaryButton} type="submit" disabled={busy || !draft.title.trim() || (draft.referenceType !== "None" && !draft.referenceCode.trim())}>
+          <button
+            className={styles.primaryButton}
+            type="submit"
+            disabled={busy || !draft.title.trim() || (draft.referenceType === "Project" && !selectedProject) || (draft.referenceType === "Proposal" && !selectedProposal) || Boolean(draft.assignedEmployeeCode.trim() && !selectedEmployee)}
+          >
             {busy ? "Saving…" : editingCode ? "Save changes" : "Add To Do"}
           </button>
         </div>
@@ -462,7 +602,7 @@ export default function AdminTodoBoard() {
         </div>
         <label className={styles.searchBox}>
           <span className={styles.srOnly}>Search To Do items</span>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, project, proposal, workflow, assignee…" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search task, project, proposal, employee, workflow…" />
         </label>
       </section>
 
@@ -484,6 +624,9 @@ export default function AdminTodoBoard() {
                   const linkedWorkflow = item.workflow_id ? workflowById.get(item.workflow_id) : undefined;
                   const workflowFinal = finalWorkflowStatus(linkedWorkflow);
                   const workflowDone = Boolean(linkedWorkflow && workflowFinal && linkedWorkflow.status === workflowFinal);
+                  const assignedEmployee = item.assigned_employee_id ? employeeById.get(item.assigned_employee_id) : undefined;
+                  const linkedProject = item.project_code ? projectByCode.get(normalizeProjectCode(item.project_code)) : undefined;
+                  const linkedProposal = item.proposal_code ? proposalByCode.get(normalizeProposalCode(item.proposal_code)) : undefined;
                   return (
                     <article className={`${styles.todoCard} ${isOverdue(item) ? styles.overdueCard : ""}`} key={item.todo_code}>
                       <div className={styles.cardTopline}>
@@ -494,14 +637,14 @@ export default function AdminTodoBoard() {
                       {item.description ? <p className={styles.description}>{item.description}</p> : null}
                       <div className={styles.metaGrid}>
                         <span className={isOverdue(item) ? styles.overdueText : ""}>Due: {dueLabel(item.due_date)}</span>
-                        {referenceType === "Project" ? <span>Project: {item.project_code}</span> : null}
-                        {referenceType === "Proposal" ? <span>Proposal: {item.proposal_code}</span> : null}
+                        {referenceType === "Project" ? <span>Project: {item.project_code}{linkedProject?.clientName ? ` · ${linkedProject.clientName}` : ""}</span> : null}
+                        {referenceType === "Proposal" ? <span>Proposal: {item.proposal_code}{linkedProposal?.clientName ? ` · ${linkedProposal.clientName}` : ""}</span> : null}
                         {referenceType === "None" ? <span>General task</span> : null}
                         {referenceType === "Project" && item.workflow_id ? (
                           <span>Workflow: {linkedWorkflow ? `${linkedWorkflow.serviceName} · ${linkedWorkflow.status}` : "Linked service unavailable"}</span>
                         ) : null}
                         {referenceType === "Project" && !item.workflow_id ? <span>Workflow: not linked</span> : null}
-                        {item.assigned_to ? <span>Assigned: {item.assigned_to}</span> : null}
+                        {assignedEmployee ? <span>Assigned: {assignedEmployee.employeeCode} · {assignedEmployee.name}</span> : item.assigned_to ? <span>Assigned: {item.assigned_to}</span> : <span>Unassigned</span>}
                         {isOverdue(item) ? <span className={styles.overdueText}>Overdue</span> : null}
                       </div>
                       <div className={styles.cardActions}>
