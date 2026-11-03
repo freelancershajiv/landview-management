@@ -15,6 +15,7 @@ type BillingItem = SheetInvoices["invoices"][number]["items"][number] & {
   billStatus?: string;
   billNetAmount?: number;
   billDiscount?: number;
+  billDueAmount?: number;
 };
 
 type Props = {
@@ -131,28 +132,40 @@ export default function ProjectBillingDocumentRevamp({
     const dueInvoices = result.invoices
       .filter((category) => Number(category.due || 0) > 0.009)
       .map((category) => {
+        const dueBalance = Math.max(0, Number(category.due || 0));
         const sourceItems = category.items as BillingItem[];
-        const statusTrackedItems = sourceItems.filter((item) => item.billStatus);
-        const outstandingItems = statusTrackedItems.length
-          ? statusTrackedItems.filter((item) => !["paid", "fully paid", "full paid", "cancelled", "canceled", "void", "voided"].includes(String(item.billStatus || "").trim().toLowerCase()))
-          : [];
-        const dueItems = outstandingItems.length
-          ? outstandingItems.map((item) => ({ ...item, amount: Number.isFinite(item.amount) ? Math.max(0, Number(item.amount)) : 0 }))
-          : [{ service: `Outstanding ${category.name} balance`, price: "", quantity: "", amount: Math.max(0, Number(category.due || 0)) }];
-        const dueGross = outstandingItems.length
-          ? outstandingItems.reduce((sum, item) => sum + (Number.isFinite(item.amount) ? Math.max(0, Number(item.amount)) : 0), 0)
-          : Math.max(0, Number(category.due || 0));
-        const dueDiscount = outstandingItems.length
-          ? outstandingItems.reduce((sum, item) => sum + (Number.isFinite(item.billDiscount) ? Math.max(0, Number(item.billDiscount)) : 0), 0)
-          : 0;
-        const dueNet = Math.max(0, dueGross - dueDiscount);
+        const allocatedBills = sourceItems.filter((item) =>
+          typeof item.billDueAmount === "number" && Number.isFinite(item.billDueAmount) && item.billDueAmount > 0.009,
+        );
+        const itemizedDue = allocatedBills.reduce((sum, item) => sum + Math.max(0, Number(item.billDueAmount)), 0);
+        // If every remaining taka can be traced to a canonical bill, itemize it.
+        // Otherwise show the authoritative outstanding balance instead of
+        // accidentally re-billing the full amount of partially paid items.
+        const canItemize = allocatedBills.length > 0 && Math.abs(itemizedDue - dueBalance) <= 0.01;
+        const dueItems = canItemize
+          ? allocatedBills.map((item) => ({
+              ...item,
+              price: "",
+              quantity: "",
+              amount: Math.max(0, Number(item.billDueAmount)),
+              billNetAmount: Math.max(0, Number(item.billDueAmount)),
+              billDiscount: 0,
+            }))
+          : [{
+              service: `Outstanding ${category.name} balance`,
+              price: "",
+              quantity: "",
+              amount: dueBalance,
+              billNetAmount: dueBalance,
+              billDiscount: 0,
+            }];
         return {
           ...category,
           items: dueItems,
-          gross: dueGross,
-          discount: dueDiscount,
+          gross: dueBalance,
+          discount: 0,
           paid: 0,
-          due: dueNet,
+          due: dueBalance,
           payments: [],
         };
       });
