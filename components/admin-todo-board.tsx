@@ -15,6 +15,7 @@ type TodoItem = {
   status: TodoStatus;
   priority: TodoPriority;
   due_date?: string | null;
+  due_time?: string | null;
   reference_type?: TodoReferenceType;
   project_code?: string | null;
   proposal_code?: string | null;
@@ -116,15 +117,20 @@ async function request<T>(method: "GET" | "POST", body?: Record<string, unknown>
 
 function isOverdue(item: TodoItem) {
   if (!item.due_date || item.status === "Done") return false;
-  const due = new Date(`${item.due_date}T23:59:59`);
+  const time = /^([01]\d|2[0-3]):[0-5]\d/.test(item.due_time || "") ? String(item.due_time).slice(0, 5) + ":00" : "23:59:59";
+  const due = new Date(item.due_date + "T" + time + "+06:00");
   return Number.isFinite(due.getTime()) && due.getTime() < Date.now();
 }
 
-function dueLabel(value?: string | null) {
+function dueLabel(value?: string | null, dueTime?: string | null) {
   if (!value) return "No due date";
-  const date = new Date(`${value}T00:00:00`);
+  const time = /^([01]\d|2[0-3]):[0-5]\d/.test(dueTime || "") ? String(dueTime).slice(0,5) + ":00" : "23:59:59";
+  const date = new Date(value + "T" + time + "+06:00");
   if (!Number.isFinite(date.getTime())) return value;
-  return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone:"Asia/Dhaka", day:"2-digit", month:"short", year:"numeric",
+    ...(dueTime ? { hour:"2-digit", minute:"2-digit", hour12:true } : {})
+  }).format(date);
 }
 
 function referenceTypeOf(item: TodoItem): TodoReferenceType {
@@ -287,6 +293,33 @@ export default function AdminTodoBoard() {
     requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
 
+  useEffect(() => {
+    const openByCode = (raw: string) => {
+      const code = raw.trim().toUpperCase();
+      const item = items.find((entry) => entry.todo_code.toUpperCase() === code);
+      if (!item) return;
+      setSearch(item.todo_code);
+      startEdit(item);
+    };
+    const fromHash = () => {
+      const matched = window.location.hash.match(/^#todo=(.+)$/);
+      if (!matched) return;
+      try { openByCode(decodeURIComponent(matched[1])); }
+      catch { openByCode(matched[1]); }
+    };
+    const fromEvent = (event: Event) => {
+      const custom = event as CustomEvent<{ todoCode?: string }>;
+      if (custom.detail?.todoCode) openByCode(custom.detail.todoCode);
+    };
+    window.addEventListener("hashchange", fromHash);
+    window.addEventListener("landview:todo:open", fromEvent);
+    fromHash();
+    return () => {
+      window.removeEventListener("hashchange", fromHash);
+      window.removeEventListener("landview:todo:open", fromEvent);
+    };
+  }, [items, employeeById]);
+
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft.title.trim() || busy) return;
@@ -415,7 +448,7 @@ export default function AdminTodoBoard() {
   }
 
   return (
-    <main className={styles.page}>
+    <main id="todo-board" className={styles.page}>
       <datalist id="todo-project-options">
         {options.projects.map((project) => (
           <option key={project.id || project.projectCode} value={project.projectCode}>
@@ -636,7 +669,7 @@ export default function AdminTodoBoard() {
                       <h4>{item.title}</h4>
                       {item.description ? <p className={styles.description}>{item.description}</p> : null}
                       <div className={styles.metaGrid}>
-                        <span className={isOverdue(item) ? styles.overdueText : ""}>Due: {dueLabel(item.due_date)}</span>
+                        <span className={isOverdue(item) ? styles.overdueText : ""}>Due: {dueLabel(item.due_date,item.due_time)}</span>
                         {referenceType === "Project" ? <span>Project: {item.project_code}{linkedProject?.clientName ? ` · ${linkedProject.clientName}` : ""}</span> : null}
                         {referenceType === "Proposal" ? <span>Proposal: {item.proposal_code}{linkedProposal?.clientName ? ` · ${linkedProposal.clientName}` : ""}</span> : null}
                         {referenceType === "None" ? <span>General task</span> : null}
