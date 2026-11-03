@@ -53,13 +53,67 @@ function todoPayload(todo: TodoItem, status: TodoItem["status"] = todo.status) {
     projectCode: todo.project_code || "",
     proposalCode: todo.proposal_code || "",
     workflowId: todo.workflow_id || "",
+    assignedEmployeeId: todo.assigned_employee_id || "",
     assignedTo: todo.assigned_to || "",
+  };
+}
+
+async function todoOptions() {
+  const [projects, proposals, employees, workflows] = await Promise.all([
+    selectRows("projects", { order: "project_code:desc", limit: 5000 }),
+    selectRows("proposals", { order: "updated_at:desc", limit: 5000 }),
+    selectRows("employees", { order: "employee_code:asc", limit: 5000 }),
+    selectRows("project_service_workflows", { order: "updated_at:desc", limit: 10000 }),
+  ]);
+
+  return {
+    projects: projects
+      .filter((row) => text(row.project_code, 80))
+      .map((row) => ({
+        id: text(row.id, 80),
+        projectCode: text(row.project_code, 80),
+        clientName: text(row.client_name_snapshot || row.project_name, 180),
+        projectName: text(row.project_name || row.public_project_title, 220),
+        location: text(row.location, 220),
+        lifecyclePhase: text(row.lifecycle_phase, 100),
+      })),
+    proposals: proposals
+      .filter((row) => text(row.proposal_code, 120))
+      .map((row) => ({
+        proposalCode: text(row.proposal_code, 120),
+        clientName: text(row.client_name, 180),
+        projectTitle: text(row.project_title, 220),
+        location: text(row.project_location, 220),
+        status: text(row.status, 100),
+        convertedProjectCode: text(row.converted_project_code, 80),
+      })),
+    employees: employees
+      .filter((row) => text(row.status, 40).toLowerCase() === "active")
+      .map((row) => ({
+        id: text(row.id, 80),
+        employeeCode: text(row.employee_code, 80),
+        name: text(row.name, 180),
+        designation: text(row.designation, 180),
+        department: text(row.department, 120),
+      })),
+    workflows: workflows
+      .filter((row) => text(row.id, 80) && text(row.project_code, 80))
+      .map((row) => ({
+        id: text(row.id, 80),
+        projectId: text(row.project_code, 80),
+        serviceName: text(row.service_name, 220),
+        status: text(row.status, 120),
+        statuses: workflowStatusesForService(row.service_name),
+        workflowType: text(row.workflow_type, 80),
+      })),
   };
 }
 
 export async function GET(request: NextRequest) {
   try {
     await requireTodoUser(request);
+    const mode = text(request.nextUrl.searchParams.get("mode"), 40).toLowerCase();
+    if (mode === "options") return ok(await todoOptions());
     return ok(await listTodoItems());
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -157,6 +211,6 @@ export async function POST(request: NextRequest) {
     throw new Error("Unsupported To Do action.");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion/i.test(message) ? 400 : 500);
+    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion|only an active employee/i.test(message) ? 400 : 500);
   }
 }
