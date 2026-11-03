@@ -34,7 +34,7 @@
 }
 
 .hero p {
-  max-width: 720px;
+  max-width: 760px;
   margin: 10px 0 0;
   color: #69707a;
   line-height: 1.6;
@@ -52,7 +52,9 @@
 .primaryButton,
 .textButton,
 .cardActions button,
-.cardActions select {
+.cardActions select,
+.workflowActions button,
+.workflowActions a {
   min-height: 40px;
   border-radius: 9px;
   font: inherit;
@@ -60,7 +62,9 @@
 
 .refreshButton,
 .textButton,
-.cardActions button {
+.cardActions button,
+.workflowActions button,
+.workflowActions a {
   border: 1px solid #d9dde3;
   background: #fff;
   color: #30363d;
@@ -69,9 +73,18 @@
   cursor: pointer;
 }
 
+.workflowActions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .refreshButton:hover,
 .textButton:hover,
-.cardActions button:hover {
+.cardActions button:hover,
+.workflowActions button:hover,
+.workflowActions a:hover {
   border-color: #a51d25;
   color: #8f161d;
 }
@@ -79,7 +92,8 @@
 .refreshButton:disabled,
 .primaryButton:disabled,
 .cardActions button:disabled,
-.cardActions select:disabled {
+.cardActions select:disabled,
+.workflowActions button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
@@ -144,6 +158,7 @@
   display: grid;
   gap: 7px;
   min-width: 0;
+  align-content: start;
 }
 
 .formGrid label > span {
@@ -191,6 +206,12 @@
 
 .fieldWide {
   grid-column: span 2;
+}
+
+.fieldHint {
+  color: #7a828c;
+  font-size: 10px;
+  line-height: 1.4;
 }
 
 .formActions {
@@ -252,7 +273,7 @@
 }
 
 .searchBox {
-  width: min(380px, 100%);
+  width: min(420px, 100%);
 }
 
 .board {
@@ -415,6 +436,34 @@
   color: #a51d25;
 }
 
+.workflowActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 8px;
+  padding-top: 9px;
+  border-top: 1px solid #edf0f2;
+}
+
+.workflowActions button,
+.workflowActions a {
+  min-height: 34px;
+  padding: 0 10px;
+  font-size: 11px;
+}
+
+.workflowActions .workflowPrimary {
+  border-color: #9b1921;
+  background: #a51d25;
+  color: #fff;
+}
+
+.workflowActions .workflowPrimary:hover:not(:disabled) {
+  border-color: #8f161d;
+  background: #8f161d;
+  color: #fff;
+}
+
 .columnEmpty,
 .emptyState {
   color: #8a929c;
@@ -507,5 +556,9 @@
 
   .cardActions select {
     grid-column: 1 / -1;
+  }
+
+  .workflowActions > * {
+    flex: 1 1 140px;
   }
 }
