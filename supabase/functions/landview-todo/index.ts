@@ -57,6 +57,24 @@ function isoDate(value: unknown) {
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : null;
 }
 
+function isoTime(value: unknown) {
+  const raw = text(value, 20);
+  const match = raw.match(/^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
+  return match ? `${match[1]}:${match[2]}:00` : null;
+}
+
+function bool(value: unknown) {
+  if (value === true || value === 1 || value === "1") return true;
+  return text(value, 20).toLowerCase() === "true";
+}
+
+function reminderMinutes(value: unknown) {
+  const raw = Number(value);
+  if (!Number.isFinite(raw)) return null;
+  const minutes = Math.trunc(raw);
+  return minutes >= 0 && minutes <= 10080 ? minutes : null;
+}
+
 async function verifyVercelOidc(req: Request) {
   const raw = req.headers.get("authorization") || "";
   const token = raw.startsWith("Bearer ") ? raw.slice(7).trim() : "";
@@ -124,16 +142,29 @@ function cleanItem(input: Row, createdBy = "", isUpdate = false) {
   const proposalCode = nextReferenceType === "Proposal" ? rawProposalCode : "";
   const workflowId = nextReferenceType === "Project" ? text(input.workflowId ?? input.workflow_id ?? input.Workflow_ID, 80) : "";
   const assignedEmployeeId = text(input.assignedEmployeeId ?? input.assigned_employee_id ?? input.Assigned_Employee_ID, 80);
+  const dueDate = isoDate(input.dueDate ?? input.due_date ?? input.Due_Date);
+  const dueTime = isoTime(input.dueTime ?? input.due_time ?? input.Due_Time);
+  const reminderEnabled = bool(input.reminderEnabled ?? input.reminder_enabled ?? input.Reminder_Enabled);
+  const reminderBefore = reminderEnabled
+    ? reminderMinutes(input.reminderMinutesBefore ?? input.reminder_minutes_before ?? input.Reminder_Minutes_Before)
+    : null;
 
   if (nextReferenceType === "Project" && !projectCode) throw new Error("Project ID is required when linking a To Do to a project.");
   if (nextReferenceType === "Proposal" && !proposalCode) throw new Error("Proposal ID is required when linking a To Do to a proposal.");
+  if (reminderEnabled && !dueDate) throw new Error("A due date is required when a reminder is enabled.");
+  if (reminderEnabled && !dueTime) throw new Error("A due time is required when a reminder is enabled.");
+  if (reminderEnabled && !assignedEmployeeId) throw new Error("Assign an employee before enabling a reminder.");
+  if (reminderEnabled && reminderBefore === null) throw new Error("Choose a valid reminder time.");
 
   const item: Row = {
     title: text(input.title ?? input.Title, 240),
     description: text(input.description ?? input.Description, 4000) || null,
     status: nextStatus,
     priority: priority(input.priority ?? input.Priority),
-    due_date: isoDate(input.dueDate ?? input.due_date ?? input.Due_Date),
+    due_date: dueDate,
+    due_time: dueTime,
+    reminder_enabled: reminderEnabled,
+    reminder_minutes_before: reminderBefore,
     reference_type: nextReferenceType,
     project_code: projectCode || null,
     proposal_code: proposalCode || null,
@@ -198,7 +229,16 @@ async function validateLinks(item: Row) {
 
 async function handleAction(input: Row) {
   const action = text(input.action, 40).toLowerCase();
-  if (action === "health") return { ok: true, backend: "standalone-todo", version: 4, references: ["None", "Project", "Proposal"], workflowLink: true, employeeAssignment: true };
+  if (action === "health") return {
+    ok: true,
+    backend: "standalone-todo",
+    version: 5,
+    references: ["None", "Project", "Proposal"],
+    workflowLink: true,
+    employeeAssignment: true,
+    dueTime: true,
+    reminders: true,
+  };
   if (action === "list") {
     return await db("todo_items?select=*&order=updated_at.desc,created_at.desc&limit=2000");
   }
