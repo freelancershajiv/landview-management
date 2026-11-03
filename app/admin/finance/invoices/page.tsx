@@ -24,7 +24,7 @@ const BILLING_SNAPSHOT_TTL_MS = 0;
 
 type BillingSnapshot = { savedAt: number; billing: SheetInvoices };
 type InvoiceHistoryEntry = {
-  id: string; invoiceCode: string; billCode: string; generatedAt: string; actor: string;
+  id: string; invoiceCode: string; billCode: string; documentKind?: string; generatedAt: string; actor: string;
   net: number; paid: number; due: number;
 };
 type ProjectBillingBundle = {
@@ -289,6 +289,7 @@ export default function ProjectBillingPage() {
   const [singleBillPrint, setSingleBillPrint] = useState<SheetInvoices | null>(null);
   const [singleBillVerificationUrl, setSingleBillVerificationUrl] = useState("");
   const [generatingSingleBill, setGeneratingSingleBill] = useState(false);
+  const [archivingStatement, setArchivingStatement] = useState(false);
   const [invoiceHistory, setInvoiceHistory] = useState<InvoiceHistoryEntry[]>([]);
   const [fileListProjects, setFileListProjects] = useState<FileListProject[]>([]);
   const [fileListLoading, setFileListLoading] = useState(true);
@@ -423,8 +424,32 @@ export default function ProjectBillingPage() {
     };
   }, [singleBillPrint]);
 
-  function generateDueBill() {
+  async function archiveStatement(kind: "project" | "due") {
+    if (!result || archivingStatement) return false;
+    setArchivingStatement(true);
+    setError("");
+    try {
+      const response = await fetch("/api/billing-verification", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fileId: result.id, documentKind: kind }),
+      });
+      const json = await response.json();
+      if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not archive the statement."));
+      void loadInvoiceHistory(result.id);
+      return true;
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Could not archive the statement.");
+      return false;
+    } finally {
+      setArchivingStatement(false);
+    }
+  }
+
+  async function generateDueBill() {
     if (!result || Number(result.totals.due || 0) <= 0.009) return;
+    if (!(await archiveStatement("due"))) return;
     setSingleBillOpen(false);
     setSingleBillPrint(null);
     setDueOnly(true);
@@ -504,12 +529,12 @@ export default function ProjectBillingPage() {
               {refreshing ? "Refreshing Bills…" : singleBillPrint ? "Generating Single Bill…" : "Generate Single Bill"}
             </button>
             {Number(result.totals.due || 0) > 0.009 && (
-              <button className={styles.printButton} type="button" onClick={generateDueBill} disabled={dueOnly || singleBillPrint !== null}>
+              <button className={styles.printButton} type="button" onClick={() => void generateDueBill()} disabled={dueOnly || singleBillPrint !== null || archivingStatement}>
                 {dueOnly ? "Generating Due Bill…" : "Generate Due Bill"}
               </button>
             )}
-            <button className={styles.printButton} type="button" onClick={() => printBillingPdf(result)} disabled={singleBillPrint !== null}>Print / Save PDF</button>
-            <button className={styles.printButton} type="button" onClick={() => void saveBillingJpg(result).catch((error) => window.alert(error instanceof Error ? error.message : "Could not save JPG."))} disabled={singleBillPrint !== null}>Save JPG</button>
+            <button className={styles.printButton} type="button" onClick={() => void (async () => { if (await archiveStatement("project")) await printBillingPdf(result); })()} disabled={singleBillPrint !== null || archivingStatement}>Print / Save PDF</button>
+            <button className={styles.printButton} type="button" onClick={() => void (async () => { if (await archiveStatement("project")) await saveBillingJpg(result); })().catch((error) => setError(error instanceof Error ? error.message : "Could not save JPG."))} disabled={singleBillPrint !== null || archivingStatement}>Save JPG</button>
           </div>
         )}
       </div>
@@ -595,12 +620,12 @@ export default function ProjectBillingPage() {
       {visibleBilling && <ProjectBillingDocument result={visibleBilling} verificationUrl={singleBillPrint ? singleBillVerificationUrl : verificationUrl} verificationError={verificationError} dueOnly={Boolean(dueOnly && !singleBillPrint)} />}
       {result && invoiceHistory.length > 0 && !singleBillPrint && (
         <section style={{ marginTop: 24, padding: 16, border: "1px solid var(--border, #cbd5d1)", borderRadius: 12 }}>
-          <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>Generated Invoice History</h2>
-          <p style={{ fontSize: 12, marginBottom: 12 }}>Immutable snapshots record each generated invoice and its balance at that time.</p>
+          <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>Billing Document History</h2>
+          <p style={{ fontSize: 12, marginBottom: 12 }}>Archived invoice and statement snapshots record each generated document and its balance at that time.</p>
           <div style={{ display: "grid", gap: 8 }}>
             {invoiceHistory.map((entry) => (
               <div key={entry.id} style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 9, padding: 10, border: "1px solid var(--border, #cbd5d1)", borderRadius: 8, fontSize: 12 }}>
-                <div><strong>{entry.invoiceCode || entry.billCode}</strong><div>{entry.generatedAt ? new Date(entry.generatedAt).toLocaleString("en-BD", { timeZone: "Asia/Dhaka" }) : "—"} · {entry.actor}</div></div>
+                <div><strong>{entry.invoiceCode || entry.billCode}</strong><div>{entry.documentKind === "single" ? "Single Invoice" : entry.documentKind === "due" ? "Due Statement" : "Project Statement"} · {entry.generatedAt ? new Date(entry.generatedAt).toLocaleString("en-BD", { timeZone: "Asia/Dhaka" }) : "—"} · {entry.actor}</div></div>
                 <div style={{ textAlign: "right" }}>Net ৳{entry.net.toLocaleString("en-BD")} · Paid ৳{entry.paid.toLocaleString("en-BD")}<div style={{ fontWeight: 800 }}>Due ৳{entry.due.toLocaleString("en-BD")}</div></div>
               </div>
             ))}
