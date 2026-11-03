@@ -5,6 +5,7 @@ import styles from "@/app/admin/todo/todo.module.css";
 
 type TodoStatus = "To Do" | "In Progress" | "Done";
 type TodoPriority = "Low" | "Normal" | "High" | "Urgent";
+type TodoReferenceType = "None" | "Project" | "Proposal";
 
 type TodoItem = {
   id?: string;
@@ -14,7 +15,9 @@ type TodoItem = {
   status: TodoStatus;
   priority: TodoPriority;
   due_date?: string | null;
+  reference_type?: TodoReferenceType;
   project_code?: string | null;
+  proposal_code?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
   completed_at?: string | null;
@@ -28,7 +31,8 @@ type Draft = {
   status: TodoStatus;
   priority: TodoPriority;
   dueDate: string;
-  projectCode: string;
+  referenceType: TodoReferenceType;
+  referenceCode: string;
   assignedTo: string;
 };
 
@@ -38,7 +42,8 @@ const EMPTY_DRAFT: Draft = {
   status: "To Do",
   priority: "Normal",
   dueDate: "",
-  projectCode: "",
+  referenceType: "None",
+  referenceCode: "",
   assignedTo: "",
 };
 
@@ -74,6 +79,36 @@ function dueLabel(value?: string | null) {
   return date.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" });
 }
 
+function referenceTypeOf(item: TodoItem): TodoReferenceType {
+  if (item.reference_type === "Project" || item.reference_type === "Proposal" || item.reference_type === "None") return item.reference_type;
+  if (item.proposal_code) return "Proposal";
+  if (item.project_code) return "Project";
+  return "None";
+}
+
+function referenceCodeOf(item: TodoItem) {
+  const type = referenceTypeOf(item);
+  if (type === "Project") return item.project_code || "";
+  if (type === "Proposal") return item.proposal_code || "";
+  return "";
+}
+
+function itemPayload(item: TodoItem, statusOverride?: TodoStatus) {
+  const referenceType = referenceTypeOf(item);
+  const referenceCode = referenceCodeOf(item);
+  return {
+    title: item.title,
+    description: item.description || "",
+    status: statusOverride || item.status,
+    priority: item.priority,
+    dueDate: item.due_date || "",
+    referenceType,
+    projectCode: referenceType === "Project" ? referenceCode : "",
+    proposalCode: referenceType === "Proposal" ? referenceCode : "",
+    assignedTo: item.assigned_to || "",
+  };
+}
+
 export default function AdminTodoBoard() {
   const [items, setItems] = useState<TodoItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -104,8 +139,16 @@ export default function AdminTodoBoard() {
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return items;
-    return items.filter((item) => [item.title, item.description, item.project_code, item.assigned_to, item.priority, item.status]
-      .some((value) => String(value || "").toLowerCase().includes(query)));
+    return items.filter((item) => [
+      item.title,
+      item.description,
+      item.project_code,
+      item.proposal_code,
+      item.reference_type,
+      item.assigned_to,
+      item.priority,
+      item.status,
+    ].some((value) => String(value || "").toLowerCase().includes(query)));
   }, [items, search]);
 
   const counts = useMemo(() => ({
@@ -128,7 +171,8 @@ export default function AdminTodoBoard() {
       status: item.status || "To Do",
       priority: item.priority || "Normal",
       dueDate: item.due_date || "",
-      projectCode: item.project_code || "",
+      referenceType: referenceTypeOf(item),
+      referenceCode: referenceCodeOf(item),
       assignedTo: item.assigned_to || "",
     });
     setNotice("");
@@ -139,6 +183,10 @@ export default function AdminTodoBoard() {
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!draft.title.trim() || busy) return;
+    if (draft.referenceType !== "None" && !draft.referenceCode.trim()) {
+      setError(`${draft.referenceType} ID is required when linking this To Do.`);
+      return;
+    }
     setBusy(true);
     setError("");
     setNotice("");
@@ -149,7 +197,9 @@ export default function AdminTodoBoard() {
         status: draft.status,
         priority: draft.priority,
         dueDate: draft.dueDate,
-        projectCode: draft.projectCode,
+        referenceType: draft.referenceType,
+        projectCode: draft.referenceType === "Project" ? draft.referenceCode : "",
+        proposalCode: draft.referenceType === "Proposal" ? draft.referenceCode : "",
         assignedTo: draft.assignedTo,
       };
       if (editingCode) {
@@ -177,15 +227,7 @@ export default function AdminTodoBoard() {
       await request<TodoItem>("POST", {
         action: "update",
         todoCode: item.todo_code,
-        item: {
-          title: item.title,
-          description: item.description || "",
-          status: nextStatus,
-          priority: item.priority,
-          dueDate: item.due_date || "",
-          projectCode: item.project_code || "",
-          assignedTo: item.assigned_to || "",
-        },
+        item: itemPayload(item, nextStatus),
       });
       await load();
     } catch (err) {
@@ -218,7 +260,7 @@ export default function AdminTodoBoard() {
         <div>
           <span className={styles.eyebrow}>LAND VIEW WORKSPACE</span>
           <h1>To Do</h1>
-          <p>A separate work list for reminders and internal tasks. Nothing here changes Project Workflow.</p>
+          <p>A separate work list for general reminders, project work or proposal follow-ups. Nothing here changes Project Workflow.</p>
         </div>
         <button className={styles.refreshButton} type="button" onClick={() => void load()} disabled={loading || busy}>
           {loading ? "Loading…" : "Refresh"}
@@ -263,9 +305,25 @@ export default function AdminTodoBoard() {
             <input type="date" value={draft.dueDate} onChange={(event) => setDraft((prev) => ({ ...prev, dueDate: event.target.value }))} />
           </label>
           <label>
-            <span>Project ID (optional)</span>
-            <input value={draft.projectCode} onChange={(event) => setDraft((prev) => ({ ...prev, projectCode: event.target.value }))} placeholder="e.g. LV-209" maxLength={80} />
+            <span>Link to</span>
+            <select value={draft.referenceType} onChange={(event) => setDraft((prev) => ({ ...prev, referenceType: event.target.value as TodoReferenceType, referenceCode: "" }))}>
+              <option value="None">No project / proposal</option>
+              <option value="Project">Project</option>
+              <option value="Proposal">Proposal</option>
+            </select>
           </label>
+          {draft.referenceType !== "None" ? (
+            <label>
+              <span>{draft.referenceType} ID *</span>
+              <input
+                value={draft.referenceCode}
+                onChange={(event) => setDraft((prev) => ({ ...prev, referenceCode: event.target.value }))}
+                placeholder={draft.referenceType === "Project" ? "e.g. LV-209" : "e.g. PROP-2026-0001"}
+                maxLength={100}
+                required
+              />
+            </label>
+          ) : null}
           <label>
             <span>Assigned to</span>
             <input value={draft.assignedTo} onChange={(event) => setDraft((prev) => ({ ...prev, assignedTo: event.target.value }))} placeholder="Name or employee ID" maxLength={200} />
@@ -276,7 +334,7 @@ export default function AdminTodoBoard() {
           </label>
         </div>
         <div className={styles.formActions}>
-          <button className={styles.primaryButton} type="submit" disabled={busy || !draft.title.trim()}>
+          <button className={styles.primaryButton} type="submit" disabled={busy || !draft.title.trim() || (draft.referenceType !== "None" && !draft.referenceCode.trim())}>
             {busy ? "Saving…" : editingCode ? "Save changes" : "Add To Do"}
           </button>
         </div>
@@ -292,7 +350,7 @@ export default function AdminTodoBoard() {
         </div>
         <label className={styles.searchBox}>
           <span className={styles.srOnly}>Search To Do items</span>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, project, assignee…" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, project, proposal, assignee…" />
         </label>
       </section>
 
@@ -309,29 +367,34 @@ export default function AdminTodoBoard() {
                 <strong>{columnItems.length}</strong>
               </header>
               <div className={styles.cardStack}>
-                {columnItems.map((item) => (
-                  <article className={`${styles.todoCard} ${isOverdue(item) ? styles.overdueCard : ""}`} key={item.todo_code}>
-                    <div className={styles.cardTopline}>
-                      <span className={`${styles.priority} ${styles[`priority${item.priority}`] || ""}`}>{item.priority}</span>
-                      <span className={styles.code}>{item.todo_code}</span>
-                    </div>
-                    <h4>{item.title}</h4>
-                    {item.description ? <p className={styles.description}>{item.description}</p> : null}
-                    <div className={styles.metaGrid}>
-                      <span className={isOverdue(item) ? styles.overdueText : ""}>Due: {dueLabel(item.due_date)}</span>
-                      {item.project_code ? <span>Project: {item.project_code}</span> : null}
-                      {item.assigned_to ? <span>Assigned: {item.assigned_to}</span> : null}
-                      {isOverdue(item) ? <span className={styles.overdueText}>Overdue</span> : null}
-                    </div>
-                    <div className={styles.cardActions}>
-                      <select aria-label={`Status for ${item.title}`} value={item.status} disabled={busy} onChange={(event) => void changeStatus(item, event.target.value as TodoStatus)}>
-                        <option>To Do</option><option>In Progress</option><option>Done</option>
-                      </select>
-                      <button type="button" onClick={() => startEdit(item)} disabled={busy}>Edit</button>
-                      <button className={styles.dangerButton} type="button" onClick={() => void remove(item)} disabled={busy}>Delete</button>
-                    </div>
-                  </article>
-                ))}
+                {columnItems.map((item) => {
+                  const referenceType = referenceTypeOf(item);
+                  return (
+                    <article className={`${styles.todoCard} ${isOverdue(item) ? styles.overdueCard : ""}`} key={item.todo_code}>
+                      <div className={styles.cardTopline}>
+                        <span className={`${styles.priority} ${styles[`priority${item.priority}`] || ""}`}>{item.priority}</span>
+                        <span className={styles.code}>{item.todo_code}</span>
+                      </div>
+                      <h4>{item.title}</h4>
+                      {item.description ? <p className={styles.description}>{item.description}</p> : null}
+                      <div className={styles.metaGrid}>
+                        <span className={isOverdue(item) ? styles.overdueText : ""}>Due: {dueLabel(item.due_date)}</span>
+                        {referenceType === "Project" ? <span>Project: {item.project_code}</span> : null}
+                        {referenceType === "Proposal" ? <span>Proposal: {item.proposal_code}</span> : null}
+                        {referenceType === "None" ? <span>General task</span> : null}
+                        {item.assigned_to ? <span>Assigned: {item.assigned_to}</span> : null}
+                        {isOverdue(item) ? <span className={styles.overdueText}>Overdue</span> : null}
+                      </div>
+                      <div className={styles.cardActions}>
+                        <select aria-label={`Status for ${item.title}`} value={item.status} disabled={busy} onChange={(event) => void changeStatus(item, event.target.value as TodoStatus)}>
+                          <option>To Do</option><option>In Progress</option><option>Done</option>
+                        </select>
+                        <button type="button" onClick={() => startEdit(item)} disabled={busy}>Edit</button>
+                        <button className={styles.dangerButton} type="button" onClick={() => void remove(item)} disabled={busy}>Delete</button>
+                      </div>
+                    </article>
+                  );
+                })}
                 {!columnItems.length ? <div className={styles.columnEmpty}>Nothing here</div> : null}
               </div>
             </div>
