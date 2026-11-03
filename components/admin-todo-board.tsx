@@ -18,11 +18,21 @@ type TodoItem = {
   reference_type?: TodoReferenceType;
   project_code?: string | null;
   proposal_code?: string | null;
+  workflow_id?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
   completed_at?: string | null;
   created_at?: string;
   updated_at?: string;
+};
+
+type WorkflowItem = {
+  id: string;
+  projectId: string;
+  serviceName: string;
+  status: string;
+  statuses: string[];
+  lifecyclePhase?: string;
 };
 
 type Draft = {
@@ -33,6 +43,7 @@ type Draft = {
   dueDate: string;
   referenceType: TodoReferenceType;
   referenceCode: string;
+  workflowId: string;
   assignedTo: string;
 };
 
@@ -44,6 +55,7 @@ const EMPTY_DRAFT: Draft = {
   dueDate: "",
   referenceType: "None",
   referenceCode: "",
+  workflowId: "",
   assignedTo: "",
 };
 
@@ -64,6 +76,16 @@ async function request<T>(method: "GET" | "POST", body?: Record<string, unknown>
   const json = await response.json().catch(() => null);
   if (!response.ok || !json?.success) throw new Error(String(json?.error || "To Do request failed."));
   return json.data as T;
+}
+
+async function loadWorkflowItems(): Promise<WorkflowItem[]> {
+  const response = await fetch("/api/service-workflow?mode=project", {
+    credentials: "same-origin",
+    cache: "no-store",
+  });
+  const json = await response.json().catch(() => null);
+  if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not load Workflow services."));
+  return Array.isArray(json.data?.workflows) ? json.data.workflows as WorkflowItem[] : [];
 }
 
 function isOverdue(item: TodoItem) {
@@ -93,6 +115,13 @@ function referenceCodeOf(item: TodoItem) {
   return "";
 }
 
+function normalizeProjectCode(value: string) {
+  const raw = value.trim().toUpperCase();
+  if (!raw) return "";
+  const match = raw.match(/^(?:LV[-\s]?)?(\d+)$/);
+  return match ? `LV-${String(Number(match[1])).padStart(3, "0")}` : raw;
+}
+
 function itemPayload(item: TodoItem, statusOverride?: TodoStatus) {
   const referenceType = referenceTypeOf(item);
   const referenceCode = referenceCodeOf(item);
@@ -105,12 +134,19 @@ function itemPayload(item: TodoItem, statusOverride?: TodoStatus) {
     referenceType,
     projectCode: referenceType === "Project" ? referenceCode : "",
     proposalCode: referenceType === "Proposal" ? referenceCode : "",
+    workflowId: referenceType === "Project" ? item.workflow_id || "" : "",
     assignedTo: item.assigned_to || "",
   };
 }
 
+function finalWorkflowStatus(workflow?: WorkflowItem) {
+  if (!workflow?.statuses?.length) return "";
+  return workflow.statuses[workflow.statuses.length - 1] || "";
+}
+
 export default function AdminTodoBoard() {
   const [items, setItems] = useState<TodoItem[]>([]);
+  const [workflows, setWorkflows] = useState<WorkflowItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -124,7 +160,12 @@ export default function AdminTodoBoard() {
     setLoading(true);
     setError("");
     try {
-      setItems(await request<TodoItem[]>("GET"));
+      const [todoItems, workflowItems] = await Promise.all([
+        request<TodoItem[]>("GET"),
+        loadWorkflowItems(),
+      ]);
+      setItems(todoItems);
+      setWorkflows(workflowItems);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load To Do items.");
     } finally {
@@ -136,20 +177,35 @@ export default function AdminTodoBoard() {
     void load();
   }, []);
 
+  const workflowById = useMemo(() => new Map(workflows.map((workflow) => [workflow.id, workflow])), [workflows]);
+
+  const projectWorkflows = useMemo(() => {
+    if (draft.referenceType !== "Project" || !draft.referenceCode.trim()) return [];
+    const projectCode = normalizeProjectCode(draft.referenceCode);
+    return workflows
+      .filter((workflow) => normalizeProjectCode(String(workflow.projectId || "")) === projectCode)
+      .sort((a, b) => a.serviceName.localeCompare(b.serviceName));
+  }, [draft.referenceCode, draft.referenceType, workflows]);
+
   const filteredItems = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return items;
-    return items.filter((item) => [
-      item.title,
-      item.description,
-      item.project_code,
-      item.proposal_code,
-      item.reference_type,
-      item.assigned_to,
-      item.priority,
-      item.status,
-    ].some((value) => String(value || "").toLowerCase().includes(query)));
-  }, [items, search]);
+    return items.filter((item) => {
+      const workflow = item.workflow_id ? workflowById.get(item.workflow_id) : undefined;
+      return [
+        item.title,
+        item.description,
+        item.project_code,
+        item.proposal_code,
+        item.reference_type,
+        item.assigned_to,
+        item.priority,
+        item.status,
+        workflow?.serviceName,
+        workflow?.status,
+      ].some((value) => String(value || "").toLowerCase().includes(query));
+    });
+  }, [items, search, workflowById]);
 
   const counts = useMemo(() => ({
     total: items.length,
@@ -173,6 +229,7 @@ export default function AdminTodoBoard() {
       dueDate: item.due_date || "",
       referenceType: referenceTypeOf(item),
       referenceCode: referenceCodeOf(item),
+      workflowId: item.workflow_id || "",
       assignedTo: item.assigned_to || "",
     });
     setNotice("");
@@ -200,6 +257,7 @@ export default function AdminTodoBoard() {
         referenceType: draft.referenceType,
         projectCode: draft.referenceType === "Project" ? draft.referenceCode : "",
         proposalCode: draft.referenceType === "Proposal" ? draft.referenceCode : "",
+        workflowId: draft.referenceType === "Project" ? draft.workflowId : "",
         assignedTo: draft.assignedTo,
       };
       if (editingCode) {
@@ -229,9 +287,40 @@ export default function AdminTodoBoard() {
         todoCode: item.todo_code,
         item: itemPayload(item, nextStatus),
       });
+      setNotice(nextStatus === "Done" && item.workflow_id ? "To Do completed. Workflow was left unchanged." : "To Do status updated.");
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not update status.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function completeWithWorkflow(item: TodoItem) {
+    if (busy || !item.workflow_id) return;
+    const workflow = workflowById.get(item.workflow_id);
+    if (!workflow) {
+      setError("The linked Workflow service is no longer available.");
+      return;
+    }
+    const finalStatus = finalWorkflowStatus(workflow);
+    const confirmed = window.confirm(
+      `Complete “${item.title}” and update ${item.project_code || "the project"} · ${workflow.serviceName} to ${finalStatus || "its final status"}?`,
+    );
+    if (!confirmed) return;
+
+    setBusy(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await request<{ todo: TodoItem; workflow: { serviceName: string; status: string } }>("POST", {
+        action: "completeWithWorkflow",
+        todoCode: item.todo_code,
+      });
+      setNotice(`To Do completed and ${result.workflow.serviceName} moved to ${result.workflow.status}.`);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not complete To Do with Workflow.");
     } finally {
       setBusy(false);
     }
@@ -260,7 +349,7 @@ export default function AdminTodoBoard() {
         <div>
           <span className={styles.eyebrow}>LAND VIEW WORKSPACE</span>
           <h1>To Do</h1>
-          <p>A separate work list for general reminders, project work or proposal follow-ups. Nothing here changes Project Workflow.</p>
+          <p>General, Project and Proposal tasks stay separate. Project To Dos can optionally link to an existing Workflow service, and Workflow only changes when you choose Complete + Workflow.</p>
         </div>
         <button className={styles.refreshButton} type="button" onClick={() => void load()} disabled={loading || busy}>
           {loading ? "Loading…" : "Refresh"}
@@ -306,7 +395,15 @@ export default function AdminTodoBoard() {
           </label>
           <label>
             <span>Link to</span>
-            <select value={draft.referenceType} onChange={(event) => setDraft((prev) => ({ ...prev, referenceType: event.target.value as TodoReferenceType, referenceCode: "" }))}>
+            <select
+              value={draft.referenceType}
+              onChange={(event) => setDraft((prev) => ({
+                ...prev,
+                referenceType: event.target.value as TodoReferenceType,
+                referenceCode: "",
+                workflowId: "",
+              }))}
+            >
               <option value="None">No project / proposal</option>
               <option value="Project">Project</option>
               <option value="Proposal">Proposal</option>
@@ -317,11 +414,26 @@ export default function AdminTodoBoard() {
               <span>{draft.referenceType} ID *</span>
               <input
                 value={draft.referenceCode}
-                onChange={(event) => setDraft((prev) => ({ ...prev, referenceCode: event.target.value }))}
+                onChange={(event) => setDraft((prev) => ({ ...prev, referenceCode: event.target.value, workflowId: "" }))}
+                onBlur={() => draft.referenceType === "Project" && setDraft((prev) => ({ ...prev, referenceCode: normalizeProjectCode(prev.referenceCode) }))}
                 placeholder={draft.referenceType === "Project" ? "e.g. LV-209" : "e.g. PROP-2026-0001"}
                 maxLength={100}
                 required
               />
+            </label>
+          ) : null}
+          {draft.referenceType === "Project" && draft.referenceCode.trim() ? (
+            <label>
+              <span>Workflow service (optional)</span>
+              <select value={draft.workflowId} onChange={(event) => setDraft((prev) => ({ ...prev, workflowId: event.target.value }))}>
+                <option value="">No specific Workflow service</option>
+                {projectWorkflows.map((workflow) => (
+                  <option key={workflow.id} value={workflow.id}>{workflow.serviceName} · {workflow.status}</option>
+                ))}
+              </select>
+              <small className={styles.fieldHint}>
+                {projectWorkflows.length ? "Link only when this To Do should be able to update that service." : "No active Workflow services found for this Project ID."}
+              </small>
             </label>
           ) : null}
           <label>
@@ -350,7 +462,7 @@ export default function AdminTodoBoard() {
         </div>
         <label className={styles.searchBox}>
           <span className={styles.srOnly}>Search To Do items</span>
-          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, project, proposal, assignee…" />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search title, project, proposal, workflow, assignee…" />
         </label>
       </section>
 
@@ -369,6 +481,9 @@ export default function AdminTodoBoard() {
               <div className={styles.cardStack}>
                 {columnItems.map((item) => {
                   const referenceType = referenceTypeOf(item);
+                  const linkedWorkflow = item.workflow_id ? workflowById.get(item.workflow_id) : undefined;
+                  const workflowFinal = finalWorkflowStatus(linkedWorkflow);
+                  const workflowDone = Boolean(linkedWorkflow && workflowFinal && linkedWorkflow.status === workflowFinal);
                   return (
                     <article className={`${styles.todoCard} ${isOverdue(item) ? styles.overdueCard : ""}`} key={item.todo_code}>
                       <div className={styles.cardTopline}>
@@ -382,6 +497,10 @@ export default function AdminTodoBoard() {
                         {referenceType === "Project" ? <span>Project: {item.project_code}</span> : null}
                         {referenceType === "Proposal" ? <span>Proposal: {item.proposal_code}</span> : null}
                         {referenceType === "None" ? <span>General task</span> : null}
+                        {referenceType === "Project" && item.workflow_id ? (
+                          <span>Workflow: {linkedWorkflow ? `${linkedWorkflow.serviceName} · ${linkedWorkflow.status}` : "Linked service unavailable"}</span>
+                        ) : null}
+                        {referenceType === "Project" && !item.workflow_id ? <span>Workflow: not linked</span> : null}
                         {item.assigned_to ? <span>Assigned: {item.assigned_to}</span> : null}
                         {isOverdue(item) ? <span className={styles.overdueText}>Overdue</span> : null}
                       </div>
@@ -392,6 +511,24 @@ export default function AdminTodoBoard() {
                         <button type="button" onClick={() => startEdit(item)} disabled={busy}>Edit</button>
                         <button className={styles.dangerButton} type="button" onClick={() => void remove(item)} disabled={busy}>Delete</button>
                       </div>
+                      {referenceType === "Project" ? (
+                        <div className={styles.workflowActions}>
+                          <a href="/admin/project-operations/by-project">View Workflow</a>
+                          {item.workflow_id && linkedWorkflow ? (
+                            <button
+                              className={styles.workflowPrimary}
+                              type="button"
+                              disabled={busy || (item.status === "Done" && workflowDone)}
+                              onClick={() => void completeWithWorkflow(item)}
+                            >
+                              {workflowDone ? (item.status === "Done" ? "Workflow completed" : "Complete To Do") : item.status === "Done" ? "Update Workflow" : "Complete + Workflow"}
+                            </button>
+                          ) : null}
+                          {item.workflow_id && item.status !== "Done" ? (
+                            <button type="button" disabled={busy} onClick={() => void changeStatus(item, "Done")}>Complete only</button>
+                          ) : null}
+                        </div>
+                      ) : null}
                     </article>
                   );
                 })}
