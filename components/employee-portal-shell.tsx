@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
 import EmployeeCommandCenter, { type EmployeeCommandView } from "@/components/employee-command-center";
 import EmployeeTaskCenter from "@/components/employee-task-center";
+import EmployeeTodoCenter from "@/components/employee-todo-center";
 import EmployeeSiteVisitAssignments from "@/components/employee-site-visit-assignments";
 import EmployeeWhatsAppConnect from "@/components/employee-whatsapp-connect";
 import EmployeeProjectStageStrip from "@/components/employee-project-stage-strip";
@@ -13,11 +14,12 @@ import EmployeeCertificateCenter from "@/components/employee-certificate-center"
 import EmployeeSiteVisitCenter from "@/components/employee-site-visit-center";
 import NewSiteEntryCenter from "@/components/new-site-entry-center";
 
-type TabId = "dashboard" | "visits" | "tasks" | "projects" | "workflow" | "new-site" | "records" | "expenses" | "approvals" | "certificates";
+type TabId = "dashboard" | "todo" | "visits" | "tasks" | "projects" | "workflow" | "new-site" | "records" | "expenses" | "approvals" | "certificates";
 type Tab = { id: TabId; label: string };
 
 const BASE_TABS: Tab[] = [
   { id: "dashboard", label: "Dashboard" },
+  { id: "todo", label: "To Do" },
   { id: "visits", label: "Site Visits" },
   { id: "tasks", label: "Tasks" },
   { id: "projects", label: "Projects" },
@@ -31,6 +33,7 @@ const BASE_TABS: Tab[] = [
 function text(value: unknown) { return String(value ?? "").trim(); }
 function tabFromHash(hash: string): TabId {
   const value = String(hash || "").replace(/^#/, "").toLowerCase();
+  if (value === "todo" || value === "to-do" || value === "my-todos" || value === "my-todo") return "todo";
   if (value === "tasks" || value === "my-tasks") return "tasks";
   if (value === "projects") return "projects";
   if (value === "new-site" || value === "newsite" || value === "site-entry") return "new-site";
@@ -127,6 +130,7 @@ export default function EmployeePortalShell() {
         <EmployeeWhatsAppConnect />
         <EmployeeCommandCenter view="dashboard" />
       </div>}
+      {active === "todo" && <EmployeeTodoCenter />}
       {active === "visits" && <EmployeeSiteVisitAssignments />}
       {active === "visits" && <EmployeeProjectStageStrip visitMode />}
       {active === "visits" && <EmployeeSiteVisitCenter />}
