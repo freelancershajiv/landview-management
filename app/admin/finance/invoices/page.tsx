@@ -122,8 +122,11 @@ function attachCanonicalBillAmounts(billing: SheetInvoices, sheets: FinanceSheet
       const due = moneyValue(row[10]);
       const extended = item as ReceivableBillItem;
       extended.billId = String(row[5] || "").trim();
+      // The receivable endpoint owns each bill's payment allocation. A project-level
+      // or category-level payment must never make an unrelated single bill paid.
       if (Number.isFinite(paid)) extended.billPaidAmount = Math.max(0, paid);
       if (Number.isFinite(due)) extended.billDueAmount = Math.max(0, due);
+      if (String(row[6] || "").trim()) extended.billStatus = String(row[6]).trim().toLowerCase();
     }
   }
   return billing;
@@ -180,14 +183,19 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
   const status = String(item.billStatus || "").trim().toLowerCase();
   const fullyPaid = ["paid", "fully paid", "full paid", "settled", "complete", "completed"].includes(status);
   const receivableItem = item as ReceivableBillItem;
-  const explicitPaid = Number(receivableItem.billPaidAmount);
-  const explicitDue = Number(receivableItem.billDueAmount);
-  const paid = Number.isFinite(explicitPaid)
+  // Prefer the payment allocated to this exact bill. The printed due amount
+  // must reconcile with the printed paid amount, even if an older due snapshot
+  // is zero or a different supervision bill received a payment.
+  const explicitPaid = receivableItem.billPaidAmount;
+  const explicitDue = receivableItem.billDueAmount;
+  const hasAllocatedPaid = typeof explicitPaid === "number" && Number.isFinite(explicitPaid);
+  const hasAuthoritativeDue = typeof explicitDue === "number" && Number.isFinite(explicitDue);
+  const paid = hasAllocatedPaid
     ? Math.min(netAmount, Math.max(0, explicitPaid))
-    : fullyPaid ? netAmount : 0;
-  const due = Number.isFinite(explicitDue)
-    ? Math.min(netAmount, Math.max(0, explicitDue))
-    : Math.max(0, netAmount - paid);
+    : hasAuthoritativeDue
+      ? Math.min(netAmount, Math.max(0, netAmount - explicitDue))
+      : fullyPaid ? netAmount : 0;
+  const due = Math.max(0, netAmount - paid);
   const serviceName = String(item.service || category.name || "Single Bill").trim() || "Single Bill";
 
   const singleCategory = {
@@ -203,6 +211,7 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
 
   return {
     ...result,
+    client: { ...result.client, status: due > 0.009 ? (paid > 0.009 ? "Partially Paid / Due" : "Unpaid / Due") : "Full Paid" },
     invoices: [singleCategory],
     totals: {
       ...result.totals,
