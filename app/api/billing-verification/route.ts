@@ -159,7 +159,7 @@ export async function POST(request: NextRequest) {
         actor_user_key: actor,
         actor_role: role,
         action: "billing.invoice.generated",
-        target: invoiceCode || billCode,
+        target: fileId,
         outcome: "success",
         entity_type: "billing_invoice",
         entity_id: billCode,
