@@ -36,7 +36,7 @@ test("public invoice verification excludes payments for other bills", () => {
   const source = read("lib/public-billing-verification.ts");
   assert.match(source, /invoiceIds\.has\(text\(entry\.invoice_id\)\)/);
   assert.match(source, /paymentsById\.get\(text\(entry\.payment_id\)\)/);
-  assert.match(source, /due: state\.dueBeforeRelief/);
+  assert.match(source, /const due = state\.dueBeforeRelief;/);
 });
 
 test("due-only printout never re-bills partially paid gross", () => {
