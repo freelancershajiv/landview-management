@@ -240,6 +240,7 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
     },
     document: {
       kind: "single",
+      category: category.name,
       invoiceCode: receivableItem.billInvoiceCode || (receivableItem.billId?.startsWith("BILL-") ? `INV-${receivableItem.billId}` : ""),
       billCode: receivableItem.billId || "",
       issueDate: receivableItem.billIssueDate || "",
