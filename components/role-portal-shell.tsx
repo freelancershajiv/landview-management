@@ -17,6 +17,7 @@ function routeForRole(role: string) {
 
 const employeeNav = [
   { href: "/employee#dashboard", label: "Dashboard", icon: "⌂" },
+  { href: "/employee#todo", label: "To Do", icon: "✓" },
   { href: "/employee#projects", label: "My Projects", icon: "▣" },
   { href: "/employee#workflow", label: "Workflow", icon: "↗" },
   { href: "/employee#visits", label: "Site Visits", icon: "⌖" },
