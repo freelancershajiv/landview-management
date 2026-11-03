@@ -459,7 +459,7 @@ export default function ProjectBillingPage() {
       if (!response.ok || !json?.success || !json?.url || !json?.invoiceCode) {
         throw new Error(String(json?.error || "Could not verify or archive this invoice."));
       }
-      single.document = { ...single.document, invoiceCode: String(json.invoiceCode) };
+      single.document = { ...single.document, kind: "single", invoiceCode: String(json.invoiceCode) };
       setSingleBillVerificationUrl(String(json.url));
       setSingleBillOpen(false);
       setDueOnly(false);
