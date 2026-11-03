@@ -1,6 +1,8 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
-import { signProjectVerification } from "@/lib/billing-verification";
+import { signBillVerification, signProjectVerification } from "@/lib/billing-verification";
+import { insertRows, selectRows } from "@/lib/supabase-data";
+import { loadReceivableAuthority } from "@/lib/billing-receivable-authority";
 import { requireLocalSession, readSignedWorkspaceUser, roleOf } from "@/lib/local-session";
 
 export const runtime = "nodejs";
@@ -104,7 +106,12 @@ export async function POST(request: NextRequest) {
   try {
     if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
 
-    const fileId = cleanText((await request.json())?.fileId, 30).toUpperCase();
+    const input = await request.json();
+    const fileId = cleanText(input?.fileId, 30).toUpperCase();
+    const billCode = cleanText(input?.billCode, 120).toUpperCase();
+    if (billCode && !/^BILL-[A-Z0-9-]{5,100}$/.test(billCode)) {
+      return NextResponse.json({ success: false, error: "Invalid bill identifier." }, { status: 400 });
+    }
     if (!/^LV-\d+$/.test(fileId)) return NextResponse.json({ success: false, error: "Invalid File ID." }, { status: 400 });
 
     // QR generation must be local and fast. The billing page has already
@@ -125,10 +132,54 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Billing verification is not available for this role." }, { status: 403 });
     }
 
-    const token = signProjectVerification(fileId);
+    let token = signProjectVerification(fileId);
+    let invoiceCode = "";
+    if (billCode) {
+      // Authorize the actual bill+invoice relation; never trust a client-supplied
+      // project/bill pair or amounts when issuing a public verification link.
+      const projects = await selectRows("projects", { filters: { project_code: fileId }, select: "id,project_code", limit: 1 });
+      const project = projects[0];
+      if (!project) return NextResponse.json({ success: false, error: "Project not found." }, { status: 404 });
+      const [bills, invoices, authority] = await Promise.all([
+        selectRows("bills", { filters: { project_id: project.id, bill_code: billCode }, limit: 1 }),
+        selectRows("invoices", { filters: { project_id: project.id, bill_code: billCode }, order: "created_at:desc", limit: 1 }),
+        loadReceivableAuthority({ projectId: project.id }),
+      ]);
+      const bill = bills[0];
+      const invoice = invoices[0];
+      const state = authority.billByCode.get(billCode);
+      if (!bill || !invoice || !state || ["cancelled", "canceled", "void", "voided", "draft", "rejected"].includes(String(bill.status || "").toLowerCase())) {
+        return NextResponse.json({ success: false, error: "An issued invoice for this bill was not found." }, { status: 404 });
+      }
+      invoiceCode = String(invoice.invoice_code || invoice.invoice_no || "").trim();
+      token = signBillVerification(fileId, billCode);
+      const actor = String((user as any).userId || (user as any).User_ID || (user as any).username || (user as any).Username || role);
+      // Append-only issued-document snapshot. Does not touch bills, payments or ledgers.
+      await insertRows("app_audit_log", {
+        actor_user_key: actor,
+        actor_role: role,
+        action: "billing.invoice.generated",
+        target: invoiceCode || billCode,
+        outcome: "success",
+        entity_type: "billing_invoice",
+        entity_id: billCode,
+        source: "lv-auto-invoice",
+        request_path: request.nextUrl.pathname,
+        details: {
+          fileId, billCode, invoiceCode,
+          gross: state.gross + state.debitAdjustment,
+          discount: state.effectiveDiscount,
+          net: state.effectiveAmount,
+          paid: state.paidForReceivable,
+          due: state.dueBeforeRelief,
+          issueDate: invoice.issue_date || bill.bill_date || "",
+          generatedAt: new Date().toISOString(),
+        },
+      });
+    }
     const origin = `${request.nextUrl.protocol}//${request.nextUrl.host}`;
     const url = `${origin}/verify/${encodeURIComponent(token)}`;
-    return NextResponse.json({ success: true, url, fileId, permanent: true }, {
+    return NextResponse.json({ success: true, url, fileId, billCode: billCode || null, invoiceCode: invoiceCode || null, permanent: true }, {
       headers: { "Cache-Control": "no-store, max-age=0" },
     });
   } catch (error: any) {
