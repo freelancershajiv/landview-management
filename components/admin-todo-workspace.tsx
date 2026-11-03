@@ -3,7 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
-type Tab = "overview" | "board" | "workflow" | "collaboration" | "planning" | "management" | "reports";
+type Tab = "overview" | "board" | "calendar" | "workflow" | "collaboration" | "planning" | "management" | "reports";
 type View = "checklist" | "files" | "templates" | "rules" | "reminders" | "workload" | "alerts";
 type Navigation = { tab: Tab; view: View | "" };
 type TabDetail = { id: Tab; label: string; subtitle: string; description: string };
@@ -12,6 +12,7 @@ type ViewDetail = { id: View; label: string; description: string };
 const TABS: TabDetail[] = [
   { id: "overview", label: "Overview", subtitle: "Dashboard", description: "See deadlines, progress, team outcomes, and bottlenecks in one place." },
   { id: "board", label: "To Do Board", subtitle: "Create & manage", description: "Create, assign, prioritize, edit, and complete individual To Dos." },
+  { id: "calendar", label: "Calendar", subtitle: "Day · Week · Month", description: "See deadlines and employee assignments in an interactive day, week, or month calendar." },
   { id: "workflow", label: "Workflow", subtitle: "Linked services", description: "Review linked services and explicitly advance or complete Workflow stages." },
   { id: "collaboration", label: "Collaboration", subtitle: "Checklists & files", description: "Manage task checklists, conversations, attachments, and activity history." },
   { id: "planning", label: "Planning", subtitle: "Templates & automation", description: "Configure templates, recurring work, event automations, and due reminders." },
@@ -22,6 +23,7 @@ const TABS: TabDetail[] = [
 const SUBTABS: Record<Tab, ViewDetail[]> = {
   overview: [],
   board: [],
+  calendar: [],
   workflow: [],
   collaboration: [
     { id: "checklist", label: "Checklists", description: "Subtasks and step-by-step progress for each To Do." },
@@ -48,6 +50,7 @@ function LoadingPanel() {
 
 const Overview = dynamic(() => import("./admin-todo-management-dashboard"), { loading: LoadingPanel });
 const Board = dynamic(() => import("./admin-todo-board"), { loading: LoadingPanel });
+const Calendar = dynamic(() => import("./admin-todo-calendar"), { loading: LoadingPanel });
 const Workflow = dynamic(() => import("./admin-todo-workflow-center"), { loading: LoadingPanel });
 const Checklist = dynamic(() => import("./todo-checklist-center"), { loading: LoadingPanel });
 const Collaboration = dynamic(() => import("./todo-collaboration-center"), { loading: LoadingPanel });
@@ -231,6 +234,7 @@ export default function AdminTodoWorkspace() {
     >
       {navigation.tab === "overview" && <Overview />}
       {navigation.tab === "board" && <Board />}
+      {navigation.tab === "calendar" && <Calendar />}
       {navigation.tab === "workflow" && <Workflow />}
       {navigation.tab === "collaboration" && navigation.view === "checklist" && <Checklist mode="admin" />}
       {navigation.tab === "collaboration" && navigation.view === "files" && <Collaboration mode="admin" />}
