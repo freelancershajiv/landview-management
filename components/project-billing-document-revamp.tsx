@@ -206,7 +206,7 @@ export default function ProjectBillingDocumentRevamp({
           // bill-specific payments, even when a stale due snapshot says zero.
           const due = Math.max(0, Number(category.due || 0), grandTotal - paid);
           const fullyPaid = due <= 0.009;
-          const engineeringBill = isEngineeringCategory(category.name);
+          const engineeringBill = isEngineeringCategory(result.document?.kind === "single" ? result.document.category : category.name);
 
           return (
             <article className={`${styles.printPage} lvInvoicePage`} key={`${category.name}-${index}`}>
@@ -239,7 +239,7 @@ export default function ProjectBillingDocumentRevamp({
               </header>
 
               <section className="lvInfoBoard">
-                <div className="lvInfoRow"><span>Invoice ID</span><strong>{statementRef}</strong><span>Issue Date</span><strong>{issueDate}</strong></div>
+                <div className="lvInfoRow"><span>{result.document?.kind === "single" ? "Invoice ID" : "Statement Ref"}</span><strong>{statementRef}</strong><span>Issue Date</span><strong>{issueDate}</strong></div>
                 <div className="lvInfoRow"><span>Owner Name</span><strong>{result.client.name || "—"}</strong><span>File ID</span><strong>{result.client.fileId || result.id || "—"}</strong></div>
                 <div className="lvInfoRow"><span>Contact No</span><strong>{result.client.phone || "—"}</strong><span>Project Type</span><strong>{result.client.type || "—"}</strong></div>
                 <div className="lvInfoRow"><span>Referred By</span><strong>{result.client.referredBy || "—"}</strong><span>Floor/Story</span><strong>{result.client.floor || "—"}</strong></div>
