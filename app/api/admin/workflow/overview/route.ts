@@ -75,7 +75,7 @@ function details(value: unknown): Row {
 export async function GET(request: NextRequest) {
   try {
     await management(request);
-    const [projects, serviceRows, taskRows, todoRows, employeeRows, transitionRows, auditRows] = await Promise.all([
+    const [projects, serviceRows, taskRows, todoRows, employeeRows, transitionRows, auditRows, contractRows] = await Promise.all([
       selectRows("projects", { select: "id,project_code,project_name,client_name_snapshot,lifecycle_phase,design_stage_status,approval_stage_status,supervision_stage_status", order: "project_code:desc", limit: 5000 }),
       selectRows("project_service_workflows", { select: "id,project_id,project_code,service_name,workflow_type,billing_category,status,net_amount,paid_amount,updated_at", order: "updated_at:desc", limit: 10000 }),
       selectRows("tasks", { select: "id,task_code,project_id,task_title,status,priority,progress,lifecycle_stage,source_service,due_date,dependency_task_code,blocker_reason,assigned_employee_id,completed_at,updated_at,sort_order", order: "created_at:desc", limit: 10000 }),
@@ -83,7 +83,14 @@ export async function GET(request: NextRequest) {
       selectRows("employees", { select: "id,employee_code,name,status,designation", order: "employee_code:asc", limit: 5000 }),
       selectRows("project_lifecycle_transitions", { select: "id,project_code,from_phase,to_phase,changed_by,reason,created_at", order: "created_at:desc", limit: 1000 }),
       selectRows("app_audit_log", { select: "id,entity_type,entity_id,action,actor_name,source,details,created_at,outcome", order: "created_at:desc", limit: 1000 }),
+      selectRows("project_contract_services", { select: "project_id,service_key,contract_net,active", limit: 10000 }),
     ]);
+    const contractByKey = new Map<string, number>();
+    for (const service of contractRows) {
+      if (service.active === false) continue;
+      const key = `${text(service.project_id)}::${text(service.service_key)}`;
+      contractByKey.set(key, Math.max(contractByKey.get(key) || 0, Number(service.contract_net || 0)));
+    }
     const now = localDay();
     const localClock = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
     const employees = employeeRows.map((r: Row) => ({ id: text(r.id, 80), code: text(r.employee_code), name: text(r.name), status: text(r.status), designation: text(r.designation) }));
@@ -150,7 +157,10 @@ export async function GET(request: NextRequest) {
       });
       const services = rawServices.map((row) => {
         const state = workflowProgress(row);
-        return { id: text(row.id), name: text(row.service_name), status: text(row.status), stage: stageOfService(row), progress: state.progress, done: state.done, statuses: state.statuses, billingCategory: text(row.billing_category), paid: Number(row.paid_amount || 0), net: Number(row.net_amount || 0), updatedAt: text(row.updated_at) };
+        const required = Math.max(Number(row.net_amount || 0), contractByKey.get(`${text(row.project_id)}::${text(row.service_key)}`) || 0);
+        const paid = Number(row.paid_amount || 0);
+        const deliveryDue = Math.max(0, required - paid);
+        return { id: text(row.id), name: text(row.service_name), status: text(row.status), stage: stageOfService(row), progress: state.progress, done: state.done, statuses: state.statuses, billingCategory: text(row.billing_category), paid, net: required, deliveryDue, deliveryLocked: !state.done && deliveryDue > 0.01, updatedAt: text(row.updated_at) };
       });
       const todos = rawTodos.map((todo) => {
         const workflow = workflowById.get(text(todo.workflow_id));
