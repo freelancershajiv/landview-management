@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 // Existing LAND VIEW data gateway returns heterogeneous row shapes.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
-type Payload = { projects: Row[]; employees: Row[]; today: string; refreshedAt: string; source: string; historyLimit: number; totals: Row };
+type Payload = { projects: Row[]; employees: Row[]; serviceDefaults: Record<string,string>; today: string; refreshedAt: string; source: string; historyLimit: number; totals: Row };
 type Filter = "All" | "Needs Attention" | "Overdue" | "Completed";
 const FILTERS: Filter[] = ["All", "Needs Attention", "Overdue", "Completed"];
 
@@ -27,7 +27,7 @@ async function request(url: string, body?: Row) {
 }
 
 export default function WorkflowOverviewPage() {
-  const [data, setData] = useState<Payload>({ projects: [], employees: [], today: "", refreshedAt: "", source: "", historyLimit: 0, totals: {} });
+  const [data, setData] = useState<Payload>({ projects: [], employees: [], serviceDefaults: {}, today: "", refreshedAt: "", source: "", historyLimit: 0, totals: {} });
   const [selectedCode, setSelectedCode] = useState("");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
@@ -94,6 +94,16 @@ export default function WorkflowOverviewPage() {
       await load(true);
       setNotice(`${project?.code || "Project"} · ${task.title}: update saved to Workflow.`);
     } catch (err) { setError(err instanceof Error ? err.message : "Task update failed."); }
+    finally { setBusy(""); }
+  }
+  async function defaultOwnerAction(service: Row, employeeId: string) {
+    if (busy || !service.key) return;
+    setBusy(`owner:${service.key}`); setNotice(""); setError("");
+    try {
+      await request("/api/admin/workflow/overview", { action: "setServiceTodoDefault", serviceKey: service.key, employeeId });
+      await load(true);
+      setNotice(`${service.name}: default To Do owner saved. Existing manual assignments remain unchanged.`);
+    } catch (err) { setError(err instanceof Error ? err.message : "Could not save default To Do owner."); }
     finally { setBusy(""); }
   }
   async function serviceAction(service: Row, status: string) {
@@ -216,10 +226,11 @@ export default function WorkflowOverviewPage() {
             </div>)}</div>
           </section>
 
-          <section className="wov-panel"><div className="wov-section-head"><h3>Service Workflow</h3><small>Explicit management actions only</small></div>
-            {!services.length ? <div className="wov-muted">No issued service workflows are available yet.</div> : <div className="wov-tablewrap"><table className="wov-table"><thead><tr><th>Service</th><th>Stage</th><th>Progress</th><th>Current status</th><th>Open</th></tr></thead><tbody>{services.map((service) => <tr key={service.id}>
+          <section className="wov-panel"><div className="wov-section-head"><h3>Service Workflow</h3><small>Choose a default employee for newly billed service To Dos; unassigned generated items will also be assigned</small></div>
+            {!services.length ? <div className="wov-muted">No issued service workflows are available yet.</div> : <div className="wov-tablewrap"><table className="wov-table"><thead><tr><th>Service</th><th>Stage</th><th>Progress</th><th>Current status</th><th>Default To Do owner</th><th>Open</th></tr></thead><tbody>{services.map((service) => <tr key={service.id}>
               <td><strong>{service.name}</strong><small>{service.billingCategory}</small>{service.deliveryLocked ? <small style={{color:"var(--lv-danger)",fontWeight:900}}>🔒 Delivery locked · Due BDT {Number(service.deliveryDue || 0).toLocaleString("en-BD")}</small> : <small style={{color:"var(--lv-success)",fontWeight:900}}>Payment verified at delivery</small>}</td><td>{service.stage}</td><td><strong>{service.progress}%</strong><div className="wov-progress-track"><i style={{width:`${pct(service.progress)}%`}} /></div></td>
               <td><select aria-label={`Change ${service.name} status`} title={service.deliveryLocked ? "Work can continue. The final file cannot be delivered before full payment." : "Service payment is satisfied"} className="wov-select" value={service.status} disabled={Boolean(busy)} onChange={(e) => void serviceAction(service, e.target.value)}>{service.statuses.map((status: string) => <option key={status} value={status}>{status}{service.deliveryLocked && /Delivered/.test(status) ? " · payment required" : ""}</option>)}</select></td>
+              <td><select className="wov-select" aria-label={`Default To Do employee for ${service.name}`} title="Applies to future bills and currently unassigned generated tasks; manual assignments stay unchanged." value={data.serviceDefaults?.[service.key] || ""} disabled={Boolean(busy)} onChange={(e) => void defaultOwnerAction(service,e.target.value)}><option value="">Assign manually</option>{data.employees.filter((person) => text(person.status).toLowerCase() === "active").map((person) => <option key={person.id} value={person.id}>{person.code} · {person.name}</option>)}</select></td>
               <td><Link className="wov-link" href={`/admin/project-operations/by-project?project=${encodeURIComponent(project.code)}&workflow=${encodeURIComponent(service.id)}`}>Details</Link></td>
             </tr>)}</tbody></table></div>}
           </section>
@@ -237,7 +248,7 @@ export default function WorkflowOverviewPage() {
 
           <section className="wov-panel"><div className="wov-section-head"><h3>To Do Synchronization</h3><small>Live read-only link; To Do completion never silently advances Workflow</small></div>
             {!todos.length ? <div className="wov-muted">No project-linked To Dos. Link a To Do to this project or a Workflow service to track it here.</div> : <div className="wov-tablewrap"><table className="wov-table"><thead><tr><th>To Do</th><th>Owner</th><th>Deadline</th><th>Status</th><th>Workflow link</th></tr></thead><tbody>{todos.map((todo) => <tr key={todo.code}>
-              <td><strong>{todo.title}</strong><small>{todo.code}</small></td><td>{todo.employee || "Unassigned"}</td><td>{todo.dueDate || "No deadline"}{todo.overdue ? <small className="wov-pill danger">Overdue</small> : null}</td><td><span className="wov-pill">{todo.status}</span></td>
+              <td><strong>{todo.title}</strong><small>{todo.code}{todo.generated ? " · Auto from bill" : ""}</small>{todo.waitingFor ? <small style={{color:"var(--lv-warning)"}}>Waiting: {todo.waitingFor}</small> : null}{todo.deliveryTask ? <small style={{color:"var(--lv-danger)",fontWeight:800}}>🔒 Final delivery · payment required</small> : null}</td><td>{todo.employee || "Unassigned"}</td><td>{todo.dueDate || "No deadline"}{todo.overdue ? <small className="wov-pill danger">Overdue</small> : null}</td><td><span className="wov-pill">{todo.status}</span></td>
               <td>{todo.workflowName ? <><strong>{todo.workflowName}</strong><small>{todo.workflowStatus}</small></> : <small>{todo.missingWorkflow ? "Linked service missing" : "Project-linked"}</small>}{todo.mismatch ? <small className="wov-pill warn">Completion differs — review manually</small> : null}</td>
             </tr>)}</tbody></table></div>}
             <div className="wov-muted"><Link className="wov-link" href="/admin/todo">Open To Do to edit task details</Link></div>
