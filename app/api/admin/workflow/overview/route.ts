@@ -237,6 +237,7 @@ export async function POST(request: NextRequest) {
     } else if (action === "block") {
       const reason = text(body.reason, 500);
       if (!reason) throw new Error("A blocker reason is required.");
+      if (completed(task.status)) throw new Error("Reopen a completed task before adding a blocker.");
       changes.blocker_reason = reason;
     } else if (action === "unblock") {
       changes.blocker_reason = null;
@@ -247,6 +248,7 @@ export async function POST(request: NextRequest) {
         const projectTasks = await selectRows("tasks", { filters: { project_id: task.project_id }, limit: 5000 });
         const byCode = new Map(projectTasks.map((t: Row) => [text(t.task_code, 120), t]));
         if (!byCode.has(dependency)) throw new Error("Dependency must be from the same project.");
+        if (completed(task.status) && !completed(byCode.get(dependency)?.status)) throw new Error("A completed task cannot depend on unfinished work. Reopen it first.");
         const seen = new Set([code]); let cursor = dependency;
         while (cursor) {
           if (seen.has(cursor)) throw new Error("Dependency cycle is not permitted.");
