@@ -79,7 +79,7 @@ export default function WorkflowOverviewPage() {
     });
   }, [data.projects, query, filter]);
 
-  const project = data.projects.find((row) => row.code === selectedCode) || filtered[0] || null;
+  const project = filtered.find((row) => row.code === selectedCode) || filtered[0] || null;
   const tasks: Row[] = project?.tasks || [];
   const services: Row[] = project?.services || [];
   const todos: Row[] = project?.todos || [];
