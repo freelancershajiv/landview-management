@@ -293,10 +293,14 @@ begin
      or new.automation_source is distinct from old.automation_source
      or new.workflow_stage is distinct from old.workflow_stage
      or new.service_key is distinct from old.service_key
-     or new.workflow_id is distinct from old.workflow_id
+     or (new.workflow_id is distinct from old.workflow_id and
+       (new.workflow_id is not null or exists(
+         select 1 from public.project_service_workflows where id=old.workflow_id)))
      or new.project_code is distinct from old.project_code
      or new.reference_type is distinct from old.reference_type
-     or new.dependency_todo_code is distinct from old.dependency_todo_code
+     or (new.dependency_todo_code is distinct from old.dependency_todo_code and
+       (new.dependency_todo_code is not null or exists(
+         select 1 from public.todo_items where todo_code=old.dependency_todo_code)))
      or new.is_delivery_step is distinct from old.is_delivery_step then
     raise exception 'An automatically generated bill task cannot be relinked. Edit its title, deadline, or assignee instead.';
   end if;
