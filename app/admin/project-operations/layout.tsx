@@ -5,6 +5,11 @@ import { usePathname } from "next/navigation";
 
 const operationLinks = [
   {
+    href: "/admin/project-operations/overview",
+    label: "Workflow Overview",
+    description: "Project stages, responsibility tasks, dependencies, linked To Do and activity",
+  },
+  {
     href: "/admin/project-operations/by-project",
     label: "By Project",
     description: "Projects first, expand to see only their actual services",
@@ -27,7 +32,7 @@ export default function ProjectOperationsLayout({ children }: { children: React.
         .project-operations-heading small{display:block;font-size:10px;font-weight:950;letter-spacing:.13em;color:var(--lv-brand-text)}
         .project-operations-heading h1{margin:5px 0 0;font-size:24px;color:var(--lv-text-strong)}
         .project-operations-heading p{margin:5px 0 0;font-size:11px;line-height:1.5;color:var(--lv-text-secondary)}
-        .project-operations-nav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:14px}
+        .project-operations-nav{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:14px}
         .project-operations-nav a{display:block;padding:13px 15px;border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-panel);color:var(--lv-text-primary);text-decoration:none;box-shadow:var(--lv-shadow-sm)}
         .project-operations-nav a strong{display:block;font-size:13px}
         .project-operations-nav a span{display:block;margin-top:4px;font-size:10px;line-height:1.45;color:var(--lv-text-muted)}
@@ -76,7 +81,7 @@ export default function ProjectOperationsLayout({ children }: { children: React.
         <div>
           <small>LAND VIEW · PROJECT OPERATIONS</small>
           <h1>Project Operations</h1>
-          <p>Manage active work either project-by-project or service-by-service without a wide workflow matrix.</p>
+          <p>Follow project stages and linked work, or manage services by project and by service.</p>
         </div>
       </header>
 
