@@ -56,7 +56,8 @@ export function workflowStatusesForService(service: unknown) {
   const type = workflowTypeForService(service);
   return type === "municipality" ? [...MUNICIPALITY_SERVICE_STATUSES] : type === "engineering" ? [...ENGINEERING_SERVICE_STATUSES] : [...OTHER_SERVICE_STATUSES];
 }
-function initialWorkflowStatus(service: unknown) { return workflowTypeForService(service) === "municipality" ? "Payment Received" : "Working"; }
+// Work begins at bill issuance; payment is required only for final delivery.
+function initialWorkflowStatus() { return "Working"; }
 
 export type ServiceFinancial = {
   serviceName: string;
@@ -170,7 +171,7 @@ export async function getProjectServiceFinancials(projectCode: string) {
   };
 }
 
-export async function syncPaidServiceWorkflows(projectCode: string, actor = "") {
+export async function syncIssuedServiceWorkflows(projectCode: string, actor = "") {
   const snapshot = await getProjectServiceFinancials(projectCode);
   const project = snapshot.project;
   const existing = await selectRows("project_service_workflows", { filters: { project_id: project.id }, limit: 5000 });
@@ -180,10 +181,9 @@ export async function syncPaidServiceWorkflows(projectCode: string, actor = "") 
   const now = new Date().toISOString();
 
   for (const service of snapshot.services) {
-    // Project Operations should start as soon as a billed service has received
-    // actual payment. Write-offs/relief can settle a due balance but do not
-    // activate delivery work by themselves.
-    if (service.net <= 0 || service.paid <= 0) continue;
+    // A valid issued bill opens service work even if no payment was received.
+    // The database applies the actual-payment gate at final delivery.
+    if (service.net <= 0) continue;
     const prior = byKey.get(service.serviceKey);
     const changes = {
       project_code: projectCode,
@@ -213,3 +213,6 @@ export async function syncPaidServiceWorkflows(projectCode: string, actor = "") 
   }
   return { projectId: projectCode, activated, updated, services: snapshot.services };
 }
+
+// Existing payment paths continue to refresh paid balances through the same sync.
+export const syncPaidServiceWorkflows = syncIssuedServiceWorkflows;
