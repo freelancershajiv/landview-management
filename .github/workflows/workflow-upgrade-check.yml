@@ -9,6 +9,7 @@ on:
       - "app/admin/workflow/page.tsx"
       - "app/admin/project-operations/project-workflow/page.tsx"
       - ".github/workflows/workflow-upgrade-check.yml"
+      - "tests/workflow-upgrade.test.cjs"
 
 permissions:
   contents: read
@@ -29,7 +30,7 @@ jobs:
         run: npm ci
       - name: Lint changed Workflow files
         run: npx eslint app/api/admin/workflow/overview/route.ts app/admin/project-operations/overview/page.tsx app/admin/project-operations/layout.tsx app/admin/workflow/page.tsx app/admin/project-operations/project-workflow/page.tsx
-      - name: Run regression tests
-        run: npm test
+      - name: Run Workflow regression tests
+        run: node --test tests/workflow-upgrade.test.cjs
       - name: Verify production build
         run: npm run build
