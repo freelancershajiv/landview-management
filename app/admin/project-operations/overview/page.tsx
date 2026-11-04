@@ -52,11 +52,11 @@ export default function WorkflowOverviewPage() {
 
   useEffect(() => {
     void load();
-    const refresh = () => { if (document.visibilityState === "visible" && !busy) void load(true); };
+    const refresh = () => { if (document.visibilityState === "visible") void load(true); };
     const timer = window.setInterval(refresh, 60_000);
     window.addEventListener("focus", refresh);
     return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
-  }, [load, busy]);
+  }, [load]);
 
   const metrics = useMemo(() => ({
     projects: data.projects.length,
