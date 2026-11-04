@@ -73,17 +73,17 @@ export default function ByProjectOperationsPage() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { const handle = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(handle); }, [load]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const project = String(params.get("project") || "").trim().toUpperCase();
-    const workflow = String(params.get("workflow") || "").trim();
-    if (project) {
-      setQuery(project);
-      setExpanded(project);
-    }
-    if (workflow) setFocusWorkflow(workflow);
+    const handle = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const project = String(params.get("project") || "").trim().toUpperCase();
+      const workflow = String(params.get("workflow") || "").trim();
+      if (project) { setQuery(project); setExpanded(project); }
+      if (workflow) setFocusWorkflow(workflow);
+    }, 0);
+    return () => window.clearTimeout(handle);
   }, []);
 
   useEffect(() => {
