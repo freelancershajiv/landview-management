@@ -34,12 +34,13 @@ function stageOfService(row: Row): Stage {
   if (text(row.workflow_type || row.workflowType).toLowerCase() === "municipality" || /approval|noc|vetting|file pass|submission fee|fire service/.test(name)) return STAGES[1];
   return STAGES[0];
 }
-function stageOfTask(row: Row): Stage {
+function stageOfTask(row: Row): Stage | "Unstaged" {
   const stage = text(row.lifecycle_stage || row.stage);
   if (STAGES.includes(stage as Stage)) return stage as Stage;
   if (/approval/i.test(stage)) return STAGES[1];
-  if (/supervision|construction/i.test(stage)) return STAGES[2];
-  return STAGES[0];
+  if (/supervision|construction|handover/i.test(stage)) return STAGES[2];
+  if (!stage && text(row.source_service)) return stageOfService({ service_name: row.source_service });
+  return "Unstaged";
 }
 function stageStatus(row: Row, stage: Stage) {
   const key = stage === STAGES[0] ? "design_stage_status" : stage === STAGES[1] ? "approval_stage_status" : "supervision_stage_status";
