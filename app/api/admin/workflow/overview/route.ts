@@ -47,7 +47,7 @@ function stageStatus(row: Row, stage: Stage) {
 }
 function workflowProgress(row: Row) {
   const chain = workflowStatusesForService(row.service_name);
-  const index = chain.indexOf(text(row.status));
+  const index = chain.findIndex((value) => value === text(row.status));
   return { statuses: chain, progress: index < 0 ? 0 : chain.length <= 1 ? 100 : Math.round(index * 100 / (chain.length - 1)), done: chain.length > 0 && index === chain.length - 1 };
 }
 function sameOrigin(request: NextRequest) {
@@ -165,7 +165,7 @@ export async function GET(request: NextRequest) {
         };
       });
       const stages = STAGES.map((name) => {
-        const group = [
+        const group: Row[] = [
           ...tasks.filter((task) => task.stage === name),
           ...services.filter((service) => service.stage === name),
           ...todos.filter((todo) => todo.stage === name),
