@@ -5,6 +5,8 @@ import { employeeCodeOf, insertRows, selectRows } from "@/lib/supabase-data";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// LAND VIEW gateway records have heterogeneous fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 function text(value: unknown, max = 1000) { return String(value ?? "").trim().slice(0, max); }
 function json(data: unknown, status = 200) { return NextResponse.json(data, { status, headers: { "Cache-Control": "no-store, max-age=0" } }); }
