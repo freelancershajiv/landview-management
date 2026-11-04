@@ -7,6 +7,8 @@ import {
   workflowTypeForService,
 } from "@/lib/service-workflow";
 
+// LAND VIEW gateway records have heterogeneous fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 
 export type BillingContractServiceSeed = {
@@ -170,8 +172,8 @@ export async function createBillingContract(
       contract_gross: seed.gross,
       contract_discount: seed.discount,
       contract_net: seed.net,
-      start_gate: "Any Payment",
-      release_gate: "No Overdue Invoice",
+      start_gate: "None",
+      release_gate: "Fully Paid",
       active: true,
       created_at: timestamp,
       updated_at: timestamp,

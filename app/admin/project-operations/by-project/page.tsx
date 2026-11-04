@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+// LAND VIEW gateway records have heterogeneous fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 
 function money(value: unknown) {
@@ -71,17 +73,17 @@ export default function ByProjectOperationsPage() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { const handle = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(handle); }, [load]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const project = String(params.get("project") || "").trim().toUpperCase();
-    const workflow = String(params.get("workflow") || "").trim();
-    if (project) {
-      setQuery(project);
-      setExpanded(project);
-    }
-    if (workflow) setFocusWorkflow(workflow);
+    const handle = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const project = String(params.get("project") || "").trim().toUpperCase();
+      const workflow = String(params.get("workflow") || "").trim();
+      if (project) { setQuery(project); setExpanded(project); }
+      if (workflow) setFocusWorkflow(workflow);
+    }, 0);
+    return () => window.clearTimeout(handle);
   }, []);
 
   useEffect(() => {
@@ -122,7 +124,7 @@ export default function ByProjectOperationsPage() {
     if (!confirmed) return;
     setBusy(`C:${projectId}`); setError(""); setMessage("");
     try {
-      const result = await post({ action: "markProjectComplete", projectId, reason: "Manually marked complete from Project Operations · By Project." });
+      await post({ action: "markProjectComplete", projectId, reason: "All service work was delivered after full payment." });
       const updatedAt = new Date().toISOString();
       setData((current) => ({
         ...current,
@@ -132,7 +134,7 @@ export default function ByProjectOperationsPage() {
           return { ...item, status: statuses[statuses.length - 1] || item.status, lifecyclePhase: "Completed", updatedAt };
         }),
       }));
-      setMessage(`${projectId} marked Completed. ${Number(result?.servicesClosed || 0)} open service workflow${Number(result?.servicesClosed || 0) === 1 ? " was" : "s were"} closed.`);
+      setMessage(`${projectId} marked Completed after all service deliveries were verified.`);
     } catch (e) { setError(e instanceof Error ? e.message : "Could not complete project."); }
     finally { setBusy(""); }
   }
@@ -215,8 +217,8 @@ export default function ByProjectOperationsPage() {
                     <div className="byp-service-name"><strong>{row.serviceName}</strong><span>{row.billingCategory}</span></div>
                     <span className="byp-status">{row.status}</span>
                     <Link className="byp-doc-link" href={`/admin/project-operations/document-register?workflowId=${encodeURIComponent(row.id)}`}><strong>Documents {Number(docs.total || 0)}</strong><span>{Number(docs.total || 0) ? `${Number(docs.pending || 0)} pending · ${Number(docs.delivered || 0)} delivered` : "Open / initialize register"}</span></Link>
-                    <div className="byp-money">Paid / Net<strong>{money(row.paidAmount)} / {money(row.netAmount)}</strong></div>
-                    <select value={row.status} disabled={busy === `S:${row.id}`} onChange={(e) => void updateService(row, e.target.value)}>{(row.statuses || []).map((status: string) => <option key={status}>{status}</option>)}</select>
+                    <div className="byp-money">Paid / Required<strong>{money(row.paidAmount)} / {money(row.netAmount)}</strong>{row.deliveryLocked && !isFinished(row) ? <span style={{display:"block",marginTop:4,color:"var(--lv-danger)",fontWeight:800}}>🔒 Delivery locked · Due {money(row.deliveryDue)}</span> : <span style={{display:"block",marginTop:4,color:"var(--lv-success)",fontWeight:800}}>Payment rechecked at delivery</span>}</div>
+                    <select title={row.deliveryLocked ? "You can prepare and print now, but final delivery requires full service payment." : "Service payment satisfied"} value={row.status} disabled={busy === `S:${row.id}`} onChange={(e) => void updateService(row, e.target.value)}>{(row.statuses || []).map((status: string) => <option key={status} value={status}>{status}{row.deliveryLocked && /Delivered/.test(status) ? " · payment required" : ""}</option>)}</select>
                   </div>;
                 })}</div>
               </div></td></tr>}

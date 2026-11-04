@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+// LAND VIEW gateway records have heterogeneous fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 type ServiceGroup = { key: string; label: string; matches: (name: string) => boolean };
 
@@ -19,6 +21,7 @@ const GROUPS: ServiceGroup[] = [
   { key: "municipality", label: "Municipality", matches: (name) => /municipality/i.test(name) },
   { key: "soil", label: "Soil Test", matches: (name) => /soil test/i.test(name) },
   { key: "survey", label: "Digital Survey", matches: (name) => /digital survey/i.test(name) },
+  { key: "other", label: "Other Services", matches: (name) => !GROUPS.some((group) => group.key !== "other" && group.matches(name)) },
 ];
 
 function money(value: unknown) {
@@ -90,7 +93,7 @@ export default function ByServiceOperationsPage() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { const handle = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(handle); }, [load]);
 
   async function updateService(row: Row, status: string) {
     if (busy) return;
@@ -120,8 +123,11 @@ export default function ByServiceOperationsPage() {
   const availableGroups = useMemo(() => GROUPS.filter((group) => workflows.some((row) => group.matches(String(row.serviceName || "")))), [workflows]);
 
   useEffect(() => {
-    if (!selected && availableGroups.length) setSelected(availableGroups[0].key);
-    if (selected && availableGroups.length && !availableGroups.some((group) => group.key === selected)) setSelected(availableGroups[0].key);
+    const handle = window.setTimeout(() => {
+      if (!selected && availableGroups.length) setSelected(availableGroups[0].key);
+      if (selected && availableGroups.length && !availableGroups.some((group) => group.key === selected)) setSelected(availableGroups[0].key);
+    }, 0);
+    return () => window.clearTimeout(handle);
   }, [availableGroups, selected]);
 
   const activeGroup = availableGroups.find((group) => group.key === selected) || availableGroups[0];
@@ -147,8 +153,8 @@ export default function ByServiceOperationsPage() {
           <td className="bys-service"><strong>{row.serviceName}</strong><span>{row.billingCategory}</span></td>
           <td><span className={`bys-status ${finalStatus(row) ? "done" : ""}`}>{row.status}</span></td>
           <td className="bys-docs"><Link href={`/admin/project-operations/document-register?workflowId=${encodeURIComponent(row.id)}`}><strong>Documents {Number(docs.total || 0)}</strong><span>{Number(docs.total || 0) ? `${Number(docs.pending || 0)} pending · ${Number(docs.delivered || 0)} delivered` : "Open / initialize register"}</span></Link></td>
-          <td className="bys-money">Paid / Net<strong>{money(row.paidAmount)} / {money(row.netAmount)}</strong></td>
-          <td><select value={row.status} disabled={busy === `S:${row.id}`} onChange={(e) => void updateService(row, e.target.value)}>{(row.statuses || []).map((status: string) => <option key={status}>{status}</option>)}</select></td>
+          <td className="bys-money">Paid / Required<strong>{money(row.paidAmount)} / {money(row.netAmount)}</strong>{row.deliveryLocked && !finalStatus(row) ? <span style={{display:"block",color:"var(--lv-danger)",fontWeight:900,marginTop:4}}>🔒 Delivery locked · Due {money(row.deliveryDue)}</span> : <span style={{display:"block",color:"var(--lv-success)",fontWeight:900,marginTop:4}}>Payment rechecked at delivery</span>}</td>
+          <td><select title={row.deliveryLocked ? "Work can proceed, but final file delivery requires full payment." : "Service payment satisfied"} value={row.status} disabled={busy === `S:${row.id}`} onChange={(e) => void updateService(row, e.target.value)}>{(row.statuses || []).map((status: string) => <option key={status} value={status}>{status}{row.deliveryLocked && /Delivered/.test(status) ? " · payment required" : ""}</option>)}</select></td>
           <td><Link className="bys-open" href={`/admin/projects/${encodeURIComponent(row.projectId)}`}>Project →</Link></td>
         </tr>;
       })}

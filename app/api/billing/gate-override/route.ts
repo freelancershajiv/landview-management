@@ -5,6 +5,8 @@ import { employeeCodeOf, insertRows, selectRows } from "@/lib/supabase-data";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// LAND VIEW gateway records have heterogeneous fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 function text(value: unknown, max = 1000) { return String(value ?? "").trim().slice(0, max); }
 function json(data: unknown, status = 200) { return NextResponse.json(data, { status, headers: { "Cache-Control": "no-store, max-age=0" } }); }
@@ -28,6 +30,8 @@ export async function POST(request: NextRequest) {
     const services = await selectRows("project_contract_services", { filters: { id: serviceId }, limit: 1 });
     if (!services.length) return json({ success: false, error: "Contract service was not found." }, 404);
     const service = services[0];
+    // Final file delivery is never bypassed: full verified service payment is mandatory.
+    if (text(service.release_gate) === "Fully Paid") return json({ success: false, error: "Full service payment is required before delivery. Payment-gate overrides are disabled." }, 409);
     if (text(service.release_gate) === "None") return json({ success: false, error: "This service has no delivery gate to override." }, 400);
     const targetStatus = text(service.workflow_type) === "municipality" ? "Delivered to Client" : "Delivered";
     const now = new Date();

@@ -8,7 +8,7 @@ import {
   MUNICIPALITY_SERVICE_STATUSES,
   OTHER_SERVICE_STATUSES,
   getProjectServiceFinancials,
-  syncPaidServiceWorkflows,
+  syncIssuedServiceWorkflows,
   workflowServiceKey,
   workflowServiceName,
   workflowStatusesForService,
@@ -18,6 +18,8 @@ import { getAdjustedProjectServiceFinancials } from "@/lib/billing-adjusted-fina
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// LAND VIEW gateway records have heterogeneous fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 function text(v: unknown, max = 1000) { return String(v ?? "").trim().slice(0, max); }
 function num(v: unknown) { const n = Number(String(v ?? 0).replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; }
@@ -79,14 +81,24 @@ async function proposalWorkflow() {
 }
 
 async function projectWorkflow() {
-  const [workflows, projects] = await Promise.all([
+  const [workflows, projects, contractServices] = await Promise.all([
     selectRows("project_service_workflows", { order: "updated_at:desc", limit: 10000 }),
     selectRows("projects", { order: "project_code:desc", limit: 5000 }),
+    selectRows("project_contract_services", { select: "project_id,service_key,contract_net,active", limit: 10000 }),
   ]);
+  const contractByKey = new Map<string, number>();
+  for (const service of contractServices) {
+    if (service.active === false) continue;
+    const key = `${text(service.project_id)}::${text(service.service_key)}`;
+    contractByKey.set(key, Math.max(contractByKey.get(key) || 0, num(service.contract_net)));
+  }
   const projectById = new Map(projects.map((p: Row) => [text(p.id), p]));
   return workflows.map((row) => {
     const project = projectById.get(text(row.project_id));
     const statuses = workflowStatusesForService(row.service_name);
+    const required = Math.max(num(row.net_amount), contractByKey.get(`${text(row.project_id)}::${text(row.service_key)}`) || 0);
+    const paid = num(row.paid_amount);
+    const deliveryDue = Math.max(0, required - paid);
     return {
       id: row.id,
       projectId: row.project_code || project?.project_code || "",
@@ -100,8 +112,10 @@ async function projectWorkflow() {
       workflowType: row.workflow_type,
       status: row.status,
       statuses,
-      netAmount: num(row.net_amount),
-      paidAmount: num(row.paid_amount),
+      netAmount: required,
+      paidAmount: paid,
+      deliveryDue,
+      deliveryLocked: deliveryDue > 0.01,
       activatedAt: row.activated_at,
       updatedAt: row.updated_at,
     };
@@ -202,21 +216,14 @@ export async function POST(request: NextRequest) {
       const project = projectRows[0];
       const now = new Date().toISOString();
       const serviceRows = await selectRows("project_service_workflows", { filters: { project_id: project.id }, limit: 5000 });
-      let servicesClosed = 0;
-      const blocked: Array<{ service: string; reason: string }> = [];
-      for (const service of serviceRows) {
+      // Completing a project must never auto-deliver files with a balance due.
+      // Each service must first be delivered through the protected Workflow.
+      const outstanding = serviceRows.filter((service) => {
         const statuses = workflowStatusesForService(service.service_name);
-        const finalStatus = statuses[statuses.length - 1] || service.status;
-        if (text(service.status) === finalStatus) continue;
-        try {
-          await updateRows("project_service_workflows", { id: service.id }, { status: finalStatus, updated_by: who, updated_at: now });
-          servicesClosed += 1;
-        } catch (gateError) {
-          const reason = gateError instanceof Error ? gateError.message : "Financial delivery gate blocked final delivery.";
-          if (/Financial delivery gate blocked/i.test(reason)) blocked.push({ service: text(service.service_name), reason });
-          else throw gateError;
-        }
-      }
+        return text(service.status) !== statuses[statuses.length - 1];
+      });
+      if (outstanding.length) throw new Error(`Project completion blocked: deliver all ${outstanding.length} open service(s) after full payment.`);
+      const servicesClosed = 0;
       const projectChanges = {
         lifecycle_phase: "Completed",
         design_stage_status: "Completed",
@@ -232,8 +239,8 @@ export async function POST(request: NextRequest) {
         project_code: projectId,
         from_phase: text(project.lifecycle_phase) || null,
         to_phase: "Completed",
-        transition_type: blocked.length ? "operational_close_financially_open" : "legacy_close",
-        reason: text(input.reason, 1000) || (blocked.length ? "Operational work completed; one or more client deliveries remain finance-gated." : "Manually marked complete from Project Workflow for legacy project close-out."),
+        transition_type: "legacy_close",
+        reason: text(input.reason, 1000) || "Manually marked complete after all billed services were delivered.",
         changed_by: who,
         changed_by_role: roleOf(user),
         source: "service-workflow",
@@ -243,9 +250,9 @@ export async function POST(request: NextRequest) {
         user, request, action: "project_manual_complete", entityType: "project", entityId: projectId,
         before: { lifecycle_phase: project.lifecycle_phase, design_stage_status: project.design_stage_status, approval_stage_status: project.approval_stage_status, supervision_stage_status: project.supervision_stage_status },
         after: projectChanges,
-        details: { servicesClosed, blocked, reason: text(input.reason, 1000) || "Manual close from Project Workflow" }, source: "service-workflow",
+        details: { servicesClosed, reason: text(input.reason, 1000) || "Manual close from Project Workflow" }, source: "service-workflow",
       });
-      return json({ success: true, data: { project: updatedProjects[0] || { ...project, ...projectChanges }, servicesClosed, servicesBlocked: blocked.length, blocked } });
+      return json({ success: true, data: { project: updatedProjects[0] || { ...project, ...projectChanges }, servicesClosed, servicesBlocked: 0, blocked: [] } });
     }
 
     if (action === "redistributeengineeringdiscount") {
@@ -281,10 +288,10 @@ export async function POST(request: NextRequest) {
       return json({ success: true, data: await getAdjustedProjectServiceFinancials(projectId) });
     }
 
-    if (action === "syncpaidservices") {
+    if (action === "syncpaidservices" || action === "syncissuedservices") {
       const projectId = text(input.projectId, 80).toUpperCase();
       if (!projectId) throw new Error("Project ID is required.");
-      return json({ success: true, data: await syncPaidServiceWorkflows(projectId, who) });
+      return json({ success: true, data: await syncIssuedServiceWorkflows(projectId, who) });
     }
 
     throw new Error("Unsupported service workflow action.");
