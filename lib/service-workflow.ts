@@ -2,6 +2,8 @@ import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
 import { canonicalProjectService, taskKeyPart } from "@/lib/project-task-templates";
 import { loadReceivableAuthority, receivablePaymentIsEffective, type ReceivableCategoryKey } from "@/lib/billing-receivable-authority";
 
+// LAND VIEW gateway records have heterogeneous fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 
 const ENGINEERING_ORDER = [
