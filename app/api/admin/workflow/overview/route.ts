@@ -8,6 +8,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
+// Existing LAND VIEW data gateway returns heterogeneous row shapes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 const STAGES = ["Design Stage", "Approval Stage", "Supervision / Construction Stage"] as const;
 type Stage = typeof STAGES[number];
