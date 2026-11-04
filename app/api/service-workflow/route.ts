@@ -18,6 +18,8 @@ import { getAdjustedProjectServiceFinancials } from "@/lib/billing-adjusted-fina
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// LAND VIEW gateway records have heterogeneous fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 function text(v: unknown, max = 1000) { return String(v ?? "").trim().slice(0, max); }
 function num(v: unknown) { const n = Number(String(v ?? 0).replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; }
