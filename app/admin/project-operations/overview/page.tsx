@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+// Existing LAND VIEW data gateway returns heterogeneous row shapes.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 type Payload = { projects: Row[]; employees: Row[]; today: string; refreshedAt: string; source: string; historyLimit: number; totals: Row };
 type Filter = "All" | "Needs Attention" | "Overdue" | "Completed";
@@ -51,7 +53,7 @@ export default function WorkflowOverviewPage() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const initialRefresh = window.setTimeout(() => { void load(); }, 0);
     const refresh = () => { if (document.visibilityState === "visible") void load(true); };
     const timer = window.setInterval(refresh, 60_000);
     window.addEventListener("focus", refresh);
