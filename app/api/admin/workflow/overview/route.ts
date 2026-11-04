@@ -82,6 +82,7 @@ export async function GET(request: NextRequest) {
       selectRows("app_audit_log", { select: "id,entity_type,entity_id,action,actor_name,source,details,created_at,outcome", order: "created_at:desc", limit: 1000 }),
     ]);
     const now = localDay();
+    const localClock = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(new Date());
     const employees = employeeRows.map((r: Row) => ({ id: text(r.id, 80), code: text(r.employee_code), name: text(r.name), status: text(r.status), designation: text(r.designation) }));
     const employeeById = new Map(employees.map((e) => [e.id, e]));
     const projectById = new Map(projects.map((p: Row) => [text(p.id, 80), projectCode(p.project_code)]));
@@ -157,7 +158,7 @@ export async function GET(request: NextRequest) {
         return {
           code: text(todo.todo_code), title: text(todo.title, 250), status: text(todo.status), priority: text(todo.priority),
           done, progress: done ? 100 : text(todo.status) === "In Progress" ? 50 : 0, dueDate, dueTime: text(todo.due_time),
-          overdue: !done && Boolean(dueDate && dueDate < now), stage, workflowId: text(todo.workflow_id),
+          overdue: !done && Boolean(dueDate && (dueDate < now || (dueDate === now && text(todo.due_time).slice(0, 5) && text(todo.due_time).slice(0, 5) < localClock))), stage, workflowId: text(todo.workflow_id),
           workflowName: workflow ? text(workflow.service_name) : "", workflowStatus: workflow ? text(workflow.status) : "",
           mismatch: Boolean(workflow && serviceState && done !== serviceState.done),
           missingWorkflow: Boolean(todo.workflow_id && !workflow),
