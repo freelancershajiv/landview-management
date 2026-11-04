@@ -235,6 +235,7 @@ with candidates as (
     end as category
   from public.bills b join public.projects p on p.id=b.project_id
   where coalesce(p.lifecycle_phase,'') <> 'Completed'
+    and b.bill_date >= date '2026-09-01' -- avoid undated imported legacy bills
     and lower(trim(coalesce(b.status,''))) in ('issued','unpaid','partially paid','paid','open')
     and greatest(0,coalesce(b.amount,0)-coalesce(b.discount,0))>0
     and lower(coalesce(b.created_via,'')) not like '%credit note%'
