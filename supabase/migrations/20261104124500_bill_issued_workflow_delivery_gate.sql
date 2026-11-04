@@ -35,6 +35,42 @@ returns numeric language sql stable set search_path=public as $$
     )=p_service_key;
 $$;
 
+
+-- Only recorded, approved, effective receipts can unlock delivery.
+-- A stale approval snapshot cannot resurrect a voided or cancelled payment.
+create or replace function public.landview_verified_service_paid(
+  p_project uuid,p_service_key text,p_category text
+) returns numeric language sql stable set search_path=public as $
+  with eligible as (
+    select p.* from public.payments p where p.project_id=p_project
+      and coalesce(p.affects_business_balance,true)=true
+      and lower(trim(coalesce(p.transaction_type,''))) <> 'personal income'
+      and lower(replace(replace(coalesce(p.status,''),'_',' '),'-',' '))
+           not in ('void','voided','cancelled','canceled','rejected','returned','refunded','draft','failed')
+      and lower(replace(replace(coalesce(p.approval_status,''),'_',' '),'-',' '))
+           not in ('void','voided','cancelled','canceled','rejected','returned','refunded','draft','failed')
+      and lower(replace(replace(coalesce(nullif(p.approval_status,''),p.status,''),'_',' '),'-',' '))
+           in ('','approved','received','paid','verified','complete','completed','full paid','fully paid','posted')
+  )
+  select greatest(0,coalesce(case
+    when p_category='Engineering Bill' then (
+      select sum(a.allocated_amount)
+      from public.payment_service_allocations a join eligible p on p.id=a.payment_id
+      where a.project_id=p_project and a.service_key=p_service_key
+    )
+    when p_category='Supervision Bill' then (
+      select sum(p.amount) from eligible p
+      where lower(coalesce(p.payment_for,p.income_category,'')) like '%supervision%'
+    )
+    else (
+      select sum(p.amount) from eligible p where
+        public.billing_v2_service_key(
+          public.billing_v2_canonical_service_name(coalesce(nullif(p.service_type,''),p.payment_for,p.income_category,''))
+        )=p_service_key
+    )
+  end,0));
+$;
+
 create or replace function public.landview_assert_service_fully_paid(
   p_project_id uuid,p_service_key text,p_billing_category text,p_service_name text
 ) returns void language plpgsql stable set search_path=public as $$
@@ -49,7 +85,7 @@ begin
     from public.project_contract_services
     where project_id=p_project_id and service_key=p_service_key and active=true;
   v_required := greatest(coalesce(v_billed,0),coalesce(v_contract_net,0));
-  v_paid := public.billing_v2_service_paid(p_project_id,p_service_key,p_billing_category,p_service_name);
+  v_paid := public.landview_verified_service_paid(p_project_id,p_service_key,p_billing_category);
   if v_required < 0.01 then
     raise exception 'Payment required before file delivery for %: no issued service bill was found.',p_service_name;
   end if;
@@ -101,7 +137,7 @@ begin
                        'Electrical Design','Fire Safety Design','Plumbing Design','Plan Approval Design',
                        'Estimate & Costing','Design Books','Re-Design Fees') then 'engineering'
     else 'other' end);
-  v_paid := public.billing_v2_service_paid(new.project_id,v_key,v_category,v_service);
+  v_paid := public.landview_verified_service_paid(new.project_id,v_key,v_category);
 
   insert into public.project_service_workflows(
     project_id,project_code,billing_category,service_name,service_key,workflow_type,
@@ -206,7 +242,7 @@ with candidates as (
 ), totals as (
   select c.*,public.billing_v2_service_key(c.service_name) service_key,
      public.landview_issued_service_total(c.project_id,public.billing_v2_service_key(c.service_name)) billed,
-     public.billing_v2_service_paid(c.project_id,public.billing_v2_service_key(c.service_name),c.category,c.service_name) paid
+     public.landview_verified_service_paid(c.project_id,public.billing_v2_service_key(c.service_name),c.category) paid
   from candidates c where nullif(c.service_name,'') is not null
 )
 insert into public.project_service_workflows (
@@ -227,12 +263,14 @@ on conflict (project_id,service_key) do nothing;
 -- Trigger functions are internal only; direct Data API execution is not permitted.
 revoke all on function public.landview_bill_service_label(text,text) from public,anon,authenticated;
 revoke all on function public.landview_issued_service_total(uuid,text) from public,anon,authenticated;
+revoke all on function public.landview_verified_service_paid(uuid,text,text) from public,anon,authenticated;
 revoke all on function public.landview_assert_service_fully_paid(uuid,text,text,text) from public,anon,authenticated;
 revoke all on function public.landview_start_workflow_on_bill_issue() from public,anon,authenticated;
 revoke all on function public.landview_enforce_workflow_file_delivery() from public,anon,authenticated;
 revoke all on function public.landview_enforce_document_file_delivery() from public,anon,authenticated;
 grant execute on function public.landview_bill_service_label(text,text) to service_role;
 grant execute on function public.landview_issued_service_total(uuid,text) to service_role;
+grant execute on function public.landview_verified_service_paid(uuid,text,text) to service_role;
 grant execute on function public.landview_assert_service_fully_paid(uuid,text,text,text) to service_role;
 grant execute on function public.landview_start_workflow_on_bill_issue() to service_role;
 grant execute on function public.landview_enforce_workflow_file_delivery() to service_role;
