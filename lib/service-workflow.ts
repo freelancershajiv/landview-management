@@ -1,6 +1,6 @@
 import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
 import { canonicalProjectService, taskKeyPart } from "@/lib/project-task-templates";
-import { loadReceivableAuthority, type ReceivableCategoryKey } from "@/lib/billing-receivable-authority";
+import { loadReceivableAuthority, receivablePaymentIsEffective, type ReceivableCategoryKey } from "@/lib/billing-receivable-authority";
 
 type Row = Record<string, any>;
 
@@ -174,7 +174,27 @@ export async function getProjectServiceFinancials(projectCode: string) {
 export async function syncIssuedServiceWorkflows(projectCode: string, actor = "") {
   const snapshot = await getProjectServiceFinancials(projectCode);
   const project = snapshot.project;
-  const existing = await selectRows("project_service_workflows", { filters: { project_id: project.id }, limit: 5000 });
+  const [existing, payments, allocations] = await Promise.all([
+    selectRows("project_service_workflows", { filters: { project_id: project.id }, limit: 5000 }),
+    selectRows("payments", { filters: { project_id: project.id }, select: "id,amount,status,approval_status,transaction_type,affects_business_balance,payment_for,income_category,service_type", limit: 5000 }),
+    selectRows("payment_service_allocations", { filters: { project_id: project.id }, select: "payment_id,service_key,allocated_amount", limit: 10000 }),
+  ]);
+  const verified = new Map(payments.filter(receivablePaymentIsEffective).map((row: Row) => [text(row.id), row]));
+  const engineeringPaid = new Map<string, number>();
+  for (const allocation of allocations) {
+    if (!verified.has(text(allocation.payment_id))) continue;
+    const key = text(allocation.service_key);
+    engineeringPaid.set(key, (engineeringPaid.get(key) || 0) + Math.max(0, Number(allocation.allocated_amount || 0)));
+  }
+  const servicePaid = new Map<string, number>();
+  let supervisionPaid = 0;
+  for (const payment of verified.values()) {
+    const amount = Math.max(0, Number(payment.amount || 0));
+    if (/supervision/i.test(text(payment.payment_for || payment.income_category))) supervisionPaid += amount;
+    const service = workflowServiceKey(payment.service_type || payment.payment_for || payment.income_category || "");
+    if (service) servicePaid.set(service, (servicePaid.get(service) || 0) + amount);
+  }
+
   const byKey = new Map(existing.map((row: Row) => [text(row.service_key), row]));
   const activated: Row[] = [];
   const updated: Row[] = [];
@@ -185,6 +205,11 @@ export async function syncIssuedServiceWorkflows(projectCode: string, actor = ""
     // The database applies the actual-payment gate at final delivery.
     if (service.net <= 0) continue;
     const prior = byKey.get(service.serviceKey);
+    const actualPaid = service.billingCategory === "Engineering Bill"
+      ? engineeringPaid.get(service.serviceKey) || 0
+      : service.billingCategory === "Supervision Bill"
+        ? supervisionPaid
+        : servicePaid.get(service.serviceKey) || 0;
     const changes = {
       project_code: projectCode,
       billing_category: service.billingCategory,
@@ -192,7 +217,7 @@ export async function syncIssuedServiceWorkflows(projectCode: string, actor = ""
       service_key: service.serviceKey,
       workflow_type: service.workflowType,
       net_amount: service.net,
-      paid_amount: service.paid,
+      paid_amount: actualPaid,
       updated_by: actor || null,
       updated_at: now,
     };
