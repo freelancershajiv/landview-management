@@ -93,7 +93,7 @@ export default function ByServiceOperationsPage() {
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { const handle = window.setTimeout(() => void load(), 0); return () => window.clearTimeout(handle); }, [load]);
 
   async function updateService(row: Row, status: string) {
     if (busy) return;
@@ -123,8 +123,11 @@ export default function ByServiceOperationsPage() {
   const availableGroups = useMemo(() => GROUPS.filter((group) => workflows.some((row) => group.matches(String(row.serviceName || "")))), [workflows]);
 
   useEffect(() => {
-    if (!selected && availableGroups.length) setSelected(availableGroups[0].key);
-    if (selected && availableGroups.length && !availableGroups.some((group) => group.key === selected)) setSelected(availableGroups[0].key);
+    const handle = window.setTimeout(() => {
+      if (!selected && availableGroups.length) setSelected(availableGroups[0].key);
+      if (selected && availableGroups.length && !availableGroups.some((group) => group.key === selected)) setSelected(availableGroups[0].key);
+    }, 0);
+    return () => window.clearTimeout(handle);
   }, [availableGroups, selected]);
 
   const activeGroup = availableGroups.find((group) => group.key === selected) || availableGroups[0];
