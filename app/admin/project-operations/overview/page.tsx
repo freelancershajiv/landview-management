@@ -57,7 +57,7 @@ export default function WorkflowOverviewPage() {
     const refresh = () => { if (document.visibilityState === "visible") void load(true); };
     const timer = window.setInterval(refresh, 60_000);
     window.addEventListener("focus", refresh);
-    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); };
+    return () => { window.clearTimeout(initialRefresh); window.clearInterval(timer); window.removeEventListener("focus", refresh); };
   }, [load]);
 
   const metrics = useMemo(() => ({
