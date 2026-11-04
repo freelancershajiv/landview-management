@@ -21,6 +21,10 @@ type TodoItem = {
   project_code?: string | null;
   proposal_code?: string | null;
   workflow_id?: string | null;
+  automation_source?: string | null;
+  dependency_todo_code?: string | null;
+  is_delivery_step?: boolean;
+  workflow_stage?: string | null;
   assigned_employee_id?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
@@ -755,6 +759,9 @@ export default function AdminTodoBoard() {
                           <span>Workflow: {linkedWorkflow ? `${linkedWorkflow.serviceName} · ${linkedWorkflow.status}` : "Linked service unavailable"}</span>
                         ) : null}
                         {referenceType === "Project" && !item.workflow_id ? <span>Workflow: not linked</span> : null}
+                        {item.automation_source === "Bill Issued" ? <span>⚙ Automatic from issued bill · {item.workflow_stage || "Service"}</span> : null}
+                        {item.dependency_todo_code ? <span>Must follow: {items.find((row) => row.todo_code === item.dependency_todo_code)?.title || item.dependency_todo_code}</span> : null}
+                        {item.is_delivery_step ? <span style={{ color: "var(--lv-danger)", fontWeight: 850 }}>🔒 Final file delivery requires verified full payment</span> : null}
                         {assignedEmployee ? <span>Assigned: {assignedEmployee.employeeCode} · {assignedEmployee.name}</span> : item.assigned_to ? <span>Assigned: {item.assigned_to}</span> : <span>Unassigned</span>}
                         {isOverdue(item) ? <span className={styles.overdueText}>Overdue</span> : null}
                       </div>
