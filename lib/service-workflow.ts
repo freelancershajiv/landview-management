@@ -204,7 +204,7 @@ export async function syncIssuedServiceWorkflows(projectCode: string, actor = ""
     const row = {
       project_id: project.id,
       ...changes,
-      status: initialWorkflowStatus(service.serviceName),
+      status: initialWorkflowStatus(),
       activated_at: now,
       created_at: now,
     };
