@@ -147,11 +147,17 @@ begin
     'Working',v_billed,v_paid,now(),'Bill Issued',now(),now()
   )
   on conflict (project_id,service_key) do update
-    set net_amount=excluded.net_amount,
+    set billing_category=excluded.billing_category,
+        service_name=excluded.service_name,
+        workflow_type=case when public.project_service_workflows.status='Working'
+          then excluded.workflow_type else public.project_service_workflows.workflow_type end,
+        net_amount=excluded.net_amount,
         paid_amount=excluded.paid_amount,
         updated_at=now()
     where public.project_service_workflows.net_amount is distinct from excluded.net_amount
-       or public.project_service_workflows.paid_amount is distinct from excluded.paid_amount;
+       or public.project_service_workflows.paid_amount is distinct from excluded.paid_amount
+       or public.project_service_workflows.billing_category is distinct from excluded.billing_category
+       or public.project_service_workflows.service_name is distinct from excluded.service_name;
   return new;
 end;
 $$;
