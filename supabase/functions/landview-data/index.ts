@@ -18,7 +18,7 @@ const ALLOWED_TABLES = new Set([
   "todo_items","todo_subtasks","todo_comments","todo_attachments","todo_templates","todo_template_subtasks","todo_template_runs",
   "todo_automation_rules","todo_automation_events","project_service_documents","todo_escalations",
   "todo_management_settings","todo_management_alerts","whatsapp_client_outbox",
-  "todo_saved_views",
+  "todo_saved_views","service_todo_assignment_rules","service_todo_step_templates",
   "website_analytics_visitors","website_analytics_sessions","website_analytics_page_views","website_analytics_location_events","website_analytics_interactions","website_leads"
 ]);
 
