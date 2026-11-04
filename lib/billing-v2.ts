@@ -7,6 +7,8 @@ import {
   workflowTypeForService,
 } from "@/lib/service-workflow";
 
+// LAND VIEW gateway records have heterogeneous fields.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Row = Record<string, any>;
 
 export type BillingContractServiceSeed = {
