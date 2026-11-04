@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
-import { selectRows, updateRows } from "@/lib/supabase-data";
+import { deleteRows, insertRows, selectRows, updateRows } from "@/lib/supabase-data";
 import { recordAuditEvent } from "@/lib/audit-log";
 import { workflowStatusesForService } from "@/lib/service-workflow";
 
@@ -75,15 +75,16 @@ function details(value: unknown): Row {
 export async function GET(request: NextRequest) {
   try {
     await management(request);
-    const [projects, serviceRows, taskRows, todoRows, employeeRows, transitionRows, auditRows, contractRows] = await Promise.all([
+    const [projects, serviceRows, taskRows, todoRows, employeeRows, transitionRows, auditRows, contractRows, ownerRows] = await Promise.all([
       selectRows("projects", { select: "id,project_code,project_name,client_name_snapshot,lifecycle_phase,design_stage_status,approval_stage_status,supervision_stage_status", order: "project_code:desc", limit: 5000 }),
-      selectRows("project_service_workflows", { select: "id,project_id,project_code,service_name,workflow_type,billing_category,status,net_amount,paid_amount,updated_at", order: "updated_at:desc", limit: 10000 }),
+      selectRows("project_service_workflows", { select: "id,project_id,project_code,service_name,service_key,workflow_type,billing_category,status,net_amount,paid_amount,updated_at", order: "updated_at:desc", limit: 10000 }),
       selectRows("tasks", { select: "id,task_code,project_id,task_title,status,priority,progress,lifecycle_stage,source_service,due_date,dependency_task_code,blocker_reason,assigned_employee_id,completed_at,updated_at,sort_order", order: "created_at:desc", limit: 10000 }),
-      selectRows("todo_items", { select: "todo_code,title,project_code,reference_type,workflow_id,status,priority,due_date,due_time,assigned_employee_id,assigned_to,updated_at", order: "created_at:desc", limit: 10000 }),
+      selectRows("todo_items", { select: "todo_code,title,project_code,reference_type,workflow_id,status,priority,due_date,due_time,assigned_employee_id,assigned_to,updated_at,automation_source,dependency_todo_code,is_delivery_step,workflow_stage", order: "created_at:desc", limit: 10000 }),
       selectRows("employees", { select: "id,employee_code,name,status,designation", order: "employee_code:asc", limit: 5000 }),
       selectRows("project_lifecycle_transitions", { select: "id,project_code,from_phase,to_phase,changed_by,reason,created_at", order: "created_at:desc", limit: 1000 }),
       selectRows("app_audit_log", { select: "id,entity_type,entity_id,action,actor_name,source,details,created_at,outcome", order: "created_at:desc", limit: 1000 }),
       selectRows("project_contract_services", { select: "project_id,service_key,contract_net,active", limit: 10000 }),
+      selectRows("service_todo_assignment_rules", { select: "service_key,assigned_employee_id", limit: 1000 }),
     ]);
     const contractByKey = new Map<string, number>();
     for (const service of contractRows) {
@@ -97,6 +98,7 @@ export async function GET(request: NextRequest) {
     const employeeById = new Map(employees.map((e) => [e.id, e]));
     const projectById = new Map(projects.map((p: Row) => [text(p.id, 80), projectCode(p.project_code)]));
     const workflowById = new Map(serviceRows.map((w: Row) => [text(w.id, 80), w]));
+    const todoByCode = new Map(todoRows.map((t: Row) => [text(t.todo_code), t]));
     const taskByCode = new Map(taskRows.map((t: Row) => [text(t.task_code, 120), t]));
     const taskProject = (task: Row) => projectById.get(text(task.project_id, 80)) || "";
     const workflowProject = (w: Row) => projectCode(w.project_code) || projectById.get(text(w.project_id, 80)) || "";
@@ -160,12 +162,14 @@ export async function GET(request: NextRequest) {
         const required = Math.max(Number(row.net_amount || 0), contractByKey.get(`${text(row.project_id)}::${text(row.service_key)}`) || 0);
         const paid = Number(row.paid_amount || 0);
         const deliveryDue = Math.max(0, required - paid);
-        return { id: text(row.id), name: text(row.service_name), status: text(row.status), stage: stageOfService(row), progress: state.progress, done: state.done, statuses: state.statuses, billingCategory: text(row.billing_category), paid, net: required, deliveryDue, deliveryLocked: !state.done && deliveryDue > 0.01, updatedAt: text(row.updated_at) };
+        return { id: text(row.id), key: text(row.service_key), name: text(row.service_name), status: text(row.status), stage: stageOfService(row), progress: state.progress, done: state.done, statuses: state.statuses, billingCategory: text(row.billing_category), paid, net: required, deliveryDue, deliveryLocked: !state.done && deliveryDue > 0.01, updatedAt: text(row.updated_at) };
       });
       const todos = rawTodos.map((todo) => {
         const workflow = workflowById.get(text(todo.workflow_id));
         const serviceState = workflow ? workflowProgress(workflow) : null;
         const done = completed(todo.status);
+        const dependency = todoByCode.get(text(todo.dependency_todo_code));
+        const waitingFor = dependency && !completed(dependency.status) ? text(dependency.title) : "";
         const dueDate = text(todo.due_date, 20);
         const stage = workflow ? stageOfService(workflow) : STAGES.includes(text(project.lifecycle_phase) as Stage) ? text(project.lifecycle_phase) as Stage : STAGES[0];
         return {
@@ -173,7 +177,8 @@ export async function GET(request: NextRequest) {
           done, progress: done ? 100 : text(todo.status) === "In Progress" ? 50 : 0, dueDate, dueTime: text(todo.due_time),
           overdue: !done && Boolean(dueDate && (dueDate < now || (dueDate === now && text(todo.due_time).slice(0, 5) && text(todo.due_time).slice(0, 5) < localClock))), stage, workflowId: text(todo.workflow_id),
           workflowName: workflow ? text(workflow.service_name) : "", workflowStatus: workflow ? text(workflow.status) : "",
-          mismatch: Boolean(workflow && serviceState && done !== serviceState.done),
+          mismatch: Boolean(workflow && serviceState && text(todo.automation_source) !== "Bill Issued" && done !== serviceState.done),
+          generated: text(todo.automation_source) === "Bill Issued", deliveryTask: todo.is_delivery_step === true, waitingFor,
           missingWorkflow: Boolean(todo.workflow_id && !workflow),
           employee: employeeById.get(text(todo.assigned_employee_id))?.name || text(todo.assigned_to),
         };
@@ -202,7 +207,7 @@ export async function GET(request: NextRequest) {
       };
     });
     return json({ success: true, data: {
-      projects: items, employees, today: now, refreshedAt: new Date().toISOString(),
+      projects: items, employees, serviceDefaults: Object.fromEntries(ownerRows.map((r: Row) => [text(r.service_key),text(r.assigned_employee_id)])), today: now, refreshedAt: new Date().toISOString(),
       source: "Live Project, Workflow, Responsibility Tasks and To Do", historyLimit: 1000,
       totals: { projects: projects.length, services: serviceRows.length, tasks: taskRows.length, todos: todoRows.length },
     } });
@@ -219,6 +224,38 @@ export async function POST(request: NextRequest) {
     user = await management(request);
     const body = await request.json().catch(() => ({})) as Row;
     const action = text(body.action, 50);
+    if (action === "setServiceTodoDefault") {
+      const serviceKey = text(body.serviceKey, 120);
+      const employeeId = text(body.employeeId, 80);
+      if (!/^[a-z0-9-]{1,120}$/.test(serviceKey)) throw new Error("A valid service is required.");
+      const [workflows, existing] = await Promise.all([
+        selectRows("project_service_workflows", { filters: { service_key: serviceKey }, limit: 1 }),
+        selectRows("service_todo_assignment_rules", { filters: { service_key: serviceKey }, limit: 1 }),
+      ]);
+      if (!workflows.length) throw new Error("A billed service is required to set its default owner.");
+      const before = text(existing[0]?.assigned_employee_id, 80);
+      if (employeeId) {
+        const employee = await selectRows("employees", { filters: { id: employeeId }, limit: 1 });
+        if (!employee.length || text(employee[0].status).toLowerCase() !== "active") throw new Error("Choose an active employee.");
+        const row = {
+          service_key: serviceKey,
+          assigned_employee_id: employeeId,
+          assigned_by: text(user.employeeId || user.Employee_ID || user.username || user.Username || user.name, 150),
+          updated_at: new Date().toISOString(),
+        };
+        if (existing.length) await updateRows("service_todo_assignment_rules", { service_key: serviceKey }, row);
+        else await insertRows("service_todo_assignment_rules", row);
+      } else if (existing.length) {
+        await deleteRows("service_todo_assignment_rules", { service_key: serviceKey });
+      }
+      await recordAuditEvent({
+        user, request, action: "workflow_service_todo_owner_default",
+        entityType: "service_todo_assignment_rule", entityId: serviceKey,
+        before: { employeeId: before }, after: { employeeId }, details: { serviceKey },
+        source: "workflow-overview",
+      });
+      return json({ success: true, data: { serviceKey, employeeId } });
+    }
     const code = text(body.taskCode, 120);
     if (!code) throw new Error("Task code is required.");
     const rows = await selectRows("tasks", { filters: { task_code: code }, limit: 1 });
