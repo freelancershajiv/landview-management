@@ -290,6 +290,8 @@ declare
 begin
   if old.automation_source is distinct from 'Bill Issued' then return new; end if;
   if new.automation_key is distinct from old.automation_key
+     or new.automation_source is distinct from old.automation_source
+     or new.workflow_stage is distinct from old.workflow_stage
      or new.service_key is distinct from old.service_key
      or new.workflow_id is distinct from old.workflow_id
      or new.project_code is distinct from old.project_code
