@@ -79,14 +79,24 @@ async function proposalWorkflow() {
 }
 
 async function projectWorkflow() {
-  const [workflows, projects] = await Promise.all([
+  const [workflows, projects, contractServices] = await Promise.all([
     selectRows("project_service_workflows", { order: "updated_at:desc", limit: 10000 }),
     selectRows("projects", { order: "project_code:desc", limit: 5000 }),
+    selectRows("project_contract_services", { select: "project_id,service_key,contract_net,active", limit: 10000 }),
   ]);
+  const contractByKey = new Map<string, number>();
+  for (const service of contractServices) {
+    if (service.active === false) continue;
+    const key = `${text(service.project_id)}::${text(service.service_key)}`;
+    contractByKey.set(key, Math.max(contractByKey.get(key) || 0, num(service.contract_net)));
+  }
   const projectById = new Map(projects.map((p: Row) => [text(p.id), p]));
   return workflows.map((row) => {
     const project = projectById.get(text(row.project_id));
     const statuses = workflowStatusesForService(row.service_name);
+    const required = Math.max(num(row.net_amount), contractByKey.get(`${text(row.project_id)}::${text(row.service_key)}`) || 0);
+    const paid = num(row.paid_amount);
+    const deliveryDue = Math.max(0, required - paid);
     return {
       id: row.id,
       projectId: row.project_code || project?.project_code || "",
@@ -100,8 +110,10 @@ async function projectWorkflow() {
       workflowType: row.workflow_type,
       status: row.status,
       statuses,
-      netAmount: num(row.net_amount),
-      paidAmount: num(row.paid_amount),
+      netAmount: required,
+      paidAmount: paid,
+      deliveryDue,
+      deliveryLocked: deliveryDue > 0.01,
       activatedAt: row.activated_at,
       updatedAt: row.updated_at,
     };
