@@ -11,6 +11,11 @@ on:
       - ".github/workflows/workflow-upgrade-check.yml"
       - "tests/workflow-upgrade.test.cjs"
       - "tests/bill-issued-workflow.test.cjs"
+      - "tests/bill-todo-automation.test.cjs"
+      - "supabase/migrations/20261104185500_auto_bill_service_todos.sql"
+      - "supabase/functions/landview-data/index.ts"
+      - "lib/todo-data.ts"
+      - "components/admin-todo-board.tsx"
       - "lib/service-workflow.ts"
       - "lib/billing-v2.ts"
       - "app/api/service-workflow/route.ts"
@@ -37,8 +42,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Lint changed Workflow files
-        run: npx eslint app/api/admin/workflow/overview/route.ts app/admin/project-operations/overview/page.tsx app/admin/project-operations/layout.tsx app/admin/workflow/page.tsx app/admin/project-operations/project-workflow/page.tsx lib/service-workflow.ts lib/billing-v2.ts app/api/service-workflow/route.ts app/api/billing/gate-override/route.ts app/admin/project-operations/by-project/page.tsx app/admin/project-operations/by-service/page.tsx
+        run: npx eslint app/api/admin/workflow/overview/route.ts app/admin/project-operations/overview/page.tsx app/admin/project-operations/layout.tsx app/admin/workflow/page.tsx app/admin/project-operations/project-workflow/page.tsx lib/service-workflow.ts lib/billing-v2.ts app/api/service-workflow/route.ts app/api/billing/gate-override/route.ts app/admin/project-operations/by-project/page.tsx app/admin/project-operations/by-service/page.tsx lib/todo-data.ts components/admin-todo-board.tsx
       - name: Run Workflow regression tests
-        run: node --test tests/workflow-upgrade.test.cjs tests/bill-issued-workflow.test.cjs
+        run: node --test tests/workflow-upgrade.test.cjs tests/bill-issued-workflow.test.cjs tests/bill-todo-automation.test.cjs
       - name: Verify production build
         run: npm run build
