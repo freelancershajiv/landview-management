@@ -40,7 +40,7 @@ $$;
 -- A stale approval snapshot cannot resurrect a voided or cancelled payment.
 create or replace function public.landview_verified_service_paid(
   p_project uuid,p_service_key text,p_category text
-) returns numeric language sql stable set search_path=public as $
+) returns numeric language sql stable set search_path=public as $$
   with eligible as (
     select p.* from public.payments p where p.project_id=p_project
       and coalesce(p.affects_business_balance,true)=true
@@ -69,7 +69,7 @@ create or replace function public.landview_verified_service_paid(
         )=p_service_key
     )
   end,0));
-$;
+$$;
 
 create or replace function public.landview_assert_service_fully_paid(
   p_project_id uuid,p_service_key text,p_billing_category text,p_service_name text
