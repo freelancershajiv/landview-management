@@ -51,6 +51,13 @@ export const metadata: Metadata = {
   applicationName: "LAND VIEW Engineers & Architects",
   keywords: [
     "LAND VIEW Engineers & Architects",
+    "architectural design Bangladesh",
+    "architectural design company Bangladesh",
+    "structural design Bangladesh",
+    "structural design company Bangladesh",
+    "building design company Bangladesh",
+    "architectural consultancy Bangladesh",
+    "building consultancy Bangladesh",
     "architect Feni",
     "architectural design Feni",
     "structural design Feni",
