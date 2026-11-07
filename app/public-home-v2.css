@@ -37,7 +37,7 @@
 .ph-hero-copy { align-self:center; padding:78px 56px 78px 0; }
 .ph-hero h1 { margin:18px 0 0; max-width:720px; font:500 clamp(45px,5.2vw,74px)/.95 Georgia,"Times New Roman",serif; letter-spacing:-.035em; }
 .ph-hero h1 em { display:block; margin-top:8px; color:var(--ph-accent-text); font-style:normal; }
-.ph-hero-copy>p { max-width:600px; margin:25px 0 0; color:var(--ph-copy); font-size:14px; line-height:1.82; }
+.ph-hero-copy>p { max-width:600px; margin:25px 0 0; color:var(--ph-copy); font-size:14px; line-height:1.82; }\n.ph-hero-copy>.ph-hero-brand-statement { margin-top:17px; color:var(--ph-accent-text); font-size:11px; font-weight:800; letter-spacing:.12em; line-height:1.5; text-transform:uppercase; }\n.ph-hero-copy>.ph-hero-brand-statement + p { margin-top:12px; }
 .ph-hero-actions { display:flex; flex-wrap:wrap; gap:11px; margin-top:30px; }
 .ph-hero-note { display:flex; gap:20px; margin-top:26px; color:#8c99a3; font-size:11px; line-height:1.55; }
 .ph-hero-note span { display:flex; align-items:center; gap:7px; }
