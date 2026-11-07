@@ -43,8 +43,8 @@ export const defaultWebsiteContent: WebsiteContentSettings = {
   },
   homepage: {
     eyebrow: "LAND VIEW ENGINEERS & ARCHITECTS",
-    titleLine1: "Architectural & Structural",
-    titleAccent: "Design Consultancy in Bangladesh.",
+    titleLine1: "Design. Engineering.",
+    titleAccent: "Approval. Supervision.",
     intro: "LAND VIEW is a Feni-based architectural and structural design consultancy serving residential and commercial building projects across Bangladesh. Our coordinated services include building planning, engineering design, 3D visualization, approval support, estimates and site supervision.",
     primaryCtaLabel: "Start Your Project",
     primaryCtaHref: "#contact",
