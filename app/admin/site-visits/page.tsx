@@ -10,7 +10,7 @@ export default async function SiteVisitsPage(){
     <div className="site-visit-schedule-scope">
       <SiteVisitAssignmentsAdmin />
     </div>
-    {session.role === "admin" ? <AdminSiteVisitEntry /> : null}
+    {session.role === "admin" || session.role === "manager" ? <AdminSiteVisitEntry /> : null}
     <SiteVisitMediaQueue canRetry={session.role === "admin"} />
     <SiteVisitsAdmin canDelete={session.role === "admin"} />
 
