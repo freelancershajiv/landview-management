@@ -120,7 +120,7 @@ export default function AdminSiteVisitEntry() {
       if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not submit Site Visit."));
 
       const visitId = String(json?.data?.Visit_ID || "");
-      const employeeName = String(json?.data?.Employee_Name || "Admin");
+      const employeeName = String(json?.data?.Employee_Name || "Management");
       const photoCount = Number(json?.data?.Photo_Count || 0);
       const wa = String(json?.data?.WhatsApp_Publish_Status || "");
       const waReason = String(json?.data?.WhatsApp_Publish_Reason || "");
@@ -144,7 +144,7 @@ export default function AdminSiteVisitEntry() {
     `}</style>
 
     <div className="ase-bar">
-      <div><strong>Admin Site Visit Entry</strong><small>Quick entry for Admin. Add several gallery photos to the same visit.</small></div>
+      <div><strong>Management Site Visit Entry</strong><small>Quick entry for Admins and Managers. Add several gallery photos to the same visit.</small></div>
       <button type="button" className="ase-toggle" onClick={() => setOpen((value) => !value)}>{open ? "CLOSE" : "+ ADD SITE VISIT"}</button>
     </div>
 
@@ -152,15 +152,15 @@ export default function AdminSiteVisitEntry() {
     {notice && <div className="ase-ok">{notice}</div>}
 
     {open && <form className="ase-form" onSubmit={submit}>
-      <div className="ase-info"><strong>ADMIN ENTRY</strong> · GPS is not required. Select an employee only when you want the visit recorded in that employee&apos;s name.</div>
+      <div className="ase-info"><strong>MANAGEMENT ENTRY</strong> · GPS is not required. Select an employee only when you want the visit recorded in that employee&apos;s name.</div>
       <label className="ase-field"><span>PROJECT</span><select value={form.projectId} onChange={(event) => setForm((value) => ({ ...value, projectId: event.target.value }))} disabled={loading}><option value="">{loading ? "Loading projects…" : "Select project"}</option>{projects.map((project) => <option key={project.Project_ID} value={project.Project_ID}>{project.Project_ID} · {project.Project_Name || project.Client_Name || "Project"}</option>)}</select></label>
-      <label className="ase-field"><span>ISSUE AS</span><select value={form.employeeId} onChange={(event) => setForm((value) => ({ ...value, employeeId: event.target.value }))} disabled={loading}><option value="">Admin direct entry</option>{employees.map((employee) => <option key={employee.Employee_ID} value={employee.Employee_ID}>{employee.Employee_ID} · {employee.Employee_Name || "Employee"}</option>)}</select></label>
+      <label className="ase-field"><span>ISSUE AS</span><select value={form.employeeId} onChange={(event) => setForm((value) => ({ ...value, employeeId: event.target.value }))} disabled={loading}><option value="">Management direct entry</option>{employees.map((employee) => <option key={employee.Employee_ID} value={employee.Employee_ID}>{employee.Employee_ID} · {employee.Employee_Name || "Employee"}</option>)}</select></label>
 
       <div className="ase-upload">
         <label><strong>SITE PHOTOS</strong><small>{fileSummary(visitPhotos, "Choose one or several photos from gallery/files")}</small><input type="file" accept="image/jpeg,image/png,image/webp,image/*" multiple onChange={(event) => choosePhotos("visit", event.target.files)}/></label>
         <label><strong>PROBLEM PHOTOS · OPTIONAL</strong><small>{fileSummary(problemPhotos, "Choose one or several problem photos")}</small><input type="file" accept="image/jpeg,image/png,image/webp,image/*" multiple onChange={(event) => choosePhotos("problem", event.target.files)}/></label>
       </div>
-      <div className="ase-gallery-note">Up to {MAX_TOTAL_PHOTOS} photos per Site Visit in total. Photos are compressed before upload and Admin uploads do not require GPS verification.</div>
+      <div className="ase-gallery-note">Up to {MAX_TOTAL_PHOTOS} photos per Site Visit in total. Photos are compressed before upload and Admin and Manager uploads do not require GPS verification.</div>
 
       <label className="ase-field wide"><span>SITE NOTES / PROBLEM · OPTIONAL</span><textarea value={form.problemDetails} onChange={(event) => setForm((value) => ({ ...value, problemDetails: event.target.value }))} placeholder="What happened on site? Add a short note only if needed."/></label>
       <button className="ase-submit" disabled={saving || loading}>{saving ? "UPLOADING & SUBMITTING…" : "SUBMIT SITE VISIT"}</button>
