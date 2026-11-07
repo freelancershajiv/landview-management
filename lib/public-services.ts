@@ -19,7 +19,7 @@ export const publicServices: PublicService[] = [
     intro: "We develop practical architectural solutions around the site, client requirements, circulation, daylight, usability and the overall character of the building. Our aim is to create spaces that are functional, buildable and clearly documented for construction.",
     highlights: ["Residential and commercial building planning", "Floor plans and space planning", "Building elevations and facade development", "Architectural drawing coordination"],
     deliverables: ["Concept and planning drawings", "Floor plans", "Elevations", "Sections and architectural details", "Coordinated drawing package"],
-    keywords: ["architectural design Feni", "architect in Feni", "building design Feni", "architectural consultant Bangladesh"],
+    keywords: ["architectural design Bangladesh", "architectural design Feni", "architect in Feni", "architectural design company Bangladesh", "building design company Bangladesh", "building design Feni", "architectural consultant Bangladesh"],
     icon: "▥",
   },
   {
@@ -30,7 +30,7 @@ export const publicServices: PublicService[] = [
     intro: "Our structural design work focuses on a clear load path, efficient member sizing and practical reinforced-concrete detailing. Architectural requirements and structural behavior are coordinated so the final design can be executed safely and efficiently on site.",
     highlights: ["Structural analysis and modeling", "Reinforced-concrete member design", "Foundation design coordination", "Construction-oriented structural detailing"],
     deliverables: ["Structural design basis", "Column, beam and slab design", "Foundation design", "Structural drawings", "Reinforcement detailing"],
-    keywords: ["structural engineer Feni", "structural design Feni", "RCC design Bangladesh", "structural consultant Bangladesh"],
+    keywords: ["structural design Bangladesh", "structural design Feni", "structural engineer Feni", "structural design company Bangladesh", "RCC design Bangladesh", "structural consultant Bangladesh"],
     icon: "⌗",
   },
   {
