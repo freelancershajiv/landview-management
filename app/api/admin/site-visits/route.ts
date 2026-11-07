@@ -99,16 +99,16 @@ async function storePhoto(input: {
   } satisfies StoredPhoto;
 }
 
-async function requireAdmin(request: NextRequest) {
+async function requireManagementAccess(request: NextRequest) {
   const user = await requireLocalSession(request) as Row | null;
   if (!user) throw new Error("SESSION_EXPIRED");
-  if (roleOf(user) !== "admin") throw new Error("ADMIN_REQUIRED");
+  if (!["admin", "manager"].includes(roleOf(user))) throw new Error("MANAGEMENT_ACCESS_REQUIRED");
   return user;
 }
 
 export async function GET(request: NextRequest) {
   try {
-    await requireAdmin(request);
+    await requireManagementAccess(request);
     const mode = clean(request.nextUrl.searchParams.get("mode"), 40).toLowerCase();
     if (mode === "employees") {
       const employees = await selectRows("employees", { filters: { status: "Active" }, order: "employee_code:asc", limit: 1000 });
@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     const code = clean(error?.message, 100);
     if (code === "SESSION_EXPIRED") return deny("Session expired.", 401);
-    if (code === "ADMIN_REQUIRED") return deny("Admin access is required.", 403);
+    if (code === "MANAGEMENT_ACCESS_REQUIRED") return deny("Admin or Manager access is required.", 403);
     return deny(clean(error?.message || "Could not load Site Visit data.", 1000), 500);
   }
 }
@@ -140,7 +140,7 @@ export async function POST(request: NextRequest) {
   if (!sameOrigin(request)) return deny("Invalid request origin.", 403);
 
   try {
-    const user = await requireAdmin(request);
+    const user = await requireManagementAccess(request);
     const form = await request.formData();
     const projectCode = normalizeProjectCode(clean(form.get("projectId"), 80));
     if (!projectCode) return deny("Select a project.", 400);
@@ -191,9 +191,10 @@ export async function POST(request: NextRequest) {
       storageProvider: "cloudflare-r2",
     }));
 
-    const adminName = clean(user?.name || user?.Name || user?.username || user?.Username || "Admin", 200) || "Admin";
+    const actorRole = roleOf(user) === "manager" ? "Manager" : "Admin";
+    const adminName = clean(user?.name || user?.Name || user?.username || user?.Username || actorRole, 200) || actorRole;
     const attributedEmployeeCode = clean(issueEmployee?.employee_code, 120);
-    const attributedEmployeeName = clean(issueEmployee?.name, 200) || `Admin · ${adminName}`;
+    const attributedEmployeeName = clean(issueEmployee?.name, 200) || `${actorRole} · ${adminName}`;
     const senderEmployeeCode = attributedEmployeeCode || "EMP-0002";
     const createdBy = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(user?.id || "")) ? String(user.id) : null;
     const now = new Date().toISOString();
@@ -288,7 +289,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     const code = clean(error?.message, 1000);
     if (code === "SESSION_EXPIRED") return deny("Session expired.", 401);
-    if (code === "ADMIN_REQUIRED") return deny("Admin access is required.", 403);
+    if (code === "MANAGEMENT_ACCESS_REQUIRED") return deny("Admin or Manager access is required.", 403);
     if (/Cloudflare R2/i.test(code)) return deny(code, 503);
     return deny(code || "Could not create Site Visit.", 500);
   }
