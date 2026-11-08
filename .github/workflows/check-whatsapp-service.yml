@@ -16,4 +16,8 @@ jobs:
         with:
           node-version: 20
       - name: Check WhatsApp service syntax
-        run: node --check whatsapp-service/server.mjs
+        run: |
+          node --check whatsapp-service/server.mjs
+          node --check whatsapp-service/gateway.mjs
+          node --check whatsapp-service/startup.mjs
+          node --check whatsapp-service/bootstrap.mjs
