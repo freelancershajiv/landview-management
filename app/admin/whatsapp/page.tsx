@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import EmployeeWhatsAppConnect from "@/components/employee-whatsapp-connect";
 
 type PairState = {
@@ -122,25 +122,43 @@ export default function WhatsAppPage() {
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
   const [inboxError, setInboxError] = useState("");
+  const statusRequestInFlight = useRef(false);
 
   const selected = useMemo(() => conversations.find((row) => row.id === selectedId) || null, [conversations, selectedId]);
   const unreadTotal = useMemo(() => conversations.reduce((sum, row) => sum + Number(row.unread_count || 0), 0), [conversations]);
 
   async function loadStatus() {
-    setLoading(true);
-    await Promise.all([
-      fetch("/api/admin/whatsapp", { cache: "no-store" }).then(async (response) => {
+    // The status endpoint may need to wake a sleeping Render instance. Never
+    // start another poll while the previous request is still in flight.
+    if (statusRequestInFlight.current) return;
+    statusRequestInFlight.current = true;
+    if (!siteState && !clientState) setLoading(true);
+
+    const requestStatus = async (url: string, label: string, setState: (value: PairState) => void, setError: (value: string) => void) => {
+      try {
+        const response = await fetch(url, {
+          cache: "no-store",
+          credentials: "same-origin",
+          signal: AbortSignal.timeout(55_000),
+        });
         const json = await response.json().catch(() => null);
-        if (!response.ok || !json?.success) throw new Error(json?.error || "Could not load Site Visit bot.");
-        setSiteState(json.data); setSiteError("");
-      }).catch((err) => setSiteError(String(err?.message || err))),
-      fetch("/api/admin/whatsapp/client?mode=status", { cache: "no-store" }).then(async (response) => {
-        const json = await response.json().catch(() => null);
-        if (!response.ok || !json?.success) throw new Error(json?.error || "Could not load client bot.");
-        setClientState(json.data); setClientError("");
-      }).catch((err) => setClientError(String(err?.message || err))),
-    ]);
-    setLoading(false);
+        if (!response.ok || !json?.success) throw new Error(json?.error || `Could not load ${label}.`);
+        setState(json.data);
+        setError("");
+      } catch (err: any) {
+        setError(String(err?.message || `Could not load ${label}.`));
+      }
+    };
+
+    try {
+      await Promise.all([
+        requestStatus("/api/admin/whatsapp", "Site Visit bot", setSiteState, setSiteError),
+        requestStatus("/api/admin/whatsapp/client?mode=status", "client bot", setClientState, setClientError),
+      ]);
+    } finally {
+      setLoading(false);
+      statusRequestInFlight.current = false;
+    }
   }
 
   async function loadConversations() {
