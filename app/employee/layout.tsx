@@ -3,6 +3,7 @@ import RolePortalShell from "@/components/role-portal-shell";
 import EmployeeLocationCheck from "@/components/employee-location-check";
 import AccountShortcut from "@/components/account-shortcut";
 import { requirePortalSession } from "@/lib/server-auth";
+import "../button-contrast-authority.css";
 
 export default async function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["employee"]);
