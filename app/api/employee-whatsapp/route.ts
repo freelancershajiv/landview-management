@@ -14,6 +14,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, unknown>;
+type BotRequestError = Error & { status?: number; retryAfterMs?: number };
 
 type StatusCacheEntry = { expiresAt: number; data: unknown };
 const employeeStatusCache = new Map<string, StatusCacheEntry>();
@@ -50,7 +51,7 @@ async function managerEmployeeCode(user: Row) {
   const direct = employeeCodeOf(user);
   if (/^EMP-/i.test(direct)) return direct;
 
-  const userKey = clean(userIdOf(user as any), 120);
+  const userKey = clean(userIdOf(user as unknown as Parameters<typeof userIdOf>[0]), 120);
   let rows = userKey ? await selectRows("app_users", { filters: { user_key: userKey }, limit: 1 }) : [];
   if (!rows.length) {
     const username = clean(user?.username || user?.Username, 120);
@@ -142,10 +143,11 @@ async function botRequest(path: string, init?: RequestInit) {
         throw error;
       }
       return json;
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
-      const status = Number(error?.status) || 0;
-      const retryAfterMs = Number(error?.retryAfterMs) || 0;
+      const requestError = error as BotRequestError;
+      const status = Number(requestError.status) || 0;
+      const retryAfterMs = Number(requestError.retryAfterMs) || 0;
       const mayRetry = !status || retriableBotStatus(status);
       if (attempt + 1 < attempts && mayRetry) {
         await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt, retryAfterMs)));
@@ -173,12 +175,13 @@ export async function GET(request: NextRequest) {
           employeeStatusCache.set(employeeId, { data, expiresAt: Date.now() + 5_000 });
           return data;
         })
-        .catch((error: any) => {
-          const status = Number(error?.status) || 0;
+        .catch((error: unknown) => {
+          const requestError = error as BotRequestError;
+          const status = Number(requestError.status) || 0;
           if (!status || retriableBotStatus(status)) {
             const data = transientStatusData(
-              clean(error?.message || "WhatsApp service is reconnecting.", 500),
-              Number(error?.retryAfterMs) || 30_000,
+              clean(requestError.message || "WhatsApp service is reconnecting.", 500),
+              Number(requestError.retryAfterMs) || 30_000,
             );
             employeeStatusCache.set(employeeId, { data, expiresAt: Date.now() + 15_000 });
             return data;
@@ -190,15 +193,16 @@ export async function GET(request: NextRequest) {
     }
     const data = await pending;
     return response({ success: true, data });
-  } catch (error: any) {
-    const message = clean(error?.message || "Could not load WhatsApp status.", 1000);
+  } catch (error: unknown) {
+    const requestError = error as BotRequestError;
+    const message = clean(requestError.message || "Could not load WhatsApp status.", 1000);
     if (message === "SESSION_EXPIRED") return response({ success: false, error: "Session expired." }, 401);
     if (message === "EMPLOYEE_REQUIRED") return response({ success: false, error: "Employee or Management access is required." }, 403);
     if (message === "EMPLOYEE_ID_MISSING") return response({ success: false, error: "No employee ID is linked to this account." }, 400);
 
-    const status = Number(error?.status) || 0;
+    const status = Number(requestError.status) || 0;
     if (!status || retriableBotStatus(status)) {
-      return response({ success: true, data: transientStatusData(message, Number(error?.retryAfterMs) || 30_000) });
+      return response({ success: true, data: transientStatusData(message, Number(requestError.retryAfterMs) || 30_000) });
     }
     return response({ success: false, error: message }, status || 500);
   }
@@ -223,11 +227,12 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({ employeeId }),
     });
     return response({ success: true, data });
-  } catch (error: any) {
-    const message = clean(error?.message || "Could not update WhatsApp connection.", 1000);
+  } catch (error: unknown) {
+    const requestError = error as BotRequestError;
+    const message = clean(requestError.message || "Could not update WhatsApp connection.", 1000);
     if (message === "SESSION_EXPIRED") return response({ success: false, error: "Session expired." }, 401);
     if (message === "EMPLOYEE_REQUIRED") return response({ success: false, error: "Employee or Management access is required." }, 403);
     if (message === "EMPLOYEE_ID_MISSING") return response({ success: false, error: "No employee ID is linked to this account." }, 400);
-    return response({ success: false, error: message }, Number(error?.status) || 500);
+    return response({ success: false, error: message }, Number(requestError.status) || 500);
   }
 }
