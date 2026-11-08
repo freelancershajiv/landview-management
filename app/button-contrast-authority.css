@@ -17,7 +17,7 @@
   :is(button,a,[role="button"]):is(
     .btn-primary,.btn-accent,.btn-dark,.login-submit,.public-btn-accent,
     .public-employee-link,.public-header-cta,.lv-btn-gold,.cp-primary,
-    .pm-btn-primary,.pm-btn-income,.lv-clean-btn.primary,.nsdc-button,
+    .pm-btn-primary,.pm-btn-income,.btn-success-solid,.btn-warning-solid,.btn-info-solid,.btn-danger-solid,.lv-clean-btn.primary,.nsdc-button,
     .lv-command-btn.primary,.primary,[data-variant="primary"],
     [data-variant="success-solid"],[data-variant="warning-solid"],
     [data-variant="info-solid"],[data-variant="danger-solid"]
@@ -47,7 +47,7 @@
   :is(button,a,[role="button"]):is(
     .btn,.btn-light,.btn-secondary,.public-btn-outline,.utility-logout,
     .employee-action,.lv-client-signout,.lv-client-menu,.pm-btn
-  ):not(.btn-primary):not(.btn-accent):not(.btn-dark):not(.pm-btn-primary):not(.pm-btn-income):not(.pm-btn-dark):not(.primary) {
+  ):not(.btn-primary):not(.btn-accent):not(.btn-dark):not(.pm-btn-primary):not(.pm-btn-income):not(.pm-btn-dark):not(.btn-danger):not(.danger-button):not(.delete-button):not([data-variant="danger"]):not(.btn-success-solid):not(.btn-warning-solid):not(.btn-info-solid):not(.btn-danger-solid):not(.primary) {
     color: var(--lv-text-primary, #26323e) !important;
     -webkit-text-fill-color: currentColor !important;
   }
