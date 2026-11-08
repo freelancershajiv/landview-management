@@ -44,8 +44,8 @@ export default function EmployeeWhatsAppConnect() {
       const json = await result.json().catch(() => null);
       if (!result.ok || !json?.success) throw new Error(String(json?.error || "Could not load WhatsApp status."));
       setStatus(json.data || {});
-    } catch (e: any) {
-      setError(e?.message || "Could not load WhatsApp status.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Could not load WhatsApp status.");
     } finally {
       requestInFlight.current = false;
       if (!silent) setLoading(false);
@@ -53,7 +53,8 @@ export default function EmployeeWhatsAppConnect() {
   }, []);
 
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   useEffect(() => {
@@ -89,8 +90,8 @@ export default function EmployeeWhatsAppConnect() {
       if (!result.ok || !json?.success) throw new Error(String(json?.error || "Could not reset WhatsApp connection."));
       setStatus(json.data || {});
       window.setTimeout(() => void load(true), 1200);
-    } catch (e: any) {
-      setError(e?.message || "Could not reset WhatsApp connection.");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Could not reset WhatsApp connection.");
     } finally {
       setResetting(false);
     }
