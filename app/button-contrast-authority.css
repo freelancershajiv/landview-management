@@ -47,8 +47,7 @@
   :is(button,a,[role="button"]):is(
     .btn,.btn-light,.btn-secondary,.public-btn-outline,.utility-logout,
     .employee-action,.lv-client-signout,.lv-client-menu,.pm-btn
-  ):not(.btn-primary):not(.btn-accent):not(.btn-dark):not(.pm-btn-primary)
-   :not(.pm-btn-income):not(.pm-btn-dark):not(.primary) {
+  ):not(.btn-primary):not(.btn-accent):not(.btn-dark):not(.pm-btn-primary):not(.pm-btn-income):not(.pm-btn-dark):not(.primary) {
     color: var(--lv-text-primary, #26323e) !important;
     -webkit-text-fill-color: currentColor !important;
   }
