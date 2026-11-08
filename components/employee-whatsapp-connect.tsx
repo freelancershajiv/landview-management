@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 type WhatsAppStatus = {
   employeeId?: string;
@@ -13,6 +13,8 @@ type WhatsAppStatus = {
   lastError?: string | null;
   sharedWithAdmin?: boolean;
   senderType?: string | null;
+  temporary?: boolean;
+  retryAfterMs?: number;
 };
 
 function phoneText(value: unknown) {
@@ -26,8 +28,11 @@ export default function EmployeeWhatsAppConnect() {
   const [loading, setLoading] = useState(true);
   const [resetting, setResetting] = useState(false);
   const [error, setError] = useState("");
+  const requestInFlight = useRef(false);
 
   const load = useCallback(async (silent = false) => {
+    if (requestInFlight.current) return;
+    requestInFlight.current = true;
     if (!silent) setLoading(true);
     setError("");
     try {
@@ -42,6 +47,7 @@ export default function EmployeeWhatsAppConnect() {
     } catch (e: any) {
       setError(e?.message || "Could not load WhatsApp status.");
     } finally {
+      requestInFlight.current = false;
       if (!silent) setLoading(false);
     }
   }, []);
@@ -52,9 +58,22 @@ export default function EmployeeWhatsAppConnect() {
 
   useEffect(() => {
     if (status?.paired) return;
-    const timer = window.setInterval(() => void load(true), 4000);
-    return () => window.clearInterval(timer);
-  }, [load, status?.paired]);
+    let timer: number | undefined;
+    let cancelled = false;
+    const schedule = () => {
+      const serverDelay = Number(status?.retryAfterMs) || 0;
+      const delay = Math.max(30_000, Math.min(60_000, serverDelay || 30_000));
+      timer = window.setTimeout(async () => {
+        if (!cancelled && document.visibilityState === "visible") await load(true);
+        if (!cancelled) schedule();
+      }, delay);
+    };
+    schedule();
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [load, status?.paired, status?.retryAfterMs]);
 
   async function reset() {
     setResetting(true);
