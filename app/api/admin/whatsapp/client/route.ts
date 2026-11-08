@@ -67,65 +67,52 @@ async function projectQueueRequest(input: Row = {}) {
 }
 async function clientPairingState() {
   const { base, token } = config();
+  let lastMessage = "WhatsApp client bot is reconnecting.";
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      const response = await fetch(`${base}/client/pair?key=${encodeURIComponent(token)}`, {
+      const response = await fetch(`${base}/client/health`, {
         method: "GET",
+        headers: { "x-land-view-bot-token": token },
         cache: "no-store",
         signal: AbortSignal.timeout(10_000),
       });
-      if (!response.ok) {
+      const json = await response.json().catch(() => null) as any;
+      if (!response.ok || !json?.ok) {
+        lastMessage = clean(json?.error || `WhatsApp client bot returned HTTP ${response.status}.`, 800);
         if (retriableBotStatus(response.status) && attempt < 3) {
           await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt)));
           continue;
         }
-        if (retriableBotStatus(response.status)) {
-          return {
-            connection: "connecting",
-            paired: false,
-            qrAvailable: false,
-            qrDataUrl: null,
-            temporary: true,
-            lastError: "WhatsApp client bot is waking or reconnecting. Status will refresh automatically.",
-          };
-        }
-        throw new Error(`WhatsApp client bot returned HTTP ${response.status}.`);
+        throw new Error(lastMessage);
       }
-      const html = await response.text();
-      const imageMatch = html.match(/<img\s+src="([^"]+)"/i);
-      const qrDataUrl = imageMatch?.[1] || "";
-      const connected = /<h2>Connected<\/h2>/i.test(html);
-      const loggedOut = /Pairing reset required/i.test(html);
       return {
-        connection: connected ? "open" : qrDataUrl ? "pairing" : loggedOut ? "logged_out" : "connecting",
-        paired: connected,
-        qrAvailable: Boolean(qrDataUrl),
-        qrDataUrl: qrDataUrl || null,
+        connection: json.connection || "connecting",
+        paired: Boolean(json.paired),
+        qrAvailable: Boolean(json.qrAvailable),
+        qrDataUrl: json.qrDataUrl || null,
+        phoneNumber: json.phoneNumber || null,
+        lastError: json.lastError || null,
+        temporary: ["starting", "connecting", "disconnected", "resetting"].includes(String(json.connection || "").toLowerCase()),
       };
-    } catch (error) {
+    } catch (error: any) {
+      lastMessage = clean(error?.message || "WhatsApp client bot is reconnecting.", 800);
       if (attempt < 3) {
         await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt)));
         continue;
       }
       return {
-        connection: "connecting",
+        connection: "service_error",
         paired: false,
         qrAvailable: false,
         qrDataUrl: null,
         temporary: true,
-        lastError: "WhatsApp client bot is waking or reconnecting. Status will refresh automatically.",
+        lastError: lastMessage,
       };
     }
   }
-  return {
-    connection: "connecting",
-    paired: false,
-    qrAvailable: false,
-    qrDataUrl: null,
-    temporary: true,
-    lastError: "WhatsApp client bot is reconnecting.",
-  };
+  return { connection: "service_error", paired: false, qrAvailable: false, qrDataUrl: null, temporary: true, lastError: lastMessage };
 }
+
 async function wakeClientBot() {
   const { base, token } = config();
   try {
