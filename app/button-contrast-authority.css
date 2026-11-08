@@ -1,0 +1,85 @@
+/* LAND VIEW global button contrast authority
+   Loaded after legacy and route-specific theme layers.
+   Only normalizes foreground contrast; it does not replace component geometry
+   or alter the established brand/surface palette. */
+
+@media screen {
+  /* Buttons inherit the foreground of their actual surface instead of
+     accidentally retaining a browser or legacy component text color. */
+  :where(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign) :is(button,[role="button"],a[role="button"]) {
+    color: inherit;
+    -webkit-text-fill-color: currentColor;
+  }
+
+  /* Filled actions always use a foreground that contrasts with the solid fill.
+     Include nested labels/icons so utility classes on child spans cannot mute them. */
+  :is(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign)
+  :is(button,a,[role="button"]):is(
+    .btn-primary,.btn-accent,.btn-dark,.login-submit,.public-btn-accent,
+    .public-employee-link,.public-header-cta,.lv-btn-gold,.cp-primary,
+    .pm-btn-primary,.pm-btn-income,.btn-success-solid,.btn-warning-solid,.btn-info-solid,.btn-danger-solid,.lv-clean-btn.primary,.nsdc-button,
+    .lv-command-btn.primary,.primary,[data-variant="primary"],
+    [data-variant="success-solid"],[data-variant="warning-solid"],
+    [data-variant="info-solid"],[data-variant="danger-solid"]
+  ),
+  :is(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign)
+  :is(button,[role="button"]):is([class*="primaryButton" i],[class*="printButton" i]) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  :is(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign)
+  :is(button,a,[role="button"]):is(
+    .btn-primary,.btn-accent,.btn-dark,.login-submit,.public-btn-accent,
+    .public-employee-link,.public-header-cta,.lv-btn-gold,.cp-primary,
+    .pm-btn-primary,.pm-btn-income,.btn-success-solid,.btn-warning-solid,.btn-info-solid,.btn-danger-solid,.lv-clean-btn.primary,.nsdc-button,
+    .lv-command-btn.primary,.primary,[data-variant="primary"],
+    [data-variant="success-solid"],[data-variant="warning-solid"],
+    [data-variant="info-solid"],[data-variant="danger-solid"],
+    [class*="primaryButton" i],[class*="printButton" i]
+  ) > * {
+    color: inherit !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  /* Neutral and soft actions use the normal readable text token. */
+  :is(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign)
+  :is(button,a,[role="button"]):is(
+    .btn,.btn-light,.btn-secondary,.public-btn-outline,.utility-logout,
+    .employee-action,.lv-client-signout,.lv-client-menu,.pm-btn
+  ):not(.btn-primary):not(.btn-accent):not(.btn-dark):not(.pm-btn-primary):not(.pm-btn-income):not(.pm-btn-dark):not(.btn-danger):not(.danger-button):not(.delete-button):not([data-variant="danger"]):not(.btn-success-solid):not(.btn-warning-solid):not(.btn-info-solid):not(.btn-danger-solid):not(.primary) {
+    color: var(--lv-text-primary, #26323e) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  /* Soft destructive actions are intentionally red-on-tint, not white-on-red. */
+  :is(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign)
+  :is(button,a,[role="button"]):is(.btn-danger,.danger-button,.delete-button,[data-variant="danger"]) {
+    color: var(--lv-danger, #a92c33) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  /* Project-finance dark actions are solid; the explicit secondary variant is not. */
+  .pf-redesign .pm-btn-dark:not(.secondary) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+  .pf-redesign .pm-btn-dark.secondary {
+    color: var(--lv-text-primary, #26323e) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  /* Keep disabled actions legible; communicate state with cursor and opacity. */
+  :is(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign)
+  :is(button,[role="button"]):disabled,
+  :is(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign)
+  :is(button,[role="button"])[aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  :is(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign)
+  :is(button,a,[role="button"]):focus-visible {
+    outline: 2px solid var(--lv-brand-primary, #d61f26) !important;
+    outline-offset: 2px;
+  }
+}

@@ -27,6 +27,8 @@ import "../color-system-compatibility.css";
 import "../brand-palette-original.css";
 // Final screen-only typography authority. Keep after route/mobile/theme layers.
 import "./admin-typography-authority.css";
+// Final Admin button foreground authority after legacy and route-specific CSS.
+import "../button-contrast-authority.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);
