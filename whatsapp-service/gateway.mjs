@@ -85,22 +85,29 @@ function deserialize(value) {
 }
 
 async function useSupabaseAuthState(sessionId) {
+  // Serialize Baileys credential and Signal-key persistence per WhatsApp session.
+  let persistenceQueue = Promise.resolve()
+  function persist(operation) {
+    const pending = persistenceQueue.then(operation)
+    persistenceQueue = pending.catch(() => {})
+    return pending
+  }
   async function readData(keyId) {
+    await persistenceQueue
     const row = await store('authGet', { sessionId, keyId })
     return deserialize(row?.value)
   }
   async function writeData(keyId, value) {
-    await store('authSet', { sessionId, keyId, value: serialize(value) })
+    const snapshot = serialize(value)
+    return persist(() => store('authSet', { sessionId, keyId, value: snapshot }))
   }
   async function writeMany(items) {
     if (!items.length) return
-    await store('authSetMany', {
-      sessionId,
-      items: items.map(({ keyId, value }) => ({ keyId, value: serialize(value) })),
-    })
+    const snapshot = items.map(({ keyId, value }) => ({ keyId, value: serialize(value) }))
+    return persist(() => store('authSetMany', { sessionId, items: snapshot }))
   }
   async function removeData(keyId) {
-    await store('authDelete', { sessionId, keyId })
+    return persist(() => store('authDelete', { sessionId, keyId }))
   }
 
   const creds = (await readData('creds')) || initAuthCreds()
@@ -249,7 +256,7 @@ function createEmployeeSession(employeeId) {
             state.connection = 'logged_out'
           } else {
             state.connection = 'disconnected'
-            scheduleReconnect(code === DisconnectReason.restartRequired ? 1000 : 5000)
+            scheduleReconnect(code === DisconnectReason.restartRequired ? 1000 : code === 429 ? 60000 : 5000)
           }
         }
       })
