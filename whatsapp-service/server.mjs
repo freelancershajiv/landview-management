@@ -852,8 +852,16 @@ app.disable('x-powered-by')
 app.use(express.json({ limit: '64kb' }))
 
 app.get('/', (_req, res) => res.json({ ok: true, adminBot: siteSession.status(), siteVisitBot: siteSession.status(), clientBot: clientSession.status(), centralized: true }))
-app.get('/health', (_req, res) => res.json(siteSession.status()))
-app.get('/client/health', (_req, res) => res.json(clientSession.status()))
+app.get('/health', (req, res) => {
+  if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
+  res.set('cache-control', 'no-store')
+  return res.json(siteSession.status())
+})
+app.get('/client/health', (req, res) => {
+  if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
+  res.set('cache-control', 'no-store')
+  return res.json(clientSession.status())
+})
 app.get('/groups', async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   try {
