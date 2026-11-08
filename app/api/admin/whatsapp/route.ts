@@ -94,42 +94,29 @@ async function pairingState() {
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     try {
-      const response = await fetch(`${base}/pair?key=${encodeURIComponent(token)}`, {
+      const response = await fetch(`${base}/health`, {
         method: "GET",
+        headers: { "x-land-view-bot-token": token },
         cache: "no-store",
         signal: AbortSignal.timeout(10_000),
       });
-
-      if (!response.ok) {
-        lastMessage = `WhatsApp bot returned HTTP ${response.status}.`;
+      const json = await response.json().catch(() => null) as any;
+      if (!response.ok || !json?.ok) {
+        lastMessage = String(json?.error || `WhatsApp bot returned HTTP ${response.status}.`);
         if (retriableBotStatus(response.status) && attempt < 3) {
           await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt)));
           continue;
         }
-        if (retriableBotStatus(response.status)) {
-          return {
-            connection: "connecting",
-            paired: false,
-            qrAvailable: false,
-            qrDataUrl: null,
-            temporary: true,
-            lastError: "WhatsApp service is waking or reconnecting. Status will refresh automatically.",
-          };
-        }
         throw new Error(lastMessage);
       }
-
-      const html = await response.text();
-      const imageMatch = html.match(/<img\s+src="([^"]+)"/i);
-      const qrDataUrl = imageMatch?.[1] || "";
-      const connected = /<h2>Connected<\/h2>/i.test(html);
-      const loggedOut = /Pairing reset required/i.test(html);
-
       return {
-        connection: connected ? "open" : qrDataUrl ? "pairing" : loggedOut ? "logged_out" : "connecting",
-        paired: connected,
-        qrAvailable: Boolean(qrDataUrl),
-        qrDataUrl: qrDataUrl || null,
+        connection: json.connection || "connecting",
+        paired: Boolean(json.paired),
+        qrAvailable: Boolean(json.qrAvailable),
+        qrDataUrl: json.qrDataUrl || null,
+        phoneNumber: json.phoneNumber || null,
+        lastError: json.lastError || null,
+        temporary: ["starting", "connecting", "disconnected", "resetting"].includes(String(json.connection || "").toLowerCase()),
       };
     } catch (error: any) {
       lastMessage = String(error?.message || "WhatsApp service is reconnecting.");
@@ -138,24 +125,16 @@ async function pairingState() {
         continue;
       }
       return {
-        connection: "connecting",
+        connection: "service_error",
         paired: false,
         qrAvailable: false,
         qrDataUrl: null,
         temporary: true,
-        lastError: "WhatsApp service is waking or reconnecting. Status will refresh automatically.",
+        lastError: lastMessage,
       };
     }
   }
-
-  return {
-    connection: "connecting",
-    paired: false,
-    qrAvailable: false,
-    qrDataUrl: null,
-    temporary: true,
-    lastError: lastMessage,
-  };
+  return { connection: "service_error", paired: false, qrAvailable: false, qrDataUrl: null, temporary: true, lastError: lastMessage };
 }
 
 async function groupsState() {
