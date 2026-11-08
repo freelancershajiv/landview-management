@@ -128,7 +128,7 @@ export default function SiteVisitMediaQueue({ canRetry = false }: { canRetry?: b
       .svmq-toolbar button,.svmq-retry{border:1px solid var(--lv-control-border);border-radius:var(--lv-radius-sm);background:var(--lv-control-bg);color:var(--lv-text-primary);height:34px;padding:0 11px;font-size:8px;font-weight:900;cursor:pointer;transition:background var(--lv-motion-fast),border-color var(--lv-motion-fast),color var(--lv-motion-fast)}
       .svmq-toolbar button:hover:not(:disabled){background:var(--lv-control-bg-hover);border-color:var(--lv-border-strong)}
       .svmq-toolbar button:disabled,.svmq-retry:disabled{opacity:.55;cursor:wait}
-      .svmq-toolbar .svmq-sync{border-color:var(--lv-brand-border);background:var(--lv-brand-primary);color:var(--lv-text-inverse)}
+      .svmq-toolbar .svmq-sync{border-color:var(--lv-brand-border);background:var(--lv-brand-primary);color:#fff!important;-webkit-text-fill-color:#fff!important}
       .svmq-toolbar .svmq-sync:hover:not(:disabled){background:var(--lv-brand-primary-hover);border-color:var(--lv-brand-primary-hover)}
       .svmq-jobs{display:grid;gap:8px}
       .svmq-job{border:1px solid var(--lv-border-default);border-radius:var(--lv-radius-md);padding:11px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;background:var(--lv-surface-muted)}
