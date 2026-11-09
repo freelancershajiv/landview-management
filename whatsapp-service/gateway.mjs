@@ -354,7 +354,7 @@ function decodeSiteVisitMedia(value) {
     const base64 = String(item?.base64 || '').trim().replace(/^data:[^;]+;base64,/i, '')
     const caption = String(item?.caption || '').trim().slice(0, 700)
     if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) return null
-    if (!base64 || !/^[A-Za-z0-9+/=\\r\\n]+$/.test(base64)) return null
+    if (!base64 || !/^[A-Za-z0-9+/=\r\n]+$/.test(base64)) return null
     const image = Buffer.from(base64, 'base64')
     if (!image.length || image.length > 4 * 1024 * 1024) return null
     return { mimeType, image, caption }
