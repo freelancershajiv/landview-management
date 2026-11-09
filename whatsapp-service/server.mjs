@@ -910,6 +910,21 @@ app.get('/client/pair', (req, res) => {
   res.send(pairHtml(clientSession, { path: '/client/pair', value: req.query.key }, 'LAND VIEW Admin WhatsApp Bot'))
 })
 
+
+function decodeSiteVisitMedia(value) {
+  if (!Array.isArray(value)) return []
+  return value.slice(0, 8).map((item) => {
+    const mimeType = String(item?.mimeType || 'image/jpeg').trim().toLowerCase()
+    const base64 = String(item?.base64 || '').trim().replace(/^data:[^;]+;base64,/i, '')
+    const caption = String(item?.caption || '').trim().slice(0, 700)
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mimeType)) return null
+    if (!base64 || !/^[A-Za-z0-9+/=\\r\\n]+$/.test(base64)) return null
+    const image = Buffer.from(base64, 'base64')
+    if (!image.length || image.length > 4 * 1024 * 1024) return null
+    return { mimeType, image, caption }
+  }).filter(Boolean)
+}
+
 app.post('/admin/send-group', async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   const sock = siteSession.state.sock
@@ -920,8 +935,29 @@ app.post('/admin/send-group', async (req, res) => {
   if (!message) return res.status(400).json({ ok: false, error: 'WhatsApp message is empty.' })
   try {
     const jid = await ensureGroup(req.body?.groupInviteCode)
-    const sent = await sock.sendMessage(jid, { text: message })
-    return res.json({ ok: true, sent: true, messageId: String(sent?.key?.id || ''), sharedAdminSession: true })
+    const media = decodeSiteVisitMedia(req.body?.media)
+    if (Array.isArray(req.body?.media) && req.body.media.length && !media.length) {
+      return res.status(400).json({ ok: false, error: 'Site Visit photos were received but none passed image validation. Please retry the visit.' })
+    }
+    const sentIds = []
+    for (const item of media) {
+      const sentMedia = await sock.sendMessage(jid, {
+        image: item.image,
+        mimetype: item.mimeType,
+        caption: item.caption || undefined,
+      })
+      const mediaId = String(sentMedia?.key?.id || '')
+      if (mediaId) sentIds.push(mediaId)
+    }
+    const sentText = await sock.sendMessage(jid, { text: message })
+    const textMessageId = String(sentText?.key?.id || '')
+    return res.json({
+      ok: true,
+      sent: true,
+      messageId: textMessageId || sentIds[0] || '',
+      mediaCount: media.length,
+      sharedAdminSession: true,
+    })
   } catch (error) {
     const reason = String(error?.message || error).slice(0, 1000)
     siteSession.state.lastError = reason
