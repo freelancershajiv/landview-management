@@ -168,7 +168,7 @@ async function ensureProposalBills(project: Row, projectCode: string, proposalId
     const row = {
       bill_code: code("BILL", projectCode), project_id: project.id, bill_date: now.slice(0, 10),
       billing_category: entry.category, category: entry.category, description: entry.description,
-      amount: entry.amount, discount: entry.discount, net_amount: entry.netAmount, status: "Draft",
+      amount: entry.amount, discount: entry.discount, status: "Draft",
       notes: `Transferred from accepted proposal ${proposalId}; awaiting bill issuance.`, created_via: "Proposal Bill Transfer",
       source_created_by: text(entry.item.created_by) || actor || null,
       source_created_at: text(entry.item.created_at) || now, source_updated_at: now,
@@ -320,7 +320,7 @@ export async function POST(request: NextRequest) {
       await insertRows("bills", billPlan.map((entry) => ({
         bill_code: code("BILL", projectCode), project_id: project!.id, bill_date: now.slice(0, 10),
         billing_category: entry.category, category: entry.category, description: entry.description,
-        amount: entry.amount, discount: entry.discount, net_amount: entry.netAmount, status: "Open",
+        amount: entry.amount, discount: entry.discount, status: "Open",
         notes: `Created automatically from accepted proposal ${proposalId}`, created_via: "Proposal Auto Conversion",
         source_created_by: text(entry.item.created_by) || actor || null,
         source_created_at: text(entry.item.created_at) || now, source_updated_at: now,
