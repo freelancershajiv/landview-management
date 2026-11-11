@@ -131,21 +131,62 @@ function billingCategory(item: Row) {
 }
 function allocateBills(items: Row[], proposal: Row) {
   const active = items.filter((item) => !["cancelled", "canceled", "inactive"].includes(text(item.status).toLowerCase()))
-    .map((item) => ({ item, amount: Math.max(0, numberOf(item.amount) || numberOf(item.quantity) * numberOf(item.rate)) })).filter((entry) => entry.amount > 0);
+    .map((item) => ({ item, amount: Math.max(0, numberOf(item.amount) || numberOf(item.quantity) * numberOf(item.rate)) }))
+    .filter((entry) => entry.amount > 0);
   const gross = active.reduce((sum, entry) => sum + entry.amount, 0);
   const proposalDiscount = Math.max(0, numberOf(proposal.discount));
   const acceptedNet = Math.max(0, numberOf(proposal.net_amount));
   const inferredDiscount = acceptedNet > 0 && acceptedNet <= gross ? Math.max(0, gross - acceptedNet) : 0;
-  const targetDiscount = gross > 0 ? Math.min(gross, proposalDiscount || inferredDiscount) : 0;
+  const targetDiscount = Math.min(gross, proposalDiscount || inferredDiscount);
+  const explicitDiscountTotal = active.reduce((sum, entry) => sum + Math.min(entry.amount, Math.max(0, numberOf(entry.item.discount))), 0);
+  const hasLineDiscounts = active.some((entry) => entry.item.discount !== null && entry.item.discount !== undefined && text(entry.item.discount) !== "");
+  const useLineDiscounts = hasLineDiscounts && Math.abs(explicitDiscountTotal - targetDiscount) <= 0.01;
   let allocated = 0;
   return active.map((entry, index) => {
-    const share = index === active.length - 1 ? Math.round(Math.max(0, targetDiscount - allocated) * 100) / 100 : Math.round((targetDiscount * entry.amount / gross) * 100) / 100;
+    const lineDiscount = Math.min(entry.amount, Math.max(0, numberOf(entry.item.discount)));
+    const share = useLineDiscounts
+      ? lineDiscount
+      : index === active.length - 1
+        ? Math.round(Math.max(0, targetDiscount - allocated) * 100) / 100
+        : Math.round((targetDiscount * entry.amount / (gross || 1)) * 100) / 100;
     allocated += share;
     const category = billingCategory(entry.item);
     const service = text(entry.item.service) || text(entry.item.description) || "Service";
     const detail = text(entry.item.description);
     return { item: entry.item, category, description: `[${category}] ${service}${detail && detail.toLowerCase() !== service.toLowerCase() ? ` — ${detail}` : ""}`, amount: entry.amount, discount: share, netAmount: Math.max(0, Math.round((entry.amount - share) * 100) / 100) };
   });
+}
+
+async function ensureProposalBills(project: Row, projectCode: string, proposalId: string, billPlan: ReturnType<typeof allocateBills>, actor: string, now: string) {
+  const existing = await selectRows("bills", { filters: { project_id: project.id }, limit: 2000 });
+  let created = 0;
+  for (const entry of billPlan) {
+    const itemCode = text(entry.item.item_code, 160);
+    if (!itemCode) throw new Error(`Proposal ${proposalId} has a billing line without an item code.`);
+    const found = existing.some((row) => text(row.legacy_source_id) === itemCode || text(row.idempotency_key) === itemCode);
+    if (found) continue;
+    const row = {
+      bill_code: code("BILL", projectCode), project_id: project.id, bill_date: now.slice(0, 10),
+      billing_category: entry.category, category: entry.category, description: entry.description,
+      amount: entry.amount, discount: entry.discount, net_amount: entry.netAmount, status: "Open",
+      notes: `Created automatically from accepted proposal ${proposalId}`, created_via: "Proposal Auto Conversion",
+      source_created_by: text(entry.item.created_by) || actor || null,
+      source_created_at: text(entry.item.created_at) || now, source_updated_at: now,
+      legacy_source_id: itemCode, idempotency_key: itemCode,
+      unit_price: numberOf(entry.item.rate), quantity: numberOf(entry.item.quantity) || 1,
+      created_at: now, updated_at: now,
+    };
+    try {
+      const inserted = await insertRows("bills", row);
+      existing.push(inserted[0] || row);
+      created += 1;
+    } catch (error) {
+      const refreshed = await selectRows("bills", { filters: { project_id: project.id }, limit: 2000 });
+      if (!refreshed.some((saved) => text(saved.legacy_source_id) === itemCode || text(saved.idempotency_key) === itemCode)) throw error;
+      existing.splice(0, existing.length, ...refreshed);
+    }
+  }
+  return created;
 }
 
 async function preview(proposalCode: string) {
@@ -187,17 +228,20 @@ export async function POST(request: NextRequest) {
     if (!proposalId) throw new Error("Proposal ID is required.");
     const { proposal, items, prospect } = await proposalData(proposalId);
     const existingConverted = text(proposal.converted_project_code);
+    const actor = userIdOf(user) || text(user.employeeId || user.Employee_ID || user.username || user.Username, 200);
+    const now = new Date().toISOString();
+    const billPlan = allocateBills(items, proposal);
     if (existingConverted) {
-      const project = await selectRows("projects", { filters: { project_code: existingConverted }, limit: 1 });
-      if (project.length) return json({ success: true, data: { projectId: existingConverted, alreadyConverted: true } });
+      const projectRows = await selectRows("projects", { filters: { project_code: existingConverted }, limit: 1 });
+      if (projectRows.length) {
+        const repairedBillingLines = await ensureProposalBills(projectRows[0], existingConverted, proposalId, billPlan, actor, now);
+        return json({ success: true, data: { projectId: existingConverted, alreadyConverted: true, billingLines: billPlan.length, repairedBillingLines, billedNet: Math.round(billPlan.reduce((sum, row) => sum + row.netAmount, 0) * 100) / 100 } });
+      }
     }
     if (text(proposal.status).toLowerCase() !== "accepted") throw new Error("Only an Accepted proposal can be converted to a project.");
 
-    const actor = userIdOf(user) || text(user.employeeId || user.Employee_ID || user.username || user.Username, 200);
-    const now = new Date().toISOString();
     const plan = buildPlan(items);
     const lifecycle = initialLifecycle(plan);
-    const billPlan = allocateBills(items, proposal);
     let sequence = await nextProjectNumber();
     let projectCode = "";
     let project: Row | null = null;
@@ -272,15 +316,7 @@ export async function POST(request: NextRequest) {
     }
     if (!project || !projectCode || !project.id) throw new Error("Could not reserve the next LAND VIEW File ID.");
 
-    if (billPlan.length) {
-      await insertRows("bills", billPlan.map((entry) => ({
-        bill_code: code("BILL", projectCode), project_id: project!.id, bill_date: now.slice(0, 10), billing_category: entry.category, category: entry.category,
-        description: entry.description, amount: entry.amount, discount: entry.discount, net_amount: entry.netAmount, status: "Open",
-        notes: `Created automatically from accepted proposal ${proposalId}`, created_via: "Proposal Auto Conversion",
-        source_created_by: text(entry.item.created_by) || actor || null, source_created_at: text(entry.item.created_at) || now, source_updated_at: now,
-        legacy_source_id: text(entry.item.item_code) || null, idempotency_key: text(entry.item.item_code) || code("PBI", projectCode), unit_price: numberOf(entry.item.rate), quantity: numberOf(entry.item.quantity) || 1, created_at: now, updated_at: now,
-      })));
-    }
+    const createdBillingLines = await ensureProposalBills(project, projectCode, proposalId, billPlan, actor, now);
 
     if (plan.design.length) {
       await insertRows("drawing_submissions", plan.design.map((entry) => ({
@@ -328,7 +364,7 @@ export async function POST(request: NextRequest) {
       await insertRows("proposal_activity", {
         activity_code: code("PA"), proposal_code: proposalId, prospect_code: text(proposal.prospect_code) || null, action: "Converted to Project",
         from_status: "Accepted", to_status: "Converted", performed_by: text(user.name || user.Name) || actor || null, performed_at: now,
-        details: `Automatically created ${projectCode}: ${plan.design.length} design deliverable(s), ${plan.approvals.length} approval requirement(s), ${responsibilityTasks} responsibility task(s), ${plan.tasks.length} general workflow task(s), and ${billPlan.length} billing line(s).`,
+        details: `Automatically created ${projectCode}: ${plan.design.length} design deliverable(s), ${plan.approvals.length} approval requirement(s), ${responsibilityTasks} responsibility task(s), ${plan.tasks.length} general workflow task(s), and ${billPlan.length} billing line(s), ${createdBillingLines} newly linked.`,
         user_key: actor || null, role: roleOf(user) || null, reference: projectCode,
       });
     }
@@ -336,13 +372,13 @@ export async function POST(request: NextRequest) {
     const billedNet = Math.round(billPlan.reduce((sum, row) => sum + row.netAmount, 0) * 100) / 100;
     await recordAuditEvent({
       user, request, action: "proposal_auto_conversion", entityType: "project", entityId: projectCode,
-      after: { proposalId, projectId: projectCode, lifecyclePhase: lifecycle.phase, designDeliverables: plan.design.length, approvalRequirements: plan.approvals.length, workflowTasks: plan.tasks.length, responsibilityTasks, responsibilityWarning: responsibilityWarning || null, billedNet },
+      after: { proposalId, projectId: projectCode, lifecyclePhase: lifecycle.phase, designDeliverables: plan.design.length, approvalRequirements: plan.approvals.length, workflowTasks: plan.tasks.length, responsibilityTasks, responsibilityWarning: responsibilityWarning || null, billedNet, createdBillingLines },
       source: "proposal-auto-conversion",
     });
 
     return json({ success: true, data: {
       projectId: projectCode, proposalId, lifecyclePhase: lifecycle.phase, designDeliverables: plan.design.length, approvalRequirements: plan.approvals.length,
-      workflowTasks: plan.tasks.length, responsibilityTasks, responsibilityWarning: responsibilityWarning || null, billingLines: billPlan.length, billedNet, supervisionRequired: plan.supervisionRequired,
+      workflowTasks: plan.tasks.length, responsibilityTasks, responsibilityWarning: responsibilityWarning || null, billingLines: billPlan.length, createdBillingLines, billedNet, supervisionRequired: plan.supervisionRequired,
     } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not convert proposal.";
