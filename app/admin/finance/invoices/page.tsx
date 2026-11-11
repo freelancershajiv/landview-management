@@ -34,6 +34,7 @@ type ProjectBillingBundle = {
   billPayments: { billCode: string; invoiceCode: string; paymentCode: string; date: string; amount: number; details: string }[];
   updatedAt?: string;
   mode?: string;
+  commercial?: { contractStatus: string; proposalCode: string; totals: { contract: number; billed: number; paid: number; due: number; unbilled: number }; services: { serviceName: string; billingCategory: string; workflowStatus: string; contractNet: number; billed: number; paid: number; due: number; unbilled: number; nextBilling: { milestone: string; trigger: string; amount: number; status: string } | null }[] } | null;
 };
 type FileListProject = { id: string; name: string; type: string; floor: string };
 type SingleBillOption = {
@@ -273,12 +274,14 @@ async function loadProjectBillingBundle(id: string): Promise<ProjectBillingBundl
     billPayments: Array.isArray(json.data.billPayments) ? json.data.billPayments : [],
     updatedAt: String(json.data.updatedAt || ""),
     mode: String(json.data.mode || ""),
+    commercial: json.data.commercial && Array.isArray(json.data.commercial.services) ? json.data.commercial : null,
   };
 }
 
 export default function ProjectBillingPage() {
   const [fileId, setFileId] = useState("");
   const [result, setResult] = useState<SheetInvoices | null>(null);
+  const [commercial, setCommercial] = useState<ProjectBillingBundle["commercial"]>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -355,13 +358,15 @@ export default function ProjectBillingPage() {
       id,
       bundle.billPayments,
     );
-    return verifySheetInvoicesWithPayments(billing, bundle.payments || []);
+    return { billing: verifySheetInvoicesWithPayments(billing, bundle.payments || []), commercial: bundle.commercial };
   }
 
   async function refreshBilling(id: string, version: number, background: boolean) {
     try {
-      const billing = await fetchFreshBilling(id);
+      const fresh = await fetchFreshBilling(id);
       if (version !== request.current) return;
+      const billing = fresh.billing;
+      setCommercial(fresh.commercial || null);
       saveBillingSnapshot(id, billing);
       setResult(billing);
       void loadInvoiceHistory(billing.id);
@@ -393,7 +398,7 @@ export default function ProjectBillingPage() {
       return;
     }
 
-    setResult(null); setBusy(true); setRefreshing(false);
+    setResult(null); setCommercial(null); setBusy(true); setRefreshing(false);
     await refreshBilling(id, version, false);
   }
 
@@ -618,6 +623,18 @@ export default function ProjectBillingPage() {
         </div>
       )}
 
+      {result && commercial && !singleBillPrint && (
+        <section style={{ marginTop: 24, padding: 18, border: "1px solid var(--border, #cbd5d1)", borderRadius: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
+            <div><span style={{ fontSize: 10, fontWeight: 800, letterSpacing: ".12em", color: "#b51f2e" }}>CONTRACT BILLING · {commercial.contractStatus}</span><h2 style={{ fontSize: 18, fontWeight: 850, margin: "5px 0" }}>Contracted services & upcoming bills</h2><p style={{ fontSize: 12, margin: 0, opacity: .72 }}>Proposal {commercial.proposalCode || "—"} · These are contract values, not issued invoices or received payments.</p></div>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(125px,1fr))", gap: 9, margin: "16px 0" }}>
+            {([["Contract",commercial.totals.contract],["Issued",commercial.totals.billed],["Paid",commercial.totals.paid],["Current due",commercial.totals.due],["Not yet billed",commercial.totals.unbilled]] as [string,number][]).map(([label,value])=><div key={label} style={{ padding: 12, borderRadius: 9, background: "var(--surface-muted,rgba(120,130,125,.08))" }}><small style={{ display:"block",opacity:.68 }}>{label}</small><strong style={{ display:"block",fontSize:16,marginTop:4 }}>৳{Number(value||0).toLocaleString("en-BD",{maximumFractionDigits:2})}</strong></div>)}
+          </div>
+          <div style={{ overflowX: "auto" }}><table style={{ width:"100%",borderCollapse:"collapse",fontSize:12,minWidth:760 }}><thead><tr>{["Service","Workflow","Contract","Issued","Paid","Due","Unbilled","Next milestone"].map(h=><th key={h} style={{ textAlign:"left",padding:"9px 8px",borderBottom:"1px solid var(--border, #cbd5d1)",whiteSpace:"nowrap" }}>{h}</th>)}</tr></thead><tbody>{commercial.services.map((service,index)=><tr key={service.serviceName+"-"+index}><td style={{padding:"10px 8px",fontWeight:700}}>{service.serviceName}</td><td style={{padding:"10px 8px"}}>{service.workflowStatus}</td>{[service.contractNet,service.billed,service.paid,service.due,service.unbilled].map((value,i)=><td key={i} style={{padding:"10px 8px",whiteSpace:"nowrap"}}>৳{Number(value||0).toLocaleString("en-BD",{maximumFractionDigits:2})}</td>)}<td style={{padding:"10px 8px"}}>{service.nextBilling ? <><strong>{service.nextBilling.milestone}</strong><div style={{opacity:.7}}>৳{service.nextBilling.amount.toLocaleString("en-BD")} · {service.nextBilling.status}</div></> : "—"}</td></tr>)}</tbody></table></div>
+          <p style={{ margin:"12px 0 0",fontSize:11,opacity:.68 }}>Only issued bills create receivables. Contract and unbilled amounts are displayed separately and are not counted as paid, due, or revenue.</p>
+        </section>
+      )}
       {visibleBilling && <ProjectBillingDocument result={visibleBilling} verificationUrl={singleBillPrint ? singleBillVerificationUrl : verificationUrl} verificationError={verificationError} dueOnly={Boolean(dueOnly && !singleBillPrint)} />}
       {result && invoiceHistory.length > 0 && !singleBillPrint && (
         <section style={{ marginTop: 24, padding: 16, border: "1px solid var(--border, #cbd5d1)", borderRadius: 12 }}>
