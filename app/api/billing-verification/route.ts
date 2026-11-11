@@ -191,8 +191,15 @@ export async function POST(request: NextRequest) {
       }))[0];
       if (!project) return NextResponse.json({ success: false, error: "Project not found." }, { status: 404 });
       const authority = await loadReceivableAuthority({ projectId: project.id });
-      const balance = authority.projects.get(String(project.id));
-      if (!balance) return NextResponse.json({ success: false, error: "Project billing was not found." }, { status: 404 });
+      // A valid project may have no issued receivables yet (for example, all
+      // proposal-transfer bills are still Draft). A project statement is still
+      // a valid document in that state; represent its issued-billing balance as
+      // zero rather than treating the project itself as missing.
+      const balance = authority.projects.get(String(project.id)) || {
+        billed: 0,
+        paid: 0,
+        totalDue: 0,
+      };
       if (documentKind === "due" && balance.totalDue <= 0.009) {
         return NextResponse.json({ success: false, error: "There is no outstanding due balance." }, { status: 409 });
       }
