@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -19,8 +23,12 @@
       }
     ],
     "paths": {
-      "@/components/project-billing-document": ["./components/project-billing-document-revamp"],
-      "@/*": ["./*"]
+      "@/components/project-billing-document": [
+        "./components/project-billing-document-revamp"
+      ],
+      "@/*": [
+        "./*"
+      ]
     }
   },
   "include": [
@@ -29,7 +37,12 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    ".cloudflare/types"
   ],
-  "exclude": ["node_modules", "supabase/functions", "mobile"]
+  "exclude": [
+    "node_modules",
+    "supabase/functions",
+    "mobile"
+  ]
 }
