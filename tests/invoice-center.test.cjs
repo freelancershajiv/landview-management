@@ -123,7 +123,8 @@ test("weekly reminder schedule is configured without enabling external messages"
   const config = JSON.parse(read("vercel.json"));
   assert.ok(config.crons.some((job) => job.path === "/api/cron/invoice-reminders" && job.schedule === "0 4 * * 1"));
   assert.ok(!config.env?.INVOICE_REMINDERS_ENABLED);
-  assert.match(cron, /process\.env\.INVOICE_REMINDERS_ENABLED !== "true"/);\n  assert.match(cron, /process\.env\.VERCEL_ENV !== "production"/);
+  assert.match(cron, /process\.env\.INVOICE_REMINDERS_ENABLED !== "true"/);
+  assert.match(cron, /process\.env\.VERCEL_ENV !== "production"/);
 });
 
 test("canonical authority marks truncated financial reads incomplete", () => {
