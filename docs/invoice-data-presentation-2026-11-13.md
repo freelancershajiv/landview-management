@@ -28,7 +28,7 @@ Read-only database sample at implementation: 419 payment rows, 658 allocation ro
 - Single invoices: continue using the exact bill's allocations and due. They do not inherit project-wide payment-reconciliation values.
 - Historical Paid/allocation differences are a review warning, not automatically new client debt.
 - The old `gross - discount - paid = due` sentence is removed because it is not always true after settlement and adjustments.
-- Receipt links render only for validated same-origin `/verify/receipt/<32-character-hex-token>` paths. All 303 existing live receipt URLs match this pattern. External and malformed destinations are excluded. The screen ledger is collapsible to reduce repetition; A4 documents retain payment tables and category summaries.
+- Receipt paths are validated against same-origin `/verify/receipt/<32-character-hex-token>` values; all 303 live receipt URLs match this format. To avoid introducing unsafe dynamic navigation, the updated ledger displays receipt availability and identifiers without adding a direct link until security review is complete. The screen ledger is collapsible; A4 documents retain payment tables and category summaries.
 - Incomplete ledger or a reconciliation mismatch must never be silently treated as an audited collectible value.
 
 ## Release and checks

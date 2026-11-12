@@ -259,7 +259,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
               {ledger ? ledger.allocationStatus : "Allocation details unavailable"}
               {ledger?.invoices.length ? ` · ${ledger.invoices.map((part) => part.invoiceCode || part.billCode).filter(Boolean).join(", ")}` : ""}
             </small>}
-            {ledger?.receiptUrl && <a className={styles.receiptLink} href={ledger.receiptUrl} target="_blank" rel="noopener noreferrer">View receipt</a>}
+            {ledger?.receiptUrl && <small className={styles.paymentMetadata}>Receipt available in billing verification</small>}
           </td>
           {singleInvoice ? <td className={styles.moneyCell}>{amountText(payment.amount)}</td> : <>
             <td className={styles.moneyCell}>{amountText(payment.amount)}</td>
@@ -326,7 +326,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
               <thead><tr><th>Date</th><th>Payment ID / receipt</th><th>Method / reference</th><th>Received</th><th>Applied</th><th>Unallocated</th><th>Applied invoices</th></tr></thead>
               <tbody>{paymentReview.payments.length ? paymentReview.payments.map((payment) => <tr key={payment.paymentCode}>
                 <td>{paymentDateOnly(payment.date)}</td>
-                <td><strong>{payment.paymentCode}</strong>{payment.receiptUrl && <a className={styles.receiptLink} href={payment.receiptUrl} rel="noopener noreferrer" target="_blank">View receipt</a>}</td>
+                <td><strong>{payment.paymentCode}</strong>{payment.receiptUrl && <small className={styles.paymentMetadata}>Receipt available in billing verification</small>}</td>
                 <td>{[payment.method, payment.reference].filter(Boolean).join(" · ") || "—"}<small className={styles.paymentMetadata}>{payment.allocationStatus}</small></td>
                 <td className={styles.moneyCell}>{amountText(payment.amount)}</td>
                 <td className={styles.moneyCell}>{amountText(payment.allocated)}</td>

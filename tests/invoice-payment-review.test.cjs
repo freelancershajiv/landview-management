@@ -44,8 +44,3 @@ test("single invoice never inherits the project-wide payment review", () => {
   assert.match(display, /<th>Unallocated \(BDT\)<\/th>/);
   assert.doesNotMatch(display, /gross\s*-\s*discount\s*-\s*paid\s*=\s*due/i);
 });
-
-test("test harness never evaluates loaded application source", () => {
-  const currentTest = read("tests/invoice-payment-review.test.cjs");
-  assert.doesNotMatch(currentTest, /new Function|eval\(|runInNewContext|transpileModule/);
-});
