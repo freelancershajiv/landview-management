@@ -65,6 +65,10 @@ async function migrationReady(projectId: string) {
       select: "id,requirement_key,verification_status,owner_name,received_from,storage_location,verified_at,returned_by,idempotency_key",
       filters: { project_id: projectId }, limit: 1,
     });
+    // Do not allow writes without the transactional event history and gateway.
+    await selectRows("project_client_document_events", {
+      select: "id,register_id,project_id,event_type", filters: { project_id: projectId }, limit: 1,
+    });
     return true;
   } catch { return false; }
 }
