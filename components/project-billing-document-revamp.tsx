@@ -233,7 +233,6 @@ export default function ProjectBillingDocumentRevamp({
     if (exact) return exact;
     const allocations = allocationsByPaymentCode.get(code) || [];
     if (!allocations.length) return undefined;
-    const received = Number(payment.amount);
     const allocated = allocations.reduce((sum, part) => sum + Number(part.amount), 0);
     // Refuse a questionable invoice/receipt association rather than silently
     // printing impossible totals or declaring an invoice fully paid.
