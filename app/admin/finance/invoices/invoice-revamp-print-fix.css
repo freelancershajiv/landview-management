@@ -212,9 +212,15 @@
     padding:1.5mm .95mm!important;
     font-size:7.5pt!important;
   }
-  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable th:nth-child(n+4),
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable th:nth-child(n+4){
+    text-align:right!important;
+    /* Higher specificity than the old five-column nowrap override. */
+    white-space:normal!important;
+    overflow-wrap:break-word!important;
+  }
   .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable td:nth-child(n+4){
     text-align:right!important;
+    white-space:nowrap!important;
   }
   .lvInvoiceRevampRoot .lvInvoicePage .lvSingleInvoiceDepositTable col:nth-child(1){width:8%!important}
   .lvInvoiceRevampRoot .lvInvoicePage .lvSingleInvoiceDepositTable col:nth-child(2){width:18%!important}
