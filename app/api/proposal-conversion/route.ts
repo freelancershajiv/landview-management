@@ -168,8 +168,11 @@ async function ensureProposalBills(project: Row, projectCode: string, proposalId
     const row = {
       bill_code: code("BILL", projectCode), project_id: project.id, bill_date: now.slice(0, 10),
       billing_category: entry.category, category: entry.category, description: entry.description,
-      amount: entry.amount, discount: entry.discount, status: "Draft",
-      notes: `Transferred from accepted proposal ${proposalId}; awaiting bill issuance.`, created_via: "Proposal Bill Transfer",
+      amount: entry.amount, discount: entry.discount, status: entry.netAmount > 0.009 ? "Issued" : "Draft",
+      notes: entry.netAmount > 0.009
+        ? `Issued automatically from accepted proposal ${proposalId}.`
+        : `Zero-value line retained from accepted proposal ${proposalId}; no collectible invoice.`,
+      created_via: "Proposal Bill Transfer",
       source_created_by: text(entry.item.created_by) || actor || null,
       source_created_at: text(entry.item.created_at) || now, source_updated_at: now,
       legacy_source_id: itemCode, idempotency_key: itemCode,
@@ -316,21 +319,10 @@ export async function POST(request: NextRequest) {
     }
     if (!project || !projectCode || !project.id) throw new Error("Could not reserve the next LAND VIEW File ID.");
 
-    if (billPlan.length) {
-      await insertRows("bills", billPlan.map((entry) => ({
-        bill_code: code("BILL", projectCode), project_id: project!.id, bill_date: now.slice(0, 10),
-        billing_category: entry.category, category: entry.category, description: entry.description,
-        amount: entry.amount, discount: entry.discount, status: "Open",
-        notes: `Created automatically from accepted proposal ${proposalId}`, created_via: "Proposal Auto Conversion",
-        source_created_by: text(entry.item.created_by) || actor || null,
-        source_created_at: text(entry.item.created_at) || now, source_updated_at: now,
-        legacy_source_id: text(entry.item.item_code) || null,
-        idempotency_key: text(entry.item.item_code) || code("PBI", projectCode),
-        unit_price: numberOf(entry.item.rate), quantity: numberOf(entry.item.quantity) || 1,
-        created_at: now, updated_at: now,
-      })));
-    }
-
+    // Use the same idempotent write for initial conversion and later repair.
+    // Legacy "Proposal Auto Conversion" inserts are consumed by a database
+    // trigger that returns NULL after capturing a contract, leaving no bill.
+    // Positive-net lines are Issued; zero-value lines remain non-receivable Drafts.
     const createdBillingLines = await ensureProposalBills(project, projectCode, proposalId, billPlan, actor, now);
 
     if (plan.design.length) {
