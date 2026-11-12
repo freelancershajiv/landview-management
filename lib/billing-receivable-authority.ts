@@ -147,6 +147,7 @@ export type ProjectReceivableState = {
 };
 
 export type ReceivableAuthority = {
+  complete: boolean;
   projects: Map<string, ProjectReceivableState>;
   bills: BillReceivableState[];
   billByCode: Map<string, BillReceivableState>;
@@ -425,5 +426,9 @@ export async function loadReceivableAuthority(options: { projectId?: string } = 
     remainingUnallocated: 0,
   });
 
-  return { projects, bills: billStates, billByCode, billById, invoices: invoiceStates, payments: paymentStates, totals };
+  // A capped query must not silently certify a partial financial dataset.
+  // All limits mirror the source-query limits in loadReceivableAuthority.
+  const complete = [bills, invoices, payments, allocations, adjustments, writeoffs]
+    .every((rows, index) => rows.length < [10000, 10000, 10000, 20000, 10000, 10000][index]);
+  return { complete, projects, bills: billStates, billByCode, billById, invoices: invoiceStates, payments: paymentStates, totals };
 }

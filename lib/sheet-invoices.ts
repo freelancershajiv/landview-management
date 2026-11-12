@@ -134,12 +134,19 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
           ? Math.max(0, amount - billDiscount)
           : undefined;
       const status = String(row[6] ?? "").trim();
+      // Preserve canonical identifiers before sorting or merging same-priced services.
+      const billId = String(row[5] ?? "").trim();
+      const billInvoiceCode = String(row[11] ?? "").trim();
+      const billIssueDate = String(row[12] ?? "").trim();
 
       return {
         service: legacy.description,
         price: row[2],
         quantity: row[3],
         amount,
+        ...(billId ? { billId } : {}),
+        ...(billInvoiceCode ? { billInvoiceCode } : {}),
+        ...(billIssueDate ? { billIssueDate } : {}),
         ...(status ? { billStatus: status.toLowerCase() } : {}),
         ...(billNetAmount !== undefined ? { billNetAmount } : {}),
         ...(billDiscount !== undefined ? { billDiscount } : {}),
@@ -282,6 +289,7 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
     const service = legacy.description || "Service";
     const unitPrice = String(recordValue(record, ["Unit_Price", "Unit Price", "Rate", "unit_price"])).trim();
     const quantity = String(recordValue(record, ["Quantity", "Qty", "QTY", "quantity"])).trim();
+    const billId = String(recordValue(record, ["Bill_ID", "Bill_Code", "bill_code", "bill_id"])).trim();
     const explicitNetAmount = optionalBillingAmount(recordValue(record, ["Net_Amount", "Net Amount"]));
     const explicitDiscount = optionalBillingAmount(recordValue(record, ["Discount", "Bill_Discount", "Bill Discount"]));
     const billDiscount = explicitDiscount !== undefined
@@ -293,9 +301,13 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
         ? Math.max(0, billAmount - billDiscount)
         : undefined;
 
-    const alreadyIncluded = category.items.find((item) =>
-      normalizedBillDescription(item.service) === normalizedBillDescription(service) && Math.abs(item.amount - billAmount) < 0.01,
-    );
+    const alreadyIncluded = category.items.find((item) => {
+      const existingId = String(item.billId || "").trim();
+      // A display description and price are not a unique bill identity.
+      // Fall back to legacy matching only when BOTH records have no canonical ID.
+      if (billId || existingId) return !!billId && !!existingId && billId.toLowerCase() === existingId.toLowerCase();
+      return normalizedBillDescription(item.service) === normalizedBillDescription(service) && Math.abs(item.amount - billAmount) < 0.01;
+    });
     if (alreadyIncluded) {
       if (!String(alreadyIncluded.price ?? "").trim() && unitPrice) alreadyIncluded.price = unitPrice;
       if (!String(alreadyIncluded.quantity ?? "").trim() && quantity) alreadyIncluded.quantity = quantity;
@@ -309,6 +321,7 @@ export function mergeBillingWorkspaceBills(billing: SheetInvoices, databaseBills
       price: unitPrice,
       quantity,
       amount: billAmount,
+      ...(billId ? { billId } : {}),
       billStatus: status || undefined,
       billNetAmount,
       billDiscount,

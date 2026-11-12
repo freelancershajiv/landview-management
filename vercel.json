@@ -1,5 +1,19 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "regions": ["bom1"],
-  "git": { "deploymentEnabled": { "main": true, "white-theme-preview": true, "*": false } }
+  "regions": [
+    "bom1"
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "main": true,
+      "white-theme-preview": true,
+      "*": false
+    }
+  },
+  "crons": [
+    {
+      "path": "/api/cron/invoice-reminders",
+      "schedule": "0 4 * * 1"
+    }
+  ]
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
 import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
@@ -26,6 +27,13 @@ function numberOf(value: unknown) { const n = Number(String(value ?? 0).replace(
 function code(prefix: string, projectCode?: string) {
   const project = projectCode ? `-${projectCode.replace(/[^A-Z0-9]/gi, "").toUpperCase()}` : "";
   return `${prefix}${project}-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+}
+// Deterministic per proposal item. The database's unique bill_code constraint
+// stops concurrent retries from creating two different bills for the same item.
+function proposalBillCode(projectCode: string, itemCode: string) {
+  const normalizedProject = projectCode.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  const digest = createHash("sha256").update(`${normalizedProject}:${itemCode}`).digest("hex").slice(0, 16).toUpperCase();
+  return `BILL-${normalizedProject}-${digest}`;
 }
 function json(data: unknown, status = 200) { return NextResponse.json(data, { status, headers: { "Cache-Control": "no-store, max-age=0" } }); }
 function sameOrigin(request: NextRequest) {
@@ -157,6 +165,31 @@ function allocateBills(items: Row[], proposal: Row) {
   });
 }
 
+function validateProposalBillPlan(proposalId: string, proposal: Row, billPlan: ReturnType<typeof allocateBills>) {
+  // Fail BEFORE creating a new project. A broken proposal must never leave
+  // a partially converted project or post the wrong accepted contract total.
+  const codes = new Set<string>();
+  for (const line of billPlan) {
+    const itemCode = text(line.item.item_code, 160);
+    if (!itemCode || codes.has(itemCode)) throw new Error(`Proposal ${proposalId} has missing or duplicate billing-line IDs.`);
+    codes.add(itemCode);
+    if (!Number.isFinite(line.amount) || !Number.isFinite(line.discount) ||
+        !Number.isFinite(line.netAmount) || line.amount <= 0 ||
+        line.discount < 0 || line.discount > line.amount + 0.009 ||
+        Math.abs(line.amount - line.discount - line.netAmount) > 0.011) {
+      throw new Error(`Proposal ${proposalId} has an invalid amount or discount for billing line ${itemCode}.`);
+    }
+  }
+  const expectedNetRaw = proposal.net_amount;
+  if (expectedNetRaw !== null && expectedNetRaw !== undefined && text(expectedNetRaw) !== "") {
+    const acceptedNet = numberOf(expectedNetRaw);
+    const preparedNet = Math.round(billPlan.reduce((sum, line) => sum + line.netAmount, 0) * 100) / 100;
+    if (Math.abs(acceptedNet - preparedNet) > 0.011) {
+      throw new Error(`Proposal ${proposalId} billing total does not match its accepted net. Review discounts before conversion.`);
+    }
+  }
+}
+
 async function ensureProposalBills(project: Row, projectCode: string, proposalId: string, billPlan: ReturnType<typeof allocateBills>, actor: string, now: string) {
   const existing = await selectRows("bills", { filters: { project_id: project.id }, limit: 2000 });
   let created = 0;
@@ -166,10 +199,13 @@ async function ensureProposalBills(project: Row, projectCode: string, proposalId
     const found = existing.some((row) => text(row.legacy_source_id) === itemCode || text(row.idempotency_key) === itemCode);
     if (found) continue;
     const row = {
-      bill_code: code("BILL", projectCode), project_id: project.id, bill_date: now.slice(0, 10),
+      bill_code: proposalBillCode(projectCode, itemCode), project_id: project.id, bill_date: now.slice(0, 10),
       billing_category: entry.category, category: entry.category, description: entry.description,
-      amount: entry.amount, discount: entry.discount, status: "Draft",
-      notes: `Transferred from accepted proposal ${proposalId}; awaiting bill issuance.`, created_via: "Proposal Bill Transfer",
+      amount: entry.amount, discount: entry.discount, status: entry.netAmount > 0.009 ? "Issued" : "Draft",
+      notes: entry.netAmount > 0.009
+        ? `Issued automatically from accepted proposal ${proposalId}.`
+        : `Zero-value line retained from accepted proposal ${proposalId}; no collectible invoice.`,
+      created_via: "Proposal Bill Transfer",
       source_created_by: text(entry.item.created_by) || actor || null,
       source_created_at: text(entry.item.created_at) || now, source_updated_at: now,
       legacy_source_id: itemCode, idempotency_key: itemCode,
@@ -231,12 +267,19 @@ export async function POST(request: NextRequest) {
     const actor = userIdOf(user) || text(user.employeeId || user.Employee_ID || user.username || user.Username, 200);
     const now = new Date().toISOString();
     const billPlan = allocateBills(items, proposal);
+    validateProposalBillPlan(proposalId, proposal, billPlan);
     if (existingConverted) {
       const projectRows = await selectRows("projects", { filters: { project_code: existingConverted }, limit: 1 });
       if (projectRows.length) {
         const repairedBillingLines = await ensureProposalBills(projectRows[0], existingConverted, proposalId, billPlan, actor, now);
         return json({ success: true, data: { projectId: existingConverted, alreadyConverted: true, billingLines: billPlan.length, repairedBillingLines, billedNet: Math.round(billPlan.reduce((sum, row) => sum + row.netAmount, 0) * 100) / 100 } });
       }
+    }
+    // If registration succeeded but a later step failed before the proposal
+    // was marked Converted, do not create a second project for the same proposal.
+    const registered = await selectRows("projects", { filters: { reclassified_proposal_code: proposalId }, limit: 2 });
+    if (registered.length) {
+      throw new Error(`Proposal ${proposalId} is already linked to project ${text(registered[0].project_code)}. Review the incomplete conversion before retrying.`);
     }
     if (text(proposal.status).toLowerCase() !== "accepted") throw new Error("Only an Accepted proposal can be converted to a project.");
 
@@ -316,12 +359,17 @@ export async function POST(request: NextRequest) {
     }
     if (!project || !projectCode || !project.id) throw new Error("Could not reserve the next LAND VIEW File ID.");
 
+    // The "Proposal Auto Conversion" BEFORE INSERT trigger creates the
+    // proposal-backed contract, services and billing milestones, then returns
+    // NULL intentionally: these rows are NOT the client invoice bills.
+    // Preserve this contract capture, then create actual bill records through
+    // the same idempotent function used to repair converted proposals.
     if (billPlan.length) {
       await insertRows("bills", billPlan.map((entry) => ({
         bill_code: code("BILL", projectCode), project_id: project!.id, bill_date: now.slice(0, 10),
         billing_category: entry.category, category: entry.category, description: entry.description,
         amount: entry.amount, discount: entry.discount, status: "Open",
-        notes: `Created automatically from accepted proposal ${proposalId}`, created_via: "Proposal Auto Conversion",
+        notes: `Capture accepted proposal contract ${proposalId}`, created_via: "Proposal Auto Conversion",
         source_created_by: text(entry.item.created_by) || actor || null,
         source_created_at: text(entry.item.created_at) || now, source_updated_at: now,
         legacy_source_id: text(entry.item.item_code) || null,
@@ -331,6 +379,7 @@ export async function POST(request: NextRequest) {
       })));
     }
 
+    // Positive-net lines become Issued. Fully discounted lines remain Draft.
     const createdBillingLines = await ensureProposalBills(project, projectCode, proposalId, billPlan, actor, now);
 
     if (plan.design.length) {
