@@ -158,7 +158,15 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
       Math.abs(Number(item.billNetAmount ?? 0)) <= 0.009
     )));
 
-    const rawPayments = matching(category.deposit).map((row) => ({
+    const rawPayments: Array<{
+      date: string;
+      details: string;
+      amount: number;
+      verification: string;
+      incomeId: string;
+      allocatedAmount?: number;
+      unallocatedAmount?: number;
+    }> = matching(category.deposit).map((row) => ({
       date: row[1],
       details: row[2],
       amount: sheetAmount(row[3]),
