@@ -4,11 +4,13 @@ import Link from "next/link";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import {
+  attachInvoicePaymentReview,
   buildSheetInvoices,
   mergeBillingWorkspaceBills,
   normalizeFileId,
   verifySheetInvoicesWithPayments,
   type SheetInvoices,
+  type InvoicePaymentReview,
 } from "@/lib/sheet-invoices";
 import ProjectBillingDocument, {
   billingVerificationSnapshot,
@@ -32,6 +34,7 @@ type ProjectBillingBundle = {
   sheets: FinanceSheetData[];
   payments: Record<string, unknown>[];
   billPayments: { billCode: string; invoiceCode: string; paymentCode: string; date: string; amount: number; details: string }[];
+  paymentReview?: InvoicePaymentReview;
   updatedAt?: string;
   mode?: string;
   commercial?: { contractStatus: string; proposalCode: string; totals: { contract: number; billed: number; paid: number; due: number; unbilled: number }; services: { serviceName: string; billingCategory: string; workflowStatus: string; contractNet: number; billed: number; paid: number; due: number; unbilled: number; nextBilling: { milestone: string; trigger: string; amount: number; status: string } | null }[] } | null;
@@ -241,6 +244,8 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
 
   return {
     ...result,
+    paymentReview: undefined, // A single invoice must never display the project's entire payment ledger.
+    paymentAllocationLines: undefined,
     client: {
       ...result.client,
       status: due > 0.009 ? (paid > 0.009 ? "Partially Paid / Due" : "Unpaid / Due") : "Full Paid",
@@ -279,6 +284,7 @@ async function loadProjectBillingBundle(id: string): Promise<ProjectBillingBundl
     sheets: json.data.sheets as FinanceSheetData[],
     payments: Array.isArray(json.data.payments) ? json.data.payments : [],
     billPayments: Array.isArray(json.data.billPayments) ? json.data.billPayments : [],
+    paymentReview: json.data.paymentReview && Array.isArray(json.data.paymentReview.payments) ? json.data.paymentReview as InvoicePaymentReview : undefined,
     updatedAt: String(json.data.updatedAt || ""),
     mode: String(json.data.mode || ""),
     commercial: json.data.commercial && Array.isArray(json.data.commercial.services) ? json.data.commercial : null,
@@ -365,7 +371,14 @@ export default function ProjectBillingPage() {
       id,
       bundle.billPayments,
     );
-    return { billing: verifySheetInvoicesWithPayments(billing, bundle.payments || []), commercial: bundle.commercial };
+    const verified = verifySheetInvoicesWithPayments(billing, bundle.payments || []);
+    return {
+      billing: {
+        ...attachInvoicePaymentReview(verified, bundle.paymentReview),
+        paymentAllocationLines: bundle.billPayments,
+      },
+      commercial: bundle.commercial,
+    };
   }
 
   async function refreshBilling(id: string, version: number, background: boolean) {

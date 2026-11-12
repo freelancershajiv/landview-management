@@ -249,6 +249,8 @@ export async function GET(request: NextRequest) {
       p.amount,
       "Verified",
       p.paymentCode,
+      p.allocated,
+      p.unallocated,
     ]);
 
     const billHeaders = ["FILE ID", "Service Name", "Rate (BDT)", "QTY", "Amount (BDT)", "Bill ID", "Status", "Net Amount (BDT)", "Discount (BDT)", "Paid (BDT)", "Due (BDT)", "Invoice Code", "Issue Date"];
@@ -256,13 +258,13 @@ export async function GET(request: NextRequest) {
       sheet("Summary", ["FILE ID", "Client Name", "Project Name", "Engineering Bill", "Engineering Discount", "Engineering Deposit", "Engineering Due", "Supervision Bill", "Supervision Discount", "Supervision Deposit", "Supervision Due", "Other Services Bill", "Other Services Discount", "Other Services Deposit", "Other Services Due", "Design Books Bill", "Design Books Discount", "Design Books Deposit", "Design Books Due", "Total Due", "Status"], [[projectId, project.Client_Name || "", project.Project_Name || "", eng.gross, eng.discount, eng.paid, eng.due, sup.gross, sup.discount, sup.paid, sup.due, oth.gross, oth.discount, oth.paid, oth.due, books.gross, books.discount, books.paid, books.due, totalDue, totalDue > .009 ? "DUE" : totalBilled > 0 ? "FULL PAID" : ""]]),
       sheet("File List", ["FILE ID", "Client Name", "Address", "Phone", "Floor/Story", "Build Type", "Land Area", "Referred By", "Ref. Contact"], [[projectId, project.Client_Name || "", project.Location || "", project.Phone_Number || "", project.Floors || "", project.Project_Type || "", project.Plot_Area || "", project.Referred_By || "", project.Ref_Contact || ""]]),
       sheet("Design Bill", billHeaders, billRows("Engineering Bill")),
-      sheet("Design Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Engineering Bill")),
+      sheet("Design Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID", "Applied to Invoices", "Unallocated"], payRows("Engineering Bill")),
       sheet("Design Books Bill", billHeaders, billRows("Design Books")),
-      sheet("Design Books Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Design Books")),
+      sheet("Design Books Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID", "Applied to Invoices", "Unallocated"], payRows("Design Books")),
       sheet("Supervision Bill", billHeaders, billRows("Supervision Bill")),
-      sheet("S Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Supervision Bill")),
+      sheet("S Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID", "Applied to Invoices", "Unallocated"], payRows("Supervision Bill")),
       sheet("Others Bill", billHeaders, billRows("Other Services Bill")),
-      sheet("Others Bill Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Other Services Bill")),
+      sheet("Others Bill Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID", "Applied to Invoices", "Unallocated"], payRows("Other Services Bill")),
     ];
 
     const lifecycle = billingLifecycle(authority);
@@ -290,7 +292,61 @@ export async function GET(request: NextRequest) {
         details: [payment.row.payment_method, payment.row.reference_no].filter(Boolean).join(" · ") || "Client Payment",
       }];
     });
-    return NextResponse.json({ success: true, data: { projectId, sheets, payments, billPayments, commercial, lifecycle, updatedAt: new Date().toISOString(), source: "supabase" } }, {
+    // The payment ledger is strictly read-only.  "Verified" means recorded,
+    // not allocated to any given invoice. Keep those two concepts separate.
+    const allocationsByPaymentCode = new Map<string, Array<{ invoiceCode: string; billCode: string; amount: number }>>();
+    for (const part of billPayments) {
+      const list = allocationsByPaymentCode.get(part.paymentCode) || [];
+      list.push({ invoiceCode: part.invoiceCode, billCode: part.billCode, amount: part.amount });
+      allocationsByPaymentCode.set(part.paymentCode, list);
+    }
+    const effectivePayments = authority.payments.filter((row) => row.effective);
+    const paymentReview = {
+      complete: authority.complete && allocations.length < 20000 &&
+        (!projectReceivable || Math.abs(totalDue - projectReceivable.totalDue) < 0.02),
+      summary: {
+        received: effectivePayments.reduce((sum, row) => sum + row.amount, 0),
+        allocated: effectivePayments.reduce((sum, row) => sum + row.allocated, 0),
+        unallocated: effectivePayments.reduce((sum, row) => sum + row.unallocated, 0),
+        unallocatedAfterRelief: projectReceivable?.remainingUnallocated || 0,
+        invoiceDueBeforeRelief: projectReceivable?.invoiceDueTotal || 0,
+        writeoff: projectReceivable?.writeoffTotal || 0,
+        collectibleDue: projectReceivable?.totalDue ?? totalDue,
+        historicalPaidReviewCount: authority.bills.filter((bill) =>
+          bill.settled && bill.effectiveAmount > 0.009 && bill.allocated + 0.01 < bill.effectiveAmount
+        ).length,
+        categoryDue: {
+          Engineering: Math.max(0, eng.due),
+          "Design Books": Math.max(0, books.due),
+          Supervision: Math.max(0, sup.due),
+          Others: Math.max(0, oth.due),
+        },
+      },
+      payments: effectivePayments.map((payment) => {
+        const references = allocationsByPaymentCode.get(payment.paymentCode) || [];
+        // All current LAND VIEW receipt links are same-origin verification URLs.
+        // Never render an arbitrary remote URL supplied by a payment record.
+        const receiptPath = text(payment.row.receipt_url);
+        const receiptMatch = /^\/verify\/receipt\/([0-9a-f]{32})$/i.exec(receiptPath);
+        const unallocated = payment.unallocated;
+        return {
+          paymentCode: payment.paymentCode,
+          date: text(payment.row.payment_date || payment.row.created_at),
+          category: category(payment.row),
+          method: text(payment.row.payment_method),
+          reference: text(payment.row.reference_no),
+          receiptUrl: receiptMatch ? `/verify/receipt/${receiptMatch[1].toLowerCase()}` : "",
+          amount: payment.amount,
+          allocated: payment.allocated,
+          unallocated,
+          allocationStatus: unallocated <= 0.009
+            ? "Allocated"
+            : payment.allocated > 0.009 ? "Partially allocated" : "Unallocated",
+          invoices: references,
+        };
+      }).sort((a, b) => b.date.localeCompare(a.date) || a.paymentCode.localeCompare(b.paymentCode)),
+    };
+    return NextResponse.json({ success: true, data: { projectId, sheets, payments, billPayments, paymentReview, commercial, lifecycle, updatedAt: new Date().toISOString(), source: "supabase" } }, {
       headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "canonical-receivable-authority" },
     });
   } catch (error) {

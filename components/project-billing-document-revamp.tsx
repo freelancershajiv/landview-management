@@ -180,7 +180,77 @@ export default function ProjectBillingDocumentRevamp({
       },
     };
   }, [dueOnly, result]);
-  const projectStatus = result.client.status || (Number(result.totals.due || 0) > 0.009 ? "Partial / Due" : "Full Paid");
+  const projectPaymentReview = result.document?.kind === "single" || dueOnly ? undefined : result.paymentReview;
+  const paymentReviewReady = Boolean(projectPaymentReview?.complete);
+  const paymentByCode = new Map(
+    (projectPaymentReview?.payments || []).map((payment) => [payment.paymentCode.trim().toLowerCase(), payment]),
+  );
+  // The project billing endpoint already supplies exact invoice allocation
+  // records. Use those when the supplemental review object is missing or a
+  // payment has no matching entry. Never infer allocations by amount/date.
+  const allocationsByPaymentCode = new Map<string, NonNullable<typeof result.paymentAllocationLines>>();
+  if (result.document?.kind !== "single" && !dueOnly) {
+    for (const allocation of result.paymentAllocationLines || []) {
+      const key = allocation.paymentCode.trim().toLowerCase();
+      if (!key || !Number.isFinite(Number(allocation.amount)) || Number(allocation.amount) <= 0) continue;
+      const rows = allocationsByPaymentCode.get(key) || [];
+      rows.push(allocation);
+      allocationsByPaymentCode.set(key, rows);
+    }
+  }
+  const ledgerForPayment = (payment: {
+    incomeId: string;
+    amount: number;
+    allocatedAmount?: number;
+    unallocatedAmount?: number;
+  }) => {
+    const code = String(payment.incomeId || "").trim().toLowerCase();
+    // This is the primary source: the original deposit sheet row is emitted
+    // by the server from the same authority record as the payment amount.
+    const received = Number(payment.amount);
+    const applied = payment.allocatedAmount;
+    const unapplied = payment.unallocatedAmount;
+    if (
+      typeof applied === "number" && Number.isFinite(applied) && applied >= 0 &&
+      typeof unapplied === "number" && Number.isFinite(unapplied) && unapplied >= 0 &&
+      Number.isFinite(received) && received >= 0 &&
+      Math.abs(received - applied - unapplied) <= 0.02
+    ) {
+      const supplemental = paymentByCode.get(code);
+      const allocationLines = allocationsByPaymentCode.get(code) || [];
+      return {
+        paymentCode: String(payment.incomeId || ""),
+        method: supplemental?.method || "",
+        allocated: applied,
+        unallocated: unapplied,
+        allocationStatus: unapplied <= 0.009 ? "Allocated" : applied > 0.009 ? "Partially allocated" : "Unallocated",
+        invoices: supplemental?.invoices || allocationLines.map((line) => ({
+          billCode: line.billCode, invoiceCode: line.invoiceCode, amount: Number(line.amount),
+        })),
+      };
+    }
+    const exact = paymentByCode.get(code);
+    if (exact) return exact;
+    const allocations = allocationsByPaymentCode.get(code) || [];
+    if (!allocations.length) return undefined;
+    const allocated = allocations.reduce((sum, part) => sum + Number(part.amount), 0);
+    // Refuse a questionable invoice/receipt association rather than silently
+    // printing impossible totals or declaring an invoice fully paid.
+    if (!Number.isFinite(received) || received < 0 || allocated > received + 0.01) return undefined;
+    const unallocated = Math.max(0, received - allocated);
+    return {
+      paymentCode: String(payment.incomeId || ""),
+      method: "",
+      allocated,
+      unallocated,
+      allocationStatus: unallocated > 0.009 ? "Partially allocated" : "Allocated",
+      invoices: allocations.map((line) => ({
+        billCode: line.billCode, invoiceCode: line.invoiceCode, amount: Number(line.amount),
+      })),
+    };
+  };
+  const projectStatus = result.client.status ||
+    (Number(result.totals.due || 0) > 0.009 ? "Balance Due" : "No Collectible Balance");
 
   const activeCategories = displayBilling.invoices.filter(hasBillingData);
   const printCategories = activeCategories.length ? activeCategories : displayBilling.invoices.slice(0, 1);
@@ -202,10 +272,24 @@ export default function ProjectBillingDocumentRevamp({
           const discount = Number(category.discount || 0);
           const grandTotal = Math.max(0, gross - discount);
           const paid = Math.max(0, Number(category.paid || 0));
-          // Never print FULL PAID for a positive net bill without enough
-          // bill-specific payments, even when a stale due snapshot says zero.
-          const due = Math.max(0, Number(category.due || 0), grandTotal - paid);
-          const fullyPaid = due <= 0.009;
+          // A complete project review provides the collectible balance after
+          // allocations/relief. For a single invoice retain the conservative
+          // bill-specific protection against stale zero-due snapshots.
+          const due = paymentReviewReady
+            ? Math.max(0, Number(category.due || 0))
+            : Math.max(0, Number(category.due || 0), grandTotal - paid);
+          const noCollectibleDue = due <= 0.009;
+          const fullyPaid = noCollectibleDue && paid >= grandTotal - 0.009;
+          const linkedPayments = category.payments.map((entry) => ledgerForPayment(entry));
+          const allPaymentsLinked =
+            (paymentReviewReady || allocationsByPaymentCode.size > 0) &&
+            category.payments.length > 0 && linkedPayments.every(Boolean);
+          const appliedToInvoices = allPaymentsLinked
+            ? linkedPayments.reduce((sum, item) => sum + Number(item?.allocated || 0), 0)
+            : null;
+          const unallocatedReceipts = allPaymentsLinked
+            ? linkedPayments.reduce((sum, item) => sum + Number(item?.unallocated || 0), 0)
+            : null;
           const engineeringBill = isEngineeringCategory(result.document?.kind === "single" ? result.document.category : category.name);
 
           return (
@@ -224,7 +308,7 @@ export default function ProjectBillingDocumentRevamp({
 
                 <div className="lvTitleBlock">
                   <small>Page {index + 1} of {totalPages}</small>
-                  <b>{dueOnly ? "DUE BILL" : "Project Billing Statement"}</b>
+                  <b>{dueOnly ? "DUE STATEMENT" : result.document?.kind === "single" ? "Service Invoice" : "Project Billing Statement"}</b>
                   <strong>{dueOnly ? "Outstanding Due" : `${category.name} Bill`}</strong>
                 </div>
 
@@ -308,40 +392,61 @@ export default function ProjectBillingDocumentRevamp({
                 </div>
 
                 {!dueOnly && <>
-                  <h2 className="lvSectionTitle lvDepositTitle"><span>{category.name.toUpperCase()}</span> <b>DEPOSIT / PAYMENTS</b></h2>
+                  <h2 className="lvSectionTitle lvDepositTitle"><span>{category.name.toUpperCase()}</span> <b>PAYMENT RECORDS</b></h2>
                   <div className="lvTableWrap">
-                    <table className="lvInvoiceTable lvDepositTable">
-                      <colgroup><col /><col /><col /><col /><col /></colgroup>
-                      <thead><tr><th>SL.</th><th>DATE</th><th>PAYMENT DETAILS</th><th>VERIFICATION</th><th>AMOUNT (BDT)</th></tr></thead>
+                    <table className={`lvInvoiceTable lvDepositTable ${result.document?.kind === "single" ? "lvSingleInvoiceDepositTable" : ""}`}>
+                      {result.document?.kind === "single"
+                        ? <colgroup><col /><col /><col /><col /></colgroup>
+                        : <colgroup><col /><col /><col /><col /><col /><col /></colgroup>}
+                      <thead>
+                        {result.document?.kind === "single"
+                          ? <tr><th>SL.</th><th>DATE</th><th>PAYMENT / RECEIPT</th><th>APPLIED TO THIS INVOICE (BDT)</th></tr>
+                          : <tr><th>SL.</th><th>DATE</th><th>PAYMENT / RECEIPT</th><th>RECEIVED (BDT)</th><th>APPLIED (BDT)</th><th>UNALLOCATED (BDT)</th></tr>}
+                      </thead>
                       <tbody>
-                        {category.payments.length ? category.payments.map((payment, paymentIndex) => (
-                          <tr key={paymentIndex}>
+                        {category.payments.length ? category.payments.map((payment, paymentIndex) => {
+                          const ledger = ledgerForPayment(payment);
+                          const assignedRefs = ledger?.invoices.map((part) => part.invoiceCode || part.billCode).filter(Boolean) || [];
+                          return <tr key={`${payment.incomeId || "historical"}-${paymentIndex}`}>
                             <td>{paymentIndex + 1}</td>
                             <td>{parseDate(payment.date)}</td>
-                            <td>{payment.details || "—"}</td>
-                            <td className={payment.verification === "Verified" ? "lvVerified" : "lvUnverified"}>{payment.verification || "Unverified"}</td>
-                            <td>BDT {amountText(payment.amount)}</td>
-                          </tr>
-                        )) : <tr><td colSpan={5} className="lvEmptyRow">No deposit records.</td></tr>}
+                            <td className="lvPaymentDescription">
+                              <strong>{payment.details || ledger?.method || "Client payment"}</strong>
+                              <small>{payment.incomeId ? `Payment: ${payment.incomeId}` : "Payment reference unavailable"}</small>
+                              <small>{result.document?.kind === "single" ? "Applied to this invoice" : ledger ? ledger.allocationStatus : payment.verification === "Verified" ? "Recorded · allocation unknown" : "Verification required"}</small>
+                              {assignedRefs.length > 0 && <small>Invoices: {assignedRefs.join(", ")}</small>}
+                            </td>
+                            <td>{amountText(payment.amount)}</td>
+                            {result.document?.kind !== "single" && <>
+                              <td>{ledger ? amountText(ledger.allocated) : "—"}</td>
+                              <td>{ledger ? amountText(ledger.unallocated) : "—"}</td>
+                            </>}
+                          </tr>;
+                        }) : <tr><td colSpan={result.document?.kind === "single" ? 4 : 6} className="lvEmptyRow">No recorded payments.</td></tr>}
                       </tbody>
                     </table>
                   </div>
                 </>}
 
-                <div className="lvReconciledPaymentRow" style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 9px", border: "1px solid #cbd1d6", fontSize: 11, fontWeight: 800 }}>
-                  <span>Received: BDT {amountText(paid)}</span>
-                  <span>Balance Due: BDT {amountText(due)}</span>
+                <div className="lvReconciledPaymentRow">
+                  <span>Received: <b>BDT {amountText(paid)}</b></span>
+                  {result.document?.kind !== "single" && appliedToInvoices !== null && <span>Applied to invoices: <b>BDT {amountText(appliedToInvoices)}</b></span>}
+                  {result.document?.kind !== "single" && unallocatedReceipts !== null && <span>Unallocated: <b>BDT {amountText(unallocatedReceipts)}</b></span>}
+                  <span>Collectible due: <b>BDT {amountText(due)}</b></span>
                 </div>
-                {fullyPaid ? (
+                {noCollectibleDue ? (
                   <div className="lvPaidBlock">
-                    <div><strong>Payment Status</strong><span>All payments completed. This invoice has been fully settled.</span></div>
-                    <b>FULL PAID</b>
+                    <div>
+                      <strong>{fullyPaid ? "Payment Status" : "Collectible Balance"}</strong>
+                      <span>{fullyPaid ? "All required payments have been received." : "No collectible balance remains. Payment allocations or adjustments may still require review."}</span>
+                    </div>
+                    <b>{fullyPaid ? "FULL PAID" : "NO DUE"}</b>
                   </div>
                 ) : (
                   <div className="lvDueBlock">
                     <div className="lvDueRow"><strong>Payment Status</strong><b>{paid > 0.009 ? "PARTIALLY PAID" : "UNPAID"}</b></div>
-                    <div className="lvDueRow"><strong>Due Amount (BDT)</strong><b>{amountText(due)}</b></div>
-                    <div className="lvWordsRow"><strong>{dueOnly ? "Due Bill Amount in Words:" : "In Words:"}</strong><span>{amountInWords(due)}</span></div>
+                    <div className="lvDueRow"><strong>Collectible Due (BDT)</strong><b>{amountText(due)}</b></div>
+                    <div className="lvWordsRow"><strong>{dueOnly ? "Due Amount in Words:" : "In Words:"}</strong><span>{amountInWords(due)}</span></div>
                   </div>
                 )}
               </section>
@@ -352,7 +457,9 @@ export default function ProjectBillingDocumentRevamp({
                   <span>Address: Land View, F.Rahman AC Market (2nd Floor), SSK Road, Feni Sadar, Feni</span>
                   <span>Contact No: +88 0140 80 80 400</span>
                   <span>+88 01902 500 400</span>
-                  <span>Generated: {new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", dateStyle: "medium", timeStyle: "short" }).format(new Date(result.document?.generatedAt || Date.now()))}</span>
+                  <span>Generated: {result.document?.generatedAt && Number.isFinite(Date.parse(result.document.generatedAt))
+                    ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", dateStyle: "medium", timeStyle: "short" }).format(new Date(result.document.generatedAt))
+                    : "Live preview"}</span>
                 </div>
               </footer>
             </article>
@@ -449,6 +556,29 @@ export default function ProjectBillingDocumentRevamp({
           .lvInvoiceFooter strong{color:#111!important;font-size:8.4pt!important}
           .lvInvoiceFooterDetails{display:flex!important;flex-direction:column!important;align-items:flex-end!important;gap:.35mm!important;text-align:right!important;line-height:1.15!important}
           .lvInvoiceFooterDetails span{display:block!important;text-align:right!important}
+          /* Invoice Data 3.1: the actual print template, not the older hidden screen template. */
+          .lvInvoicePage .lvInfoRow span{background:#edf1f4!important;color:#26343d!important;font-size:8.6pt!important;white-space:normal!important}
+          .lvInvoicePage .lvInfoRow strong{font-size:9pt!important;line-height:1.3!important;overflow-wrap:break-word!important;word-break:normal!important}
+          .lvInvoicePage .lvInvoiceTable{font-size:9pt!important;line-height:1.3!important}
+          .lvInvoicePage .lvInvoiceTable th{font-size:8.1pt!important;line-height:1.2!important;white-space:normal!important;padding:1.5mm 1.1mm!important}
+          .lvInvoicePage .lvInvoiceTable td{font-size:8.8pt!important;line-height:1.25!important;padding:1.4mm 1.1mm!important}
+          .lvInvoicePage .lvDepositTable col:nth-child(1){width:7%!important}
+          .lvInvoicePage .lvDepositTable col:nth-child(2){width:16%!important}
+          .lvInvoicePage .lvDepositTable col:nth-child(3){width:33%!important}
+          .lvInvoicePage .lvDepositTable col:nth-child(4){width:15%!important}
+          .lvInvoicePage .lvDepositTable col:nth-child(5){width:14%!important}
+          .lvInvoicePage .lvDepositTable col:nth-child(6){width:15%!important}
+          .lvInvoicePage .lvDepositTable td:nth-child(n+4),.lvInvoicePage .lvDepositTable th:nth-child(n+4){text-align:right!important;white-space:nowrap!important;font-variant-numeric:tabular-nums!important}
+          .lvInvoicePage .lvSingleInvoiceDepositTable col:nth-child(1){width:8%!important}
+          .lvInvoicePage .lvSingleInvoiceDepositTable col:nth-child(2){width:18%!important}
+          .lvInvoicePage .lvSingleInvoiceDepositTable col:nth-child(3){width:47%!important}
+          .lvInvoicePage .lvSingleInvoiceDepositTable col:nth-child(4){width:27%!important}
+          .lvInvoicePage .lvPaymentDescription strong,.lvInvoicePage .lvPaymentDescription small{display:block!important;color:#1c2830!important}
+          .lvInvoicePage .lvPaymentDescription small{font-size:7.2pt!important;line-height:1.26!important;margin-top:.45mm!important;overflow-wrap:anywhere!important}
+          .lvInvoicePage .lvReconciledPaymentRow{display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:1.1mm 4mm!important;margin-top:2mm!important;padding:2mm 2.4mm!important;background:#eef2f6!important;border:1px solid #b5c1ca!important;color:#14222c!important;box-sizing:border-box!important;font-size:8.8pt!important;font-weight:700!important}
+          .lvInvoicePage .lvReconciledPaymentRow span,.lvInvoicePage .lvReconciledPaymentRow b{color:#14222c!important;background:transparent!important}
+          .lvInvoicePage .lvReconciledPaymentRow b{font-variant-numeric:tabular-nums!important}
+          .lvInvoicePage .lvInvoiceFooter{color:#3e4d57!important}
         }
       `}</style>
     </div>

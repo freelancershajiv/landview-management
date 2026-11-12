@@ -13,11 +13,16 @@ on:
       - "vercel.json"
       - "app/admin/finance/integrity/**"
       - "app/admin/finance/invoices/page.tsx"
+      - "app/admin/finance/invoices/invoice.module.css"
+      - "app/admin/finance/invoices/invoice-revamp-print-fix.css"
+      - "components/project-billing-document.tsx"
+      - "components/project-billing-document-revamp.tsx"
       - "app/admin/finance/layout.tsx"
       - "lib/sheet-invoices.ts"
       - "tests/invoice-*.test.cjs"
       - "tests/proposal-billing-conversion.test.cjs"
       - "app/api/proposal-conversion/route.ts"
+      - "app/api/project-billing/route.ts"
       - ".github/workflows/invoice-integrity-regression.yml"
   workflow_dispatch:
 
@@ -36,11 +41,11 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Invoice regression tests
-        run: node --test tests/invoice-bill-identity.test.cjs tests/invoice-integrity-api.test.cjs tests/billing-document-integrity.test.cjs tests/invoice-single-bill-status.test.cjs tests/proposal-billing-conversion.test.cjs tests/invoice-center.test.cjs
+        run: node --test tests/invoice-bill-identity.test.cjs tests/invoice-integrity-api.test.cjs tests/billing-document-integrity.test.cjs tests/invoice-single-bill-status.test.cjs tests/proposal-billing-conversion.test.cjs tests/invoice-center.test.cjs tests/invoice-readability.test.cjs tests/invoice-payment-review.test.cjs tests/invoice-print-parity.test.cjs
       - name: Full legacy test suite (report only; existing unrelated failures)
         continue-on-error: true
         run: npm test
       - name: Lint newly introduced invoice files
-        run: npx eslint lib/sheet-invoices.ts lib/invoice-center.ts lib/invoice-reminders.ts app/api/billing/integrity/route.ts app/api/billing/invoice-center/route.ts app/api/billing/reminders/route.ts app/api/cron/invoice-reminders/route.ts app/admin/finance/integrity/page.tsx app/admin/finance/invoice-center/page.tsx
+        run: npx eslint lib/sheet-invoices.ts lib/invoice-center.ts lib/invoice-reminders.ts app/api/billing/integrity/route.ts app/api/billing/invoice-center/route.ts app/api/billing/reminders/route.ts app/api/cron/invoice-reminders/route.ts app/admin/finance/integrity/page.tsx app/admin/finance/invoice-center/page.tsx components/project-billing-document.tsx components/project-billing-document-revamp.tsx
       - name: Typecheck
         run: npx tsc --noEmit
