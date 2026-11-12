@@ -50,7 +50,10 @@ export default function InvoiceIntegrityPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, [load]);
   const exceptions = useMemo(() => (data?.exceptions || []).filter((row) =>
     [row.projectCode, row.billCode, row.paymentCode, labels[row.type], row.explanation].join(" ").toLowerCase().includes(search.toLowerCase().trim())
   ), [data, search]);
