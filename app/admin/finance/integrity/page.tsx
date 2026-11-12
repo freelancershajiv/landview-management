@@ -84,7 +84,7 @@ export default function InvoiceIntegrityPage() {
           {exceptions.length ? exceptions.map((row, index) => <tr key={row.type + ":" + row.projectCode + ":" + row.billCode + ":" + row.paymentCode + ":" + index}>
             <td><strong>{row.projectCode || "—"}</strong></td><td>{labels[row.type] || row.type}</td>
             <td>{row.billCode || row.paymentCode || "—"}</td><td>{row.amount > 0 ? money(row.amount) : "—"}</td>
-            <td>{row.explanation}</td><td>{row.projectCode ? <Link href={`/admin/finance/bills?projectId=${encodeURIComponent(row.projectCode)}`}>Open Bills</Link> : "—"}</td>
+            <td>{row.explanation}</td><td>{row.projectCode ? <Link href={`/admin/finance/bills?fileId=${encodeURIComponent(row.projectCode)}`}>Open Bills</Link> : "—"}</td>
           </tr>) : <tr><td colSpan={6}>No exceptions match the current search.</td></tr>}
         </tbody></table></div>
       </section>
