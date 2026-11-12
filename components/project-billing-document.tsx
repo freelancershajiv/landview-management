@@ -6,9 +6,6 @@ import type { SheetInvoices } from "@/lib/sheet-invoices";
 import styles from "@/app/admin/finance/invoices/invoice.module.css";
 import { sortServicesByStandardOrder, standardServiceLabel } from "@/lib/service-order";
 
-const money = (value: number) =>
-  new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(Number(value || 0));
-
 const amountText = (value: unknown) => {
   const normalized = String(value ?? "").trim().replace(/BDT|Tk\.?|৳|,/gi, "").replace(/\s/g, "");
   const parsed = Number(normalized);
@@ -204,7 +201,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
       <table className={styles.billTable}>
         <thead><tr>
           <th>SL.</th><th>Description</th><th>Bill Amount (BDT)</th>
-          <th><span style={{ display:"block", margin:"-10px", padding:"10px", background:"#fff0f0", color:"#d61f26", textAlign:"center" }}>Discount (BDT)</span></th>
+          <th className={styles.discountHeader}>Discount (BDT)</th>
           <th>Net Amount (BDT)</th>
         </tr></thead>
         <tbody>{items.map((item, index) => {
@@ -213,14 +210,14 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
             <td>{index + 1}</td>
             <td>{standardServiceLabel(item.service) || item.service || "—"}</td>
             <td className={styles.moneyCell}>{amountText(values.amount)}</td>
-            <td className={styles.moneyCell}><span style={{ display:"block", margin:"-10px", padding:"10px", background:values.discount > 0.009 ? "#fff5f5" : "transparent", color:values.discount > 0.009 ? "#d61f26" : "inherit", fontWeight:values.discount > 0.009 ? 800 : 400 }}>{values.discount > 0.009 ? amountText(values.discount) : "—"}</span></td>
+            <td className={`${styles.moneyCell} ${values.discount > 0.009 ? styles.discountValue : ""}`}>{values.discount > 0.009 ? amountText(values.discount) : "—"}</td>
             <td className={styles.moneyCell}><strong>{amountText(values.net)}</strong></td>
           </tr>;
         })}</tbody>
         <tfoot>
           <tr><td colSpan={2}><strong>Bill Subtotal (BDT)</strong></td><td className={styles.moneyCell}><strong>{amountText(category.gross)}</strong></td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}>—</td></tr>
           <tr><td colSpan={2}><strong>Total Discount (BDT)</strong></td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}><strong style={{ color:"#d61f26" }}>{amountText(category.discount)}</strong></td><td className={styles.moneyCell}>—</td></tr>
-          <tr style={{ background:"#ed1c24" }}><td colSpan={2}><strong style={{ color:"#fff" }}>Grand Total (BDT)</strong></td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}><strong style={{ color:"#fff", fontSize:"1.08em" }}>{amountText(netBilled)}</strong></td></tr>
+          <tr className={styles.grandTotalRow}><td colSpan={2}><strong>Grand Total (BDT)</strong></td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}><strong>{amountText(netBilled)}</strong></td></tr>
         </tfoot>
       </table>
     </div>;
@@ -243,18 +240,21 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
     if (type === "bill") return isEngineeringBill(category) ? renderEngineeringBill(category) : renderStandardBill(category);
     if (!category.payments.length) return <p className={styles.empty}>No deposit records.</p>;
     return <div className={styles.tableWrap}><table className={styles.depositTable}>
-      <thead><tr><th>SL.</th><th>Date</th><th>Details</th><th>Amount</th><th>Verification</th></tr></thead>
+      <thead><tr><th>SL.</th><th>Date</th><th>Payment details</th><th>Verification</th><th>Amount (BDT)</th></tr></thead>
       <tbody>{category.payments.map((payment,index)=><tr key={index}>
         <td>{index+1}</td><td className={styles.dateCell}>{paymentDateOnly(payment.date)}</td><td className={styles.detailsCell}>{payment.details||"—"}</td>
-        <td className={styles.moneyCell}>{money(payment.amount)}</td><td className={styles.verificationCell}><strong className={payment.verification === "Verified" ? styles.verificationVerified : styles.verificationUnverified}>{payment.verification||"Unverified"}</strong>{payment.incomeId&&<small className={styles.verificationRef}>Ref: {payment.incomeId}</small>}</td>
+        <td className={styles.verificationCell}><strong className={payment.verification === "Verified" ? styles.verificationVerified : styles.verificationUnverified}>{payment.verification||"Unverified"}</strong>{payment.incomeId&&<small className={styles.verificationRef}>Ref: {payment.incomeId}</small>}</td><td className={styles.moneyCell}>{amountText(payment.amount)}</td>
       </tr>)}</tbody>
     </table></div>;
   };
 
+  const printDocumentTitle = result.document?.kind === "single"
+    ? "Service Invoice"
+    : dueOnly ? "Outstanding Due Statement" : "Project Billing Statement";
   const PrintHeader = ({ page, title }: { page: number; title: string }) => <>
     <header className={styles.sheetHeader}>
       <div className={styles.sheetBrand}><div className={styles.sheetBrandLockup}><img className={styles.sheetBrandLogo} src="/land-view-logo.svg" alt="LAND VIEW logo"/><div className={styles.sheetBrandWords}><strong>LAND <span>VIEW</span></strong><small>ENGINEERS AND ARCHITECTS</small></div></div><em>Building a safer tomorrow</em></div>
-      <div className={styles.sheetTitle}><small>Page {page} of {totalPages}</small><b>Project Billing Statement</b><strong>{title}</strong></div>
+      <div className={styles.sheetTitle}><small>Page {page} of {totalPages}</small><b>{printDocumentTitle}</b><strong>{title}</strong></div>
       {qrUrl && <div className={styles.sheetHeaderQr}><img data-billing-qr="true" className={styles.sheetHeaderQrImage} src={qrUrl} loading="eager" alt={`Verify ${result.id}`} width={96} height={96}/><small>Scan to verify</small></div>}
     </header>
     <section className={styles.sheetInfoBoard}>
@@ -270,7 +270,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
   return <div data-billing-id={result.id}>
     <main className={styles.report}>
       <header className={styles.printHeader}><div><strong>LAND <span>VIEW</span></strong><small>Engineers and Architects</small></div><div><h2>PROJECT BILLING STATEMENT</h2><p>Issue date {issueDate}</p></div></header>
-      <section className={styles.projectCard}><div><span>FILE ID</span><strong>{result.id}</strong></div><div><span>CLIENT</span><strong>{result.client.name||"—"}</strong><small>{result.client.phone||"—"}</small></div><div><span>PROJECT TYPE</span><strong>{result.client.type||"—"}</strong><small>{result.client.floor||"—"}</small></div><div className={styles.totalDueCard}><span>TOTAL DUE (BDT)</span><strong>{amountText(result.totals.due)}</strong></div></section>
+      <section className={styles.projectCard}><div><span>FILE ID</span><strong>{result.id}</strong></div><div><span>CLIENT</span><strong>{result.client.name||"—"}</strong><small>{result.client.phone||"—"}</small></div><div><span>PROJECT TYPE</span><strong>{result.client.type||"—"}</strong><small>{result.client.floor||"—"}</small></div><div className={styles.totalDueCard}><span>OUTSTANDING BALANCE (BDT)</span><strong>{amountText(result.totals.due)}</strong></div></section>
       <section className={styles.categoryGrid}>{activeCategories.map(category=><article className={styles.category} key={category.name}><div className={styles.categoryHeader}><div><span>{category.name.toUpperCase()}</span><h2>{category.name} Billing</h2></div><div className={category.due>0?styles.dueBadge:styles.paidBadge}>{category.due>0?"DUE":"PAID"}</div></div><div className={styles.metrics}><div><span>Bill (BDT)</span><strong>{amountText(category.gross)}</strong></div><div><span>Discount (BDT)</span><strong>{amountText(category.discount)}</strong></div><div><span>Deposited (BDT)</span><strong>{amountText(category.paid)}</strong></div><div><span>Due (BDT)</span><strong>{amountText(category.due)}</strong></div></div><div className={styles.split}><section><h3>{category.name} Bill</h3>{renderTable(category,"bill")}</section><section><h3>{category.name} Deposit</h3>{renderTable(category,"deposit")}</section></div><div className={styles.formula}><span>{amountText(category.gross)} − {amountText(category.discount)} − {amountText(category.paid)}</span><strong>= {amountText(category.due)}</strong></div></article>)}</section>
       <section className={styles.grandSummary}><div><span>Total Bill (BDT)</span><strong>{amountText(result.totals.gross)}</strong></div><div><span>Total Discount (BDT)</span><strong>{amountText(result.totals.discount)}</strong></div><div><span>Total Deposit (BDT)</span><strong>{amountText(result.totals.paid)}</strong></div><div className={styles.grandDue}><span>Grand Total Due (BDT)</span><strong>{amountText(result.totals.due)}</strong></div></section>
       <section className={styles.verificationBlock}><div><span className={styles.verificationLabel}>PROJECT QR</span><strong>{qr.error || verificationError ? "QR unavailable" : verificationUrl ? "Live billing verification" : "Preparing project QR…"}</strong><p>{qr.error || verificationError || (verificationUrl ? "Scan this QR to view the project’s current billing and payment verification." : "A secure project verification link is being generated.")}</p>{verificationUrl&&<a href={verificationUrl} target="_blank" rel="noreferrer">Open billing verification ↗</a>}</div>{qrUrl&&<img data-billing-qr="true" className={styles.qrCode} src={qrUrl} loading="eager" alt={`Billing QR for ${result.id}`} width={132} height={132}/>}</section>
@@ -283,7 +283,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
           <PrintHeader page={index + 1} title={`${category.name} Bill`}/>
           <section className={styles.portraitSection}>
             <div className={styles.sheetMain}><h2>{category.name.toUpperCase()} <span>BILL</span></h2>{renderTable(category,"bill")}<h2 className={styles.depositHeading}>{category.name.toUpperCase()} <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(category,"deposit")}</div>
-            <aside className={styles.sheetSummary}><h3>{category.name.toUpperCase()} SUMMARY</h3><div><span>Total Bill (BDT)</span><strong>{amountText(category.gross)}</strong></div><div><span>Discount (BDT)</span><strong>{amountText(category.discount)}</strong></div><div><span>Total Deposit (BDT)</span><strong>{amountText(category.paid)}</strong></div><div className={styles.sheetDue}><span>Due (BDT)</span><strong>{amountText(category.due)}</strong></div></aside>
+            <aside className={styles.sheetSummary}><h3>{category.name.toUpperCase()} SUMMARY</h3><div><span>Total Bill (BDT)</span><strong>{amountText(category.gross)}</strong></div><div><span>Discount (BDT)</span><strong>{amountText(category.discount)}</strong></div><div><span>Total Deposit (BDT)</span><strong>{amountText(category.paid)}</strong></div><div className={styles.sheetDue}><span>Outstanding (BDT)</span><strong>{amountText(category.due)}</strong></div></aside>
           </section>
           <footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>{last ? `Grand Total Due (BDT): ${amountText(result.totals.due)} · ` : ""}Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer>
         </article>;
