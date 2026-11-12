@@ -68,3 +68,25 @@ test("live print CSS supports six columns without clipping last header", () => {
   assert.match(css, /white-space:normal!important/);
   assert.match(css, /\.lvInvoiceRevampRoot \.lvInvoicePage \.lvSingleInvoiceDepositTable col:nth-child\(4\)/);
 });
+
+test("server sends exact authority allocation with each deposit sheet payment row", () => {
+  const route = read("app/api/project-billing/route.ts");
+  const mapping = read("lib/sheet-invoices.ts");
+  assert.match(route, /const payRows = \(c: Category\) => groups\[c\]\.payments\.map/);
+  assert.match(route, /p\.paymentCode,\s*p\.allocated,\s*p\.unallocated,/);
+  assert.match(route, /"Applied to Invoices", "Unallocated"/);
+  assert.match(mapping, /allocatedAmount: optionalBillingAmount\(row\[6\]\)/);
+  assert.match(mapping, /unallocatedAmount: optionalBillingAmount\(row\[7\]\)/);
+});
+test("actual printed payment receives native source amount before any supplemental lookup", () => {
+  const mapping = read("lib/sheet-invoices.ts");
+  assert.match(actual, /typeof applied === "number" && Number\.isFinite\(applied\)/);
+  assert.match(actual, /typeof unapplied === "number" && Number\.isFinite\(unapplied\)/);
+  assert.match(actual, /Math\.abs\(received - applied - unapplied\) <= 0\.02/);
+  assert.match(actual, /const exact = paymentByCode\.get\(code\)/);
+  assert.match(actual, /allocationsByPaymentCode\.get\(code\)/);
+  assert.match(actual, /allocated: applied,/);
+  assert.match(actual, /unallocated: unapplied,/);
+  assert.match(mapping, /allocatedAmount: undefined,/);
+  assert.match(mapping, /unallocatedAmount: undefined,/);
+});

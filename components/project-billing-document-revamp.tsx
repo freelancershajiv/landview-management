@@ -198,8 +198,37 @@ export default function ProjectBillingDocumentRevamp({
       allocationsByPaymentCode.set(key, rows);
     }
   }
-  const ledgerForPayment = (payment: { incomeId: string; amount: number }) => {
+  const ledgerForPayment = (payment: {
+    incomeId: string;
+    amount: number;
+    allocatedAmount?: number;
+    unallocatedAmount?: number;
+  }) => {
     const code = String(payment.incomeId || "").trim().toLowerCase();
+    // This is the primary source: the original deposit sheet row is emitted
+    // by the server from the same authority record as the payment amount.
+    const received = Number(payment.amount);
+    const applied = payment.allocatedAmount;
+    const unapplied = payment.unallocatedAmount;
+    if (
+      typeof applied === "number" && Number.isFinite(applied) && applied >= 0 &&
+      typeof unapplied === "number" && Number.isFinite(unapplied) && unapplied >= 0 &&
+      Number.isFinite(received) && received >= 0 &&
+      Math.abs(received - applied - unapplied) <= 0.02
+    ) {
+      const supplemental = paymentByCode.get(code);
+      const allocationLines = allocationsByPaymentCode.get(code) || [];
+      return {
+        paymentCode: String(payment.incomeId || ""),
+        method: supplemental?.method || "",
+        allocated: applied,
+        unallocated: unapplied,
+        allocationStatus: unapplied <= 0.009 ? "Allocated" : applied > 0.009 ? "Partially allocated" : "Unallocated",
+        invoices: supplemental?.invoices || allocationLines.map((line) => ({
+          billCode: line.billCode, invoiceCode: line.invoiceCode, amount: Number(line.amount),
+        })),
+      };
+    }
     const exact = paymentByCode.get(code);
     if (exact) return exact;
     const allocations = allocationsByPaymentCode.get(code) || [];

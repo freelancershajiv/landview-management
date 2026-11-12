@@ -164,6 +164,11 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
       amount: sheetAmount(row[3]),
       verification: row[4] === "Verified" ? "Verified" : "Unverified",
       incomeId: String(row[5] || "").trim(),
+      // Optional canonical values carried in the same deposit row as the
+      // receipt itself; the invoice printout cannot lose them if a separate
+      // review/lookup response is omitted.
+      allocatedAmount: optionalBillingAmount(row[6]),
+      unallocatedAmount: optionalBillingAmount(row[7]),
     }));
 
     const seenPaymentKeys = new Set<string>();
@@ -492,6 +497,8 @@ export function verifySheetInvoicesWithPayments(billing: SheetInvoices, database
       amount: candidate.amount,
       verification: "Verified",
       incomeId: candidate.id,
+      allocatedAmount: undefined,
+      unallocatedAmount: undefined,
     });
     used.add(candidate.index);
   }

@@ -249,6 +249,8 @@ export async function GET(request: NextRequest) {
       p.amount,
       "Verified",
       p.paymentCode,
+      p.allocated,
+      p.unallocated,
     ]);
 
     const billHeaders = ["FILE ID", "Service Name", "Rate (BDT)", "QTY", "Amount (BDT)", "Bill ID", "Status", "Net Amount (BDT)", "Discount (BDT)", "Paid (BDT)", "Due (BDT)", "Invoice Code", "Issue Date"];
@@ -256,13 +258,13 @@ export async function GET(request: NextRequest) {
       sheet("Summary", ["FILE ID", "Client Name", "Project Name", "Engineering Bill", "Engineering Discount", "Engineering Deposit", "Engineering Due", "Supervision Bill", "Supervision Discount", "Supervision Deposit", "Supervision Due", "Other Services Bill", "Other Services Discount", "Other Services Deposit", "Other Services Due", "Design Books Bill", "Design Books Discount", "Design Books Deposit", "Design Books Due", "Total Due", "Status"], [[projectId, project.Client_Name || "", project.Project_Name || "", eng.gross, eng.discount, eng.paid, eng.due, sup.gross, sup.discount, sup.paid, sup.due, oth.gross, oth.discount, oth.paid, oth.due, books.gross, books.discount, books.paid, books.due, totalDue, totalDue > .009 ? "DUE" : totalBilled > 0 ? "FULL PAID" : ""]]),
       sheet("File List", ["FILE ID", "Client Name", "Address", "Phone", "Floor/Story", "Build Type", "Land Area", "Referred By", "Ref. Contact"], [[projectId, project.Client_Name || "", project.Location || "", project.Phone_Number || "", project.Floors || "", project.Project_Type || "", project.Plot_Area || "", project.Referred_By || "", project.Ref_Contact || ""]]),
       sheet("Design Bill", billHeaders, billRows("Engineering Bill")),
-      sheet("Design Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Engineering Bill")),
+      sheet("Design Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID", "Applied to Invoices", "Unallocated"], payRows("Engineering Bill")),
       sheet("Design Books Bill", billHeaders, billRows("Design Books")),
-      sheet("Design Books Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Design Books")),
+      sheet("Design Books Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID", "Applied to Invoices", "Unallocated"], payRows("Design Books")),
       sheet("Supervision Bill", billHeaders, billRows("Supervision Bill")),
-      sheet("S Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Supervision Bill")),
+      sheet("S Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID", "Applied to Invoices", "Unallocated"], payRows("Supervision Bill")),
       sheet("Others Bill", billHeaders, billRows("Other Services Bill")),
-      sheet("Others Bill Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Other Services Bill")),
+      sheet("Others Bill Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID", "Applied to Invoices", "Unallocated"], payRows("Other Services Bill")),
     ];
 
     const lifecycle = billingLifecycle(authority);
