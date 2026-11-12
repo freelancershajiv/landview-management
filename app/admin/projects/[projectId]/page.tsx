@@ -9,6 +9,7 @@ import WhatsAppNumberCheck from "@/components/whatsapp-number-check";
 import { notifyClientProjectStage } from "@/lib/client-project-whatsapp";
 import { PROJECT_SERVICE_FOLDERS, uploadProjectFile } from "@/lib/project-service-folders";
 import WorkflowStage from "@/components/workflow-stage";
+import ProjectReferenceImages from "@/components/project-reference-images";
 
 const WORKFLOW_ORDER = [
   "Architectural Design",
@@ -24,7 +25,7 @@ const WORKFLOW_ORDER = [
   "Site Supervision",
 ];
 
-type Tab = "overview" | "workflow" | "team" | "finance" | "visits" | "documents" | "activity";
+type Tab = "overview" | "workflow" | "team" | "finance" | "visits" | "documents" | "references" | "activity";
 type FinanceCategory = { name:string; bill:number; discount:number; paid:number; due:number };
 type LiveFinance = { categories:FinanceCategory[]; billed:number; paid:number; due:number; status:string; sourceUpdatedAt?:string };
 
@@ -98,7 +99,7 @@ export default function ProjectDetailPage(){
 
   if(loading)return <LoadingState label="Loading project command center..."/>; if(error&&!project)return <ErrorState message={error} onRetry={load}/>;
   const title=idOf(project,["Project_Name","Project Name","Name","Project_Type","Project Type"])||projectId; const billed=liveFinance?.billed??Number(billing?.totalBill||0); const paid=liveFinance?.paid??Number(billing?.totalPaid||0); const due=liveFinance?.due??Number(billing?.due||0); const collection=billed>0?Math.max(0,Math.round(paid/billed*100)):0;
-  const tabs:Array<[Tab,string]>=[["overview","Overview"],["workflow","Workflow"],["team","Team"],["finance","Finance"],["visits","Site Visits"],["documents","Documents"],["activity","Activity"]];
+  const tabs:Array<[Tab,string]>=[["overview","Overview"],["workflow","Workflow"],["team","Team"],["finance","Finance"],["visits","Site Visits"],["documents","Documents"],["references","Reference Images"],["activity","Activity"]];
 
   return <><style dangerouslySetInnerHTML={{__html:css}}/><div className="pc">
     <PageHeader eyebrow={`PROJECT COMMAND CENTER · ${projectId}`} title={title} description={`${idOf(project,["Client_Name","Client Name","Client"])||"No client"} · ${idOf(project,["Location","Address"])||"Location not set"}`} action={<div className="pc-actions"><Link className="btn" href="/admin/projects">← Projects</Link><button className="btn btn-dark" onClick={()=>setEditing(v=>!v)}>{editing?"Close editor":"Edit project"}</button></div>}/>
@@ -200,6 +201,8 @@ export default function ProjectDetailPage(){
     {tab==="visits"&&<section className="pc-panel"><div className="pc-panel-head"><div><span>SITE CONTROL</span><h2>Site visits</h2></div><span className="pc-badge">{visits.length} records</span></div>{visits.length?<div style={{overflowX:"auto"}}><table className="pc-table"><thead><tr><th>Date</th><th>Engineer</th><th>Purpose</th><th>Status</th></tr></thead><tbody>{visits.map((v:any,i)=><tr key={i}><td>{formatDate(v.Visit_Date||v.Date||v.Created_At)}</td><td>{idOf(v,["Employee_Name","Engineer","Visited_By"])||"—"}</td><td>{idOf(v,["Purpose","Notes","Description"])||"—"}</td><td>{idOf(v,["Status","status"])||"Recorded"}</td></tr>)}</tbody></table></div>:<div className="pc-empty">No site visits recorded for this project.</div>}</section>}
 
     {tab==="documents"&&<><section className="pc-panel"><div className="pc-panel-head"><div><span>DOCUMENT CONTROL</span><h2>Registered documents</h2></div><span className="pc-badge">{documents.length} files</span></div>{documents.length?<div className="pc-list">{documents.map((d:any,i)=><div className="pc-row" key={i}><div><strong>{idOf(d,["Document_Name","Document Name","Name"])||`Document ${i+1}`}</strong><small>{idOf(d,["Document_Type","Document Type","Category"])||"Project document"} · {formatDate(d.Document_Date||d.Date||d.Created_At)}</small></div>{idOf(d,["File_URL","File URL","URL"])&&<a href={idOf(d,["File_URL","File URL","URL"])} target="_blank" rel="noreferrer">Open ↗</a>}</div>)}</div>:<div className="pc-empty">No registered documents yet.</div>}</section><section className="pc-panel"><div className="pc-panel-head"><div><span>GOOGLE DRIVE</span><h2>Project service folders</h2></div></div><div className="service-grid">{PROJECT_SERVICE_FOLDERS.map(folderName=>{const folder=folderMap.get(folderName);const selected=folderFiles[folderName];return <div className="service-card" key={folderName}><div className="service-card-head"><strong>{folderName}</strong>{folder?.url&&<a href={folder.url} target="_blank" rel="noreferrer">Open folder ↗</a>}</div><div className="service-upload"><input type="file" onChange={e=>setFolderFiles(v=>({...v,[folderName]:e.target.files?.[0]||null}))}/><button disabled={!selected||uploadingFolder===folderName} onClick={()=>uploadToFolder(folderName)}>{uploadingFolder===folderName?"Uploading...":"Upload"}</button></div></div>})}</div></section></>}
+
+    {tab==="references"&&<ProjectReferenceImages projectId={projectId} />}
 
     {tab==="activity"&&<section className="pc-panel"><div className="pc-panel-head"><div><span>PROJECT RECORDS</span><h2>Activity summary</h2></div></div><div className="pc-list"><div className="pc-row"><div><strong>Workflow</strong><small>Billing-defined service delivery records</small></div><span className="pc-badge">{completed}/{orderedTasks.length} · {progress}%</span></div><div className="pc-row"><div><strong>Documents</strong><small>Registered project files and uploads</small></div><span className="pc-badge">{documents.length}</span></div><div className="pc-row"><div><strong>Site visits</strong><small>Supervision and field records</small></div><span className="pc-badge">{visits.length}</span></div><div className="pc-row"><div><strong>Finance source</strong><small>{liveFinance?"Finance Summary worksheet linked":"Legacy billing fallback"}</small></div><span className={`pc-badge ${due>0?"red":"green"}`}>{liveFinance?.status||(due>0?"Due":"Full Paid")}</span></div><div className="pc-row"><div><strong>Assigned employees</strong><small>Current project team</small></div><span className="pc-badge">{assignedPeople.length}</span></div></div></section>}
   </div></>;
