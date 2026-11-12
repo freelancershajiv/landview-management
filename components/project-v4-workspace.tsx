@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ProjectClientDocumentRegistry from "@/components/project-client-document-registry";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import "./project-v4-workspace.css";
@@ -256,19 +257,14 @@ export default function ProjectV4Workspace() {
           </>}
 
           {tab === "documents" && <>
-            <div className="lv4-section-head"><h2>Project-Wide Client Documents</h2>{linkText("/admin/project-operations/document-register","Open Existing Register")}</div>
-            <Panel title="Five standard client requirements">
-              <p className="lv4-muted">One project-wide checklist, shared by every service. A recorded receipt is not proof the document has been formally verified. Multiple owners and multiple copies remain possible.</p>
-              <div className="lv4-split"><strong>{onRecord} of 5 on record</strong><span className="lv4-quiet">Physical custody and return history preserved</span></div>
-              <div className="lv4-progress" style={{ margin:"12px 0" }}><span style={{ width: String(onRecord / 5 * 100) + "%" }}/></div>
-              <div className="lv4-doc-list">{data.documents.map((doc) => <div key={val(doc,"key")} className="lv4-doc-item"><div><strong>{val(doc,"name")}</strong><small>Received records: {String(doc.receiptCount ?? 0)} · Returned records: {String(doc.returnedCount ?? 0)}</small></div><Tag>{val(doc,"status")}</Tag></div>)}</div>
-            </Panel>
-            <Panel title="Client documents received / returned">
-              <Table items={data.documentReceipts} columns={[{title:"Receipt ID",key:"code"},{title:"Document",key:"name"},{title:"Form",key:"form"},{title:"Received",key:"receivedDate",format:"date"},{title:"Quantity",key:"quantity",format:"number"},{title:"Returned",key:"returnStatus",format:"status"}]} empty="No client receiving records yet. The five default requirements remain visible above."/>
-            </Panel>
-            <Panel title="Project file inventory">
-              <Table items={data.projectFiles} columns={[{title:"Document",key:"title"},{title:"Type",key:"type"},{title:"Revision",key:"revision"},{title:"Status",key:"status",format:"status"},{title:"Date",key:"date",format:"date"}]} empty="No uploaded project file records yet."/>
-              <p className="lv4-muted">Uploads, verification and handover actions remain in the existing modules until the new custody and permissions layer is reviewed.</p>
+            <ProjectClientDocumentRegistry projectCode={projectCode} onChanged={update}/>
+            <Panel title="Other project design and delivered files">
+              <Table items={data.projectFiles} columns={[
+                { title:"Document",key:"title" },{ title:"Type",key:"type" },
+                { title:"Revision",key:"revision" },{ title:"Status",key:"status",format:"status" },
+                { title:"Date",key:"date",format:"date" },
+              ]} empty="No design or other project file records yet."/>
+              <p className="lv4-muted">Client-provided documents stay in the client registry above; design deliverables remain in the existing Document Register.</p>
             </Panel>
           </>}
 
