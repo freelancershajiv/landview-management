@@ -10,6 +10,7 @@ type Exception = {
   paymentCode: string;
   amount: number;
   explanation: string;
+  source?: string;
 };
 type Integrity = {
   snapshotAt: string;
@@ -55,7 +56,7 @@ export default function InvoiceIntegrityPage() {
     return () => window.clearTimeout(timer);
   }, [load]);
   const exceptions = useMemo(() => (data?.exceptions || []).filter((row) =>
-    [row.projectCode, row.billCode, row.paymentCode, labels[row.type], row.explanation].join(" ").toLowerCase().includes(search.toLowerCase().trim())
+    [row.projectCode, row.billCode, row.paymentCode, row.source, labels[row.type], row.explanation].join(" ").toLowerCase().includes(search.toLowerCase().trim())
   ), [data, search]);
 
   return <main className="integrity"><style>{styles}</style>
@@ -86,7 +87,7 @@ export default function InvoiceIntegrityPage() {
         <div className="integrity-table"><table><thead><tr><th>File</th><th>Exception</th><th>Bill / Payment</th><th>Difference</th><th>Explanation</th><th>Review</th></tr></thead><tbody>
           {exceptions.length ? exceptions.map((row, index) => <tr key={row.type + ":" + row.projectCode + ":" + row.billCode + ":" + row.paymentCode + ":" + index}>
             <td><strong>{row.projectCode || "—"}</strong></td><td>{labels[row.type] || row.type}</td>
-            <td>{row.billCode || row.paymentCode || "—"}</td><td>{row.amount > 0 ? money(row.amount) : "—"}</td>
+            <td>{row.billCode || row.paymentCode || "—"}{row.source && <span className="integrity-source">{row.source}</span>}</td><td>{row.amount > 0 ? money(row.amount) : "—"}</td>
             <td>{row.explanation}</td><td>{row.projectCode ? <Link href={`/admin/finance/bills?fileId=${encodeURIComponent(row.projectCode)}`}>Open Bills</Link> : "—"}</td>
           </tr>) : <tr><td colSpan={6}>No exceptions match the current search.</td></tr>}
         </tbody></table></div>
@@ -114,7 +115,7 @@ const styles = `
 .integrity-table{overflow:auto}.integrity-table table{width:100%;min-width:920px;border-collapse:collapse}
 .integrity-table td,.integrity-table th{padding:11px;border-top:1px solid var(--lv-border-subtle);text-align:left;font-size:11px;vertical-align:top}
 .integrity-table th{color:var(--lv-text-muted);font-weight:800}.integrity-table td:nth-child(5){max-width:360px;color:var(--lv-text-muted);line-height:1.4}
-.integrity-table a{color:var(--lv-brand-text);font-weight:800;text-decoration:none;white-space:nowrap}
+.integrity-table a{color:var(--lv-brand-text);font-weight:800;text-decoration:none;white-space:nowrap}.integrity-source{display:block;margin-top:5px;color:var(--lv-text-muted);font-size:10px}
 .integrity-info,.integrity-error{border-radius:8px;padding:14px;background:var(--lv-surface-muted);font-size:12px}
 .integrity-error{color:var(--lv-danger,#c64747)}
 @media(max-width:900px){.integrity-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.integrity-head{align-items:flex-start;flex-direction:column}.integrity-top{align-items:stretch;flex-direction:column}.integrity-top input{width:100%}}
