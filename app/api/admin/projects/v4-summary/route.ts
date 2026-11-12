@@ -188,14 +188,24 @@ export async function GET(request: NextRequest) {
     });
 
     const documents = REQUIREMENTS.map((requirement) => {
-      const matches = receipts.filter((row) => requirement.match.test(text(row.document_name, 300)));
+      const matches = receipts.filter((row) =>
+        text(row.requirement_key) === requirement.key ||
+        (!text(row.requirement_key) && requirement.match.test(text(row.document_name, 300)))
+      );
       const registered = matches.filter(collected).length;
-      const returned = matches.filter((row) => /returned/i.test(text(row.return_status))).length;
+      const inCustody = matches.filter((row) =>
+        ["Received", "Partial"].includes(text(row.collection_status)) &&
+        text(row.return_status) !== "Returned"
+      );
+      const verified = inCustody.filter((row) => text(row.verification_status) === "Verified").length;
+      const returned = matches.filter((row) => text(row.return_status) === "Returned").length;
       return {
         key: requirement.key, name: requirement.name,
-        receiptCount: registered, returnedCount: returned,
-        status: !loaded[2] ? "Unavailable" : registered ? "On record" : "Not recorded",
-        // Older receipts do NOT establish formal verification.
+        receiptCount: registered, onHandCount: inCustody.length,
+        verifiedCount: verified, returnedCount: returned,
+        status: !loaded[2] ? "Unavailable" : verified ? "Verified" :
+          inCustody.length ? "On record" : returned ? "Returned" : "Not recorded",
+        // Older receipts without an explicit verification status are not verified.
       };
     });
     const documentReceipts = receipts.map((row) => ({
@@ -272,7 +282,7 @@ export async function GET(request: NextRequest) {
         activity: timeline,
         alerts: {
           overdueTodos: loaded[0] ? late : null,
-          missingDocuments: loaded[2] ? documents.filter((row) => row.status === "Not recorded").length : null,
+          missingDocuments: loaded[2] ? documents.filter((row) => row.status === "Not recorded" || row.status === "Returned").length : null,
           invoiceReview: financial ? reviewCount : null,
         },
         warnings,
