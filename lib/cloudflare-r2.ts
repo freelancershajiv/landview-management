@@ -263,3 +263,29 @@ export async function readSiteVisitMediaFromR2(fileId: string) {
     key,
   };
 }
+
+
+export async function uploadProjectReferenceImage(input: {
+  projectCode: string;
+  mimeType: string;
+  bytes: Uint8Array | Buffer;
+}) {
+  const bytes = Buffer.from(input.bytes);
+  if (!bytes.length) throw new Error("Reference image is empty.");
+  const mimeType = contentTypeForMime(input.mimeType);
+  if (!["image/jpeg", "image/png", "image/webp"].includes(mimeType)) {
+    throw new Error("Only JPG, PNG and WebP images are supported.");
+  }
+  const project = safeSegment(input.projectCode, "project");
+  const key = `project-references/${project}/${randomUUID()}.${extensionForMime(mimeType)}`;
+  await signedR2Request({ method: "PUT", key, body: bytes, contentType: mimeType });
+  return { fileId: `${R2_FILE_ID_PREFIX}${key}`, key, mimeType, size: bytes.length };
+}
+
+export async function deleteR2Object(key: string) {
+  const safeKey = String(key || "").trim();
+  if (!safeKey || safeKey.startsWith("/") || safeKey.includes("..")) {
+    throw new Error("Invalid Cloudflare R2 object key.");
+  }
+  await signedR2Request({ method: "DELETE", key: safeKey });
+}
