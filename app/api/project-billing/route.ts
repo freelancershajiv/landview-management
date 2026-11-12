@@ -322,7 +322,10 @@ export async function GET(request: NextRequest) {
       },
       payments: effectivePayments.map((payment) => {
         const references = allocationsByPaymentCode.get(payment.paymentCode) || [];
-        const receiptUrl = text(payment.row.receipt_url);
+        // All current LAND VIEW receipt links are same-origin verification URLs.
+        // Never render an arbitrary remote URL supplied by a payment record.
+        const receiptPath = text(payment.row.receipt_url);
+        const receiptMatch = /^\/verify\/receipt\/([0-9a-f]{32})$/i.exec(receiptPath);
         const unallocated = payment.unallocated;
         return {
           paymentCode: payment.paymentCode,
@@ -330,7 +333,7 @@ export async function GET(request: NextRequest) {
           category: category(payment.row),
           method: text(payment.row.payment_method),
           reference: text(payment.row.reference_no),
-          receiptUrl: /^https?:\/\//i.test(receiptUrl) ? receiptUrl : "",
+          receiptUrl: receiptMatch ? `/verify/receipt/${receiptMatch[1].toLowerCase()}` : "",
           amount: payment.amount,
           allocated: payment.allocated,
           unallocated,

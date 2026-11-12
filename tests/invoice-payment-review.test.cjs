@@ -51,7 +51,9 @@ test("billing API returns allocations, receipt data and statuses without payment
   const api = read("app/api/project-billing/route.ts");
   assert.match(api, /const paymentReview = \{/);
   assert.match(api, /const effectivePayments = authority\.payments\.filter\(\(row\) => row\.effective\)/);
-  assert.ok(api.includes("receiptUrl: /^https?:"), "receipt destinations are restricted to HTTP(S)");
+  assert.match(api, /receiptMatch = .*verify.*receipt/);
+  assert.match(api, /receiptMatch \? .*verify\/receipt/);
+  assert.doesNotMatch(api, /receiptUrl: \^https\?:/);
   assert.match(api, /allocationStatus:/);
   assert.match(api, /historicalPaidReviewCount:/);
   assert.doesNotMatch(api, /insertRows\(|updateRows\(|deleteRows\(/);
