@@ -46,3 +46,28 @@ test("retries do not modify previously issued, paid, or voided proposal bill row
   assert.match(source, /if \(projectRows\.length\) \{/);
   assert.match(source, /alreadyConverted: true/);
 });
+
+test("proposal billing preflight runs before project creation or repair", () => {
+  const preflight = source.indexOf("validateProposalBillPlan(proposalId, proposal, billPlan);");
+  const newProject = source.indexOf("    let sequence = await nextProjectNumber();", source.indexOf("export async function POST("));
+  assert.ok(preflight > 0 && preflight < newProject);
+  assert.match(source, /missing or duplicate billing-line IDs/);
+  assert.match(source, /billing total does not match its accepted net/);
+});
+
+test("billing preflight rejects inconsistent accepted totals, duplicate IDs and negative net lines", () => {
+  const ts = require("typescript");
+  const start = source.indexOf("function validateProposalBillPlan(");
+  const end = source.indexOf("async function ensureProposalBills(", start);
+  assert.ok(start >= 0 && end > start);
+  const compiled = ts.transpileModule(source.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const validate = new Function("text", "numberOf", compiled + "\nreturn validateProposalBillPlan;")(
+    (value) => String(value ?? "").trim(),
+    (value) => Number(value ?? 0),
+  );
+  const item = (item_code, amount, discount, netAmount) => ({ item: { item_code }, amount, discount, netAmount });
+  assert.doesNotThrow(() => validate("PROP-TEST", { net_amount: 100 }, [item("LINE-1", 150, 50, 100)]));
+  assert.throws(() => validate("PROP-TEST", { net_amount: 99 }, [item("LINE-1", 150, 50, 100)]), /accepted net/);
+  assert.throws(() => validate("PROP-TEST", { net_amount: 100 }, [item("LINE-1", 150, 50, 100), item("LINE-1", 50, 0, 50)]), /duplicate/);
+  assert.throws(() => validate("PROP-TEST", { net_amount: 0 }, [item("LINE-1", 150, 200, 0)]), /invalid amount or discount/);
+});
