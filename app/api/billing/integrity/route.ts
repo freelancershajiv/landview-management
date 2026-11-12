@@ -14,6 +14,7 @@ type Exception = {
   paymentCode: string;
   amount: number;
   explanation: string;
+  source?: string;
 };
 const LIMIT = 5000;
 const INACTIVE = new Set(["draft", "void", "voided", "cancelled", "canceled", "rejected", "returned"]);
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
 
     const [projects, bills, invoices, payments, allocations] = await Promise.all([
       selectRows("projects", { select: "id,project_code", limit: LIMIT }),
-      selectRows("bills", { select: "id,bill_code,project_id,amount,discount,net_amount,status", limit: LIMIT }),
+      selectRows("bills", { select: "id,bill_code,project_id,amount,discount,net_amount,status,created_via", limit: LIMIT }),
       selectRows("invoices", { select: "id,project_id,bill_code,invoice_code,status", limit: LIMIT }),
       selectRows("payments", { select: "id,project_id,payment_code,amount,status,approval_status,transaction_type,affects_business_balance", limit: LIMIT }),
       selectRows("payment_invoice_allocations", { select: "id,project_id,payment_id,invoice_id,allocated_amount", limit: LIMIT }),
@@ -93,6 +94,7 @@ export async function GET(request: NextRequest) {
           add({
             type: "paid_allocation_gap", projectCode, billCode, paymentCode: "",
             amount: money(net - allocated),
+            source: text(b.created_via) || "Unclassified",
             explanation: "Bill is marked Paid but invoice allocation is lower than its recorded net. Check historical payments and adjustments before correction.",
           }, "paidAllocationGap");
         }
