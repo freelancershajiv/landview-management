@@ -132,6 +132,14 @@ export async function GET(request: NextRequest) {
         allocationGapTotal: money(exceptions.filter((e) => e.type === "paid_allocation_gap").reduce((sum, row) => sum + row.amount, 0)),
         exceptions: exceptions.slice(0, 250),
         exceptionCount: exceptions.length,
+        sourceBreakdown: Object.values(exceptions.filter((row) => row.type === "paid_allocation_gap").reduce((groups, row) => {
+          const source = row.source || "Unclassified";
+          const group = groups[source] || { source, count: 0, gap: 0 };
+          group.count += 1;
+          group.gap = money(group.gap + row.amount);
+          groups[source] = group;
+          return groups;
+        }, {} as Record<string, { source: string; count: number; gap: number }>)).sort((a, b) => b.gap - a.gap),
       },
     }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {

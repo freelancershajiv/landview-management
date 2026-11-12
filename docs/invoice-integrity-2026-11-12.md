@@ -29,6 +29,23 @@ New and repaired proposal bills now share the same bill-creation path. Positive-
 - Simultaneous initial project-registration attempts still need a database-level uniqueness guarantee or transaction to close the remaining race. No migration has been applied.
 - The unrelated legacy repository-wide lint/test failures are separately reported; targeted invoice checks remain required.
 
+## Phases 3–5 – coordinated invoice release (development only)
+
+Invoice Center provides an authenticated dashboard of canonical invoice status, effective allocations, project collectible due, search, date/category/status filters and client-safe CSV exports. Existing PDF generation, WhatsApp PDF delivery, email invoice delivery and payment recording remain established workflows, linked rather than duplicated.
+
+Reconciliation continues to be review-only. A Paid bill with insufficient allocated payments is marked Historical review, never turned into new collectible debt. Invoice-level balance and project-level due are distinct because unallocated advances, write-offs and adjustments can reduce project receivables. The integrity screen provides CSV and historical-source breakdown.
+
+Notifications reuse the existing persistent whatsapp_client_outbox. An administrator/manager can explicitly confirm a single reminder for a project with WhatsApp client updates enabled, a valid number and a positive canonical collectible balance. A UNIQUE dedupe key prevents more than one reminder per project per Dhaka calendar month, across manual and scheduled paths. Messages are queued, not described as delivered. WhatsApp operations remains the delivery/failed-message monitor.
+
+Scheduled reminder safety: The weekly cron is registered for Monday 04:00 UTC (10:00 in Bangladesh), but INVOICE_REMINDERS_ENABLED must be set to exactly true before it queues messages. Leave it unset during preview and initial release. Review consent and WhatsApp health, then opt in deliberately if approved. Up to 20 new reminders are queued per execution. CRON_SECRET must be configured.
+
+Release concerns:
+- The canonical authority has finite source-query limits; incomplete snapshots block automatic reminders and warn on exports.
+- No production records or database migration are changed by this branch.
+- Broad repository lint/test baseline includes unrelated failures. The focused invoice regression, targeted lint and typecheck form separate required checks.
+- Validate reminder recipient, due, duplicate suppression, invoice PDF, email/WhatsApp delivery and Client Portal totals using synthetic or controlled preview records. Never send test messages to real clients.
+- Verify a recoverable database backup before deployment. Code rollback alone cannot undo erroneous finance records.
+
 ## Backup and deployment gate
 
 **Do not merge or repair production data until a recoverable Supabase backup is verified** in the private [Supabase Database Backups dashboard](https://supabase.com/dashboard/project/_/database/backups/scheduled), or by checking PITR. The currently available connector cannot inspect backup inventory or perform a production database export. A Git branch is only a source-code rollback point, not a database backup.

@@ -20,6 +20,7 @@ type Integrity = {
   exceptionCount: number;
   allocationGapTotal: number;
   exceptions: Exception[];
+  sourceBreakdown?: { source: string; count: number; gap: number }[];
 };
 const money = (value: number) => "৳" + Number(value || 0).toLocaleString("en-BD", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const labels: Record<string, string> = {
@@ -29,6 +30,21 @@ const labels: Record<string, string> = {
   allocation_reference: "Invalid Allocation Link",
   payment_overallocated: "Overallocated Payment",
 };
+
+function saveExceptionsCsv(rows: Exception[]) {
+  const headers = ["File", "Type", "Bill", "Payment", "Source", "Difference (BDT)", "Explanation"];
+  const fields = [headers, ...rows.map((row) => [row.projectCode, labels[row.type] || row.type, row.billCode, row.paymentCode, row.source || "", row.amount, row.explanation])];
+  const escape = (value: unknown) => {
+    const raw = String(value ?? "");
+    const safe = /^[\s]*[=+@-]/.test(raw) ? "'" + raw : raw;
+    return '"' + safe.replace(/"/g, '""') + '"';
+  };
+  const blob = new Blob(["\uFEFF", fields.map((line) => line.map(escape).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url; anchor.download = "LAND-VIEW-invoice-integrity-" + new Date().toISOString().slice(0, 10) + ".csv"; anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 export default function InvoiceIntegrityPage() {
   const [data, setData] = useState<Integrity | null>(null);
@@ -63,7 +79,7 @@ export default function InvoiceIntegrityPage() {
     <header className="integrity-head">
       <div><small>LAND VIEW / FINANCE 2.0</small><h1>Invoice Integrity</h1>
         <p>Read-only checks of bill links, invoice allocations and Paid status exceptions. This screen cannot modify bills or payments.</p></div>
-      <button type="button" onClick={() => void load()} disabled={loading}>{loading ? "Checking…" : "Refresh Audit"}</button>
+<div className="integrity-head-buttons"><button type="button" onClick={() => saveExceptionsCsv(exceptions)} disabled={!data || !data.complete || !exceptions.length}>Export exceptions CSV</button><button type="button" onClick={() => void load()} disabled={loading}>{loading ? "Checking…" : "Refresh Audit"}</button></div>
     </header>
     {error && <p className="integrity-error" role="alert">{error}</p>}
     {loading && <p className="integrity-info" role="status">Checking current financial records…</p>}
@@ -79,7 +95,8 @@ export default function InvoiceIntegrityPage() {
       <section className="integrity-note">
         <strong>Allocation gap flagged: {money(data.allocationGapTotal)}</strong>
         <p>This figure is <b>not</b> a verified outstanding receivable. Legacy payments, adjustments or historical settlements may explain the gaps. Review each item before any financial correction.</p>
-        <p>Audit time: {new Date(data.snapshotAt).toLocaleString("en-BD", { timeZone: "Asia/Dhaka" })} · {data.exceptionCount} exceptions found. Showing up to 250 records.</p>
+<p>Audit time: {new Date(data.snapshotAt).toLocaleString("en-BD", { timeZone: "Asia/Dhaka" })} · {data.exceptionCount} exceptions found. Showing up to 250 records.</p>
+        {!!data.sourceBreakdown?.length && <div className="integrity-sources"><strong>Paid-allocation gap by historical source</strong>{data.sourceBreakdown.map((source) => <span key={source.source}>{source.source}: {source.count} bills · {money(source.gap)}</span>)}</div>}
       </section>
       <section className="integrity-panel">
         <div className="integrity-top"><div><h2>Exceptions to review</h2><p>Open the project billing records to compare original bills, payment allocations and adjustments.</p></div>
@@ -101,7 +118,7 @@ const styles = `
 .integrity-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:15px}
 .integrity-head small{color:var(--lv-brand-text);font-size:10px;font-weight:800;letter-spacing:.12em}
 .integrity-head h1{font-size:26px;margin:5px 0}.integrity-head p{font-size:12px;max-width:790px;color:var(--lv-text-muted);line-height:1.5;margin:0}
-.integrity-head button{border:1px solid var(--lv-brand-border);background:var(--lv-brand-primary);color:var(--lv-text-inverse);border-radius:8px;font-size:12px;font-weight:800;padding:11px 15px;cursor:pointer}
+.integrity-head-buttons{display:flex;flex-wrap:wrap;gap:8px}.integrity-sources{margin-top:12px;border-top:1px solid var(--lv-border-subtle);padding-top:10px}.integrity-sources>strong{font-size:12px}.integrity-sources span{display:inline-block;font-size:11px;margin:8px 12px 0 0}.integrity-head button{border:1px var(--lv-brand-border);background:var(--lv-brand-primary);color:var(--lv-text-inverse);border-radius:8px;font-size:12px;font-weight:800;padding:11px 15px;cursor:pointer}
 .integrity-head button:disabled{opacity:.65;cursor:wait}
 .integrity-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
 .integrity-grid div{border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-panel);padding:15px;min-width:0}

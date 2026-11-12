@@ -19,7 +19,9 @@ export default function FinanceLayout({ children }: { children: React.ReactNode 
       <Link className="primary" href="/admin/finance/add-bill">+ Add Bill</Link>
       <Link className="primary" href="/admin/finance/direct-bill">+ New Full Bill</Link>
       <Link className="primary" href="/admin/finance/full-bill-editor">Edit Full Bill</Link>
+      <Link href="/admin/finance/invoice-center">Invoice Center</Link>
       <Link href="/admin/finance/invoices">Generate Invoice</Link>
+      <Link href="/admin/finance/payment-lifecycle">Receipts & Advances</Link>
       <Link href="/admin/finance/service-payments">Add Payment</Link>
       <Link href="/admin/finance/outsourcing">Outsourcing</Link>
       <Link href="/admin/finance/due-bills">Due Bills</Link>
