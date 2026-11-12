@@ -13,11 +13,14 @@ test("invoice presentation keeps the existing financial sources and categories",
   assert.match(component, /billLineAmounts\(item\)/);
 });
 
-test("deposit table is easier to scan with amount in rightmost column", () => {
-  assert.match(component, /<th>Payment details<\/th><th>Verification<\/th><th>Amount \(BDT\)<\/th>/);
-  const cells = component.match(/<td className=\{styles\.verificationCell\}>[\s\S]*?<\/td><td className=\{styles\.moneyCell\}>\{amountText\(payment\.amount\)\}<\/td>/);
-  assert.ok(cells, "Verification should precede the right-aligned amount");
-  assert.match(style, /\.printPage \.sheetMain \.depositTable th:nth-child\(5\)/);
+test("project payment records distinguish received, applied and unallocated funds", () => {
+  assert.match(component, /<th>Received \(BDT\)<\/th>/);
+  assert.match(component, /<th>Applied \(BDT\)<\/th>/);
+  assert.match(component, /<th>Unallocated \(BDT\)<\/th>/);
+  assert.match(component, /ledger \? amountText\(ledger\.allocated\) : "—"/);
+  assert.match(component, /ledger \? amountText\(ledger\.unallocated\) : "—"/);
+  assert.match(style, /\.printPage \.sheetMain \.depositTable th:nth-child\(6\)/);
+  assert.match(component, /singleInvoice \? <td className=\{styles\.moneyCell\}>\{amountText\(payment\.amount\)\}<\/td>/);
 });
 
 test("print title identifies a single invoice, due statement or project statement correctly", () => {

@@ -290,7 +290,58 @@ export async function GET(request: NextRequest) {
         details: [payment.row.payment_method, payment.row.reference_no].filter(Boolean).join(" · ") || "Client Payment",
       }];
     });
-    return NextResponse.json({ success: true, data: { projectId, sheets, payments, billPayments, commercial, lifecycle, updatedAt: new Date().toISOString(), source: "supabase" } }, {
+    // The payment ledger is strictly read-only.  "Verified" means recorded,
+    // not allocated to any given invoice. Keep those two concepts separate.
+    const allocationsByPaymentCode = new Map<string, Array<{ invoiceCode: string; billCode: string; amount: number }>>();
+    for (const part of billPayments) {
+      const list = allocationsByPaymentCode.get(part.paymentCode) || [];
+      list.push({ invoiceCode: part.invoiceCode, billCode: part.billCode, amount: part.amount });
+      allocationsByPaymentCode.set(part.paymentCode, list);
+    }
+    const effectivePayments = authority.payments.filter((row) => row.effective);
+    const paymentReview = {
+      complete: authority.complete && allocations.length < 20000 &&
+        (!projectReceivable || Math.abs(totalDue - projectReceivable.totalDue) < 0.02),
+      summary: {
+        received: effectivePayments.reduce((sum, row) => sum + row.amount, 0),
+        allocated: effectivePayments.reduce((sum, row) => sum + row.allocated, 0),
+        unallocated: effectivePayments.reduce((sum, row) => sum + row.unallocated, 0),
+        unallocatedAfterRelief: projectReceivable?.remainingUnallocated || 0,
+        invoiceDueBeforeRelief: projectReceivable?.invoiceDueTotal || 0,
+        writeoff: projectReceivable?.writeoffTotal || 0,
+        collectibleDue: projectReceivable?.totalDue ?? totalDue,
+        historicalPaidReviewCount: authority.bills.filter((bill) =>
+          bill.settled && bill.effectiveAmount > 0.009 && bill.allocated + 0.01 < bill.effectiveAmount
+        ).length,
+        categoryDue: {
+          Engineering: Math.max(0, eng.due),
+          "Design Books": Math.max(0, books.due),
+          Supervision: Math.max(0, sup.due),
+          Others: Math.max(0, oth.due),
+        },
+      },
+      payments: effectivePayments.map((payment) => {
+        const references = allocationsByPaymentCode.get(payment.paymentCode) || [];
+        const receiptUrl = text(payment.row.receipt_url);
+        const unallocated = payment.unallocated;
+        return {
+          paymentCode: payment.paymentCode,
+          date: text(payment.row.payment_date || payment.row.created_at),
+          category: category(payment.row),
+          method: text(payment.row.payment_method),
+          reference: text(payment.row.reference_no),
+          receiptUrl: /^https?:\/\//i.test(receiptUrl) ? receiptUrl : "",
+          amount: payment.amount,
+          allocated: payment.allocated,
+          unallocated,
+          allocationStatus: unallocated <= 0.009
+            ? "Allocated"
+            : payment.allocated > 0.009 ? "Partially allocated" : "Unallocated",
+          invoices: references,
+        };
+      }).sort((a, b) => b.date.localeCompare(a.date) || a.paymentCode.localeCompare(b.paymentCode)),
+    };
+    return NextResponse.json({ success: true, data: { projectId, sheets, payments, billPayments, paymentReview, commercial, lifecycle, updatedAt: new Date().toISOString(), source: "supabase" } }, {
       headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "canonical-receivable-authority" },
     });
   } catch (error) {

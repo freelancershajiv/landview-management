@@ -20,6 +20,7 @@ on:
       - "tests/invoice-*.test.cjs"
       - "tests/proposal-billing-conversion.test.cjs"
       - "app/api/proposal-conversion/route.ts"
+      - "app/api/project-billing/route.ts"
       - ".github/workflows/invoice-integrity-regression.yml"
   workflow_dispatch:
 
@@ -38,7 +39,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Invoice regression tests
-        run: node --test tests/invoice-bill-identity.test.cjs tests/invoice-integrity-api.test.cjs tests/billing-document-integrity.test.cjs tests/invoice-single-bill-status.test.cjs tests/proposal-billing-conversion.test.cjs tests/invoice-center.test.cjs tests/invoice-readability.test.cjs
+        run: node --test tests/invoice-bill-identity.test.cjs tests/invoice-integrity-api.test.cjs tests/billing-document-integrity.test.cjs tests/invoice-single-bill-status.test.cjs tests/proposal-billing-conversion.test.cjs tests/invoice-center.test.cjs tests/invoice-readability.test.cjs tests/invoice-payment-review.test.cjs
       - name: Full legacy test suite (report only; existing unrelated failures)
         continue-on-error: true
         run: npm test

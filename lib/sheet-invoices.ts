@@ -219,9 +219,55 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
   };
 }
 
+export type InvoicePaymentReview = {
+  complete: boolean;
+  summary: {
+    received: number;
+    allocated: number;
+    unallocated: number;
+    unallocatedAfterRelief: number;
+    invoiceDueBeforeRelief: number;
+    writeoff: number;
+    collectibleDue: number;
+    historicalPaidReviewCount: number;
+    categoryDue: Record<"Engineering" | "Design Books" | "Supervision" | "Others", number>;
+  };
+  payments: Array<{
+    paymentCode: string;
+    date: string;
+    category: string;
+    method: string;
+    reference: string;
+    receiptUrl: string;
+    amount: number;
+    allocated: number;
+    unallocated: number;
+    allocationStatus: "Allocated" | "Partially allocated" | "Unallocated";
+    invoices: Array<{ invoiceCode: string; billCode: string; amount: number }>;
+  }>;
+};
+
 export type SheetInvoices = ReturnType<typeof buildSheetInvoices> & {
   document?: { kind: "single" | "due" | "project"; invoiceCode?: string; billCode?: string; category?: string; issueDate?: string; generatedAt?: string };
+  paymentReview?: InvoicePaymentReview;
 };
+
+// Display-only authoritative due. Payment and allocation records are not
+// changed and the original builder remains backwards compatible.
+export function attachInvoicePaymentReview(billing: SheetInvoices, review?: InvoicePaymentReview): SheetInvoices {
+  if (!review) return billing;
+  if (!review.complete) return { ...billing, paymentReview: review };
+  const invoices = billing.invoices.map((category) => ({
+    ...category,
+    due: Math.max(0, (review.summary.categoryDue as Record<string, number>)[category.name] ?? category.due),
+  }));
+  return {
+    ...billing,
+    invoices,
+    totals: { ...billing.totals, due: Math.max(0, review.summary.collectibleDue) },
+    paymentReview: review,
+  };
+}
 
 type InvoiceCategoryName = "Engineering" | "Design Books" | "Supervision" | "Others";
 

@@ -187,7 +187,9 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
   }, [verificationUrl]);
   const qrUrl = qr.url;
   const statementRef = result.document?.invoiceCode || `STMT-${result.id}-${new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date()).replace(/-/g, "")}`;
-  const projectStatus = result.client.status || (result.totals.due > 0 ? "Partial / Due" : "Full Paid");
+  const projectStatus = result.client.status || (result.totals.due > 0.009 ? "Balance Due" : "No Collectible Balance");
+  const paymentReview = result.document?.kind === "single" ? undefined : result.paymentReview;
+  const reviewByCode = new Map((paymentReview?.payments || []).map((payment) => [payment.paymentCode.toLowerCase(), payment]));
   const activeCategories = result.invoices.filter(hasBillingData);
   const dueCategories = activeCategories.filter((category) => Number(category.due || 0) > 0.009);
   const printCategories = dueOnly ? (dueCategories.length ? dueCategories : activeCategories) : (activeCategories.length ? activeCategories : result.invoices.slice(0, 1));
@@ -238,13 +240,34 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
 
   const renderTable = (category: SheetInvoices["invoices"][number], type: "bill" | "deposit") => {
     if (type === "bill") return isEngineeringBill(category) ? renderEngineeringBill(category) : renderStandardBill(category);
-    if (!category.payments.length) return <p className={styles.empty}>No deposit records.</p>;
-    return <div className={styles.tableWrap}><table className={styles.depositTable}>
-      <thead><tr><th>SL.</th><th>Date</th><th>Payment details</th><th>Verification</th><th>Amount (BDT)</th></tr></thead>
-      <tbody>{category.payments.map((payment,index)=><tr key={index}>
-        <td>{index+1}</td><td className={styles.dateCell}>{paymentDateOnly(payment.date)}</td><td className={styles.detailsCell}>{payment.details||"—"}</td>
-        <td className={styles.verificationCell}><strong className={payment.verification === "Verified" ? styles.verificationVerified : styles.verificationUnverified}>{payment.verification||"Unverified"}</strong>{payment.incomeId&&<small className={styles.verificationRef}>Ref: {payment.incomeId}</small>}</td><td className={styles.moneyCell}>{amountText(payment.amount)}</td>
-      </tr>)}</tbody>
+    if (!category.payments.length) return <p className={styles.empty}>No recorded payments for this category.</p>;
+    const singleInvoice = result.document?.kind === "single";
+    return <div className={styles.tableWrap}><table className={`${styles.depositTable} ${singleInvoice ? styles.singleInvoicePayments : ""}`}>
+      <thead><tr>
+        <th>SL.</th><th>Date</th><th>Payment / receipt</th>
+        {singleInvoice ? <th>Applied to invoice (BDT)</th> : <><th>Received (BDT)</th><th>Applied (BDT)</th><th>Unallocated (BDT)</th></>}
+      </tr></thead>
+      <tbody>{category.payments.map((payment,index) => {
+        const ledger = reviewByCode.get(String(payment.incomeId || "").trim().toLowerCase());
+        return <tr key={`${payment.incomeId || "legacy"}-${index}`}>
+          <td>{index+1}</td>
+          <td className={styles.dateCell}>{paymentDateOnly(payment.date)}</td>
+          <td className={styles.detailsCell}>
+            <strong>{payment.details || ledger?.method || "Client payment"}</strong>
+            {payment.incomeId && <small className={styles.paymentMetadata}>Payment: {payment.incomeId}</small>}
+            {!singleInvoice && <small className={styles.paymentMetadata}>
+              {ledger ? ledger.allocationStatus : "Allocation details unavailable"}
+              {ledger?.invoices.length ? ` · ${ledger.invoices.map((part) => part.invoiceCode || part.billCode).filter(Boolean).join(", ")}` : ""}
+            </small>}
+            {ledger?.receiptUrl && <a className={styles.receiptLink} href={ledger.receiptUrl} target="_blank" rel="noopener noreferrer">View receipt</a>}
+          </td>
+          {singleInvoice ? <td className={styles.moneyCell}>{amountText(payment.amount)}</td> : <>
+            <td className={styles.moneyCell}>{amountText(payment.amount)}</td>
+            <td className={styles.moneyCell}>{ledger ? amountText(ledger.allocated) : "—"}</td>
+            <td className={styles.moneyCell}>{ledger ? amountText(ledger.unallocated) : "—"}</td>
+          </>}
+        </tr>;
+      })}</tbody>
     </table></div>;
   };
 
@@ -271,21 +294,72 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
     <main className={styles.report}>
       <header className={styles.printHeader}><div><strong>LAND <span>VIEW</span></strong><small>Engineers and Architects</small></div><div><h2>PROJECT BILLING STATEMENT</h2><p>Issue date {issueDate}</p></div></header>
       <section className={styles.projectCard}><div><span>FILE ID</span><strong>{result.id}</strong></div><div><span>CLIENT</span><strong>{result.client.name||"—"}</strong><small>{result.client.phone||"—"}</small></div><div><span>PROJECT TYPE</span><strong>{result.client.type||"—"}</strong><small>{result.client.floor||"—"}</small></div><div className={styles.totalDueCard}><span>OUTSTANDING BALANCE (BDT)</span><strong>{amountText(result.totals.due)}</strong></div></section>
-      <section className={styles.categoryGrid}>{activeCategories.map(category=><article className={styles.category} key={category.name}><div className={styles.categoryHeader}><div><span>{category.name.toUpperCase()}</span><h2>{category.name} Billing</h2></div><div className={category.due>0?styles.dueBadge:styles.paidBadge}>{category.due>0?"DUE":"PAID"}</div></div><div className={styles.metrics}><div><span>Bill (BDT)</span><strong>{amountText(category.gross)}</strong></div><div><span>Discount (BDT)</span><strong>{amountText(category.discount)}</strong></div><div><span>Deposited (BDT)</span><strong>{amountText(category.paid)}</strong></div><div><span>Due (BDT)</span><strong>{amountText(category.due)}</strong></div></div><div className={styles.split}><section><h3>{category.name} Bill</h3>{renderTable(category,"bill")}</section><section><h3>{category.name} Deposit</h3>{renderTable(category,"deposit")}</section></div><div className={styles.formula}><span>{amountText(category.gross)} − {amountText(category.discount)} − {amountText(category.paid)}</span><strong>= {amountText(category.due)}</strong></div></article>)}</section>
-      <section className={styles.grandSummary}><div><span>Total Bill (BDT)</span><strong>{amountText(result.totals.gross)}</strong></div><div><span>Total Discount (BDT)</span><strong>{amountText(result.totals.discount)}</strong></div><div><span>Total Deposit (BDT)</span><strong>{amountText(result.totals.paid)}</strong></div><div className={styles.grandDue}><span>Grand Total Due (BDT)</span><strong>{amountText(result.totals.due)}</strong></div></section>
+      <section className={styles.categoryGrid}>{activeCategories.map(category=><article className={styles.category} key={category.name}><div className={styles.categoryHeader}><div><span>{category.name.toUpperCase()}</span><h2>{category.name} Billing</h2></div><div className={category.due>0?styles.dueBadge:styles.paidBadge}>{category.due>0?"DUE":"NO DUE"}</div></div><div className={styles.metrics}><div><span>Bill (BDT)</span><strong>{amountText(category.gross)}</strong></div><div><span>Discount (BDT)</span><strong>{amountText(category.discount)}</strong></div><div><span>Received (BDT)</span><strong>{amountText(category.paid)}</strong></div><div><span>Collectible Due (BDT)</span><strong>{amountText(category.due)}</strong></div></div><div className={styles.split}><section><h3>{category.name} Bill</h3>{renderTable(category,"bill")}</section><section><h3>{category.name} Payments</h3>{renderTable(category,"deposit")}</section></div><div className={styles.formula}><span>Net billed: {amountText(category.gross - category.discount)} · Received: {amountText(category.paid)}</span><strong>Collectible: {amountText(category.due)}</strong></div></article>)}</section>
+      <section className={styles.grandSummary}><div><span>Total Bill (BDT)</span><strong>{amountText(result.totals.gross)}</strong></div><div><span>Total Discount (BDT)</span><strong>{amountText(result.totals.discount)}</strong></div><div><span>Project Received (BDT)</span><strong>{amountText(result.totals.paid)}</strong></div><div className={styles.grandDue}><span>Collectible Due (BDT)</span><strong>{amountText(result.totals.due)}</strong></div></section>
+      {paymentReview && <section className={styles.paymentAudit} aria-label="Payment and allocation reconciliation">
+        <div className={styles.paymentAuditHeader}>
+          <div>
+            <span>PAYMENT RECONCILIATION</span>
+            <h2>Received, applied and outstanding</h2>
+            <p>Receiving a payment does not automatically allocate it to an invoice. Unallocated money and collectible balances are shown separately.</p>
+          </div>
+        </div>
+        <div className={styles.paymentAuditStats}>
+          <div><span>Received</span><strong>BDT {amountText(paymentReview.summary.received)}</strong></div>
+          <div><span>Applied to invoices</span><strong>BDT {amountText(paymentReview.summary.allocated)}</strong></div>
+          <div><span>Not allocated</span><strong>BDT {amountText(paymentReview.summary.unallocated)}</strong></div>
+          <div><span>Open invoice balance before relief</span><strong>BDT {amountText(paymentReview.summary.invoiceDueBeforeRelief)}</strong></div>
+          <div><span>Net write-offs</span><strong>BDT {amountText(paymentReview.summary.writeoff)}</strong></div>
+          <div className={styles.paymentAuditDue}><span>Collectible due</span><strong>BDT {amountText(paymentReview.summary.collectibleDue)}</strong></div>
+        </div>
+        {paymentReview.summary.unallocated > 0.009 && <p className={styles.paymentAuditHint}>
+          Unallocated receipts may already reduce the collectible balance. Remaining after project-level relief: BDT {amountText(paymentReview.summary.unallocatedAfterRelief)}. Do not subtract them again.
+        </p>}
+        {!paymentReview.complete && <p className={styles.paymentAuditWarning}>The payment snapshot is incomplete or balances do not reconcile. Do not rely on this statement for collection until reviewed.</p>}
+        {paymentReview.summary.historicalPaidReviewCount > 0 && <p className={styles.paymentAuditWarning}>
+          {paymentReview.summary.historicalPaidReviewCount} historical Paid bill(s) have allocation differences. These are review items, not automatically new debts.
+        </p>}
+        <details className={styles.paymentAuditDetails}>
+          <summary>Review all project payments and invoice allocations ({paymentReview.payments.length})</summary>
+          <div className={styles.tableWrap}>
+            <table className={styles.paymentAuditTable}>
+              <thead><tr><th>Date</th><th>Payment ID / receipt</th><th>Method / reference</th><th>Received</th><th>Applied</th><th>Unallocated</th><th>Applied invoices</th></tr></thead>
+              <tbody>{paymentReview.payments.length ? paymentReview.payments.map((payment) => <tr key={payment.paymentCode}>
+                <td>{paymentDateOnly(payment.date)}</td>
+                <td><strong>{payment.paymentCode}</strong>{payment.receiptUrl && <a className={styles.receiptLink} href={payment.receiptUrl} rel="noopener noreferrer" target="_blank">View receipt</a>}</td>
+                <td>{[payment.method, payment.reference].filter(Boolean).join(" · ") || "—"}<small className={styles.paymentMetadata}>{payment.allocationStatus}</small></td>
+                <td className={styles.moneyCell}>{amountText(payment.amount)}</td>
+                <td className={styles.moneyCell}>{amountText(payment.allocated)}</td>
+                <td className={styles.moneyCell}>{amountText(payment.unallocated)}</td>
+                <td>{payment.invoices.length ? payment.invoices.map((line, index) => <div key={`${line.billCode}-${index}`}>{line.invoiceCode || line.billCode}: BDT {amountText(line.amount)}</div>) : "Not allocated"}</td>
+              </tr>) : <tr><td colSpan={7}>No posted project payments.</td></tr>}</tbody>
+            </table>
+          </div>
+        </details>
+      </section>}
       <section className={styles.verificationBlock}><div><span className={styles.verificationLabel}>PROJECT QR</span><strong>{qr.error || verificationError ? "QR unavailable" : verificationUrl ? "Live billing verification" : "Preparing project QR…"}</strong><p>{qr.error || verificationError || (verificationUrl ? "Scan this QR to view the project’s current billing and payment verification." : "A secure project verification link is being generated.")}</p>{verificationUrl&&<a href={verificationUrl} target="_blank" rel="noreferrer">Open billing verification ↗</a>}</div>{qrUrl&&<img data-billing-qr="true" className={styles.qrCode} src={qrUrl} loading="eager" alt={`Billing QR for ${result.id}`} width={132} height={132}/>}</section>
     </main>
 
     <section className={styles.printSheets}>
       {printCategories.map((category, index) => {
         const last = index === printCategories.length - 1;
+        const seenCodes = new Set<string>();
+        const reconciledPayments = category.payments.flatMap((row) => {
+          const code = String(row.incomeId || "").trim().toLowerCase();
+          if (!code || seenCodes.has(code)) return [];
+          seenCodes.add(code);
+          const payment = reviewByCode.get(code);
+          return payment ? [payment] : [];
+        });
+        const totalApplied = reconciledPayments.reduce((sum, payment) => sum + payment.allocated, 0);
+        const totalUnallocated = reconciledPayments.reduce((sum, payment) => sum + payment.unallocated, 0);
         return <article className={styles.printPage} key={`${category.name}-${index}`}>
           <PrintHeader page={index + 1} title={`${category.name} Bill`}/>
           <section className={styles.portraitSection}>
-            <div className={styles.sheetMain}><h2>{category.name.toUpperCase()} <span>BILL</span></h2>{renderTable(category,"bill")}<h2 className={styles.depositHeading}>{category.name.toUpperCase()} <span>DEPOSIT / PAYMENTS</span></h2>{renderTable(category,"deposit")}</div>
-            <aside className={styles.sheetSummary}><h3>{category.name.toUpperCase()} SUMMARY</h3><div><span>Total Bill (BDT)</span><strong>{amountText(category.gross)}</strong></div><div><span>Discount (BDT)</span><strong>{amountText(category.discount)}</strong></div><div><span>Total Deposit (BDT)</span><strong>{amountText(category.paid)}</strong></div><div className={styles.sheetDue}><span>Outstanding (BDT)</span><strong>{amountText(category.due)}</strong></div></aside>
+            <div className={styles.sheetMain}><h2>{category.name.toUpperCase()} <span>BILL</span></h2>{renderTable(category,"bill")}<h2 className={styles.depositHeading}>{category.name.toUpperCase()} <span>PAYMENT RECORDS</span></h2>{renderTable(category,"deposit")}</div>
+            <aside className={styles.sheetSummary}><h3>{category.name.toUpperCase()} SUMMARY</h3><div><span>Total Bill (BDT)</span><strong>{amountText(category.gross)}</strong></div><div><span>Discount (BDT)</span><strong>{amountText(category.discount)}</strong></div><div><span>Received (BDT)</span><strong>{amountText(category.paid)}</strong></div>{paymentReview && paymentReview.complete && <><div><span>Applied to invoices (BDT)</span><strong>{amountText(totalApplied)}</strong></div><div><span>Unallocated (BDT)</span><strong>{amountText(totalUnallocated)}</strong></div></>}<div className={styles.sheetDue}><span>Collectible Due (BDT)</span><strong>{amountText(category.due)}</strong></div></aside>
           </section>
-          <footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>{last ? `Grand Total Due (BDT): ${amountText(result.totals.due)} · ` : ""}Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer>
+          <footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>{last ? `Collectible Due (BDT): ${amountText(result.totals.due)} · ` : ""}Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer>
         </article>;
       })}
     </section>
