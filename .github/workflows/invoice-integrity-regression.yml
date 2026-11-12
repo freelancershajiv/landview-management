@@ -1,0 +1,34 @@
+name: Invoice Integrity Regression
+
+on:
+  pull_request:
+    paths:
+      - "app/api/billing/integrity/**"
+      - "app/admin/finance/integrity/**"
+      - "app/admin/finance/invoices/page.tsx"
+      - "app/admin/finance/layout.tsx"
+      - "lib/sheet-invoices.ts"
+      - "tests/invoice-*.test.cjs"
+      - ".github/workflows/invoice-integrity-regression.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  invoice-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: npm ci
+      - name: Invoice regression tests
+        run: node --test tests/invoice-bill-identity.test.cjs tests/invoice-integrity-api.test.cjs tests/billing-document-integrity.test.cjs tests/invoice-single-bill-status.test.cjs
+      - name: Lint newly introduced invoice files
+        run: npx eslint lib/sheet-invoices.ts app/api/billing/integrity/route.ts app/admin/finance/integrity/page.tsx
+      - name: Typecheck
+        run: npx tsc --noEmit

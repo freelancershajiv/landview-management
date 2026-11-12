@@ -121,8 +121,12 @@ function attachCanonicalBillAmounts(
     for (const item of category.items) {
       const targetService = normalizedService(item.service);
       const targetAmount = numberValue(item.amount);
+      const billId = String((item as ReceivableBillItem).billId || "").trim();
       const index = rows.findIndex((row, rowIndex) => {
         if (used.has(rowIndex)) return false;
+        const rowBillId = String(row[5] || "").trim();
+        // Never attach another bill's payment or invoice code based on its label/price.
+        if (billId || rowBillId) return !!billId && !!rowBillId && billId.toLowerCase() === rowBillId.toLowerCase();
         if (normalizedService(row[1]) !== targetService) return false;
         const rowAmount = moneyValue(row[4]);
         return Number.isFinite(rowAmount) && Math.abs(rowAmount - targetAmount) < 0.01;
@@ -175,7 +179,10 @@ function singleBillOptions(result: SheetInvoices): SingleBillOption[] {
   result.invoices.forEach((category, categoryIndex) => {
     category.items.forEach((item, itemIndex) => {
       const values = singleBillAmounts(item);
-      if (values.amount <= 0.009) return;
+      const status = String(item.billStatus || "").trim().toLowerCase();
+      // Draft/voided bills have no issuable single-invoice document.
+      if (values.amount <= 0.009 || ["draft", "void", "voided", "cancelled", "canceled", "rejected"].includes(status)) return;
+      if (!String((item as ReceivableBillItem).billId || "").startsWith("BILL-")) return;
       options.push({
         key: `${categoryIndex}:${itemIndex}`,
         categoryIndex,
