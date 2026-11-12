@@ -173,9 +173,9 @@ export default function ProjectV4Workspace() {
         {TABS.map((item) => <button className="lv4-tab-mobile" type="button" role="tab" aria-selected={tab === item.id} key={item.id} onClick={() => setTab(item.id)}>{item.label}</button>)}
       </div>
       <div className="lv4-content">
-        <nav className="lv4-aside" aria-label="Project sections">
+        <nav className="lv4-aside" role="tablist" aria-label="Project sections">
           <div className="lv4-kicker" style={{ padding: "7px 10px" }}>Project navigation</div>
-          {TABS.map((item) => <button key={item.id} type="button" className="lv4-nav-button" aria-selected={tab === item.id} onClick={() => setTab(item.id)}>
+          {TABS.map((item) => <button key={item.id} type="button" role="tab" className="lv4-nav-button" aria-selected={tab === item.id} onClick={() => setTab(item.id)}>
             <span>{item.label}</span><span className="lv4-nav-number">{counts[item.id] || ""}</span>
           </button>)}
         </nav>
