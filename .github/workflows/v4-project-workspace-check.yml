@@ -7,10 +7,15 @@ on:
   pull_request:
     paths:
       - "app/api/admin/projects/v4-summary/**"
+      - "app/api/admin/projects/client-documents/**"
       - "app/admin/projects/**/v4-preview/**"
       - "components/project-v4-workspace.*"
+      - "components/project-client-document-registry.tsx"
+      - "supabase/migrations/20261113090000_project_client_document_lifecycle_v4.sql"
+      - "supabase/functions/landview-data/index.ts"
       - "components/project-workspace-nav.tsx"
       - "tests/v4-project-preview-safety.test.cjs"
+      - "tests/v4-client-documents.test.cjs"
       - ".github/workflows/v4-project-workspace-check.yml"
   workflow_dispatch:
 
@@ -42,6 +47,7 @@ jobs:
             'app/admin/projects/[projectId]/v4-preview/page.tsx' \
             components/project-v4-workspace.tsx \
             components/project-workspace-nav.tsx \
-            tests/v4-project-preview-safety.test.cjs
+            tests/v4-project-preview-safety.test.cjs \\
+            tests/v4-client-documents.test.cjs
       - name: v4 safety regression
-        run: node --test tests/v4-project-preview-safety.test.cjs
+        run: node --test tests/v4-project-preview-safety.test.cjs tests/v4-client-documents.test.cjs
