@@ -7,6 +7,7 @@ const path = require("node:path");
 const read = (filename) => fs.readFileSync(path.join(__dirname, "..", filename), "utf8");
 const route = read("app/api/admin/projects/v4-summary/route.ts");
 const component = read("components/project-v4-workspace.tsx");
+const documentUi = read("components/project-client-document-registry.tsx");
 const entry = read("app/admin/projects/[projectId]/v4-preview/page.tsx");
 const nav = read("components/project-workspace-nav.tsx");
 
@@ -32,9 +33,10 @@ test("project-wide default document checklist is exactly the five agreed require
   ]) assert.ok(route.includes(name), "Missing " + name);
   assert.match(route, /client_document_register/);
   assert.match(route, /registered = matches\.filter\(collected\)\.length/);
-  assert.match(route, /Older receipts do NOT establish formal verification/);
-  assert.match(component, /Project-Wide Client Documents/);
-  assert.match(component, /One project-wide checklist/);
+  assert.match(route, /Older receipts without an explicit verification status are not verified/);
+  assert.match(documentUi, /Project-Wide Client Document Registry/);
+  assert.match(component, /ProjectClientDocumentRegistry/);
+  assert.match(documentUi, /One permanent registry/);
 });
 
 test("unified project workspace contains linked operational modules without data mutation", () => {
