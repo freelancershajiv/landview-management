@@ -37,7 +37,7 @@ Reconciliation continues to be review-only. A Paid bill with insufficient alloca
 
 Notifications reuse the existing persistent whatsapp_client_outbox. An administrator/manager can explicitly confirm a single reminder for a project with WhatsApp client updates enabled, a valid number and a positive canonical collectible balance. A UNIQUE dedupe key prevents more than one reminder per project per Dhaka calendar month, across manual and scheduled paths. Messages are queued, not described as delivered. WhatsApp operations remains the delivery/failed-message monitor.
 
-Scheduled reminder safety: The weekly cron is registered for Monday 04:00 UTC (10:00 in Bangladesh), but INVOICE_REMINDERS_ENABLED must be set to exactly true before it queues messages. Leave it unset during preview and initial release. Review consent and WhatsApp health, then opt in deliberately if approved. Up to 20 new reminders are queued per execution. CRON_SECRET must be configured.
+Scheduled reminder safety: The weekly cron is registered for Monday 04:00 UTC (10:00 in Bangladesh), but INVOICE_REMINDERS_ENABLED must be set to exactly true before it queues messages. Leave it unset during preview and initial release. The separate manual sender is also disabled unless VERCEL_ENV is production and INVOICE_REMINDERS_MANUAL_ENABLED is true. Projects with unresolved Paid-versus-allocation gaps are excluded from both paths. Review consent and WhatsApp health, then opt in deliberately if approved. Up to 20 new reminders are queued per execution. CRON_SECRET must be configured.
 
 Release concerns:
 - The canonical authority has finite source-query limits; incomplete snapshots block automatic reminders and warn on exports.

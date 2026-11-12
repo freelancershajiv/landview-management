@@ -15,9 +15,18 @@ export function invoiceReminderMonth(date = new Date()) {
   // Use local Dhaka calendar month, not UTC month at the boundary.
   return new Date(date.getTime() + 6 * 60 * 60 * 1000).toISOString().slice(0, 7);
 }
-export function invoiceReminderEligibility(project: Row, collectibleDue: number) {
+export function invoiceReminderReviewProjects(bills: Array<{
+  projectId: string; settled: boolean; allocated: number; effectiveAmount: number;
+}>) {
+  return new Set(bills.filter((bill) => bill.settled &&
+    bill.effectiveAmount > 0.009 && bill.allocated + 0.01 < bill.effectiveAmount)
+    .map((bill) => bill.projectId));
+}
+
+export function invoiceReminderEligibility(project: Row, collectibleDue: number, needsReconciliation = false) {
   if (project.whatsapp_updates_enabled !== true) return { eligible: false, reason: "Client updates are disabled." };
   if (!Number.isFinite(collectibleDue) || collectibleDue <= 0.009) return { eligible: false, reason: "No collectible project due." };
+  if (needsReconciliation) return { eligible: false, reason: "Historical Paid/allocation differences require reconciliation before contacting this client." };
   const phone = bangladeshPhone(project.phone_number_snapshot);
   if (!phone) return { eligible: false, reason: "Missing or invalid Bangladesh mobile number." };
   const checked = bangladeshPhone(project.whatsapp_checked_phone);
@@ -39,8 +48,8 @@ export function invoiceReminderMessage(projectCode: string, collectibleDue: numb
   ].join("\n");
 }
 
-export async function queueInvoiceReminder(project: Row, collectibleDue: number, date = new Date()) {
-  const eligibility = invoiceReminderEligibility(project, collectibleDue);
+export async function queueInvoiceReminder(project: Row, collectibleDue: number, date = new Date(), needsReconciliation = false) {
+  const eligibility = invoiceReminderEligibility(project, collectibleDue, needsReconciliation);
   if (!eligibility.eligible || !eligibility.phone) return { queued: false, reason: eligibility.reason, status: "skipped" };
 
   const projectCode = text(project.project_code);

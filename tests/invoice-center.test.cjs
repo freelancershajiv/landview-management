@@ -39,10 +39,25 @@ test("client reminder eligibility checks opt-in, number, inactive state and coll
   assert.equal(phone("+8801712345678"), "01712345678");
   assert.equal(phone("12345"), "");
   assert.equal(eligible(project, 50).eligible, true);
+  assert.equal(eligible(project, 50, true).eligible, false);
   assert.equal(eligible({ ...project, whatsapp_updates_enabled: false }, 50).eligible, false);
   assert.equal(eligible(project, 0).eligible, false);
   assert.equal(eligible({ ...project, phone_number_snapshot: "none" }, 50).eligible, false);
   assert.equal(eligible({ ...project, whatsapp_number_status: "inactive", whatsapp_checked_phone: "01712345678" }, 50).eligible, false);
+});
+
+test("historically Paid but unallocated project is held back from client messaging", () => {
+  const review = compileFunction(helper, "invoiceReminderReviewProjects", "invoiceReminderEligibility");
+  const affected = review([
+    { projectId: "P1", settled: true, effectiveAmount: 1200, allocated: 0 },
+    { projectId: "P2", settled: false, effectiveAmount: 1200, allocated: 0 },
+    { projectId: "P3", settled: true, effectiveAmount: 1200, allocated: 1200 },
+  ]);
+  assert.deepEqual([...affected], ["P1"]);
+  assert.match(manual, /invoiceReminderReviewProjects\(authority\.bills\)/);
+  assert.match(api, /invoiceReminderReviewProjects\(authority\.bills\)/);
+  assert.match(cron, /invoiceReminderReviewProjects\(authority\.bills\)/);
+  assert.match(api, /remindersEnabled/);
 });
 
 test("API reads canonical receivables and never writes financial records", () => {
@@ -66,7 +81,10 @@ test("client messages can only be queued manually with explicit confirmation and
   assert.match(manual, /body\.confirmed !== true/);
   assert.match(manual, /loadReceivableAuthority\(\{ projectId: String\(project\.id\) \}\)/);
   assert.match(manual, /\["admin", "manager"\]/);
-  assert.match(manual, /invoiceReminderEligibility\(project, collectibleDue\)/);
+  assert.match(manual, /invoiceReminderEligibility\(project, collectibleDue, needsReconciliation\)/);
+  assert.match(manual, /VERCEL_ENV !== "production"/);
+  assert.match(manual, /INVOICE_REMINDERS_MANUAL_ENABLED !== "true"/);
+  assert.match(manual, /if \(!authority\.complete\)/);
   assert.match(page, /window\.confirm\(/);
 });
 
@@ -82,9 +100,11 @@ test("durable WhatsApp outbox enforces monthly deduplication without overwrites"
 test("scheduled reminders are off by default and authenticated", () => {
   assert.match(cron, /process\.env\.CRON_SECRET/);
   assert.match(cron, /process\.env\.INVOICE_REMINDERS_ENABLED !== "true"/);
-  assert.match(cron, /invoiceReminderEligibility\(project, due\)/);
+  assert.match(cron, /invoiceReminderEligibility\(project, due, reviewProjects\.has\(String\(project\.id\)\)\)/);
+  assert.match(cron, /VERCEL_ENV !== "production"/);
+  assert.match(cron, /!authority\.complete/);
   assert.match(cron, /authority\.projects\.get\(String\(project\.id\)\)\?\.totalDue/);
-  assert.match(cron, /await queueInvoiceReminder\(project, due\)/);
+  assert.match(cron, /await queueInvoiceReminder\(project, due, new Date\(\), reviewProjects\.has\(String\(project\.id\)\)\)/);
   assert.match(cron, /Incomplete financial snapshot; no reminders queued/);
 });
 
@@ -103,5 +123,12 @@ test("weekly reminder schedule is configured without enabling external messages"
   const config = JSON.parse(read("vercel.json"));
   assert.ok(config.crons.some((job) => job.path === "/api/cron/invoice-reminders" && job.schedule === "0 4 * * 1"));
   assert.ok(!config.env?.INVOICE_REMINDERS_ENABLED);
-  assert.match(cron, /if \(process\.env\.INVOICE_REMINDERS_ENABLED !== "true"\)/);
+  assert.match(cron, /process\.env\.INVOICE_REMINDERS_ENABLED !== "true"/);\n  assert.match(cron, /process\.env\.VERCEL_ENV !== "production"/);
+});
+
+test("canonical authority marks truncated financial reads incomplete", () => {
+  const authority = read("lib/billing-receivable-authority.ts");
+  assert.match(authority, /const complete = \[bills, invoices, payments, allocations, adjustments, writeoffs\]/);
+  assert.match(authority, /return \{ complete, projects, bills:/);
+  assert.match(api, /const complete = projects\.length < 5000 && authority\.complete/);
 });

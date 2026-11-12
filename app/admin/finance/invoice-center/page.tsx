@@ -11,7 +11,7 @@ type InvoiceRow = {
   projectCollectibleDue: number; status: Status; reminderEligible: boolean;
 };
 type Report = {
-  snapshotAt: string; complete: boolean; rows: InvoiceRow[];
+  snapshotAt: string; complete: boolean; remindersEnabled: boolean; rows: InvoiceRow[];
   summary: {
     invoiceCount: number; invoiceValue: number; invoiceAllocated: number;
     projectBilled: number; projectPaid: number; collectibleDue: number; availableAdvances: number;
@@ -117,6 +117,7 @@ export default function InvoiceCenterPage() {
     {notice && <p role="status" className="ic-notice">{notice}</p>}
     {loading && <p className="ic-notice" role="status">Loading canonical invoice data…</p>}
     {report && <>
+      {!report.remindersEnabled && <p className="ic-notice">Client WhatsApp billing reminders are paused pending financial verification and explicit production activation.</p>}
       {!report.complete && <p className="ic-error" role="alert">The finance data limit was reached; report totals may be incomplete. Do not use this export for reconciliation until pagination is available.</p>}
       <section className="ic-stats" aria-label="Invoice overview">
         <div><span>Invoices</span><strong>{s?.invoiceCount || 0}</strong><small>{s?.counts.review || 0} historical reviews</small></div>
@@ -159,7 +160,7 @@ export default function InvoiceCenterPage() {
             <td><div className="ic-row-actions">
               <Link href={"/admin/finance/invoices?fileId=" + encodeURIComponent(row.projectCode)}>Invoice / PDF</Link>
               <Link href={"/admin/finance/service-payments?fileId=" + encodeURIComponent(row.projectCode)}>Payment</Link>
-              {row.reminderEligible && <button type="button" disabled={Boolean(sending) || notified.includes(row.projectCode)}
+              {report.remindersEnabled && row.reminderEligible && <button type="button" disabled={Boolean(sending) || notified.includes(row.projectCode)}
                 onClick={() => void sendReminder(row)}>{sending === row.projectCode ? "Queueing…" : notified.includes(row.projectCode) ? "Queued" : "WhatsApp reminder"}</button>}
             </div></td>
           </tr>)}

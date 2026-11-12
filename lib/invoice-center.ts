@@ -16,7 +16,7 @@ export function invoiceCenterStatus(invoice: Pick<InvoiceReceivableState, "settl
   return "issued";
 }
 
-export function invoiceCenterRow(invoice: InvoiceReceivableState, project: Row, projectState: ProjectReceivableState | undefined, description = "") {
+export function invoiceCenterRow(invoice: InvoiceReceivableState, project: Row, projectState: ProjectReceivableState | undefined, description = "", needsReconciliation = false) {
   const status = invoiceCenterStatus(invoice);
   return {
     invoiceCode: invoice.invoiceCode,
@@ -33,7 +33,7 @@ export function invoiceCenterRow(invoice: InvoiceReceivableState, project: Row, 
     invoiceUnallocatedBalance: round(invoice.dueBeforeRelief),
     projectCollectibleDue: round(projectState?.totalDue || 0),
     status,
-    reminderEligible: invoiceReminderEligibility(project, projectState?.totalDue || 0).eligible,
+    reminderEligible: invoiceReminderEligibility(project, projectState?.totalDue || 0, needsReconciliation).eligible,
     source: text(invoice.row.created_via),
   };
 }

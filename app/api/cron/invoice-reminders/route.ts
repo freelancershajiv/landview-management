@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { loadReceivableAuthority } from "@/lib/billing-receivable-authority";
 import { selectRows } from "@/lib/supabase-data";
-import { invoiceReminderEligibility, queueInvoiceReminder, wakeInvoiceWhatsAppBot } from "@/lib/invoice-reminders";
+import { invoiceReminderEligibility, invoiceReminderReviewProjects, queueInvoiceReminder, wakeInvoiceWhatsAppBot } from "@/lib/invoice-reminders";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
   // Explicit release flag: adding the cron route can never silently start
   // sending real financial messages. Enable only after reviewing consent,
   // message content, WhatsApp health and the recoverable production backup.
-  if (process.env.INVOICE_REMINDERS_ENABLED !== "true") {
+  if (process.env.VERCEL_ENV !== "production" || process.env.INVOICE_REMINDERS_ENABLED !== "true") {
     return NextResponse.json({ success: true, enabled: false, queued: 0 }, { headers: { "Cache-Control": "no-store" } });
   }
 
@@ -27,13 +27,13 @@ export async function GET(request: NextRequest) {
       }),
       loadReceivableAuthority(),
     ]);
-    if (projects.length >= 5000 || authority.invoices.length >= 10000 ||
-        authority.bills.length >= 10000 || authority.payments.length >= 10000) {
+    if (projects.length >= 5000 || !authority.complete) {
       return NextResponse.json({ success: false, error: "Incomplete financial snapshot; no reminders queued." }, { status: 503 });
     }
+    const reviewProjects = invoiceReminderReviewProjects(authority.bills);
     const eligible = projects.filter((project) => {
       const due = authority.projects.get(String(project.id))?.totalDue || 0;
-      return invoiceReminderEligibility(project, due).eligible;
+      return invoiceReminderEligibility(project, due, reviewProjects.has(String(project.id))).eligible;
     }).sort((a, b) => String(a.project_code).localeCompare(String(b.project_code), undefined, { numeric: true }));
     let queued = 0;
     let existing = 0;
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
       examined += 1;
       const due = authority.projects.get(String(project.id))?.totalDue || 0;
       try {
-        const result = await queueInvoiceReminder(project, due);
+        const result = await queueInvoiceReminder(project, due, new Date(), reviewProjects.has(String(project.id)));
         if (result.queued) queued += 1;
         else existing += 1;
       } catch {
