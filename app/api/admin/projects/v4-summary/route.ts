@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { loadReceivableAuthority } from "@/lib/billing-receivable-authority";
 import { getAdjustedProjectServiceFinancials } from "@/lib/billing-adjusted-financials";
-import { workflowServiceKey } from "@/lib/service-workflow";
 import { normalizeProjectCode, selectRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -96,7 +95,7 @@ export async function GET(request: NextRequest) {
       selectRows("approvals", { filters: { project_id: projectId }, order: "created_at:desc", limit: 500 }),
       selectRows("design_book_register", { filters: { project_id: projectId }, order: "created_at:desc", limit: 500 }),
       selectRows("project_management_ledger", { filters: { project_id: projectId }, order: "created_at:desc", limit: 1500 }),
-      selectRows("proposals", { filters: { converted_project_code: projectCode }, limit: 1 }),
+      selectRows("proposals", { filters: { converted_project_code: projectCode }, limit: 2 }),
     ]);
 
     const warnings: string[] = [];
@@ -123,7 +122,7 @@ export async function GET(request: NextRequest) {
     const approvals = rows(8, 500);
     const designBooks = rows(9, 500);
     const ledger = rows(10, 1500);
-    const proposals = rows(11, 1);
+    const proposals = rows(11, 2);
     const financeResult = results[4];
     const financeServicesResult = results[5];
 
