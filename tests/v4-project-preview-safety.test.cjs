@@ -31,7 +31,7 @@ test("project-wide default document checklist is exactly the five agreed require
     "Photo", "NID / Passport / Birth Certificate", "Ownership Registry Paper", "Khotian", "Land Tax Slip",
   ]) assert.ok(route.includes(name), "Missing " + name);
   assert.match(route, /client_document_register/);
-  assert.match(route, /recorded = matches\.filter\(collected\)\.length/);
+  assert.match(route, /registered = matches\.filter\(collected\)\.length/);
   assert.match(route, /Older receipts do NOT establish formal verification/);
   assert.match(component, /Project-Wide Client Documents/);
   assert.match(component, /One project-wide checklist/);
