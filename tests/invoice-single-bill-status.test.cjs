@@ -37,6 +37,6 @@ test("due-only canonical record reconciles and missing values do not become zero
 });
 
 test("single-bill status is computed from its own paid and due figures", () => {
-  assert.match(source, /client: \{ \.\.\.result\.client, status: due > 0\.009/);
+  assert.match(source, /client:\s*\{\s*\.\.\.result\.client,\s*status:\s*due\s*>\s*0\.009/);
   assert.match(source, /extended\.billStatus = String\(row\[6\]\)/);
 });
