@@ -392,7 +392,9 @@ export default function ProjectBillingDocumentRevamp({
                   <span>Address: Land View, F.Rahman AC Market (2nd Floor), SSK Road, Feni Sadar, Feni</span>
                   <span>Contact No: +88 0140 80 80 400</span>
                   <span>+88 01902 500 400</span>
-                  <span>Generated: {new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", dateStyle: "medium", timeStyle: "short" }).format(new Date(result.document?.generatedAt || Date.now()))}</span>
+                  <span>Generated: {result.document?.generatedAt && Number.isFinite(Date.parse(result.document.generatedAt))
+                    ? new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", dateStyle: "medium", timeStyle: "short" }).format(new Date(result.document.generatedAt))
+                    : "Live preview"}</span>
                 </div>
               </footer>
             </article>
