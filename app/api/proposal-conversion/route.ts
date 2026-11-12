@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { createHash } from "node:crypto";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
 import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
@@ -26,6 +27,13 @@ function numberOf(value: unknown) { const n = Number(String(value ?? 0).replace(
 function code(prefix: string, projectCode?: string) {
   const project = projectCode ? `-${projectCode.replace(/[^A-Z0-9]/gi, "").toUpperCase()}` : "";
   return `${prefix}${project}-${crypto.randomUUID().replace(/-/g, "").slice(0, 10).toUpperCase()}`;
+}
+// Deterministic per proposal item. The database's unique bill_code constraint
+// stops concurrent retries from creating two different bills for the same item.
+function proposalBillCode(projectCode: string, itemCode: string) {
+  const normalizedProject = projectCode.replace(/[^A-Z0-9]/gi, "").toUpperCase();
+  const digest = createHash("sha256").update(`${normalizedProject}:${itemCode}`).digest("hex").slice(0, 16).toUpperCase();
+  return `BILL-${normalizedProject}-${digest}`;
 }
 function json(data: unknown, status = 200) { return NextResponse.json(data, { status, headers: { "Cache-Control": "no-store, max-age=0" } }); }
 function sameOrigin(request: NextRequest) {
@@ -191,7 +199,7 @@ async function ensureProposalBills(project: Row, projectCode: string, proposalId
     const found = existing.some((row) => text(row.legacy_source_id) === itemCode || text(row.idempotency_key) === itemCode);
     if (found) continue;
     const row = {
-      bill_code: code("BILL", projectCode), project_id: project.id, bill_date: now.slice(0, 10),
+      bill_code: proposalBillCode(projectCode, itemCode), project_id: project.id, bill_date: now.slice(0, 10),
       billing_category: entry.category, category: entry.category, description: entry.description,
       amount: entry.amount, discount: entry.discount, status: entry.netAmount > 0.009 ? "Issued" : "Draft",
       notes: entry.netAmount > 0.009
@@ -266,6 +274,12 @@ export async function POST(request: NextRequest) {
         const repairedBillingLines = await ensureProposalBills(projectRows[0], existingConverted, proposalId, billPlan, actor, now);
         return json({ success: true, data: { projectId: existingConverted, alreadyConverted: true, billingLines: billPlan.length, repairedBillingLines, billedNet: Math.round(billPlan.reduce((sum, row) => sum + row.netAmount, 0) * 100) / 100 } });
       }
+    }
+    // If registration succeeded but a later step failed before the proposal
+    // was marked Converted, do not create a second project for the same proposal.
+    const registered = await selectRows("projects", { filters: { reclassified_proposal_code: proposalId }, limit: 2 });
+    if (registered.length) {
+      throw new Error(`Proposal ${proposalId} is already linked to project ${text(registered[0].project_code)}. Review the incomplete conversion before retrying.`);
     }
     if (text(proposal.status).toLowerCase() !== "accepted") throw new Error("Only an Accepted proposal can be converted to a project.");
 
