@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- Node's built-in test runner uses CommonJS in this repository. */
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const fs = require("node:fs");
