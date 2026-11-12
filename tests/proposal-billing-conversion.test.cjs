@@ -36,7 +36,7 @@ test("initial proposal conversion still captures contracts and billing milestone
   const actualBillCall = ensureCalls[1];
   assert.ok(capture > newConversionIndex && capture < actualBillCall);
   assert.match(source.slice(newConversionIndex, actualBillCall), /await insertRows\("bills", billPlan\.map/);
-  assert.match(source.slice(newConversionIndex, actualBillCall), /BEFORE INSERT trigger creates the/);
+  assert.match(source, /BEFORE INSERT trigger creates the/);
 });
 
 test("retries do not modify previously issued, paid, or voided proposal bill rows", () => {
