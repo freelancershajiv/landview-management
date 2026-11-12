@@ -71,3 +71,26 @@ test("billing preflight rejects inconsistent accepted totals, duplicate IDs and 
   assert.throws(() => validate("PROP-TEST", { net_amount: 100 }, [item("LINE-1", 150, 50, 100), item("LINE-1", 50, 0, 50)]), /duplicate/);
   assert.throws(() => validate("PROP-TEST", { net_amount: 0 }, [item("LINE-1", 150, 200, 0)]), /invalid amount or discount/);
 });
+
+test("proposal bill code is repeatable per item and unique across items and projects", () => {
+  const ts = require("typescript");
+  const start = source.indexOf("function proposalBillCode(");
+  const end = source.indexOf("function json(", start);
+  assert.ok(start > 0 && end > start);
+  const compiled = ts.transpileModule(source.slice(start, end), { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+  const fn = new Function("createHash", compiled + "\nreturn proposalBillCode;")(require("node:crypto").createHash);
+  const a = fn("LV-998", "PROP-ITEM-ONE");
+  assert.equal(a, fn("LV-998", "PROP-ITEM-ONE"));
+  assert.notEqual(a, fn("LV-998", "PROP-ITEM-TWO"));
+  assert.notEqual(a, fn("LV-997", "PROP-ITEM-ONE"));
+  assert.match(a, /^BILL-LV998-[A-F0-9]{16}$/);
+  assert.match(source, /bill_code: proposalBillCode\(projectCode, itemCode\)/);
+});
+
+test("a previously registered but unfinalized proposal cannot silently create a second project", () => {
+  assert.match(source, /filters: \{ reclassified_proposal_code: proposalId \}/);
+  assert.match(source, /already linked to project/);
+  const guard = source.indexOf("filters: { reclassified_proposal_code: proposalId }");
+  const create = source.indexOf("    let sequence = await nextProjectNumber();");
+  assert.ok(guard < create);
+});
