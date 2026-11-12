@@ -157,6 +157,31 @@ function allocateBills(items: Row[], proposal: Row) {
   });
 }
 
+function validateProposalBillPlan(proposalId: string, proposal: Row, billPlan: ReturnType<typeof allocateBills>) {
+  // Fail BEFORE creating a new project. A broken proposal must never leave
+  // a partially converted project or post the wrong accepted contract total.
+  const codes = new Set<string>();
+  for (const line of billPlan) {
+    const itemCode = text(line.item.item_code, 160);
+    if (!itemCode || codes.has(itemCode)) throw new Error(`Proposal ${proposalId} has missing or duplicate billing-line IDs.`);
+    codes.add(itemCode);
+    if (!Number.isFinite(line.amount) || !Number.isFinite(line.discount) ||
+        !Number.isFinite(line.netAmount) || line.amount <= 0 ||
+        line.discount < 0 || line.discount > line.amount + 0.009 ||
+        Math.abs(line.amount - line.discount - line.netAmount) > 0.011) {
+      throw new Error(`Proposal ${proposalId} has an invalid amount or discount for billing line ${itemCode}.`);
+    }
+  }
+  const expectedNetRaw = proposal.net_amount;
+  if (expectedNetRaw !== null && expectedNetRaw !== undefined && text(expectedNetRaw) !== "") {
+    const acceptedNet = numberOf(expectedNetRaw);
+    const preparedNet = Math.round(billPlan.reduce((sum, line) => sum + line.netAmount, 0) * 100) / 100;
+    if (Math.abs(acceptedNet - preparedNet) > 0.011) {
+      throw new Error(`Proposal ${proposalId} billing total does not match its accepted net. Review discounts before conversion.`);
+    }
+  }
+}
+
 async function ensureProposalBills(project: Row, projectCode: string, proposalId: string, billPlan: ReturnType<typeof allocateBills>, actor: string, now: string) {
   const existing = await selectRows("bills", { filters: { project_id: project.id }, limit: 2000 });
   let created = 0;
@@ -234,6 +259,7 @@ export async function POST(request: NextRequest) {
     const actor = userIdOf(user) || text(user.employeeId || user.Employee_ID || user.username || user.Username, 200);
     const now = new Date().toISOString();
     const billPlan = allocateBills(items, proposal);
+    validateProposalBillPlan(proposalId, proposal, billPlan);
     if (existingConverted) {
       const projectRows = await selectRows("projects", { filters: { project_code: existingConverted }, limit: 1 });
       if (projectRows.length) {
