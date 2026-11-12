@@ -247,9 +247,20 @@ export type InvoicePaymentReview = {
   }>;
 };
 
+export type InvoiceAllocationLine = {
+  billCode: string;
+  invoiceCode: string;
+  paymentCode: string;
+  date: string;
+  amount: number;
+  details: string;
+};
 export type SheetInvoices = ReturnType<typeof buildSheetInvoices> & {
   document?: { kind: "single" | "due" | "project"; invoiceCode?: string; billCode?: string; category?: string; issueDate?: string; generatedAt?: string };
   paymentReview?: InvoicePaymentReview;
+  // Exact payment-to-invoice allocation rows; fall back to these when an
+  // older API/document snapshot omits the supplemental paymentReview model.
+  paymentAllocationLines?: InvoiceAllocationLine[];
 };
 
 // Display-only authoritative due. Payment and allocation records are not

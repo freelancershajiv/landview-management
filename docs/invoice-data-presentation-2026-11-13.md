@@ -40,3 +40,11 @@ Target branch: `design/invoice-readability-20261113`, PR #163. Run invoice regre
 4. a long service name, long address and more than one page of payments.
 
 Keep production on Invoice System 3.0 until these cases are visually and functionally checked. A restorable Supabase backup is still unverified.
+
+## LV-281 print screenshot regression (13 November)
+
+The user-supplied A4 screenshot showed that a 10,000 BDT Engineering payment was displayed as `Recorded — allocation unknown` while the applied/unallocated cells showed dashes. Read-only production SQL confirmed the exact payment code had 10,000 BDT in invoice allocations. No financial-record corrections were needed.
+
+To ensure the document can display that canonical allocation even if the supplemental `paymentReview` response is unavailable or missing the code, the invoice page now carries the **existing bill-specific `billPayments` allocation rows** to the printed document. The renderer first looks for the complete payment review by exact payment ID, then derives the per-payment applied amount from exact `paymentCode` matches against the canonical bill-payment allocation rows. It refuses mismatches where allocations exceed the received amount. No fuzzy matching and no database write.
+
+The same screenshot showed the `UNALLOCATED (BDT)` sixth print column clipped by an older five-column CSS override. The print stylesheet now explicitly sizes all six columns and wraps headings; the single-bill layout retains its four-column variant. Verify with Chrome Print → Save as PDF on LV-281 and other multi-category projects.

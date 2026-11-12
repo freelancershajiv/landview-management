@@ -183,8 +183,44 @@ export default function ProjectBillingDocumentRevamp({
   const projectPaymentReview = result.document?.kind === "single" || dueOnly ? undefined : result.paymentReview;
   const paymentReviewReady = Boolean(projectPaymentReview?.complete);
   const paymentByCode = new Map(
-    (projectPaymentReview?.payments || []).map((payment) => [payment.paymentCode.toLowerCase(), payment]),
+    (projectPaymentReview?.payments || []).map((payment) => [payment.paymentCode.trim().toLowerCase(), payment]),
   );
+  // The project billing endpoint already supplies exact invoice allocation
+  // records. Use those when the supplemental review object is missing or a
+  // payment has no matching entry. Never infer allocations by amount/date.
+  const allocationsByPaymentCode = new Map<string, NonNullable<typeof result.paymentAllocationLines>>();
+  if (result.document?.kind !== "single" && !dueOnly) {
+    for (const allocation of result.paymentAllocationLines || []) {
+      const key = allocation.paymentCode.trim().toLowerCase();
+      if (!key || !Number.isFinite(Number(allocation.amount)) || Number(allocation.amount) <= 0) continue;
+      const rows = allocationsByPaymentCode.get(key) || [];
+      rows.push(allocation);
+      allocationsByPaymentCode.set(key, rows);
+    }
+  }
+  const ledgerForPayment = (payment: { incomeId: string; amount: number }) => {
+    const code = String(payment.incomeId || "").trim().toLowerCase();
+    const exact = paymentByCode.get(code);
+    if (exact) return exact;
+    const allocations = allocationsByPaymentCode.get(code) || [];
+    if (!allocations.length) return undefined;
+    const received = Number(payment.amount);
+    const allocated = allocations.reduce((sum, part) => sum + Number(part.amount), 0);
+    // Refuse a questionable invoice/receipt association rather than silently
+    // printing impossible totals or declaring an invoice fully paid.
+    if (!Number.isFinite(received) || received < 0 || allocated > received + 0.01) return undefined;
+    const unallocated = Math.max(0, received - allocated);
+    return {
+      paymentCode: String(payment.incomeId || ""),
+      method: "",
+      allocated,
+      unallocated,
+      allocationStatus: unallocated > 0.009 ? "Partially allocated" : "Allocated",
+      invoices: allocations.map((line) => ({
+        billCode: line.billCode, invoiceCode: line.invoiceCode, amount: Number(line.amount),
+      })),
+    };
+  };
   const projectStatus = result.client.status ||
     (Number(result.totals.due || 0) > 0.009 ? "Balance Due" : "No Collectible Balance");
 
@@ -216,9 +252,10 @@ export default function ProjectBillingDocumentRevamp({
             : Math.max(0, Number(category.due || 0), grandTotal - paid);
           const noCollectibleDue = due <= 0.009;
           const fullyPaid = noCollectibleDue && paid >= grandTotal - 0.009;
-          const linkedPayments = category.payments.map((entry) =>
-            paymentByCode.get(String(entry.incomeId || "").trim().toLowerCase()));
-          const allPaymentsLinked = paymentReviewReady && linkedPayments.every(Boolean);
+          const linkedPayments = category.payments.map((entry) => ledgerForPayment(entry));
+          const allPaymentsLinked =
+            (paymentReviewReady || allocationsByPaymentCode.size > 0) &&
+            category.payments.length > 0 && linkedPayments.every(Boolean);
           const appliedToInvoices = allPaymentsLinked
             ? linkedPayments.reduce((sum, item) => sum + Number(item?.allocated || 0), 0)
             : null;
@@ -340,7 +377,7 @@ export default function ProjectBillingDocumentRevamp({
                       </thead>
                       <tbody>
                         {category.payments.length ? category.payments.map((payment, paymentIndex) => {
-                          const ledger = paymentByCode.get(String(payment.incomeId || "").trim().toLowerCase());
+                          const ledger = ledgerForPayment(payment);
                           const assignedRefs = ledger?.invoices.map((part) => part.invoiceCode || part.billCode).filter(Boolean) || [];
                           return <tr key={`${payment.incomeId || "historical"}-${paymentIndex}`}>
                             <td>{paymentIndex + 1}</td>

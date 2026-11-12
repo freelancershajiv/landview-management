@@ -245,6 +245,7 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
   return {
     ...result,
     paymentReview: undefined, // A single invoice must never display the project's entire payment ledger.
+    paymentAllocationLines: undefined,
     client: {
       ...result.client,
       status: due > 0.009 ? (paid > 0.009 ? "Partially Paid / Due" : "Unpaid / Due") : "Full Paid",
@@ -372,7 +373,10 @@ export default function ProjectBillingPage() {
     );
     const verified = verifySheetInvoicesWithPayments(billing, bundle.payments || []);
     return {
-      billing: attachInvoicePaymentReview(verified, bundle.paymentReview),
+      billing: {
+        ...attachInvoicePaymentReview(verified, bundle.paymentReview),
+        paymentAllocationLines: bundle.billPayments,
+      },
       commercial: bundle.commercial,
     };
   }

@@ -194,3 +194,34 @@
     border-right: 0 !important;
   }
 }
+
+/* Data 3.1: six-column payment tables in the actual A4 renderer.
+   Override the older five-column alignment rules above. */
+@media print {
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(1){width:7%!important}
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(2){width:16%!important}
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(3){width:32%!important}
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(4){width:15%!important}
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(5){width:15%!important}
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable col:nth-child(6){width:15%!important}
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable th{
+    white-space:normal!important;
+    overflow-wrap:break-word!important;
+    word-break:normal!important;
+    line-height:1.24!important;
+    padding:1.5mm .95mm!important;
+    font-size:7.5pt!important;
+  }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable th:nth-child(n+4),
+  .lvInvoiceRevampRoot .lvInvoicePage .lvDepositTable td:nth-child(n+4){
+    text-align:right!important;
+  }
+  .lvInvoiceRevampRoot .lvInvoicePage .lvSingleInvoiceDepositTable col:nth-child(1){width:8%!important}
+  .lvInvoiceRevampRoot .lvInvoicePage .lvSingleInvoiceDepositTable col:nth-child(2){width:18%!important}
+  .lvInvoiceRevampRoot .lvInvoicePage .lvSingleInvoiceDepositTable col:nth-child(3){width:47%!important}
+  .lvInvoiceRevampRoot .lvInvoicePage .lvSingleInvoiceDepositTable col:nth-child(4){width:27%!important}
+  .lvInvoiceRevampRoot .lvInvoicePage .lvReconciledPaymentRow,
+  .lvInvoiceRevampRoot .lvInvoicePage .lvReconciledPaymentRow *{
+    color:#14222c!important;
+  }
+}

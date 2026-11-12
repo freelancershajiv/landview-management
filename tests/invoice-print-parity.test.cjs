@@ -45,3 +45,26 @@ test("print identity, amounts and QR remain present", () => {
   assert.match(actual, /\{amountInWords\(due\)\}/);
   assert.match(shared, /billLineAmounts/);
 });
+
+test("real print renderer resolves payment allocations using exact payment codes", () => {
+  const page = read("app/admin/finance/invoices/page.tsx");
+  const model = read("lib/sheet-invoices.ts");
+  assert.match(page, /paymentAllocationLines: bundle\.billPayments/);
+  assert.match(page, /paymentAllocationLines: undefined/);
+  assert.match(model, /paymentAllocationLines\?: InvoiceAllocationLine\[\]/);
+  assert.match(actual, /const ledgerForPayment = \(payment:/);
+  assert.match(actual, /const allocationsByPaymentCode = new Map/);
+  assert.match(actual, /const exact = paymentByCode\.get\(code\)/);
+  assert.match(actual, /allocationsByPaymentCode\.get\(code\)/);
+  assert.match(actual, /ledgerForPayment\(payment\)/);
+  assert.match(actual, /allocated > received \+ 0\.01/);
+  assert.doesNotMatch(actual, /find\(.*payment\.amount.*payment\.date/);
+});
+
+test("live print CSS supports six columns without clipping last header", () => {
+  const css = read("app/admin/finance/invoices/invoice-revamp-print-fix.css");
+  assert.match(css, /\.lvInvoiceRevampRoot \.lvInvoicePage \.lvDepositTable col:nth-child\(6\)/);
+  assert.match(css, /\.lvInvoiceRevampRoot \.lvInvoicePage \.lvDepositTable th\{/);
+  assert.match(css, /white-space:normal!important/);
+  assert.match(css, /\.lvInvoiceRevampRoot \.lvInvoicePage \.lvSingleInvoiceDepositTable col:nth-child\(4\)/);
+});

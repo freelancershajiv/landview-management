@@ -14,6 +14,7 @@ on:
       - "app/admin/finance/integrity/**"
       - "app/admin/finance/invoices/page.tsx"
       - "app/admin/finance/invoices/invoice.module.css"
+      - "app/admin/finance/invoices/invoice-revamp-print-fix.css"
       - "components/project-billing-document.tsx"
       - "components/project-billing-document-revamp.tsx"
       - "app/admin/finance/layout.tsx"
