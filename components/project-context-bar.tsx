@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 type Context = {
@@ -37,6 +37,7 @@ async function updateStatus(projectId: string, phase: string, reason: string) {
 
 export default function ProjectContextBar() {
   const params = useParams<{ projectId: string }>();
+  const pathname = usePathname();
   const router = useRouter();
   const projectId = decodeURIComponent(String(params?.projectId || ""));
   const [context, setContext] = useState<Context | null>(null);
@@ -92,7 +93,8 @@ export default function ProjectContextBar() {
     }
   }
 
-  if (!projectId) return null;
+  // The new v4 development preview is read-only: legacy status controls stay on legacy pages.
+  if (!projectId || pathname.endsWith("/v4-preview")) return null;
 
   return <section className="pcb-shell">
     <style>{`
