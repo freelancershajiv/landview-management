@@ -1,0 +1,47 @@
+name: LAND VIEW v4 Project Workspace — Focused Checks
+
+on:
+  push:
+    branches:
+      - design/landview-v4-safe-project-architecture-20261113
+  pull_request:
+    paths:
+      - "app/api/admin/projects/v4-summary/**"
+      - "app/admin/projects/**/v4-preview/**"
+      - "components/project-v4-workspace.*"
+      - "components/project-workspace-nav.tsx"
+      - "tests/v4-project-preview-safety.test.cjs"
+      - ".github/workflows/v4-project-workspace-check.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: landview-v4-project-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  focused-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - name: Dependencies
+        run: npm ci
+      - name: Lint changed application code
+        run: |
+          npx eslint --max-warnings=0 \
+            app/api/admin/projects/v4-summary/route.ts \
+            'app/admin/projects/[projectId]/v4-preview/page.tsx' \
+            components/project-v4-workspace.tsx \
+            components/project-workspace-nav.tsx \
+            tests/v4-project-preview-safety.test.cjs
+      - name: v4 safety regression
+        run: node --test tests/v4-project-preview-safety.test.cjs
