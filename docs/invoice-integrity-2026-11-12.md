@@ -16,6 +16,19 @@ Previously, invoice display logic re-associated bill amounts based on a normaliz
 
 The integrity screen treats status/allocated-amount discrepancies as **review exceptions, not confirmed outstanding dues**. Corrections must not happen automatically.
 
+## Phase 2 – proposal conversion safety (code only)
+
+The initial conversion must retain the database contract-capture hook: inserts marked `Proposal Auto Conversion` are deliberately consumed by a BEFORE INSERT trigger to populate contract services and milestones. This hook does not persist invoice bill rows.
+
+New and repaired proposal bills now share the same bill-creation path. Positive-net amounts are Issued, and zero-net/fully discounted lines remain Draft. Existing bill states are left alone.
+
+- Preflight validates unique item IDs, valid discounts, and accepted proposal net before project registration.
+- Deterministic bill codes let the existing UNIQUE bill_code constraint reject concurrent duplicate proposal-item inserts.
+- Registration stops when a proposal is already linked to an incompletely finalized project.
+- Reconciliation exceptions are reviewed only; no automatic financial corrections.
+- Simultaneous initial project-registration attempts still need a database-level uniqueness guarantee or transaction to close the remaining race. No migration has been applied.
+- The unrelated legacy repository-wide lint/test failures are separately reported; targeted invoice checks remain required.
+
 ## Backup and deployment gate
 
 **Do not merge or repair production data until a recoverable Supabase backup is verified** in the private [Supabase Database Backups dashboard](https://supabase.com/dashboard/project/_/database/backups/scheduled), or by checking PITR. The currently available connector cannot inspect backup inventory or perform a production database export. A Git branch is only a source-code rollback point, not a database backup.
