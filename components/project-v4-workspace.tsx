@@ -129,7 +129,7 @@ export default function ProjectV4Workspace() {
     const s = search.trim().toLowerCase();
     return !s || [row.title, row.code, row.status, row.assignee].some((value) => String(value || "").toLowerCase().includes(s));
   }), [data, search]);
-  const onRecord = (data?.documents || []).filter((row) => Number(row.receiptCount || 0) > 0).length;
+  const onRecord = (data?.documents || []).filter((row) => Number(row.onHandCount || 0) > 0).length;
   const alerts = data?.alerts;
 
   const counts: Partial<Record<Tab, string>> = {
@@ -165,7 +165,7 @@ export default function ProjectV4Workspace() {
         <Metric label="Payments received" value={data.financial ? amount(data.financial.paid) : "Unavailable"} detail="Effective project payments"/>
         <Metric label="Collectible due" value={data.financial ? amount(data.financial.due) : "Unavailable"} detail="May differ from invoice-level due"/>
         <Metric label="Open To-Dos" value={data.todos.open == null ? "Unavailable" : String(data.todos.open)} detail={data.todos.overdue == null ? "Source unavailable" : String(data.todos.overdue) + " overdue"}/>
-        <Metric label="Client documents" value={data.documents.some((d) => d.status === "Unavailable") ? "Unavailable" : String(onRecord) + " / 5"} detail="On record, not yet formally verified"/>
+        <Metric label="Client documents" value={data.documents.some((d) => d.status === "Unavailable") ? "Unavailable" : String(onRecord) + " / 5"} detail="Documents currently available on record"/>
       </section>
 
       {data.warnings.length > 0 && <div className="lv4-banners" role="status">{data.warnings.map((warning, index) => <div key={index} className="lv4-warning">{warning}</div>)}</div>}
