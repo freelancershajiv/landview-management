@@ -130,7 +130,6 @@ export default function ProjectClientDocumentRegistry({
 
   useEffect(() => {
     let mounted = true;
-    setLoading(true);
     load().then((value) => { if (mounted) setRegistry(value); })
       .catch((cause: unknown) => { if (mounted) setError(cause instanceof Error ? cause.message : "Could not load document records."); })
       .finally(() => { if (mounted) setLoading(false); });
@@ -158,7 +157,7 @@ export default function ProjectClientDocumentRegistry({
     } finally { setSaving(false); }
   }
 
-  const records = registry?.records || [];
+  const records = registry?.projectCode === projectCode ? registry.records : [];
   const verified = REQUIREMENTS.filter(({key}) => records.some(
     (record) => categoryOf(record) === key && record.verificationStatus === "Verified" &&
       record.collectionStatus !== "Returned",
@@ -199,8 +198,8 @@ export default function ProjectClientDocumentRegistry({
     </div>
     {error && <div className="lv4-doc-error" role="alert">{error}</div>}
     {message && <div className="lv4-doc-message" role="status">{message}</div>}
-    {loading && <div className="lv4-panel">Loading existing client document records…</div>}
-    {registry && <>
+    {(loading || !registry || registry.projectCode !== projectCode) && !error && <div className="lv4-panel">Loading existing client document records…</div>}
+    {registry?.projectCode === projectCode && <>
       {!registry.writeEnabled && <div className="lv4-doc-banner">
         <strong>Development preview — document changes locked</strong>
         <span>{registry.writeBlockReason || "Editing is disabled until the safe release gates pass."}</span>
