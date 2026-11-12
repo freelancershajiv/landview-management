@@ -56,5 +56,5 @@ test("financial uncertainty is not represented as a fictitious zero or a new deb
   assert.match(route, /historicalReview/);
   assert.match(route, /these are not new dues/);
   assert.match(component, /Unavailable/);
-  assert.match(component, /not automatically treated as new debt/);
+  assert.match(component, /not automatically treated as new debt/i);
 });
