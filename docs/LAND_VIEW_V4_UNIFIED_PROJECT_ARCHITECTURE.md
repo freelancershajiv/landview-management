@@ -175,3 +175,32 @@ Use database uniqueness constraints and transaction boundaries for project conve
 - No automatic notification replays or irreversible cross-project bulk tasks.
 
 **Next implementation milestone:** read-only unified Project Overview and project-level Document Registry requirements, backed by existing authoritative records, followed by explicit automated test and preview verification.
+
+
+## Phase 3 implementation (2026-11-13) — PREVIEW ONLY
+
+Phase 3 code is on the existing v4 draft PR, without merging into `main`, enabling production document writes, applying SQL, or deploying the Supabase Edge Function. The independent staging database and restore-tested backup remain prerequisites.
+
+### Private files (receipt-scoped)
+- Additive migration: `20261113120000_project_client_document_files_phase3_v4.sql`.
+- New private Supabase Storage bucket `project-client-documents-v4`; public access disabled, PDF/JPEG/PNG/WebP only, per-file limit 10 MiB.
+- `project_client_document_files` stores immutable generated storage paths and project/receipt relations, safe filename/type/size metadata, creator, pending/stored lifecycle. No scan bytes, identity numbers, or signed URLs go in a project, invoice, WhatsApp message, audit payload, or public repository.
+- Protected endpoint `/api/admin/projects/client-document-files`: session, admin/manager documents capabilities, project/receipt ownership and same-origin checks on POST; no writes in preview. Prepare signs a new path, browser uploads direct to private Storage, complete checks the actual stored object metadata and atomically flips pending to stored. File view uses short (60-second) server-issued signed download URLs and rejects pending rows.
+- No overwrite/upsert or public URL for client identity documents. Storage permits only known MIME types. Additional content scanning, upload-abandonment cleanup, owner-level validation and retention policy are **still required before any release**, especially before granting client/employee access.
+- Private scans do not automatically verify the underlying client document. Only explicit verification of the receiving record changes that status.
+
+### Service-specific document dependencies
+- `project_service_document_requirements` stores optional explicit requirement links scoped by project ID + stable workflow service key + five-category checklist.
+- `/api/admin/projects/service-document-requirements` computes readiness from *currently received and formally verified, non-returned* document receipts. It displays missing requirements only on the configured service; links are not duplicated per bill.
+- Requirement editor is guarded by the **same** backup and production flags as the receiving/scan APIs. Preview remains read-only.
+- **Readiness is advisory, not a release gate.** Category-level verification may not satisfy multi-landowner or official-agency requirements. Do not wire this to existing payment, municipality submission, task completion or final deliverable endpoints until owner-specific rules, staging integration tests and recovery tests are approved.
+
+### Rollout gates, in order
+1. Verify independent production PITR/backup *restore* to a separate environment and securely record counts and authoritative money totals; initial read-only observed counts were 152 projects, 909 bills, 909 invoices, 419 payments, and 1 client-document receipt (2026-11-13). Re-check counts immediately before migration.
+2. Apply Phase 2 migration, then this Phase 3 migration, in **staging first**; confirm RLS, bucket privacy, data gateway role grants, and private scan access refusal for anonymous/client users.
+3. Deploy the updated `landview-data` Edge Function to staging, verify signed upload, metadata completion, scoped download and 60-second signed URL expiry; test concurrent retry, mismatched project/receipt, oversized/unsupported file, and returned/unverified receipt.
+4. Verify category readiness for each service key, all five default requirements, multi-owner cases, no cross-project leakage, and complete payment-gated delivery regression.
+5. Complete malware/content checks, file-retention rules, pending-file cleanup, audit recovery and documented rollback. Keep all billing/payment/WhatsApp changes out of scope.
+6. Only after these checks, coordinate a controlled production schema/gateway deployment, enable both `LANDVIEW_V4_DOCUMENT_WRITES_ENABLED` and `LANDVIEW_V4_DOCUMENT_BACKUP_VERIFIED` for approved admin workflows, then compare counts/totals before any wider cutover.
+
+The phase 3 focused CI adds lint and source safety checks. Passing that CI does **not** replace authenticated browser tests or real storage integration checks.
