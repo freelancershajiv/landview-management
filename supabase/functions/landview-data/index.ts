@@ -267,7 +267,7 @@ async function signClientDocumentUpload(input: Record<string, unknown>) {
   });
   const result = await response.json().catch(() => null) as Record<string, unknown> | null;
   if (!response.ok || !result?.url) throw new Error("Client document upload authorization failed.");
-  const signed = new URL(String(result.url), base + "/storage/v1/");
+  const signed = new URL(base + "/storage/v1" + (String(result.url).startsWith("/") ? String(result.url) : "/" + String(result.url)));
   if (!signed.pathname.includes("/object/upload/sign/")) throw new Error("Invalid signed upload endpoint.");
   return { url: signed.toString(), contentType: info.mime };
 }
