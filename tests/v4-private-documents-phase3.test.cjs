@@ -16,7 +16,7 @@ const workspace = read("components/project-v4-workspace.tsx");
 
 test("phase 3 migration is additive and storage bucket is private", () => {
   assert.match(sql, /public, file_size_limit, allowed_mime_types/);
-  assert.match(sql, /'project-client-documents-v4', false, 10485760/);
+  assert.match(sql, /'project-client-documents-v4', 'project-client-documents-v4', false, 10485760/);
   assert.match(sql, /create table if not exists public\.project_client_document_files/);
   assert.match(sql, /create table if not exists public\.project_service_document_requirements/);
   assert.match(sql, /enable row level security/g);
