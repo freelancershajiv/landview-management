@@ -21,7 +21,7 @@ create table if not exists public.project_client_document_files (
   created_at timestamptz not null default now(),
   stored_at timestamptz,
   constraint project_client_document_files_path_check
-    check (storage_path ~ '^projects/[0-9a-f-]{36}/receipts/[0-9a-f-]{36}/[0-9a-f-]{36}\\.(pdf|jpg|png|webp)$')
+    check (storage_path ~ '^projects/[0-9a-f-]{36}/receipts/[0-9a-f-]{36}/[0-9a-f-]{36}\.(pdf|jpg|png|webp)$')
 );
 
 create index if not exists project_client_document_files_register_idx
