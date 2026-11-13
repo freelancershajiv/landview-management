@@ -8,14 +8,20 @@ on:
     paths:
       - "app/api/admin/projects/v4-summary/**"
       - "app/api/admin/projects/client-documents/**"
+      - "app/api/admin/projects/client-document-files/**"
+      - "app/api/admin/projects/service-document-requirements/**"
       - "app/admin/projects/**/v4-preview/**"
       - "components/project-v4-workspace.*"
       - "components/project-client-document-registry.tsx"
+      - "components/project-client-document-attachments.tsx"
+      - "components/project-service-document-readiness.tsx"
       - "components/project-workspace-nav.tsx"
       - "supabase/migrations/20261113090000_project_client_document_lifecycle_v4.sql"
+      - "supabase/migrations/20261113120000_project_client_document_files_phase3_v4.sql"
       - "supabase/functions/landview-data/index.ts"
       - "tests/v4-project-preview-safety.test.cjs"
       - "tests/v4-client-documents.test.cjs"
+      - "tests/v4-private-documents-phase3.test.cjs"
       - ".github/workflows/v4-project-workspace-check.yml"
   workflow_dispatch:
 
@@ -45,11 +51,16 @@ jobs:
           npx eslint --max-warnings=0 \
             app/api/admin/projects/v4-summary/route.ts \
             app/api/admin/projects/client-documents/route.ts \
+            app/api/admin/projects/client-document-files/route.ts \
+            app/api/admin/projects/service-document-requirements/route.ts \
             'app/admin/projects/[projectId]/v4-preview/page.tsx' \
             components/project-v4-workspace.tsx \
             components/project-client-document-registry.tsx \
+            components/project-client-document-attachments.tsx \
+            components/project-service-document-readiness.tsx \
             components/project-workspace-nav.tsx \
             tests/v4-project-preview-safety.test.cjs \
-            tests/v4-client-documents.test.cjs
+            tests/v4-client-documents.test.cjs \
+            tests/v4-private-documents-phase3.test.cjs
       - name: v4 safety regression
-        run: node --test tests/v4-project-preview-safety.test.cjs tests/v4-client-documents.test.cjs
+        run: node --test tests/v4-project-preview-safety.test.cjs tests/v4-client-documents.test.cjs tests/v4-private-documents-phase3.test.cjs
