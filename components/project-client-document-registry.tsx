@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import ProjectClientDocumentAttachments from "@/components/project-client-document-attachments";
 
 type Entry = {
   id: string; code: string; projectId: string; requirementKey: string; name: string;
@@ -113,6 +114,7 @@ export default function ProjectClientDocumentRegistry({
   const [showForm, setShowForm] = useState(false);
   const [draft, setDraft] = useState(defaultDraft);
   const [activeId, setActiveId] = useState("");
+  const [expandedFileId, setExpandedFileId] = useState("");
   const [action, setAction] = useState<"verify" | "reject" | "return">("verify");
   const [notes, setNotes] = useState("");
   const [returnTo, setReturnTo] = useState("");
@@ -253,7 +255,7 @@ export default function ProjectClientDocumentRegistry({
               <label>Document reference (optional)<input maxLength={120} value={draft.documentReference} onChange={(e)=>setDraft((v)=>({...v,documentReference:e.target.value}))}/></label>
               <label className="full">Remarks<textarea value={draft.remarks} onChange={(e)=>setDraft((v)=>({...v,remarks:e.target.value}))}/></label>
             </div>
-            <p className="lv4-muted">Do not enter NID/passport numbers here. Private scanned-file upload will require a separately secured storage flow.</p>
+            <p className="lv4-muted">Do not enter NID/passport numbers here. Private scans are available after secure storage is released.</p>
             <div className="lv4-doc-actions">
               <button type="submit" className="primary" disabled={!registry.writeEnabled || saving}>{saving?"Saving…":"Save receiving record"}</button>
               <button type="button" onClick={()=>setShowForm(false)}>Cancel</button>
@@ -268,6 +270,7 @@ export default function ProjectClientDocumentRegistry({
               <div className="lv4-quiet">Received from: {entry.receivedFrom || "Not recorded"} · Custody: {entry.returnStatus}</div>
               <div className="lv4-doc-actions" style={{marginTop:8}}>
                 <button type="button" onClick={()=>{ if(!printReceipt(projectCode,entry,"receive"))setError("Print popup was blocked.");}}>Print receiving receipt</button>
+                <button type="button" aria-expanded={expandedFileId===entry.id} onClick={()=>setExpandedFileId((current)=>current===entry.id?"":entry.id)}>{expandedFileId===entry.id?"Hide private scans":"Private scans / PDFs"}</button>
                 {entry.returnStatus === "Returned" && <button type="button" onClick={()=>{if(!printReceipt(projectCode,entry,"return"))setError("Print popup was blocked.");}}>Print return receipt</button>}
                 {registry.writeEnabled && entry.collectionStatus === "Received" && entry.returnStatus !== "Returned" && <>
                   <button type="button" onClick={()=>{setActiveId(entry.id);setAction("verify");setNotes("");}}>Verify</button>
@@ -275,6 +278,8 @@ export default function ProjectClientDocumentRegistry({
                   {entry.returnStatus === "Held by LAND VIEW" && <button type="button" onClick={()=>{setActiveId(entry.id);setAction("return");setReturnTo("");}}>Return original</button>}
                 </>}
               </div>
+              {expandedFileId===entry.id && <ProjectClientDocumentAttachments key={entry.id}
+                projectCode={projectCode} registerId={entry.id} canWrite={registry.writeEnabled} onChanged={onChanged}/>}
             </div>
             <span className={"lv4-chip "+statusClass(entry.verificationStatus)}>{entry.verificationStatus || "Unverified"}</span>
           </div>)}</div>
