@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import ProjectClientDocumentRegistry from "@/components/project-client-document-registry";
+import ProjectServiceDocumentReadiness from "@/components/project-service-document-readiness";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import "./project-v4-workspace.css";
@@ -258,6 +259,7 @@ export default function ProjectV4Workspace() {
 
           {tab === "documents" && <>
             <ProjectClientDocumentRegistry projectCode={projectCode} onChanged={update}/>
+            <ProjectServiceDocumentReadiness projectCode={projectCode}/>
             <Panel title="Other project design and delivered files">
               <Table items={data.projectFiles} columns={[
                 { title:"Document",key:"title" },{ title:"Type",key:"type" },
