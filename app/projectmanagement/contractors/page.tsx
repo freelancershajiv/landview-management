@@ -103,6 +103,7 @@ export default function ContractorBillsPage(){
   const [billForm,setBillForm] = useState<any>(blankBill);
   const [expanded,setExpanded] = useState("");
   const [billContractFilter,setBillContractFilter] = useState("all");
+  const [billSearch,setBillSearch] = useState("");
 
   async function load(code = project){
     setLoading(true);
@@ -139,6 +140,13 @@ export default function ContractorBillsPage(){
     ? bills
     : bills.filter((b:any)=>String(b.contract_id)===String(billContractFilter));
   const selectedBillContract = billContractFilter==="all" ? null : contractMap.get(String(billContractFilter));
+  const displayedBills = filteredBills.filter((bill:any)=>{
+    const query=billSearch.trim().toLowerCase();
+    if(!query)return true;
+    const party=contractMap.get(String(bill.contract_id));
+    return [bill.bill_code,bill.bill_date,bill.description,bill.notes,bill.status,party?.contractor_name,party?.category]
+      .some(value=>String(value||"").toLowerCase().includes(query));
+  });
 
 
   function openNewContract(){
@@ -285,7 +293,7 @@ export default function ContractorBillsPage(){
         <header className="cb-header">
           <div>
             <div className="cb-kicker">LAND VIEW · PROJECT MANAGEMENT</div>
-            <h1>Contractor Bills</h1>
+            <h1>Contracts & Bills</h1>
             <p>Calculate earned contractor bills separately from the payment ledger, then reconcile certified work against actual payments.</p>
             <div className="cb-project-pill">
               <strong>{data?.selectedProject?.projectCode || project || "—"}</strong>
@@ -293,7 +301,7 @@ export default function ContractorBillsPage(){
             </div>
           </div>
           <div className="cb-header-actions">
-            <button className="cb-btn cb-btn-secondary" onClick={()=>window.location.assign("/projectmanagement?projectId="+encodeURIComponent(data?.selectedProject?.projectCode||project))}>← Ledger</button>
+            <button className="cb-btn cb-btn-secondary" onClick={()=>window.location.assign("/projectmanagement?projectId="+encodeURIComponent(data?.selectedProject?.projectCode||project))}>← Overview</button>
             <button className="cb-btn cb-btn-secondary" onClick={()=>void load(data?.selectedProject?.projectCode||project)}>↻ Refresh</button>
             {admin && <button className="cb-btn cb-btn-primary" onClick={openNewContract}>＋ Add Contractor / Supplier</button>}
             {admin && contractors.length>0 && <button className="cb-btn cb-btn-dark" onClick={()=>openNewBill()}>＋ New Bill</button>}
@@ -427,6 +435,7 @@ export default function ContractorBillsPage(){
               <h2>Certified Contractor Bills</h2>
             </div>
             <div className="cb-bill-register-actions">
+              <label className="pmx-bill-search"><span>SEARCH BILLS</span><input value={billSearch} onChange={e=>setBillSearch(e.target.value)} placeholder="Bill no., party, description…" aria-label="Search contractor and supplier bills"/></label>
               <label className="cb-bill-filter">
                 <span>VIEW PARTY</span>
                 <select value={billContractFilter} onChange={e=>setBillContractFilter(e.target.value)}>
@@ -439,8 +448,8 @@ export default function ContractorBillsPage(){
           </div>
           <div className="cb-filter-summary">
             {billContractFilter==="all"
-              ? <>Showing <strong>{filteredBills.length}</strong> bill{filteredBills.length===1?"":"s"} from all contractors / suppliers.</>
-              : <>Showing <strong>{filteredBills.length}</strong> bill{filteredBills.length===1?"":"s"} for <strong>{selectedBillContract?.contractor_name || "selected party"}</strong>.</>}
+              ? <>Showing <strong>{displayedBills.length}</strong> of <strong>{bills.length}</strong> bills from all contractors / suppliers.</>
+              : <>Showing <strong>{displayedBills.length}</strong> of <strong>{filteredBills.length}</strong> bills for <strong>{selectedBillContract?.contractor_name || "selected party"}</strong>.</>}
           </div>
           <div className="cb-table-wrap">
             <table className="cb-table cb-bills-table">
@@ -451,7 +460,7 @@ export default function ContractorBillsPage(){
                 </tr>
               </thead>
               <tbody>
-                {filteredBills.map((b:any)=>{
+                {displayedBills.map((b:any)=>{
                   const c=contractMap.get(String(b.contract_id));
                   return <tr key={b.id}>
                     <td><strong>{b.bill_code}</strong></td>
@@ -470,7 +479,7 @@ export default function ContractorBillsPage(){
                     </td>
                   </tr>
                 })}
-                {!filteredBills.length && <tr><td colSpan={11} className="cb-empty"><strong>{billContractFilter==="all" ? "No contractor bills have been entered." : "No bills found for this contractor."}</strong><span>Daily payments stay in the ledger; certified earned amounts are entered here.</span></td></tr>}
+                {!displayedBills.length && <tr><td colSpan={11} className="cb-empty"><strong>{billSearch.trim() ? "No bills match this search." : billContractFilter==="all" ? "No contractor bills have been entered." : "No bills found for this contractor."}</strong><span>Clear the bill search or select another party to see more records.</span></td></tr>}
               </tbody>
             </table>
           </div>

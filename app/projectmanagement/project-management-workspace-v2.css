@@ -256,3 +256,317 @@
 .pf-redesign .pmx-operations-grid a b { position: absolute; top: 14px; right: 14px; color: var(--pmx-red); font-size: 16px; }
 @media (max-width: 1100px) { .pf-redesign .pmx-operations-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 640px) { .pf-redesign .pmx-operations { padding: 16px; } .pf-redesign .pmx-operations-grid { grid-template-columns: 1fr; } }
+
+
+
+/* Phase 3: consistent working screens — scoped to Project Management, screen only.
+   Source ledgers, supplier contracts and print document styles are not modified. */
+@media screen {
+  .pf-redesign .pfl-head,
+  .pf-redesign .cb-header,
+  .pf-redesign .rpt-screen-toolbar {
+    gap: 20px;
+  }
+  .pf-redesign .pfl-head {
+    border-bottom: 1px solid var(--pmx-border);
+    background: linear-gradient(115deg, color-mix(in srgb, var(--pmx-red) 5%, var(--pmx-surface)),var(--pmx-surface) 50%);
+  }
+  .pf-redesign .pfl-eyebrow,
+  .pf-redesign .cb-kicker,
+  .pf-redesign .cb-label,
+  .pf-redesign .rpt-kicker {
+    color: var(--pmx-red);
+    letter-spacing: .09em;
+    font-size: 10px;
+  }
+  .pf-redesign .pfl-head h2,
+  .pf-redesign .cb-header h1 {
+    color: var(--pmx-text);
+    letter-spacing: -.035em;
+  }
+  .pf-redesign .pfl-project-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 11px 21px;
+    background: var(--pmx-muted-surface);
+    color: var(--pmx-muted);
+    border-bottom: 1px solid var(--pmx-border);
+  }
+  .pf-redesign .pfl-project-bar select {
+    min-height: 39px;
+    border: 1px solid var(--pmx-border);
+    border-radius: 9px;
+    background: var(--pmx-surface);
+    color: var(--pmx-text);
+    font-size: 12px;
+    font-weight: 760;
+  }
+  .pf-redesign .pfl-summary,
+  .pf-redesign .cb-stats,
+  .pf-redesign .rpt-summary-grid {
+    gap: 11px;
+  }
+  .pf-redesign .pfl-summary > div,
+  .pf-redesign .cb-stat,
+  .pf-redesign .rpt-summary-grid > div {
+    border: 1px solid var(--pmx-border);
+    background: var(--pmx-surface);
+    border-radius: 12px;
+    min-width: 0;
+  }
+  .pf-redesign .pfl-summary > div > span,
+  .pf-redesign .cb-stat > span,
+  .pf-redesign .rpt-summary-grid > div > span {
+    color: var(--pmx-muted);
+    font-size: 11px;
+    line-height: 1.35;
+    letter-spacing: .015em;
+  }
+  .pf-redesign .pfl-summary strong,
+  .pf-redesign .cb-stat strong {
+    color: var(--pmx-text);
+    font-weight: 860;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .pf-redesign .pfl-summary small,
+  .pf-redesign .cb-stat small {
+    color: var(--pmx-muted);
+    font-size: 11px;
+    line-height: 1.45;
+  }
+  .pf-redesign .pfl-filters {
+    background: var(--pmx-surface);
+    border-color: var(--pmx-border);
+    padding: 14px 20px;
+    gap: 10px;
+  }
+  .pf-redesign .pfl-input,
+  .pf-redesign .pfl-select,
+  .pf-redesign .pfl-form :is(input,select,textarea),
+  .pf-redesign .cb-form :is(input,select,textarea) {
+    background: var(--pmx-surface);
+    border: 1px solid var(--pmx-border);
+    border-radius: 9px;
+    min-height: 40px;
+    padding: 8px 12px;
+    font: inherit;
+    font-size: 12px;
+    color: var(--pmx-text);
+  }
+  .pf-redesign .pfl-table-shell,
+  .pf-redesign .cb-panel {
+    border: 1px solid var(--pmx-border);
+    background: var(--pmx-surface);
+    border-radius: 13px;
+    overflow: hidden;
+    box-shadow: 0 8px 22px rgba(26,38,53,.03);
+  }
+  .pf-redesign .pfl-table th,
+  .pf-redesign .cb-table th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--pmx-muted-surface);
+    border-bottom: 1px solid var(--pmx-border);
+    color: var(--pmx-muted);
+    font-size: 10px;
+    letter-spacing: .045em;
+    font-weight: 840;
+    padding: 13px;
+  }
+  .pf-redesign .pfl-table td,
+  .pf-redesign .cb-table td {
+    border-bottom: 1px solid var(--pmx-border);
+    padding: 13px;
+    font-size: 12px;
+    line-height: 1.55;
+    color: var(--pmx-text);
+    vertical-align: middle;
+  }
+  .pf-redesign .pfl-table tbody tr:hover,
+  .pf-redesign .cb-table tbody tr:hover { background: var(--pmx-muted-surface); }
+  .pf-redesign .pfl-party,
+  .pf-redesign .pfl-detail,
+  .pf-redesign .pfl-name { color: var(--pmx-text); font-size: 12px; }
+  .pf-redesign .pfl-category { color: var(--pmx-text); border-color: var(--pmx-border); background: var(--pmx-muted-surface); font-size: 11px; }
+  .pf-redesign .pfl-table td.num,
+  .pf-redesign .cb-table td.num { font-variant-numeric: tabular-nums; font-size: 12px; }
+  .pf-redesign .pfl-money-in { color: var(--pmx-positive); }
+  .pf-redesign .pfl-money-out { color: var(--pmx-red); }
+  .pf-redesign .pfl-modal,
+  .pf-redesign .cb-modal { border-radius: 16px; color: var(--pmx-text); background: var(--pmx-surface); box-shadow: 0 30px 75px rgba(20,29,42,.18); }
+  .pf-redesign .pfl-modal-head,
+  .pf-redesign .cb-modal-head { border-bottom: 1px solid var(--pmx-border); background: var(--pmx-muted-surface); }
+  .pf-redesign .pfl-modal-head h3,
+  .pf-redesign .cb-modal-head h2 { font-size: 19px; color: var(--pmx-text); letter-spacing: -.02em; }
+  .pf-redesign .pfl-modal-head p,
+  .pf-redesign .cb-modal-head p { font-size: 12px; color: var(--pmx-muted); }
+  .pf-redesign .pfl-modal-foot,
+  .pf-redesign .cb-modal-foot { border-top: 1px solid var(--pmx-border); background: var(--pmx-muted-surface); }
+  .pf-redesign .pfl-btn-primary,
+  .pf-redesign .cb-btn-primary { color: #fff; background: var(--pmx-red); border-color: var(--pmx-red); }
+  .pf-redesign .pfl-btn-primary:hover,
+  .pf-redesign .cb-btn-primary:hover { color: #fff; filter: brightness(.95); }
+  .pf-redesign .pfl-btn-dark,
+  .pf-redesign .cb-btn-dark { color: var(--pmx-text); background: var(--pmx-muted-surface); border: 1px solid var(--pmx-border); }
+  .pf-redesign .pfl-btn-dark:hover,
+  .pf-redesign .cb-btn-dark:hover { color: var(--pmx-text); background: var(--pmx-surface); }
+  .pf-redesign .pfl-footer { background: var(--pmx-surface); border-color: var(--pmx-border); color: var(--pmx-muted); }
+  .pf-redesign .pfl-footer button { color: var(--pmx-text); border-color: var(--pmx-border); background: var(--pmx-surface); }
+  .pf-redesign .pfl-alert { font-size: 12px; border-radius: 9px; }
+  .pf-redesign .pmx-ledger-tools {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 15px 20px 5px;
+    background: var(--pmx-surface);
+  }
+  .pf-redesign .pmx-ledger-tools p { margin: 0; font-size: 11px; color: var(--pmx-muted); }
+  .pf-redesign .pmx-ledger-tools p strong { color: var(--pmx-text); }
+  .pf-redesign .pmx-ledger-preset-buttons { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .pf-redesign .pmx-ledger-preset-buttons > span { margin-right: 4px; font-size: 10px; color: var(--pmx-muted); font-weight: 850; letter-spacing: .06em; }
+  .pf-redesign .pmx-ledger-preset-buttons button {
+    min-height: 32px;
+    padding: 7px 11px;
+    border-radius: 8px;
+    border: 1px solid var(--pmx-border);
+    background: var(--pmx-muted-surface);
+    color: var(--pmx-text);
+    font-size: 11px;
+    font-weight: 780;
+    cursor: pointer;
+  }
+  .pf-redesign .pmx-ledger-preset-buttons button:hover { color: var(--pmx-red); border-color: color-mix(in srgb,var(--pmx-red) 30%,var(--pmx-border)); }
+  .pf-redesign .pmx-ledger-date { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .pf-redesign .pmx-ledger-date > span { font-size: 10px; font-weight: 820; letter-spacing: .045em; color: var(--pmx-muted); }
+  .pf-redesign .pmx-ledger-date > input { width: 100%; min-width: 0; }
+  .pf-redesign .pmx-ledger-filter-hint { display: flex; align-items: center; color: var(--pmx-muted); font-size: 11px; line-height: 1.5; }
+  .pf-redesign .pmx-parties-summary { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .pf-redesign .pmx-party-switch { display: flex; flex-wrap: wrap; gap: 6px; padding: 14px 20px 5px; }
+  .pf-redesign .pmx-party-switch button {
+    display: inline-flex; align-items: center; gap: 7px;
+    min-height: 37px; border-radius: 9px; padding: 8px 12px;
+    border: 1px solid var(--pmx-border);
+    background: var(--pmx-surface);
+    color: var(--pmx-muted);
+    font-size: 12px; font-weight: 780; cursor: pointer;
+  }
+  .pf-redesign .pmx-party-switch button span {
+    display: inline-grid; min-width: 23px; place-items: center;
+    padding: 2px 5px; border-radius: 20px;
+    background: var(--pmx-muted-surface); color: var(--pmx-text); font-size: 10px;
+  }
+  .pf-redesign .pmx-party-switch button.is-active {
+    border-color: color-mix(in srgb,var(--pmx-red) 25%,var(--pmx-border));
+    background: color-mix(in srgb,var(--pmx-red) 8%,var(--pmx-surface));
+    color: var(--pmx-red);
+  }
+  .pf-redesign .pmx-muted-inline { color: var(--pmx-muted); font-size: 12px; }
+  .pf-redesign .pfl-party-table .pfl-actions { white-space: nowrap; }
+  .pf-redesign .cb-page { background: transparent; min-height: 0; padding: 0 0 40px; color: var(--pmx-text); }
+  .pf-redesign .cb-shell { max-width: 1700px; }
+  .pf-redesign .cb-header { align-items: center; margin-bottom: 20px; }
+  .pf-redesign .cb-header h1 { font-size: clamp(23px,2.2vw,30px); line-height: 1.2; }
+  .pf-redesign .cb-header p { font-size: 12px; color: var(--pmx-muted); line-height: 1.6; }
+  .pf-redesign .cb-project-pill { background: var(--pmx-surface); color: var(--pmx-muted); border: 1px solid var(--pmx-border); }
+  .pf-redesign .cb-project-pill strong { color: var(--pmx-red); }
+  .pf-redesign .cb-explain { background: var(--pmx-muted-surface); color: var(--pmx-text); border-color: var(--pmx-border); box-shadow: none; }
+  .pf-redesign .cb-explain strong { color: var(--pmx-text); }
+  .pf-redesign .cb-explain span { color: var(--pmx-muted); }
+  .pf-redesign .cb-formula { white-space: normal; background: var(--pmx-surface); color: var(--pmx-text); border-color: var(--pmx-border); }
+  .pf-redesign .cb-stats { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .pf-redesign .cb-stat { min-height: 128px; border-top: 3px solid var(--pmx-blue); }
+  .pf-redesign .cb-stat:nth-child(2n) { border-top-color: var(--pmx-red); }
+  .pf-redesign .cb-stat:nth-child(4) { border-top-color: var(--pmx-warning); }
+  .pf-redesign .cb-panel-head { background: var(--pmx-surface); border-bottom: 1px solid var(--pmx-border); align-items: center; padding: 19px 20px; }
+  .pf-redesign .cb-panel-head h2 { color: var(--pmx-text); font-size: 19px; }
+  .pf-redesign .cb-small-btn { background: var(--pmx-muted-surface); border-color: var(--pmx-border); color: var(--pmx-red); }
+  .pf-redesign .cb-table { min-width: 1180px; }
+  .pf-redesign .cb-bills-table { min-width: 1000px; }
+  .pf-redesign .cb-status { border-radius: 20px; font-size: 10px; padding: 5px 9px; }
+  .pf-redesign .cb-bill-register-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+  .pf-redesign .pmx-bill-search { display: flex; flex-direction: column; gap: 5px; }
+  .pf-redesign .pmx-bill-search span { color: var(--pmx-muted); font-size: 10px; font-weight: 830; letter-spacing: .055em; }
+  .pf-redesign .pmx-bill-search input {
+    width: min(100%, 285px); min-width: 235px; min-height: 39px;
+    background: var(--pmx-surface); color: var(--pmx-text);
+    border: 1px solid var(--pmx-border); border-radius: 9px;
+    padding: 8px 11px; font: inherit; font-size: 12px;
+  }
+  .pf-redesign .cb-bill-filter span { color: var(--pmx-muted); font-size: 10px; }
+  .pf-redesign .cb-bill-filter select { color: var(--pmx-text); background: var(--pmx-surface); border-color: var(--pmx-border); }
+  .pf-redesign .cb-filter-summary { color: var(--pmx-muted); background: var(--pmx-muted-surface); border-color: var(--pmx-border); font-size: 11px; padding: 12px 18px; }
+  .pf-redesign .cb-filter-summary strong { color: var(--pmx-text); }
+  .pf-redesign .rpt-page { background: transparent; min-height: 0; padding: 0 0 50px; color: var(--pmx-text); }
+  .pf-redesign .rpt-shell { max-width: 1700px; }
+  .pf-redesign .pmx-report-intro {
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap;
+    gap: 16px; border: 1px solid var(--pmx-border);
+    background: var(--pmx-surface); border-radius: var(--pmx-radius);
+    padding: 22px 24px; margin-bottom: 16px;
+  }
+  .pf-redesign .pmx-report-intro span { display: block; color: var(--pmx-red); font-size: 10px; letter-spacing: .09em; font-weight: 850; }
+  .pf-redesign .pmx-report-intro h2 { color: var(--pmx-text); font-size: 24px; letter-spacing: -.03em; margin: 5px 0; }
+  .pf-redesign .pmx-report-intro p { color: var(--pmx-muted); font-size: 12px; margin: 0; }
+  .pf-redesign .pmx-report-status {
+    background: var(--pmx-muted-surface); border: 1px solid var(--pmx-border); border-radius: 10px; padding: 11px 15px;
+  }
+  .pf-redesign .pmx-report-status strong { display: block; margin-top: 3px; color: var(--pmx-text); font-size: 12px; }
+  .pf-redesign .rpt-screen-toolbar { background: var(--pmx-surface); border-radius: 11px; border: 1px solid var(--pmx-border); padding: 10px 14px; }
+  .pf-redesign .rpt-screen-toolbar>a { color: var(--pmx-red); font-size: 12px; }
+  .pf-redesign .rpt-screen-toolbar button { font-size: 12px; color: var(--pmx-text); background: var(--pmx-muted-surface); border-color: var(--pmx-border); }
+  .pf-redesign .rpt-screen-toolbar button.primary { color: #fff; background: var(--pmx-red); border-color: var(--pmx-red); }
+  .pf-redesign .rpt-letterhead,
+  .pf-redesign .rpt-project-card,
+  .pf-redesign .rpt-controls,
+  .pf-redesign .rpt-summary-grid,
+  .pf-redesign .rpt-reconciliation,
+  .pf-redesign .rpt-statement,
+  .pf-redesign .rpt-closing {
+    border-color: var(--pmx-border);
+    background: var(--pmx-surface);
+    box-shadow: 0 6px 20px rgba(26,38,53,.035);
+  }
+  .pf-redesign .rpt-letterhead:before { background: var(--pmx-red); }
+  .pf-redesign .rpt-brand,
+  .pf-redesign .rpt-title-label { color: var(--pmx-red); }
+  .pf-redesign .rpt-mark { border-color: var(--pmx-red); color: var(--pmx-red); }
+  .pf-redesign .rpt-summary-grid > div { border-radius: 10px; }
+  .pf-redesign .rpt-controls label > span,
+  .pf-redesign .rpt-controls > div > span { font-size: 10px; color: var(--pmx-muted); }
+  .pf-redesign .rpt-controls input,
+  .pf-redesign .rpt-controls select {
+    min-height: 40px; padding: 8px 12px; background: var(--pmx-surface);
+    color: var(--pmx-text); border: 1px solid var(--pmx-border); border-radius: 9px; font-size: 12px;
+  }
+  .pf-redesign .rpt-statement-head h2 { color: var(--pmx-text); font-size: 18px; }
+  .pf-redesign .rpt-statement table th { background: var(--pmx-muted-surface); color: var(--pmx-muted); font-size: 10px; }
+  .pf-redesign .rpt-statement table td { font-size: 11px; line-height: 1.5; }
+}
+@media screen and (max-width: 1250px) {
+  .pf-redesign .pmx-parties-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .pf-redesign .cb-stats { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media screen and (max-width: 780px) {
+  .pf-redesign .pmx-ledger-tools { padding: 13px; align-items: flex-start; }
+  .pf-redesign .pmx-ledger-preset-buttons { width: 100%; }
+  .pf-redesign .pmx-parties-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .pf-redesign .cb-header { flex-direction: column; align-items: flex-start; }
+  .pf-redesign .cb-header-actions { justify-content: flex-start; }
+  .pf-redesign .cb-stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .pf-redesign .cb-explain { flex-direction: column; align-items: flex-start; }
+  .pf-redesign .cb-bill-register-actions { align-items: stretch; width: 100%; flex-direction: column; }
+  .pf-redesign .pmx-bill-search input { width: 100%; }
+  .pf-redesign .cb-bill-filter select { width: 100%; }
+  .pf-redesign .pmx-report-intro { padding: 17px; }
+  .pf-redesign .rpt-screen-toolbar { flex-direction: column; align-items: stretch; }
+  .pf-redesign .rpt-screen-toolbar > div { justify-content: flex-end; }
+}
+@media print {
+  .pf-redesign .pmx-report-intro { display: none !important; }
+}
