@@ -181,7 +181,7 @@ export default function ProjectBillingDocumentRevamp({
       },
     };
   }, [dueOnly, result]);
-  const projectStatus = result.client.status || (Number(result.totals.due || 0) > 0.009 ? "Partial / Due" : "Full Paid");
+  const projectStatus = result.document?.allocationReview ? "Allocation review required" : (result.client.status || (Number(result.totals.due || 0) > 0.009 ? "Partial / Due" : "Full Paid"));
 
   const activeCategories = displayBilling.invoices.filter(hasBillingData);
   const printCategories = activeCategories.length ? activeCategories : displayBilling.invoices.slice(0, 1);
@@ -207,7 +207,8 @@ export default function ProjectBillingDocumentRevamp({
           // Never print FULL PAID for a positive net bill without enough
           // bill-specific payments, even when a stale due snapshot says zero.
           const due = Math.max(0, Number(category.due || 0), grandTotal - paid);
-          const fullyPaid = due <= 0.009;
+          const reviewNeeded = Boolean(result.document?.kind === "single" && result.document?.allocationReview);
+          const fullyPaid = !reviewNeeded && due <= 0.009;
           const engineeringBill = isEngineeringCategory(result.document?.kind === "single" ? result.document.category : category.name);
           const simpleEngineeringBill = engineeringBill && !showDiscount;
 
@@ -307,7 +308,9 @@ export default function ProjectBillingDocumentRevamp({
                 <div className="lvTotalsBlock">
                   <div><span>Bill Subtotal (BDT)</span><strong>{amountText(gross)}</strong></div>
                   {showDiscount && <div><span>Discount (BDT)</span><strong>{amountText(discount)}</strong></div>}
-                  <div className="lvGrandTotal"><span>Grand Total (BDT)</span><strong>{amountText(grandTotal)}</strong></div>
+                  <div className="lvGrandTotal"><span>{dueOnly ? "Outstanding Bill Amount (BDT)" : "Net Invoice Amount (BDT)"}</span><strong>{amountText(grandTotal)}</strong></div>
+                  {!dueOnly && <div><span>Total Recorded Received (BDT)</span><strong>{amountText(paid)}</strong></div>}
+                  <div className="lvInvoiceBalanceDue"><span>Balance Due (BDT)</span><strong>{amountText(due)}</strong></div>
                 </div>
 
                 {!dueOnly && <>
@@ -321,7 +324,7 @@ export default function ProjectBillingDocumentRevamp({
                           <tr key={paymentIndex}>
                             <td>{paymentIndex + 1}</td>
                             <td>{parseDate(payment.date)}</td>
-                            <td>{payment.details || "—"}</td>
+                            <td>{payment.details || "—"}{payment.incomeId && <small className="lvInvoicePaymentRef">Ref: {payment.incomeId}</small>}</td>
                             <td className={payment.verification === "Verified" ? "lvVerified" : "lvUnverified"}>{payment.verification || "Unverified"}</td>
                             <td>BDT {amountText(payment.amount)}</td>
                           </tr>
@@ -331,16 +334,18 @@ export default function ProjectBillingDocumentRevamp({
                   </div>
                 </>}
 
-                <div className="lvReconciledPaymentRow" style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "7px 9px", border: "1px solid #cbd1d6", fontSize: 11, fontWeight: 800 }}>
-                  <span>Received: BDT {amountText(paid)}</span>
-                  <span>Balance Due: BDT {amountText(due)}</span>
-                </div>
+                {reviewNeeded && (
+                  <div className="lvAllocationReviewBlock">
+                    <strong>PAYMENT ALLOCATION REVIEW REQUIRED</strong>
+                    <p>Recorded received: BDT {amountText(paid)} · Linked payments: BDT {amountText(result.document?.allocatedAmount || 0)}. The historical settlement remains unchanged; this notice is not a new payment demand.</p>
+                  </div>
+                )}
                 {fullyPaid ? (
                   <div className="lvPaidBlock">
                     <div><strong>Payment Status</strong><span>All payments completed. This invoice has been fully settled.</span></div>
                     <b>FULL PAID</b>
                   </div>
-                ) : (
+                ) : reviewNeeded ? null : (
                   <div className="lvDueBlock">
                     <div className="lvDueRow"><strong>Payment Status</strong><b>{paid > 0.009 ? "PARTIALLY PAID" : "UNPAID"}</b></div>
                     <div className="lvDueRow"><strong>Due Amount (BDT)</strong><b>{amountText(due)}</b></div>
@@ -433,6 +438,12 @@ export default function ProjectBillingDocumentRevamp({
           .lvTotalsBlock span{font-weight:700!important}.lvTotalsBlock strong{text-align:right!important;border-left:1px solid #d6dbe0!important;font-variant-numeric:tabular-nums!important}
           .lvGrandTotal{background:#e21f2f!important;color:#fff!important}
           .lvGrandTotal span,.lvGrandTotal strong{font-size:10pt!important;font-weight:900!important;color:#fff!important;border-color:rgba(255,255,255,.45)!important}
+          .lvInvoiceBalanceDue{background:#fff6f6!important}
+          .lvInvoiceBalanceDue span,.lvInvoiceBalanceDue strong{color:#bd1826!important;font-weight:900!important}
+          .lvInvoicePaymentRef{display:block!important;font-size:6.8pt!important;color:#5e6870!important;margin-top:.5mm!important;overflow-wrap:anywhere!important}
+          .lvAllocationReviewBlock{margin-top:2.6mm!important;border:1px solid #d4963c!important;background:#fffaf0!important;padding:2.4mm!important;box-sizing:border-box!important}
+          .lvAllocationReviewBlock strong{display:block!important;color:#9b5610!important;font-size:9pt!important}
+          .lvAllocationReviewBlock p{margin:1.4mm 0 0!important;font-size:8pt!important;line-height:1.3!important;color:#664a25!important}
 
           .lvDepositTable col:nth-child(1){width:8%!important}.lvDepositTable col:nth-child(2){width:16%!important}.lvDepositTable col:nth-child(3){width:36%!important}.lvDepositTable col:nth-child(4){width:20%!important}.lvDepositTable col:nth-child(5){width:20%!important}
           .lvDepositTable th:nth-child(2),.lvDepositTable td:nth-child(2),.lvDepositTable th:nth-child(4),.lvDepositTable td:nth-child(4){text-align:center!important;white-space:nowrap!important}

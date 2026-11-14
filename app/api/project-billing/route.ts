@@ -3,6 +3,7 @@ import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { handleLandviewDataAction, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
 import { getProjectServiceFinancials } from "@/lib/service-workflow";
 import { loadReceivableAuthority, type PaymentReceivableState, type ReceivableAuthority } from "@/lib/billing-receivable-authority";
+import { classifyInvoiceAllocation } from "@/lib/invoice-allocation-assessment";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -290,7 +291,61 @@ export async function GET(request: NextRequest) {
         details: [payment.row.payment_method, payment.row.reference_no].filter(Boolean).join(" · ") || "Client Payment",
       }];
     });
-    return NextResponse.json({ success: true, data: { projectId, sheets, payments, billPayments, commercial, lifecycle, updatedAt: new Date().toISOString(), source: "supabase" } }, {
+    // Reconciliation is read-only. Never mutate payments, bills or allocations
+    // to make an older Paid label appear consistent.
+    const reconciliationBills = authority.bills.map((bill) => {
+      const linked = billPayments.filter((payment) => payment.billCode.toLowerCase() === bill.billCode.toLowerCase());
+      const allocated = linked.reduce((sum, payment) => sum + payment.amount, 0);
+      const assessment = classifyInvoiceAllocation({
+        netAmount: bill.effectiveAmount,
+        allocatedAmount: allocated,
+        recordedPaid: bill.paidForReceivable,
+        settled: bill.settled,
+        invoiceCount: bill.invoiceIds.length,
+      });
+      // One payment can have more than one valid allocation to this same bill.
+      // Group by payment code for readability but never discard its amount.
+      const grouped = new Map<string, (typeof linked)[number]>();
+      for (const payment of linked) {
+        const key = payment.paymentCode || payment.invoiceCode + ":" + payment.date;
+        const existing = grouped.get(key);
+        if (existing) existing.amount += payment.amount;
+        else grouped.set(key, { ...payment });
+      }
+      return {
+        billCode: bill.billCode,
+        invoiceCode: authority.invoices.find((invoice) => invoice.billCode === bill.billCode)?.invoiceCode || "",
+        service: serviceDescription(bill.row, bill.billCode),
+        category: bill.category,
+        netAmount: bill.effectiveAmount,
+        recordedPaid: bill.paidForReceivable,
+        recordedDue: bill.dueBeforeRelief,
+        allocatedAmount: allocated,
+        status: assessment.status,
+        reason: assessment.reason,
+        payments: [...grouped.values()],
+      };
+    });
+    const paymentAllocationByCode = new Map<string, number>();
+    for (const payment of billPayments) {
+      paymentAllocationByCode.set(payment.paymentCode, (paymentAllocationByCode.get(payment.paymentCode) || 0) + payment.amount);
+    }
+    const excessivePaymentAllocations = authority.payments.filter((payment) =>
+      payment.effective && (paymentAllocationByCode.get(payment.paymentCode) || 0) > payment.amount + 0.01,
+    ).map((payment) => payment.paymentCode);
+    const reconciliation = {
+      complete: authority.complete,
+      bills: reconciliationBills,
+      summary: {
+        linkedAmount: reconciliationBills.reduce((sum, bill) => sum + bill.allocatedAmount, 0),
+        unallocatedAmount: authority.payments.filter((payment) => payment.effective)
+          .reduce((sum, payment) => sum + payment.unallocated, 0),
+        collectibleDue: projectReceivable?.totalDue || 0,
+        reviewCount: reconciliationBills.filter((bill) => bill.status === "review").length + excessivePaymentAllocations.length,
+        excessivePaymentAllocations,
+      },
+    };
+    return NextResponse.json({ success: true, data: { projectId, sheets, payments, billPayments, reconciliation, commercial, lifecycle, updatedAt: new Date().toISOString(), source: "supabase" } }, {
       headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "canonical-receivable-authority" },
     });
   } catch (error) {

@@ -948,3 +948,53 @@
   .printPage .sheetSummary h3{font-size:11pt!important}
   .printPage .sheetFooter strong{font-size:10pt!important}
 }
+
+
+/* Invoice 3.1: read-only, invoice-linked payment reconciliation panel. */
+.workspace :global(.lvReconciliationPanel){margin:20px 0 24px;padding:20px;background:var(--theme-bg-_0e1821,#0e1821);border:1px solid var(--theme-line-_2b3943,#2b3943);border-radius:14px;color:var(--theme-ink-_e9eff2,#e9eff2)}
+.workspace :global(.lvReconciliationHeading){display:flex;align-items:flex-start;justify-content:space-between;gap:18px;flex-wrap:wrap}
+.workspace :global(.lvReconciliationHeading h2){font-size:22px;margin:4px 0 6px;line-height:1.2}
+.workspace :global(.lvReconciliationHeading p){font-size:12px;line-height:1.55;opacity:.8;margin:0;max-width:730px}
+.workspace :global(.lvReconciliationHeading a){display:inline-block;padding:9px 12px;border:1px solid #bb4251;border-radius:7px;color:var(--theme-ink-_ffb4aa,#ffb4aa);font-size:11px;font-weight:800;text-decoration:none}
+.workspace :global(.lvReconciliationEyebrow){font-size:10px;font-weight:800;color:#e66a72;letter-spacing:.12em}
+.workspace :global(.lvReconciliationCards){display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:17px 0}
+.workspace :global(.lvReconciliationCards>div){padding:14px;border:1px solid var(--theme-line-_394a55,#394a55);background:var(--theme-bg-_14222d,#14222d);border-radius:10px;min-width:0}
+.workspace :global(.lvReconciliationCards span){display:block;opacity:.7;font-size:11px;font-weight:700}
+.workspace :global(.lvReconciliationCards strong){display:block;font-variant-numeric:tabular-nums;font-size:21px;margin-top:6px}
+.workspace :global(.lvReconciliationAlertCard strong){color:#f5aa9c}
+.workspace :global(.lvReconciliationWarning){padding:12px 14px;margin:10px 0;border-left:3px solid #d58b25;background:rgba(195,128,24,.1);font-size:12px;line-height:1.5}
+.workspace :global(.lvReconciliationNote){font-size:12px;color:#ffbc9f;overflow-wrap:anywhere}
+.workspace :global(.lvReconciliationTableWrap){overflow-x:auto;border:1px solid var(--theme-line-_394a55,#394a55);border-radius:9px}
+.workspace :global(.lvReconciliationTable){width:100%;min-width:930px;border-collapse:collapse;font-size:12px}
+.workspace :global(.lvReconciliationTable th){padding:11px 10px;text-align:left;background:var(--theme-bg-_162630,#162630);color:var(--theme-ink-_aebcc5,#aebcc5);font-size:10px;letter-spacing:.02em;white-space:nowrap}
+.workspace :global(.lvReconciliationTable td){padding:12px 10px;vertical-align:top;border-top:1px solid var(--theme-line-_273640,#273640)}
+.workspace :global(.lvReconciliationTable td>strong){display:block;font-size:12px}
+.workspace :global(.lvReconciliationTable small){display:block;margin-top:4px;opacity:.74;line-height:1.45;font-size:10px}
+.workspace :global(.lvReconciliationTable tr:nth-child(even) td){background:rgba(125,138,150,.035)}
+.workspace :global(.lvReconciliationTable details){margin-top:8px;font-size:11px}
+.workspace :global(.lvReconciliationTable summary){cursor:pointer;color:#ef858a;font-weight:750}
+.workspace :global(.lvReconciliationProofs){margin-top:6px;padding:6px 9px;border-left:2px solid #b35f66}
+.workspace :global(.lvReconciliationProofs p){margin:5px 0;line-height:1.4;overflow-wrap:anywhere}
+.workspace :global(.lvReconciliationAmount){font-variant-numeric:tabular-nums;white-space:nowrap;text-align:right}
+.workspace :global(.lvReconciliationTable th:nth-child(n+3):nth-child(-n+6)){text-align:right}
+.workspace :global(.lvReconciliationStatus){display:inline-block;padding:5px 7px;border-radius:5px;white-space:nowrap;font-size:10px;font-weight:850}
+.workspace :global(.lvReconciliationStatus-paid){background:rgba(34,155,92,.15);color:#6bdd97}
+.workspace :global(.lvReconciliationStatus-partial){background:rgba(202,144,34,.17);color:#ffd18a}
+.workspace :global(.lvReconciliationStatus-unpaid){background:rgba(168,75,75,.18);color:#ffa4a4}
+.workspace :global(.lvReconciliationStatus-review){background:rgba(194,93,30,.19);color:#ffc38b}
+.workspace :global(.lvReconciliationReason){max-width:250px;overflow-wrap:anywhere}
+.workspace :global(.lvReconciliationFootnote){font-size:11px;line-height:1.6;opacity:.74;margin:12px 0 0}
+.grandSummary,.metrics{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.allocationReviewNote{color:#a35b13;font-size:11px;line-height:1.5;padding:10px;border:1px solid #e0bd8b;background:#fff8ec}
+@media(max-width:850px){.workspace :global(.lvReconciliationCards){grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.workspace :global(.lvReconciliationPanel){padding:12px}.workspace :global(.lvReconciliationCards strong){font-size:17px}}
+@media print{
+  .workspace :global(.lvReconciliationPanel){display:none!important}
+  .allocationReviewNote{font-size:8pt!important;line-height:1.3!important;margin:2.5mm 0 0!important;padding:2mm!important;background:#fff8ec!important;color:#8b510c!important;border-color:#d9aa68!important}
+}
+
+@media print {
+  /* One summary row for invoices containing a discount. */
+  .sheetSummary:has(> div:nth-of-type(5)){grid-template-columns:repeat(5,minmax(0,1fr))!important}
+  .sheetSummary:has(> div:nth-of-type(5))>div{padding:2mm 1.4mm!important}
+}

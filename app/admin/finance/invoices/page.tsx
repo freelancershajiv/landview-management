@@ -17,6 +17,7 @@ import ProjectBillingDocument, {
 import EmailInvoiceButton from "@/components/email-invoice-button";
 import WhatsAppInvoiceButton from "@/components/whatsapp-invoice-button";
 import { saveBillingJpg } from "@/lib/save-document-jpg";
+import InvoicePaymentReconciliationPanel, { type InvoicePaymentReconciliation } from "@/components/invoice-payment-reconciliation-panel";
 import styles from "./invoice.module.css";
 
 const BILLING_SNAPSHOT_PREFIX = "landview_billing_snapshot_v4:";
@@ -32,6 +33,7 @@ type ProjectBillingBundle = {
   sheets: FinanceSheetData[];
   payments: Record<string, unknown>[];
   billPayments: { billCode: string; invoiceCode: string; paymentCode: string; date: string; amount: number; details: string }[];
+  reconciliation?: InvoicePaymentReconciliation | null;
   updatedAt?: string;
   mode?: string;
   commercial?: { contractStatus: string; proposalCode: string; totals: { contract: number; billed: number; paid: number; due: number; unbilled: number }; services: { serviceName: string; billingCategory: string; workflowStatus: string; contractNet: number; billed: number; paid: number; due: number; unbilled: number; nextBilling: { milestone: string; trigger: string; amount: number; status: string } | null }[] } | null;
@@ -226,6 +228,10 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
       ? Math.min(netAmount, Math.max(0, netAmount - explicitDue))
       : fullyPaid ? netAmount : 0;
   const due = Math.max(0, netAmount - paid);
+  const linkedAmount = (receivableItem.billPayments || []).reduce((sum, payment) => sum + Math.max(0, Number(payment.amount) || 0), 0);
+  // A historical Paid record without a matching allocation is review-only.
+  // Never manufacture a new due or claim that an unlinked payment was verified.
+  const allocationReview = Math.abs(linkedAmount - paid) > 0.01 && (fullyPaid || paid > 0.009 || linkedAmount > 0.009);
   const serviceName = String(item.service || category.name || "Single Bill").trim() || "Single Bill";
 
   const singleCategory = {
@@ -253,6 +259,8 @@ function buildSingleBill(result: SheetInvoices, selectionKey: string): SheetInvo
       billCode: receivableItem.billId || "",
       issueDate: receivableItem.billIssueDate || "",
       generatedAt: new Date().toISOString(),
+      allocationReview,
+      allocatedAmount: linkedAmount,
     },
     invoices: [singleCategory],
     totals: {
@@ -279,6 +287,8 @@ async function loadProjectBillingBundle(id: string): Promise<ProjectBillingBundl
     sheets: json.data.sheets as FinanceSheetData[],
     payments: Array.isArray(json.data.payments) ? json.data.payments : [],
     billPayments: Array.isArray(json.data.billPayments) ? json.data.billPayments : [],
+    reconciliation: json.data.reconciliation && Array.isArray(json.data.reconciliation.bills)
+      ? json.data.reconciliation as InvoicePaymentReconciliation : null,
     updatedAt: String(json.data.updatedAt || ""),
     mode: String(json.data.mode || ""),
     commercial: json.data.commercial && Array.isArray(json.data.commercial.services) ? json.data.commercial : null,
@@ -289,6 +299,7 @@ export default function ProjectBillingPage() {
   const [fileId, setFileId] = useState("");
   const [result, setResult] = useState<SheetInvoices | null>(null);
   const [commercial, setCommercial] = useState<ProjectBillingBundle["commercial"]>(null);
+  const [reconciliation, setReconciliation] = useState<InvoicePaymentReconciliation | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -365,7 +376,7 @@ export default function ProjectBillingPage() {
       id,
       bundle.billPayments,
     );
-    return { billing: verifySheetInvoicesWithPayments(billing, bundle.payments || []), commercial: bundle.commercial };
+    return { billing: verifySheetInvoicesWithPayments(billing, bundle.payments || []), commercial: bundle.commercial, reconciliation: bundle.reconciliation };
   }
 
   async function refreshBilling(id: string, version: number, background: boolean) {
@@ -374,6 +385,7 @@ export default function ProjectBillingPage() {
       if (version !== request.current) return;
       const billing = fresh.billing;
       setCommercial(fresh.commercial || null);
+      setReconciliation(fresh.reconciliation || null);
       saveBillingSnapshot(id, billing);
       setResult(billing);
       void loadInvoiceHistory(billing.id);
@@ -393,6 +405,7 @@ export default function ProjectBillingPage() {
     if (!id) return setError("Select a project from File List or enter a File ID such as LV-209.");
     const version = ++request.current;
     setFileId(`LV-${id}`);
+    setReconciliation(null);
     setError(""); setVerificationUrl(""); setVerificationError("");
     setSingleBillOpen(false); setSingleBillSelection(""); setSingleBillPrint(null);
             setSingleBillVerificationUrl(""); setInvoiceHistory([]);
@@ -562,7 +575,7 @@ export default function ProjectBillingPage() {
           onChange={(event) => {
             setFileId(event.target.value); setResult(null); setError(""); setVerificationUrl(""); setVerificationError("");
             setSingleBillOpen(false); setSingleBillSelection(""); setSingleBillPrint(null);
-            setSingleBillVerificationUrl(""); setInvoiceHistory([]);
+            setSingleBillVerificationUrl(""); setInvoiceHistory([]); setReconciliation(null);
             request.current++; setBusy(false); setRefreshing(false);
           }}
           required autoComplete="off"
@@ -630,6 +643,7 @@ export default function ProjectBillingPage() {
         </div>
       )}
 
+      {result && reconciliation && !singleBillPrint && <InvoicePaymentReconciliationPanel data={reconciliation} />}
       {result && commercial && !singleBillPrint && (
         <section style={{ marginTop: 24, padding: 18, border: "1px solid var(--border, #cbd5d1)", borderRadius: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
