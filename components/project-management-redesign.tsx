@@ -227,6 +227,10 @@ export default function ProjectManagementRedesign() {
             </div>
           </section>
 
+          <section className="pmx-reconciliation-cta" aria-label="Financial reconciliation">
+            <div><span className="pmx-section-kicker">NEW / FINANCIAL CONTROL</span><h3>Check payments and balances</h3><p>Review supplier and contractor allocations, cheque holds, cash discrepancies and recorded ledger changes before finalizing your project accounts.</p></div>
+            <Link href={withProject("/projectmanagement/reconciliation")}>Open Reconciliation V3 <span aria-hidden="true">→</span></Link>
+          </section>
           <section className="pmx-shortcuts" aria-label="Project Management shortcuts">
             <Link href={withProject("/projectmanagement/income")}><span className="pmx-shortcut-icon">↙</span><strong>Income Ledger</strong><small>Add and review deposits</small><span className="pmx-shortcut-arrow" aria-hidden="true">→</span></Link>
             <Link href={withProject("/projectmanagement/expenses")}><span className="pmx-shortcut-icon">↗</span><strong>Expense Ledger</strong><small>Payees and outgoing cash</small><span className="pmx-shortcut-arrow" aria-hidden="true">→</span></Link>

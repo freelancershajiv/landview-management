@@ -23,6 +23,8 @@ export default function ProjectFinanceLedgerLite({mode}:{mode:Mode}){
   const params=useSearchParams();
   const pathname=usePathname();
   const projectId=String(params.get("projectId")||"").trim();
+  const selectedEntryId=String(params.get("entryId")||"").trim();
+  const [entryFocus,setEntryFocus]=useState(selectedEntryId);
   const [data,setData]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
   const [search,setSearch]=useState(""),[category,setCategory]=useState("all"),[party,setParty]=useState("all"),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState("");
   const [pageSize,setPageSize]=useState(20),[page,setPage]=useState(1);
@@ -41,6 +43,7 @@ export default function ProjectFinanceLedgerLite({mode}:{mode:Mode}){
   }
 
   useEffect(()=>{void load(projectId)},[projectId]);
+  useEffect(()=>{setEntryFocus(selectedEntryId)},[selectedEntryId]);
   useEffect(()=>{setPage(1)},[search,category,party,dateFrom,dateTo,pageSize,mode]);
 
   const admin=Boolean(data&&!data.readOnly);
@@ -66,9 +69,9 @@ export default function ProjectFinanceLedgerLite({mode}:{mode:Mode}){
     return baseRows.filter((r:any)=>{
       const d=String(r.entry_date||"").slice(0,10);
       const rowParty=String(mode==="income"?(r.received_from||""):(mode==="expense"?(r.paid_to||r.supplier||""):(r.received_from||r.paid_to||r.supplier||""))).trim();
-      return (category==="all"||String(r.category||"Other Expenses")===category)&&(party==="all"||rowParty===party)&&(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo)&&(!q||[r.entry_date,r.received_from,r.paid_to,r.supplier,r.details,r.category,r.memo].join(" ").toLowerCase().includes(q));
+      return (!entryFocus||String(r.id||"")===entryFocus)&&(category==="all"||String(r.category||"Other Expenses")===category)&&(party==="all"||rowParty===party)&&(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo)&&(!q||[r.entry_date,r.received_from,r.paid_to,r.supplier,r.details,r.category,r.memo].join(" ").toLowerCase().includes(q));
     });
-  },[baseRows,search,category,party,dateFrom,dateTo,mode]);
+  },[baseRows,search,category,party,dateFrom,dateTo,mode,entryFocus]);
   const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));
   const safePage=Math.min(page,totalPages);
   const start=(safePage-1)*pageSize;
@@ -81,7 +84,7 @@ export default function ProjectFinanceLedgerLite({mode}:{mode:Mode}){
   const primaryTotalNote=category==="all"?(mode==="all"?`Expense ${money(totalExpense)}`:"Current filtered total"):`${filtered.length.toLocaleString("en-BD")} matching ${filtered.length===1?"entry":"entries"}`;
 
   function switchProject(code:string){if(!code)return;window.location.assign(`${pathname}?projectId=${encodeURIComponent(code)}`)}
-  function resetFilters(){setSearch("");setCategory("all");setParty("all");setDateFrom("");setDateTo("");}
+  function resetFilters(){setSearch("");setCategory("all");setParty("all");setDateFrom("");setDateTo("");setEntryFocus("");}
   // Calendar boundaries are computed in the viewer's local timezone.
   function useDatePreset(period:"current"|"previous"|"all"){
     if(period==="all"){setDateFrom("");setDateTo("");return;}
@@ -145,6 +148,7 @@ export default function ProjectFinanceLedgerLite({mode}:{mode:Mode}){
       {error&&<div className="pfl-alert error">{error}</div>}{message&&<div className="pfl-alert ok">{message}</div>}
       {data?.selectedProject&&<>
         <div className="pfl-summary"><div><span>Matching Records</span><strong>{filtered.length.toLocaleString("en-BD")}</strong><small>After current filters</small></div><div><span>{primaryTotalLabel}</span><strong>{money(primaryTotal)}</strong><small>{primaryTotalNote}</small></div><div><span>Current Available Cash</span><strong>{money(latestCash)}</strong><small>Latest ledger running cash balance</small></div></div>
+        {entryFocus&&<div className="pmx-entry-focus"><span><strong>Selected reconciliation entry</strong> · Showing the exact expense ledger row for review.</span><button type="button" className="pfl-btn" onClick={()=>setEntryFocus("")}>Show all entries</button></div>}
         <div className="pmx-ledger-tools" aria-label="Quick date filters">
           <div className="pmx-ledger-preset-buttons">
             <span>QUICK PERIOD</span>

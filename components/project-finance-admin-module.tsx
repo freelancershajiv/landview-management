@@ -12,6 +12,7 @@ const sections = [
   { href: "/projectmanagement/income", label: "Income", symbol: "↙", hint: "Funds received" },
   { href: "/projectmanagement/expenses", label: "Expenses", symbol: "↗", hint: "Payments made" },
   { href: "/projectmanagement/ledger", label: "Combined Ledger", symbol: "≡", hint: "All transactions" },
+  { href: "/projectmanagement/reconciliation", label: "Reconciliation", symbol: "◎", hint: "Verify cash, payees and balances" },
   { href: "/projectmanagement/parties", label: "Suppliers & Contractors", symbol: "♧", hint: "Project parties" },
   { href: "/projectmanagement/bills", label: "Contracts & Bills", symbol: "▤", hint: "Work and payments" },
   { href: "/projectmanagement/reports", label: "Reports", symbol: "▥", hint: "Monthly reports" },

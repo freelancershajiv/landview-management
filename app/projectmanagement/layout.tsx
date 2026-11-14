@@ -42,6 +42,8 @@ import "../admin/admin-typography-authority.css";
 import "../button-contrast-authority.css";
 // V2 design system is applied after the legacy and global palette layers.
 import "./project-management-workspace-v2.css";
+// V3 read-only finance reconciliation and audit-view styles.
+import "./project-finance-reconciliation-v3.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
