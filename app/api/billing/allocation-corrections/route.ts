@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
-import { employeeCodeOf, normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
+import { normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
 import { recordAuditEvent } from "@/lib/audit-log";
 import { loadReceivableAuthority, type ReceivableAuthority } from "@/lib/billing-receivable-authority";
 import { allocationMoveError, invoiceLedgerComparison, type CorrectionAllocation, type CorrectionPayment, type CorrectionTarget } from "@/lib/invoice-correction-policy";
@@ -31,7 +31,7 @@ async function session(request: NextRequest) {
   if (!EDIT_ROLES.includes(roleOf(user))) throw new Error("Finance access required.");
   return user;
 }
-const actorOf = (user: Row) => t(employeeCodeOf(user) || user.userId || user.User_ID || user.username || user.Username, 180);
+const actorOf = (user: Row) => t(user.userId || user.User_ID || user.employeeId || user.Employee_ID || user.username || user.Username, 180);
 function codeOf(value: unknown) {
   const code = normalizeProjectCode(value);
   if (!/^LV-\d+$/.test(code)) throw new Error("A valid project ID is required.");
@@ -187,8 +187,8 @@ export async function POST(request: NextRequest) {
       const check = candidate(ctx, allocationId, toInvoiceId);
       if (check.error || !check.allocation || !check.payment || !check.source || !check.destination)
         return json({ success: false, error: check.error || "Correction cannot be verified." }, 409);
-      if (existing.some((entry) => entry.status === "pending" && entry.allocationId === allocationId))
-        return json({ success: false, error: "There is already a pending correction for this allocation." }, 409);
+      if (existing.some((entry) => entry.status === "pending" && (entry.allocationId === allocationId || entry.toInvoiceId === toInvoiceId)))
+        return json({ success: false, error: "There is already a pending correction for this allocation or destination invoice." }, 409);
       const requestCode = `ALC-${projectCode}-${crypto.randomUUID().slice(0, 10).toUpperCase()}`;
       const ok = await recordAuditEvent({
         user, request, action: ACTION_REQUESTED, target: projectCode, entityType: "payment_invoice_allocation", entityId: requestCode,
@@ -242,7 +242,7 @@ export async function POST(request: NextRequest) {
       const recorded = await recordAuditEvent({
         user, request, action: ACTION_APPLIED, target: projectCode,
         entityType: "payment_invoice_allocation", entityId: requestCode, before, after,
-        details: { allocationId: proposal.allocationId, paymentCode: proposal.paymentCode, reason },
+        details: { allocationId: proposal.allocationId, paymentCode: proposal.paymentCode, fromBillCode: proposal.fromBillCode, toBillCode: proposal.toBillCode, amount: proposal.amount, reason },
       });
       if (!recorded) throw new Error("Allocation was updated, but the completion audit could not be written. Escalate for review.");
       return json({ success: true, data: { requestCode, status: "applied", fromBillCode: proposal.fromBillCode, toBillCode: proposal.toBillCode } });

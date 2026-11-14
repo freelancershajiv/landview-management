@@ -178,7 +178,7 @@ export async function loadReceivableAuthority(options: { projectId?: string } = 
   const [bills, invoices, payments, allocations, adjustments, writeoffs] = await Promise.all([
     selectRows("bills", scopedOptions(projectId, "id,project_id,bill_code,billing_category,category,description,amount,discount,net_amount,status,created_via,bill_date,created_at")),
     selectRows("invoices", scopedOptions(projectId, "id,project_id,invoice_code,invoice_no,bill_code,category,amount,status,issue_date,due_date,created_at")),
-    selectRows("payments", scopedOptions(projectId, "id,project_id,payment_code,payment_date,amount,status,approval_status,transaction_type,affects_business_balance,payment_for,income_category,service_type,receipt_url,payment_method,reference_no,created_at")),
+    selectRows("payments", scopedOptions(projectId, "id,project_id,payment_code,payment_date,amount,status,approval_status,transaction_type,affects_business_balance,payment_for,income_category,service_type,finance_scope,receipt_url,payment_method,reference_no,created_at")),
     selectRows("payment_invoice_allocations", scopedOptions(projectId, "id,payment_id,invoice_id,project_id,allocated_amount", 20000)),
     selectRows("billing_adjustments", scopedOptions(projectId, "id,project_id,bill_id,bill_code,adjustment_type,amount,status", 10000)),
     selectRows("billing_writeoff_log", scopedOptions(projectId, "id,project_id,billing_category,event_type,amount,effective_date,created_at", 10000)),

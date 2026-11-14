@@ -15,6 +15,7 @@ test("correction endpoints require session, finance role, same origin and admin 
   assert.match(route, /if \(!sameOrigin\(request\)\)/);
   assert.match(route, /roleOf\(user\) !== "admin"/);
   assert.match(route, /proposal\.requestedBy === actor/);
+  assert.match(route, /user\.userId \|\| user\.User_ID \|\| user\.employeeId \|\| user\.Employee_ID/);
   assert.match(route, /reason\.length < 12/);
 });
 test("approval is one existing allocation reassignment with audited before/after", () => {
@@ -29,6 +30,7 @@ test("approval is one existing allocation reassignment with audited before/after
   assert.doesNotMatch(route, /updateRows\("(?:payments|bills|invoices|transactions)"/);
   assert.doesNotMatch(route, /deleteRows\(|upsertRows\(/);
   assert.match(route, /allocations\.length >= 5000/);
+  assert.match(route, /entry\.toInvoiceId === toInvoiceId/);
 });
 test("cross-project, historical paid and capacity constraints fail closed", () => {
   assert.match(policy, /Cross-project allocation changes are prohibited/);
