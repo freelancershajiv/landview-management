@@ -227,7 +227,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
         <tfoot>
           <tr><td colSpan={2}><strong>Bill Subtotal (BDT)</strong></td><td className={styles.moneyCell}><strong>{amountText(category.gross)}</strong></td>{showDiscount && <><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}>—</td></>}</tr>
           {showDiscount && <tr><td colSpan={2}><strong>Total Discount (BDT)</strong></td><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}><strong style={{ color:"#d61f26" }}>{amountText(category.discount)}</strong></td><td className={styles.moneyCell}>—</td></tr>}
-          <tr style={{ background:"#ed1c24" }}><td colSpan={2}><strong style={{ color:"#fff" }}>Grand Total (BDT)</strong></td>{showDiscount && <><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}>—</></>}<td className={styles.moneyCell}><strong style={{ color:"#fff", fontSize:"1.08em" }}>{amountText(netBilled)}</strong></td></tr>
+          <tr style={{ background:"#ed1c24" }}><td colSpan={2}><strong style={{ color:"#fff" }}>Grand Total (BDT)</strong></td>{showDiscount && <><td className={styles.moneyCell}>—</td><td className={styles.moneyCell}>—</td></>}<td className={styles.moneyCell}><strong style={{ color:"#fff", fontSize:"1.08em" }}>{amountText(netBilled)}</strong></td></tr>
         </tfoot>
       </table>
     </div>;
