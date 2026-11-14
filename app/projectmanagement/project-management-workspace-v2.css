@@ -241,3 +241,18 @@
 @media print {
   .pf-redesign .pmx-topbar, .pf-redesign .pmx-shortcuts { display: none !important; }
 }
+
+
+/* Project operations links join this workspace to existing project records,
+   To Do, workflow and field inspections, without changing their APIs. */
+.pf-redesign .pmx-operations { margin-top: 20px; border: 1px solid var(--pmx-border); border-radius: var(--pmx-radius); background: var(--pmx-surface); padding: 21px; }
+.pf-redesign .pmx-operations-title h3 { margin: 7px 0 4px; font-size: 19px; color: var(--pmx-text); line-height: 1.3; letter-spacing: -.02em; }
+.pf-redesign .pmx-operations-title p { color: var(--pmx-muted); font-size: 12px; line-height: 1.5; margin: 0 0 16px; }
+.pf-redesign .pmx-operations-grid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 10px; }
+.pf-redesign .pmx-operations-grid a { position: relative; border: 1px solid var(--pmx-border); background: var(--pmx-muted-surface); border-radius: 12px; padding: 15px 31px 15px 14px; text-decoration: none; color: var(--pmx-text); }
+.pf-redesign .pmx-operations-grid a:hover { border-color: color-mix(in srgb, var(--pmx-blue) 32%, var(--pmx-border)); }
+.pf-redesign .pmx-operations-grid a strong { display: block; font-size: 12px; font-weight: 820; margin-bottom: 6px; }
+.pf-redesign .pmx-operations-grid a span { display: block; font-size: 11px; color: var(--pmx-muted); line-height: 1.45; }
+.pf-redesign .pmx-operations-grid a b { position: absolute; top: 14px; right: 14px; color: var(--pmx-red); font-size: 16px; }
+@media (max-width: 1100px) { .pf-redesign .pmx-operations-grid { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 640px) { .pf-redesign .pmx-operations { padding: 16px; } .pf-redesign .pmx-operations-grid { grid-template-columns: 1fr; } }
