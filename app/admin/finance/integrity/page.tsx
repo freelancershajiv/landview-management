@@ -79,7 +79,7 @@ export default function InvoiceIntegrityPage() {
     <header className="integrity-head">
       <div><small>LAND VIEW / FINANCE 2.0</small><h1>Invoice Integrity</h1>
         <p>Read-only checks of bill links, invoice allocations and Paid status exceptions. This screen cannot modify bills or payments.</p></div>
-<div className="integrity-head-buttons"><button type="button" onClick={() => saveExceptionsCsv(exceptions)} disabled={!data || !data.complete || !exceptions.length}>Export exceptions CSV</button><button type="button" onClick={() => void load()} disabled={loading}>{loading ? "Checking…" : "Refresh Audit"}</button></div>
+<div className="integrity-head-buttons"><Link className="integrity-action-link" href="/admin/finance/allocation-corrections">Allocation Corrections</Link><button type="button" onClick={() => saveExceptionsCsv(exceptions)} disabled={!data || !data.complete || !exceptions.length}>Export exceptions CSV</button><button type="button" onClick={() => void load()} disabled={loading}>{loading ? "Checking…" : "Refresh Audit"}</button></div>
     </header>
     {error && <p className="integrity-error" role="alert">{error}</p>}
     {loading && <p className="integrity-info" role="status">Checking current financial records…</p>}
@@ -118,7 +118,8 @@ const styles = `
 .integrity-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:15px}
 .integrity-head small{color:var(--lv-brand-text);font-size:10px;font-weight:800;letter-spacing:.12em}
 .integrity-head h1{font-size:26px;margin:5px 0}.integrity-head p{font-size:12px;max-width:790px;color:var(--lv-text-muted);line-height:1.5;margin:0}
-.integrity-head-buttons{display:flex;flex-wrap:wrap;gap:8px}.integrity-sources{margin-top:12px;border-top:1px solid var(--lv-border-subtle);padding-top:10px}.integrity-sources>strong{font-size:12px}.integrity-sources span{display:inline-block;font-size:11px;margin:8px 12px 0 0}.integrity-head button{border:1px var(--lv-brand-border);background:var(--lv-brand-primary);color:var(--lv-text-inverse);border-radius:8px;font-size:12px;font-weight:800;padding:11px 15px;cursor:pointer}
+.integrity-head-buttons{display:flex;flex-wrap:wrap;gap:8px}.integrity-sources{margin-top:12px;border-top:1px solid var(--lv-border-subtle);padding-top:10px}.integrity-sources>strong{font-size:12px}.integrity-sources span{display:inline-block;font-size:11px;margin:8px 12px 0 0}.integrity-action-link{display:inline-flex;align-items:center;padding:10px 12px;border:1px solid var(--lv-border-default);background:var(--lv-surface-muted);color:var(--lv-brand-text);border-radius:8px;font-size:12px;font-weight:800;text-decoration:none}
+.integrity-head button{border:1px var(--lv-brand-border);background:var(--lv-brand-primary);color:var(--lv-text-inverse);border-radius:8px;font-size:12px;font-weight:800;padding:11px 15px;cursor:pointer}
 .integrity-head button:disabled{opacity:.65;cursor:wait}
 .integrity-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
 .integrity-grid div{border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-panel);padding:15px;min-width:0}

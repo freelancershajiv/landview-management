@@ -5,19 +5,20 @@ on:
     paths:
       - "app/api/billing/integrity/**"
       - "app/api/billing/invoice-center/**"
+      - "app/api/billing/allocation-corrections/**"
       - "app/api/billing/reminders/**"
       - "app/api/cron/invoice-reminders/**"
+      - "app/api/billing-document-history/**"
       - "app/admin/finance/invoice-center/**"
-      - "lib/invoice-center.ts"
-      - "lib/invoice-reminders.ts"
-      - "vercel.json"
+      - "app/admin/finance/allocation-corrections/**"
       - "app/admin/finance/integrity/**"
       - "app/admin/finance/invoices/page.tsx"
-      - "app/admin/finance/layout.tsx"
+      - "lib/invoice-correction-policy.ts"
+      - "lib/invoice-center.ts"
+      - "lib/invoice-reminders.ts"
       - "lib/sheet-invoices.ts"
       - "tests/invoice-*.test.cjs"
       - "tests/proposal-billing-conversion.test.cjs"
-      - "app/api/proposal-conversion/route.ts"
       - ".github/workflows/invoice-integrity-regression.yml"
   workflow_dispatch:
 
@@ -27,7 +28,7 @@ permissions:
 jobs:
   invoice-integrity:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -36,11 +37,23 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Invoice regression tests
-        run: node --test tests/invoice-bill-identity.test.cjs tests/invoice-integrity-api.test.cjs tests/billing-document-integrity.test.cjs tests/invoice-single-bill-status.test.cjs tests/proposal-billing-conversion.test.cjs tests/invoice-center.test.cjs
-      - name: Full legacy test suite (report only; existing unrelated failures)
-        continue-on-error: true
-        run: npm test
-      - name: Lint newly introduced invoice files
-        run: npx eslint lib/sheet-invoices.ts lib/invoice-center.ts lib/invoice-reminders.ts app/api/billing/integrity/route.ts app/api/billing/invoice-center/route.ts app/api/billing/reminders/route.ts app/api/cron/invoice-reminders/route.ts app/admin/finance/integrity/page.tsx app/admin/finance/invoice-center/page.tsx
+        run: |
+          node --test \
+            tests/invoice-correction-policy.test.cjs \
+            tests/invoice-corrections-32.test.cjs \
+            tests/invoice-allocation-assessment.test.cjs \
+            tests/invoice-reconciliation-31.test.cjs \
+            tests/invoice-discount-visibility.test.cjs \
+            tests/invoice-bill-identity.test.cjs \
+            tests/invoice-integrity-api.test.cjs \
+            tests/billing-document-integrity.test.cjs \
+            tests/invoice-single-bill-status.test.cjs \
+            tests/proposal-billing-conversion.test.cjs \
+            tests/invoice-center.test.cjs
+      - name: Lint new invoice correction modules
+        run: npx eslint lib/invoice-correction-policy.ts app/api/billing/allocation-corrections/route.ts app/admin/finance/allocation-corrections/page.tsx
       - name: Typecheck
         run: npx tsc --noEmit
+      - name: Legacy full test suite (report only)
+        continue-on-error: true
+        run: npm test

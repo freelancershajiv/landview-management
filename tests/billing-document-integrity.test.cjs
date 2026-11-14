@@ -20,7 +20,7 @@ test("server emits allocations and invoice codes from canonical invoice records"
   assert.match(source, /payment_invoice_allocations/);
   assert.match(source, /paymentById\.get\(text\(allocation\.payment_id\)\)/);
   assert.match(source, /billInvoice\?\.invoiceCode/);
-  assert.match(source, /billPayments, commercial, lifecycle/);
+  assert.match(source, /billPayments, (?:reconciliation, )?commercial, lifecycle/);
 });
 
 test("invoice token is signed per bill, while old project tokens remain compatible", () => {
