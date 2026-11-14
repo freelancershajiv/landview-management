@@ -40,6 +40,8 @@ import "../brand-palette-original.css";
 import "../admin/admin-typography-authority.css";
 // Final finance button foreground authority after route-specific CSS.
 import "../button-contrast-authority.css";
+// V2 design system is applied after the legacy and global palette layers.
+import "./project-management-workspace-v2.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
