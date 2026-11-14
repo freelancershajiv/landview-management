@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import ProjectManagementRedesign from "@/components/project-management-redesign";
 
 const CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling","Bricks","Brick Chips","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];
 const INCOME_CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling"];
@@ -41,7 +43,7 @@ const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOStr
 function chequeStatus(r:any){return /^CHEQUE_STATUS:ON_HOLD/i.test(String(r&&r.memo||""))?"On Hold":"Cashed";}
 function userMemo(r:any){return String(r&&r.memo||"").replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"").trim();}
 
-export default function ProjectManagementPage(){
+function ProjectManagementClassic(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
   const [activeModule,setActiveModule]=useState<"overview"|"ledger"|"income"|"expense"|"sattapur"|"suppliers">("overview");
   const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
@@ -1183,4 +1185,12 @@ export default function ProjectManagementPage(){
       `}</style>
     </main>
   );
+}
+
+
+// Keep every legacy Project Management workflow available while the redesigned
+// dashboard becomes the primary entry point. No ledger or bill APIs are replaced.
+export default function ProjectManagementPage(){
+  const params = useSearchParams();
+  return params.get("classic") === "1" ? <ProjectManagementClassic/> : <ProjectManagementRedesign/>;
 }

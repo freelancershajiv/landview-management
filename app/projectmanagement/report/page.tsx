@@ -145,6 +145,11 @@ export default function ProjectFinanceReportPage(){
   return (
     <main className="rpt-page">
       <div className="rpt-shell">
+        <section className="pmx-report-intro no-print" aria-label="Finance report workspace">
+          <div><span>FINANCIAL STATEMENTS</span><h2>Monthly project report</h2>
+            <p>{projectInfo.projectCode||project} · {projectInfo.projectName||"Project"} · {statement.selectedMonth?monthText(statement.selectedMonth):"All periods"}</p></div>
+          <div className="pmx-report-status"><span>REPORT BASIS</span><strong>Posted ledger entries</strong></div>
+        </section>
         <div className="rpt-screen-toolbar">
           <a href={"/projectmanagement?projectId="+encodeURIComponent(projectInfo.projectCode||project)}>← Project Management</a>
           <div>
