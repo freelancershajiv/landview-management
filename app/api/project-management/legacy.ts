@@ -314,7 +314,7 @@ async function workspace(user: Row, requested?: string) {
 
   const selected = requested
     ? projects.find(p => normalizeProjectCode(p.project_code) === normalizeProjectCode(requested))
-    : (isManagement(user) ? null : projects[0]);
+    : (isManagement(user) ? (projects.length === 1 ? projects[0] : null) : projects[0]);
 
   if (requested && !selected) throw new Error("The selected project is not available for Project Management.");
   const projectList = projects.map(p => ({ id:p.id, projectCode:p.project_code, projectName:p.project_name || p.project_code, clientName:p.client_name_snapshot || "", location:p.location || "", status:p.status || "" }));
