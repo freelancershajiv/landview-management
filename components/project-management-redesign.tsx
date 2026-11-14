@@ -41,6 +41,7 @@ export default function ProjectManagementRedesign() {
 
   async function load(projectCode: string, signal?: AbortSignal) {
     setLoading(true);
+    setData(null); // Do not show stale finance data when switching projects.
     setError("");
     try {
       const endpoint = projectCode
@@ -232,6 +233,15 @@ export default function ProjectManagementRedesign() {
             <Link href={withProject("/projectmanagement/parties")}><span className="pmx-shortcut-icon">♧</span><strong>Project Parties</strong><small>Suppliers and contractors</small><span className="pmx-shortcut-arrow" aria-hidden="true">→</span></Link>
             <Link href={withProject("/projectmanagement/reports")}><span className="pmx-shortcut-icon">▥</span><strong>Reports</strong><small>Monthly finance statements</small><span className="pmx-shortcut-arrow" aria-hidden="true">→</span></Link>
           </section>
+          {!data?.readOnly && <section className="pmx-operations" aria-label="Connected project operations">
+            <div className="pmx-operations-title"><span className="pmx-section-kicker">BEYOND FINANCE</span><h3>Continue managing the project</h3><p>Go directly to existing project operations tools without duplicating records.</p></div>
+            <div className="pmx-operations-grid">
+              <Link href="/admin/projects"><strong>Project records</strong><span>Details, status and project documents</span><b aria-hidden="true">→</b></Link>
+              <Link href="/admin/todo"><strong>To Do</strong><span>Daily tasks and assignments</span><b aria-hidden="true">→</b></Link>
+              <Link href="/admin/workflow"><strong>Service workflow</strong><span>Design, approval and construction stages</span><b aria-hidden="true">→</b></Link>
+              <Link href="/admin/site-visits"><strong>Site visits</strong><span>Inspection reports and field updates</span><b aria-hidden="true">→</b></Link>
+            </div>
+          </section>}
         </>
       )}
     </main>
