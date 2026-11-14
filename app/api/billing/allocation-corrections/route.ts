@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
 import { recordAuditEvent } from "@/lib/audit-log";
-import { loadReceivableAuthority, type ReceivableAuthority } from "@/lib/billing-receivable-authority";
+import { loadReceivableAuthority } from "@/lib/billing-receivable-authority";
 import { allocationMoveError, invoiceLedgerComparison, type CorrectionAllocation, type CorrectionPayment, type CorrectionTarget } from "@/lib/invoice-correction-policy";
 
 export const runtime = "nodejs";

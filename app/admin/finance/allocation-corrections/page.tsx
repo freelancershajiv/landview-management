@@ -55,7 +55,9 @@ export default function AllocationCorrectionCenter() {
 
   useEffect(() => {
     const query = new URLSearchParams(window.location.search).get("projectId");
-    if (query) { const code = projectId(query); setFileId(code); void refresh(code); }
+    if (!query) return;
+    const timer = window.setTimeout(() => { const code = projectId(query); setFileId(code); void refresh(code); }, 0);
+    return () => window.clearTimeout(timer);
   }, [refresh]);
 
   const activeAllocation = loaded?.allocations.find((row) => row.id === selection) || null;
@@ -164,7 +166,7 @@ export default function AllocationCorrectionCenter() {
       </section>
       <section className="panel">
         <h2>Request an allocation correction</h2>
-        <p>Select one existing invoice-linked allocation, then select an issued invoice in the same project and category. Changes require a second person's approval; the amount remains fixed.</p>
+        <p>Select one existing invoice-linked allocation, then select an issued invoice in the same project and category. Changes require approval by a different administrator; the amount remains fixed.</p>
         <div className="selection">
           <label>Existing payment allocation
             <select value={selection} onChange={(event) => { setSelection(event.target.value); setDestination(""); }}>
