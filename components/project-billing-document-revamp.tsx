@@ -7,6 +7,7 @@ import styles from "@/app/admin/finance/invoices/invoice.module.css";
 import OriginalProjectBillingDocument, {
   billingIssueDate,
   hasBillingData,
+  hasInvoiceDiscount,
 } from "./project-billing-document";
 
 export * from "./project-billing-document";
@@ -200,6 +201,7 @@ export default function ProjectBillingDocumentRevamp({
         {printCategories.map((category, index) => {
           const gross = Number(category.gross || 0);
           const discount = Number(category.discount || 0);
+          const showDiscount = hasInvoiceDiscount(category);
           const grandTotal = Math.max(0, gross - discount);
           const paid = Math.max(0, Number(category.paid || 0));
           // Never print FULL PAID for a positive net bill without enough
@@ -207,6 +209,7 @@ export default function ProjectBillingDocumentRevamp({
           const due = Math.max(0, Number(category.due || 0), grandTotal - paid);
           const fullyPaid = due <= 0.009;
           const engineeringBill = isEngineeringCategory(result.document?.kind === "single" ? result.document.category : category.name);
+          const simpleEngineeringBill = engineeringBill && !showDiscount;
 
           return (
             <article className={`${styles.printPage} lvInvoicePage`} key={`${category.name}-${index}`}>
@@ -251,16 +254,16 @@ export default function ProjectBillingDocumentRevamp({
                 <h2 className="lvSectionTitle"><span>{dueOnly ? "OUTSTANDING" : category.name.toUpperCase()}</span> <b>{dueOnly ? "DUE BILL" : "BILL"}</b></h2>
 
                 <div className="lvTableWrap">
-                  <table className={`lvInvoiceTable lvBillTable ${engineeringBill ? "lvEngineeringBillTable" : ""}`}>
-                    <colgroup><col /><col /><col /><col /><col /></colgroup>
+                  <table className={`lvInvoiceTable lvBillTable ${engineeringBill ? "lvEngineeringBillTable" : ""} ${simpleEngineeringBill ? "lvUndiscountedEngineeringBillTable" : ""}`}>
+                    <colgroup>{simpleEngineeringBill ? <><col /><col /><col /></> : <><col /><col /><col /><col /><col /></>}</colgroup>
                     <thead>
                       <tr>
                         <th>SL.</th>
                         <th>DESCRIPTION</th>
                         {engineeringBill ? <>
                           <th>AMOUNT</th>
-                          <th>DISCOUNT</th>
-                          <th>NET AMOUNT</th>
+                          {showDiscount && <th>DISCOUNT</th>}
+                          {showDiscount && <th>NET AMOUNT</th>}
                         </> : <>
                           <th>RATE (BDT)</th>
                           <th>QTY</th>
@@ -287,8 +290,8 @@ export default function ProjectBillingDocumentRevamp({
                             <td>{item.service || "—"}</td>
                             {engineeringBill ? <>
                               <td>{amountText(amount)}</td>
-                              <td>{serviceDiscount > 0.009 ? amountText(serviceDiscount) : "—"}</td>
-                              <td>{amountText(serviceNet)}</td>
+                              {showDiscount && <td>{serviceDiscount > 0.009 ? amountText(serviceDiscount) : "—"}</td>}
+                              {showDiscount && <td>{amountText(serviceNet)}</td>}
                             </> : <>
                               <td>{soilTest && item.price ? amountText(item.price) : ""}</td>
                               <td>{soilTest && item.quantity ? item.quantity : ""}</td>
@@ -296,14 +299,14 @@ export default function ProjectBillingDocumentRevamp({
                             </>}
                           </tr>
                         );
-                      }) : <tr><td colSpan={5} className="lvEmptyRow">No bill records.</td></tr>}
+                      }) : <tr><td colSpan={simpleEngineeringBill ? 3 : 5} className="lvEmptyRow">No bill records.</td></tr>}
                     </tbody>
                   </table>
                 </div>
 
                 <div className="lvTotalsBlock">
                   <div><span>Bill Subtotal (BDT)</span><strong>{amountText(gross)}</strong></div>
-                  <div><span>Discount (BDT)</span><strong>{amountText(discount)}</strong></div>
+                  {showDiscount && <div><span>Discount (BDT)</span><strong>{amountText(discount)}</strong></div>}
                   <div className="lvGrandTotal"><span>Grand Total (BDT)</span><strong>{amountText(grandTotal)}</strong></div>
                 </div>
 
@@ -418,6 +421,10 @@ export default function ProjectBillingDocumentRevamp({
           .lvEngineeringBillTable th:nth-child(3),.lvEngineeringBillTable td:nth-child(3),.lvEngineeringBillTable th:nth-child(4),.lvEngineeringBillTable td:nth-child(4),.lvEngineeringBillTable th:nth-child(5),.lvEngineeringBillTable td:nth-child(5){text-align:right!important;white-space:nowrap!important}
           .lvEngineeringBillTable td:nth-child(4){color:#d7192d!important;font-weight:800!important}
           .lvEngineeringBillTable td:nth-child(5){color:#111!important;font-weight:800!important}
+          .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable.lvUndiscountedEngineeringBillTable col:nth-child(1){width:8%!important}
+          .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable.lvUndiscountedEngineeringBillTable col:nth-child(2){width:72%!important}
+          .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable.lvUndiscountedEngineeringBillTable col:nth-child(3){width:20%!important}
+          .lvInvoiceRevampRoot .lvInvoicePage .lvBillTable.lvUndiscountedEngineeringBillTable th:nth-child(3),.lvInvoiceRevampRoot .lvInvoicePage .lvBillTable.lvUndiscountedEngineeringBillTable td:nth-child(3){text-align:right!important}
 
           .lvTotalsBlock{width:100%!important;margin-top:0!important;border:1px solid #cbd1d6!important;border-top:0!important;box-sizing:border-box!important}
           .lvTotalsBlock>div{display:grid!important;grid-template-columns:minmax(0,1fr) 42mm!important;align-items:center!important;min-height:6.6mm!important;border-top:1px solid #d6dbe0!important}
