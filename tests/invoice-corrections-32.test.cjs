@@ -24,7 +24,12 @@ test("approval is one existing allocation reassignment with audited before/after
   assert.match(route, /updateRows\("payment_invoice_allocations", \{/);
   assert.match(route, /invoice_id: check\.allocation\.invoiceId/);
   assert.match(route, /allocated_amount: check\.allocation\.amount/);
-  assert.match(route, /\}, \{ invoice_id: proposal\.toInvoiceId \}\)/);
+  assert.match(route, /\}, check\.nextIdentity\);/);
+  for (const column of ["invoice_id", "invoice_code", "bill_id", "bill_code", "service_name", "service_key", "billing_category"]) {
+    assert.ok(route.includes(column + ":"), column + " must be updated with the invoice link");
+  }
+  assert.match(route, /allocation\x27s stored bill or invoice identity is already inconsistent/);
+  assert.match(route, /This payment is already linked to the destination invoice/);
   assert.match(route, /ACTION_APPLIED/);
   assert.match(route, /ACTION_FAILED/);
   assert.doesNotMatch(route, /updateRows\("(?:payments|bills|invoices|transactions)"/);

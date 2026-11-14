@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
 import { recordAuditEvent } from "@/lib/audit-log";
+import { workflowServiceKey, workflowServiceName } from "@/lib/service-workflow";
 import { loadReceivableAuthority } from "@/lib/billing-receivable-authority";
 import { allocationMoveError, invoiceLedgerComparison, type CorrectionAllocation, type CorrectionPayment, type CorrectionTarget } from "@/lib/invoice-correction-policy";
 
@@ -44,7 +45,7 @@ async function projectContext(projectCode: string) {
   const projectId = t(project.id);
   const [authority, allocations] = await Promise.all([
     loadReceivableAuthority({ projectId }),
-    selectRows("payment_invoice_allocations", { select: "id,project_id,payment_id,invoice_id,allocated_amount", filters: { project_id: projectId }, limit: 5000 }),
+    selectRows("payment_invoice_allocations", { select: "id,project_id,payment_id,payment_code,invoice_id,invoice_code,bill_id,bill_code,service_name,service_key,billing_category,allocated_amount", filters: { project_id: projectId }, limit: 5000 }),
   ]);
   if (!authority.complete || allocations.length >= 5000 || authority.invoices.length >= 5000 || authority.payments.length >= 5000 || authority.bills.length >= 5000) throw new Error("Financial records are incomplete. No corrections are permitted.");
   return { projectId, authority, allocations: allocations as Row[] };
@@ -65,8 +66,34 @@ function candidate(ctx: Awaited<ReturnType<typeof projectContext>>, allocationId
     id: invoice.invoiceId, projectId: invoice.projectId, category: invoice.category, billCode: invoice.billCode,
     amount: invoice.amount, allocated: invoice.allocated, settled: invoice.settledByBill, active: true,
   }) : undefined;
-  const error = allocationMoveError(allocation, p, map(source), map(destination));
-  return { allocation, payment, source, destination, error };
+  let error = allocationMoveError(allocation, p, map(source), map(destination));
+  const sourceBill = source ? state.billByCode.get(source.billCode) : undefined;
+  const destinationBill = destination ? state.billByCode.get(destination.billCode) : undefined;
+  if (!error && (!sourceBill?.billId || !destinationBill?.billId || !destination?.invoiceCode))
+    error = "Both invoices must have active canonical bill records and invoice codes.";
+  if (!error && raw && source && sourceBill &&
+    ((t(raw.invoice_code) && t(raw.invoice_code) !== source.invoiceCode) ||
+      (t(raw.bill_code) && t(raw.bill_code) !== source.billCode) ||
+      (t(raw.bill_id) && t(raw.bill_id) !== sourceBill.billId)))
+    error = "The allocation's stored bill or invoice identity is already inconsistent. Review it manually.";
+  if (!error && raw && destination && ctx.allocations.some((row) =>
+    t(row.id) !== t(raw.id) && t(row.payment_id) === t(raw.payment_id) && t(row.invoice_id) === destination.invoiceId))
+    error = "This payment is already linked to the destination invoice; merging allocations requires separate review.";
+  const existingDestination = destination ? ctx.allocations.find((row) => t(row.invoice_id) === destination.invoiceId) : undefined;
+  const rawService = t(destinationBill?.row.description, 300)
+    .replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim();
+  const serviceName = destinationBill?.category === "supervision"
+    ? "Site Supervision" : workflowServiceName(rawService || destinationBill?.row.billing_category || destinationBill?.row.category);
+  const nextIdentity = destination && destinationBill ? {
+    invoice_id: destination.invoiceId,
+    invoice_code: destination.invoiceCode,
+    bill_id: destinationBill.billId,
+    bill_code: destination.billCode,
+    service_name: t(existingDestination?.service_name) || serviceName,
+    service_key: t(existingDestination?.service_key) || workflowServiceKey(serviceName),
+    billing_category: t(existingDestination?.billing_category) || t(destinationBill.row.billing_category || destinationBill.row.category),
+  } : undefined;
+  return { allocation, payment, source, destination, sourceBill, destinationBill, original: raw, nextIdentity, error };
 }
 async function events(projectCode: string) {
   const actions = [ACTION_REQUESTED, ...DECISIONS];
@@ -222,8 +249,15 @@ export async function POST(request: NextRequest) {
     if (check.allocation.invoiceId !== proposal.fromInvoiceId || check.allocation.paymentId !== proposal.paymentId ||
         Math.abs(check.allocation.amount - proposal.amount) > 0.01)
       return json({ success: false, error: "The original allocation changed after submission. Create a new request." }, 409);
-    const before = { invoiceId: check.allocation.invoiceId, paymentId: check.allocation.paymentId, amount: check.allocation.amount };
-    const after = { ...before, invoiceId: proposal.toInvoiceId };
+    if (!check.original || !check.nextIdentity) return json({ success: false, error: "Canonical allocation metadata is unavailable." }, 409);
+    const before = {
+      paymentId: check.allocation.paymentId, amount: check.allocation.amount,
+      invoice_id: check.allocation.invoiceId, invoice_code: t(check.original.invoice_code),
+      bill_id: t(check.original.bill_id), bill_code: t(check.original.bill_code),
+      service_name: t(check.original.service_name), service_key: t(check.original.service_key),
+      billing_category: t(check.original.billing_category),
+    };
+    const after = { ...before, ...check.nextIdentity };
     const approved = await recordAuditEvent({
       user, request, action: ACTION_APPROVED, target: projectCode, entityType: "payment_invoice_allocation", entityId: requestCode,
       before, after, details: { reason, allocationId: proposal.allocationId, approvedRequest: proposal.requestCode },
@@ -237,7 +271,7 @@ export async function POST(request: NextRequest) {
         payment_id: check.allocation.paymentId,
         invoice_id: check.allocation.invoiceId,
         allocated_amount: check.allocation.amount,
-      }, { invoice_id: proposal.toInvoiceId });
+      }, check.nextIdentity);
       if (changed.length !== 1) throw new Error("The allocation was changed concurrently or could not be updated.");
       const recorded = await recordAuditEvent({
         user, request, action: ACTION_APPLIED, target: projectCode,

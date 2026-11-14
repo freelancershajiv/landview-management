@@ -3,7 +3,7 @@
 ## Accounting invariants
 
 - No automatic historical payment backfill, unbilled revenue recognition, or debt creation.
-- Invoice allocation corrections may only move **one existing allocation row** from one active invoice to another active invoice in the **same project and billing category**. The value, recorded payment, bill and ledger entry are unchanged.
+- Invoice allocation corrections may only move **one existing allocation row** from one active invoice to another active invoice in the **same project and billing category**. The value, recorded payment, bill and ledger entry are unchanged. The invoice/bill IDs and codes and denormalized service metadata are updated together in the same row.
 - Draft, void, settled/historical Paid and over-capacity destinations are not eligible for this automated route. Historical Paid gaps remain explicit finance-review exceptions.
 - Corrections require a specific reason, an authenticated finance role, a **different administrator** to approve, same-origin POST and server-side preflight checks immediately before the update.
 - A successful approval audit must be recorded **before** the compare-and-set row update, and a completion audit after it. If the update or final audit fails, block/review; do not compensate via blind writes.
