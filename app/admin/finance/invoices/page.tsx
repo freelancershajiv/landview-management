@@ -28,6 +28,10 @@ type InvoiceHistoryEntry = {
   id: string; invoiceCode: string; billCode: string; documentKind?: string; generatedAt: string; actor: string;
   net: number; paid: number; due: number;
 };
+type InvoiceRevisionEntry = {
+  kind: string; reference: string; billCode: string; date: string;
+  amount: number; reason: string; status: string; actor: string;
+};
 type ProjectBillingBundle = {
   projectId: string;
   sheets: FinanceSheetData[];
@@ -313,6 +317,7 @@ export default function ProjectBillingPage() {
   const [generatingSingleBill, setGeneratingSingleBill] = useState(false);
   const [archivingStatement, setArchivingStatement] = useState(false);
   const [invoiceHistory, setInvoiceHistory] = useState<InvoiceHistoryEntry[]>([]);
+  const [invoiceRevisions, setInvoiceRevisions] = useState<InvoiceRevisionEntry[]>([]);
   const [fileListProjects, setFileListProjects] = useState<FileListProject[]>([]);
   const [fileListLoading, setFileListLoading] = useState(true);
   const [fileListError, setFileListError] = useState("");
@@ -345,7 +350,10 @@ export default function ProjectBillingPage() {
         credentials: "same-origin", cache: "no-store",
       });
       const json = await response.json();
-      if (response.ok && json?.success && Array.isArray(json.data)) setInvoiceHistory(json.data as InvoiceHistoryEntry[]);
+      if (response.ok && json?.success && Array.isArray(json.data)) {
+        setInvoiceHistory(json.data as InvoiceHistoryEntry[]);
+        setInvoiceRevisions(Array.isArray(json.revisions) ? json.revisions as InvoiceRevisionEntry[] : []);
+      }
     } catch {
       // History is supplemental; the document remains usable if the audit read is unavailable.
     }
@@ -408,7 +416,7 @@ export default function ProjectBillingPage() {
     setReconciliation(null);
     setError(""); setVerificationUrl(""); setVerificationError("");
     setSingleBillOpen(false); setSingleBillSelection(""); setSingleBillPrint(null);
-            setSingleBillVerificationUrl(""); setInvoiceHistory([]);
+            setSingleBillVerificationUrl(""); setInvoiceHistory([]); setInvoiceRevisions([]);
 
     const snapshot = readBillingSnapshot(id);
     if (snapshot) {
@@ -575,7 +583,7 @@ export default function ProjectBillingPage() {
           onChange={(event) => {
             setFileId(event.target.value); setResult(null); setError(""); setVerificationUrl(""); setVerificationError("");
             setSingleBillOpen(false); setSingleBillSelection(""); setSingleBillPrint(null);
-            setSingleBillVerificationUrl(""); setInvoiceHistory([]); setReconciliation(null);
+            setSingleBillVerificationUrl(""); setInvoiceHistory([]); setInvoiceRevisions([]); setReconciliation(null);
             request.current++; setBusy(false); setRefreshing(false);
           }}
           required autoComplete="off"
@@ -644,6 +652,13 @@ export default function ProjectBillingPage() {
       )}
 
       {result && reconciliation && !singleBillPrint && <InvoicePaymentReconciliationPanel data={reconciliation} />}
+      {result && !singleBillPrint && (
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12, flexWrap: "wrap", fontSize: 12, marginTop: 12 }}>
+          <Link href={`/admin/finance/allocation-corrections?projectId=${encodeURIComponent(result.id)}`}>Allocation Correction Center</Link>
+          <Link href="/admin/finance/integrity">Finance Integrity Review</Link>
+          <Link href="/admin/finance/adjustments">Credit / Debit Notes</Link>
+        </div>
+      )}
       {result && commercial && !singleBillPrint && (
         <section style={{ marginTop: 24, padding: 18, border: "1px solid var(--border, #cbd5d1)", borderRadius: 12 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12, flexWrap: "wrap" }}>
@@ -657,6 +672,20 @@ export default function ProjectBillingPage() {
         </section>
       )}
       {visibleBilling && <ProjectBillingDocument result={visibleBilling} verificationUrl={singleBillPrint ? singleBillVerificationUrl : verificationUrl} verificationError={verificationError} dueOnly={Boolean(dueOnly && !singleBillPrint)} />}
+      {result && invoiceRevisions.length > 0 && !singleBillPrint && (
+        <section style={{ marginTop: 24, padding: 16, border: "1px solid var(--border, #cbd5d1)", borderRadius: 12 }}>
+          <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>Invoice Revisions & Financial Corrections</h2>
+          <p style={{ fontSize: 12, marginBottom: 12 }}>Credit/debit notes and separately approved allocation corrections are listed without replacing the original issued invoice snapshot.</p>
+          <div style={{ display: "grid", gap: 8 }}>
+            {invoiceRevisions.map((revision, index) => (
+              <div key={revision.reference + "-" + index} style={{ display: "flex", flexWrap: "wrap", justifyContent: "space-between", gap: 9, padding: 10, border: "1px solid var(--border, #cbd5d1)", borderRadius: 8, fontSize: 12 }}>
+                <div><strong>{revision.kind} · {revision.reference}</strong><div>{revision.billCode} · {revision.date ? new Date(revision.date).toLocaleString("en-BD", { timeZone: "Asia/Dhaka" }) : "—"} · {revision.actor || "LAND VIEW"}</div><small>{revision.reason || "Reason not recorded"}</small></div>
+                <div style={{ textAlign: "right" }}><strong>৳{Number(revision.amount || 0).toLocaleString("en-BD", { maximumFractionDigits: 2 })}</strong><div>{revision.status}</div></div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
       {result && invoiceHistory.length > 0 && !singleBillPrint && (
         <section style={{ marginTop: 24, padding: 16, border: "1px solid var(--border, #cbd5d1)", borderRadius: 12 }}>
           <h2 style={{ fontSize: 17, fontWeight: 800, marginBottom: 10 }}>Billing Document History</h2>

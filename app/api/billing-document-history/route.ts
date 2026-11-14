@@ -35,7 +35,42 @@ export async function GET(request: NextRequest) {
       paid: Number(row.details?.paid || 0),
       due: Number(row.details?.due || 0),
     })).sort((left, right) => right.generatedAt.localeCompare(left.generatedAt)).slice(0, 200);
-    return NextResponse.json({ success: true, data: entries }, { headers: { "Cache-Control": "private, no-store" } });
+    // Issued documents are immutable snapshots. Corrections are append-only
+    // history items, not silent edits to a previously generated invoice.
+    const [adjustments, allocationCorrections] = await Promise.all([
+      selectRows("billing_adjustments", {
+        select: "adjustment_code,bill_code,adjustment_type,amount,reason,status,posted_by,posted_at,voided_at,void_reason",
+        filters: { project_code: fileId }, order: "posted_at:desc", limit: 200,
+      }),
+      selectRows("app_audit_log", {
+        select: "created_at,actor_user_key,action,entity_id,details",
+        filters: { action: "billing.allocation.correction.applied", target: fileId },
+        order: "created_at:desc", limit: 200,
+      }),
+    ]);
+    const revisions = [
+      ...adjustments.map((row) => ({
+        kind: String(row.adjustment_type || "Bill Adjustment"),
+        reference: String(row.adjustment_code || ""),
+        billCode: String(row.bill_code || ""),
+        date: String(row.posted_at || row.voided_at || ""),
+        amount: Number(row.amount || 0),
+        reason: String(row.reason || row.void_reason || ""),
+        status: String(row.status || ""),
+        actor: String(row.posted_by || ""),
+      })),
+      ...allocationCorrections.map((row) => ({
+        kind: "Payment Allocation Correction",
+        reference: String(row.entity_id || ""),
+        billCode: String(row.details?.toBillCode || ""),
+        date: String(row.created_at || ""),
+        amount: Number(row.details?.amount || 0),
+        reason: String(row.details?.reason || ""),
+        status: "Applied",
+        actor: String(row.actor_user_key || ""),
+      })),
+    ].sort((a, b) => b.date.localeCompare(a.date));
+    return NextResponse.json({ success: true, data: entries, revisions }, { headers: { "Cache-Control": "private, no-store" } });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Could not load invoice history." }, { status: 502 });
   }
