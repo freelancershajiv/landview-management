@@ -1,0 +1,243 @@
+/* LAND VIEW Project Management V2.
+   All redesign rules are scoped to the Project Management workspace.
+   Existing ledger, party, contractor bill and reporting data models are untouched. */
+
+.pf-management-shell {
+  --pmx-surface: var(--lv-surface-panel, #fff);
+  --pmx-page: var(--lv-surface-page, #f5f7fa);
+  --pmx-muted-surface: var(--lv-surface-muted, #f8fafb);
+  --pmx-border: var(--lv-border-default, #e1e5eb);
+  --pmx-text: var(--lv-text-primary, #1c2938);
+  --pmx-muted: var(--lv-text-secondary, #687789);
+  --pmx-red: var(--lv-brand-primary, #bd2f37);
+  --pmx-blue: var(--lv-info, #2161b2);
+  --pmx-positive: var(--lv-success, #25815b);
+  --pmx-warning: var(--lv-warning, #a76b1e);
+  --pmx-radius: 16px;
+  color: var(--pmx-text);
+}
+.pf-management-shell .pmx-topbar {
+  margin: 0 0 22px;
+  border: 1px solid var(--pmx-border);
+  background: var(--pmx-surface);
+  border-radius: var(--pmx-radius);
+  box-shadow: 0 8px 25px rgba(26, 38, 53, .045);
+  overflow: hidden;
+}
+.pf-management-shell .pmx-topbar-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 25px 28px 21px;
+  background: linear-gradient(115deg, color-mix(in srgb, var(--pmx-red) 5%, var(--pmx-surface)), var(--pmx-surface) 48%);
+}
+.pf-management-shell .pmx-topbar-heading { min-width: 0; flex: 1; }
+.pf-management-shell .pmx-workspace-overline,
+.pf-management-shell .pmx-section-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  letter-spacing: .1em;
+  font-weight: 850;
+  color: var(--pmx-red);
+}
+.pf-management-shell .pmx-overline-mark { width: 7px; height: 7px; border-radius: 50%; background: var(--pmx-red); display: inline-block; }
+.pf-management-shell .pmx-heading-line { display: flex; flex-wrap: wrap; align-items: center; gap: 11px; margin-top: 8px; }
+.pf-management-shell .pmx-heading-line h1 { font-size: clamp(24px, 2.3vw, 31px); font-weight: 830; letter-spacing: -.035em; line-height: 1.18; color: var(--pmx-text); margin: 0; }
+.pf-management-shell .pmx-header-label { padding: 5px 10px; border-radius: 50px; border: 1px solid var(--pmx-border); background: var(--pmx-muted-surface); font-size: 10px; font-weight: 750; color: var(--pmx-muted); }
+.pf-management-shell .pmx-topbar-heading p { margin: 9px 0 0; font-size: 13px; line-height: 1.55; color: var(--pmx-muted); }
+.pf-management-shell .pmx-project-control { width: min(100%, 390px); min-width: 235px; display: flex; flex-direction: column; gap: 5px; }
+.pf-management-shell .pmx-project-control label { font-size: 10px; letter-spacing: .09em; color: var(--pmx-muted); font-weight: 850; }
+.pf-management-shell .pmx-project-control select {
+  width: 100%; min-height: 45px; border-radius: 10px;
+  border: 1px solid var(--pmx-border); padding: 0 32px 0 13px;
+  color: var(--pmx-text); background: var(--pmx-surface);
+  font: inherit; font-size: 13px; font-weight: 750;
+}
+.pf-management-shell .pmx-project-control select:focus-visible { outline: 2px solid var(--pmx-blue); outline-offset: 2px; }
+.pf-management-shell .pmx-project-caption { font-size: 11px; line-height: 1.3; color: var(--pmx-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pf-management-shell .pmx-project-caption span { display: block; overflow: hidden; text-overflow: ellipsis; }
+.pf-management-shell .pmx-project-caption strong { color: var(--pmx-text); }
+.pf-management-shell .pmx-nav { display: flex; gap: 4px; align-items: stretch; padding: 10px 14px; border-top: 1px solid var(--pmx-border); overflow-x: auto; scrollbar-width: thin; }
+.pf-management-shell .pmx-nav-link {
+  display: inline-flex; flex-shrink: 0; gap: 8px; align-items: center;
+  min-height: 42px; padding: 9px 12px; border: 1px solid transparent;
+  background: transparent; border-radius: 10px; text-decoration: none;
+  white-space: nowrap; color: var(--pmx-muted); font-size: 12px; font-weight: 760;
+}
+.pf-management-shell .pmx-nav-link:hover { color: var(--pmx-text); background: var(--pmx-muted-surface); }
+.pf-management-shell .pmx-nav-link.is-active { color: var(--pmx-red); background: color-mix(in srgb, var(--pmx-red) 9%, var(--pmx-surface)); border-color: color-mix(in srgb, var(--pmx-red) 20%, var(--pmx-border)); }
+.pf-management-shell .pmx-nav-symbol { font-size: 17px; line-height: 1; font-weight: 700; color: inherit; }
+.pf-management-shell .pmx-classic-link { margin-left: auto; color: var(--pmx-muted); opacity: .83; }
+.pf-management-shell .pmx-nav-link:focus-visible { outline: 2px solid var(--pmx-blue); outline-offset: 1px; }
+
+.pf-management-shell .pmx-dashboard { max-width: 1700px; margin: 0 auto 38px; }
+.pf-management-shell .pmx-overview-intro { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin: 0 0 17px; }
+.pf-management-shell .pmx-overview-intro h2 { font-size: clamp(23px, 2.2vw, 31px); line-height: 1.24; letter-spacing: -.032em; margin: 6px 0; color: var(--pmx-text); }
+.pf-management-shell .pmx-overview-intro p { margin: 0; font-size: 13px; line-height: 1.5; color: var(--pmx-muted); }
+.pf-management-shell .pmx-overview-intro p strong { color: var(--pmx-text); }
+.pf-management-shell .pmx-overview-actions { display: flex; gap: 9px; flex-shrink: 0; }
+.pf-management-shell .pmx-quiet-button,
+.pf-management-shell .pmx-primary-button {
+  border-radius: 10px; display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px; min-height: 42px; padding: 0 15px; font-size: 12px; font-weight: 790;
+  text-decoration: none; cursor: pointer; font-family: inherit;
+}
+.pf-management-shell .pmx-quiet-button { background: var(--pmx-surface); border: 1px solid var(--pmx-border); color: var(--pmx-text); }
+.pf-management-shell .pmx-primary-button { background: var(--pmx-red); border: 1px solid var(--pmx-red); color: #fff; }
+.pf-management-shell .pmx-primary-button:hover { filter: brightness(.92); color: #fff; }
+.pf-management-shell .pmx-quiet-button:disabled { opacity: .6; cursor: wait; }
+.pf-management-shell .pmx-metrics { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 13px; margin-bottom: 18px; }
+.pf-management-shell .pmx-metric { min-width: 0; min-height: 143px; background: var(--pmx-surface); border: 1px solid var(--pmx-border); border-radius: 15px; padding: 17px 18px; box-shadow: 0 6px 20px rgba(26,38,53,.035); }
+.pf-management-shell .pmx-metric-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 11px; font-weight: 820; color: var(--pmx-muted); }
+.pf-management-shell .pmx-metric-icon { display: inline-grid; width: 29px; height: 29px; place-items: center; border-radius: 9px; font-size: 16px; background: var(--pmx-muted-surface); color: var(--pmx-muted); }
+.pf-management-shell .pmx-metric strong { display: block; margin-top: 19px; font-size: clamp(17px, 1.55vw, 24px); line-height: 1.18; letter-spacing: -.04em; font-weight: 850; color: var(--pmx-text); overflow-wrap: anywhere; }
+.pf-management-shell .pmx-metric p { margin: 9px 0 0; font-size: 11px; line-height: 1.4; color: var(--pmx-muted); }
+.pf-management-shell .pmx-metric-blue { border-top: 3px solid var(--pmx-blue); }
+.pf-management-shell .pmx-metric-red { border-top: 3px solid var(--pmx-red); }
+.pf-management-shell .pmx-metric-amber { border-top: 3px solid var(--pmx-warning); }
+.pf-management-shell .pmx-metric-neutral { border-top: 3px solid var(--pmx-muted); }
+.pf-management-shell .pmx-metric-primary { background: color-mix(in srgb, var(--pmx-red) 5%, var(--pmx-surface)); border-top: 3px solid var(--pmx-red); }
+.pf-management-shell .pmx-metric-primary strong { color: var(--pmx-red); }
+.pf-management-shell .pmx-metric strong.pmx-negative { color: var(--pmx-red); }
+.pf-management-shell .pmx-content-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(310px, 1fr); gap: 16px; align-items: stretch; margin-bottom: 18px; }
+.pf-management-shell .pmx-right-column { min-width: 0; display: grid; grid-template-rows: auto 1fr; gap: 16px; }
+.pf-management-shell .pmx-panel { min-width: 0; background: var(--pmx-surface); border: 1px solid var(--pmx-border); border-radius: var(--pmx-radius); box-shadow: 0 7px 22px rgba(26,38,53,.035); overflow: hidden; }
+.pf-management-shell .pmx-panel-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; padding: 20px 21px 16px; border-bottom: 1px solid var(--pmx-border); }
+.pf-management-shell .pmx-panel-heading h3 { margin: 5px 0 0; color: var(--pmx-text); font-size: 19px; line-height: 1.25; letter-spacing: -.025em; }
+.pf-management-shell .pmx-panel-heading p { margin: 6px 0 0; font-size: 11px; color: var(--pmx-muted); }
+.pf-management-shell .pmx-panel-heading a,
+.pf-management-shell .pmx-subtle-link { color: var(--pmx-red); font-size: 12px; font-weight: 800; text-decoration: none; white-space: nowrap; }
+.pf-management-shell .pmx-panel-heading a:hover,
+.pf-management-shell .pmx-subtle-link:hover { text-decoration: underline; }
+.pf-management-shell .pmx-category-list { padding: 17px 21px 21px; display: grid; gap: 17px; }
+.pf-management-shell .pmx-category-name { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-bottom: 9px; color: var(--pmx-text); font-size: 12px; font-weight: 750; }
+.pf-management-shell .pmx-category-name > span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-management-shell .pmx-category-name strong { font-size: 12px; font-weight: 850; }
+.pf-management-shell .pmx-category-number { font-size: 10px; color: var(--pmx-muted); }
+.pf-management-shell .pmx-track,
+.pf-management-shell .pmx-utilization-track { background: color-mix(in srgb, var(--pmx-blue) 8%, var(--pmx-muted-surface)); border-radius: 999px; overflow: hidden; height: 7px; }
+.pf-management-shell .pmx-track span { display: block; height: 100%; border-radius: inherit; background: var(--pmx-blue); }
+.pf-management-shell .pmx-category-row:nth-child(2n) .pmx-track span { background: var(--pmx-red); }
+.pf-management-shell .pmx-utilization-panel .pmx-panel-heading { border: 0; padding-bottom: 10px; }
+.pf-management-shell .pmx-utilization-row { display: flex; justify-content: space-between; gap: 15px; padding: 5px 20px; color: var(--pmx-muted); font-size: 12px; }
+.pf-management-shell .pmx-utilization-row strong { color: var(--pmx-text); font-size: 13px; }
+.pf-management-shell .pmx-utilization-track { margin: 14px 20px 0; height: 9px; }
+.pf-management-shell .pmx-utilization-track span { display: block; height: 100%; border-radius: inherit; background: var(--pmx-red); }
+.pf-management-shell .pmx-utilization-caption { margin: 9px 20px 19px; color: var(--pmx-muted); font-size: 11px; }
+.pf-management-shell .pmx-hold-note { margin: -7px 20px 17px; font-size: 11px; color: var(--pmx-warning); font-weight: 750; }
+.pf-management-shell .pmx-people-panel { padding-bottom: 16px; }
+.pf-management-shell .pmx-people-panel .pmx-panel-heading { border: 0; padding-bottom: 10px; }
+.pf-management-shell .pmx-people-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 0 18px 12px; }
+.pf-management-shell .pmx-people-stats > div { min-width: 0; border-radius: 11px; background: var(--pmx-muted-surface); padding: 12px 10px; }
+.pf-management-shell .pmx-people-stats span { display: block; font-size: 10px; color: var(--pmx-muted); min-height: 27px; line-height: 1.3; }
+.pf-management-shell .pmx-people-stats strong { font-size: 25px; line-height: 1.1; color: var(--pmx-text); }
+.pf-management-shell .pmx-people-footer { margin: 0 19px 11px; display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px solid var(--pmx-border); padding-bottom: 13px; color: var(--pmx-muted); font-size: 11px; }
+.pf-management-shell .pmx-people-footer strong { color: var(--pmx-text); }
+.pf-management-shell .pmx-subtle-link { display: inline-block; margin: 0 20px; }
+.pf-management-shell .pmx-activity-panel { margin-bottom: 17px; }
+.pf-management-shell .pmx-activity-controls { display: flex; justify-content: space-between; gap: 14px; padding: 13px 19px; align-items: center; }
+.pf-management-shell .pmx-filter-pills { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.pf-management-shell .pmx-filter-pills button { padding: 9px 12px; border: 1px solid var(--pmx-border); border-radius: 8px; background: var(--pmx-surface); font-size: 11px; font-weight: 770; color: var(--pmx-muted); cursor: pointer; }
+.pf-management-shell .pmx-filter-pills button.is-active { color: var(--pmx-red); background: color-mix(in srgb, var(--pmx-red) 9%, var(--pmx-surface)); border-color: color-mix(in srgb, var(--pmx-red) 24%, var(--pmx-border)); }
+.pf-management-shell .pmx-activity-controls input { max-width: 360px; min-width: 190px; width: 100%; min-height: 38px; border: 1px solid var(--pmx-border); background: var(--pmx-surface); color: var(--pmx-text); border-radius: 9px; padding: 0 12px; font-size: 12px; font-family: inherit; }
+.pf-management-shell .pmx-table-scroll { width: 100%; overflow-x: auto; }
+.pf-management-shell .pmx-table { width: 100%; border-collapse: collapse; min-width: 700px; }
+.pf-management-shell .pmx-table th { padding: 14px 19px; background: var(--pmx-muted-surface); text-align: left; font-size: 10px; letter-spacing: .05em; text-transform: uppercase; font-weight: 830; color: var(--pmx-muted); border-bottom: 1px solid var(--pmx-border); }
+.pf-management-shell .pmx-table td { padding: 14px 19px; font-size: 12px; line-height: 1.4; color: var(--pmx-text); border-bottom: 1px solid var(--pmx-border); }
+.pf-management-shell .pmx-table tbody tr:last-child td { border-bottom: 0; }
+.pf-management-shell .pmx-table tbody tr:hover { background: var(--pmx-muted-surface); }
+.pf-management-shell .pmx-table td strong { display: block; font-size: 12px; line-height: 1.4; font-weight: 820; }
+.pf-management-shell .pmx-table td small { display: block; margin-top: 3px; color: var(--pmx-muted); font-size: 11px; }
+.pf-management-shell .pmx-muted-cell { color: var(--pmx-muted) !important; }
+.pf-management-shell .pmx-money-cell { text-align: right !important; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 830; }
+.pf-management-shell .pmx-amount-income { color: var(--pmx-positive) !important; }
+.pf-management-shell .pmx-amount-expense { color: var(--pmx-red) !important; }
+.pf-management-shell .pmx-type-pill { display: inline-block; padding: 5px 9px; font-size: 10px; font-weight: 820; border-radius: 20px; }
+.pf-management-shell .pmx-type-income { color: var(--pmx-positive); background: color-mix(in srgb, var(--pmx-positive) 9%, var(--pmx-surface)); }
+.pf-management-shell .pmx-type-expense { color: var(--pmx-red); background: color-mix(in srgb, var(--pmx-red) 9%, var(--pmx-surface)); }
+.pf-management-shell .pmx-no-transactions { padding: 35px !important; text-align: center; color: var(--pmx-muted) !important; }
+.pf-management-shell .pmx-shortcuts { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 13px; }
+.pf-management-shell .pmx-shortcuts a { display: grid; grid-template-columns: 36px minmax(0,1fr) 18px; grid-template-rows: auto auto; align-items: center; column-gap: 11px; row-gap: 5px; padding: 16px; min-width: 0; border: 1px solid var(--pmx-border); border-radius: 13px; background: var(--pmx-surface); color: var(--pmx-text); text-decoration: none; }
+.pf-management-shell .pmx-shortcuts a:hover { border-color: color-mix(in srgb, var(--pmx-red) 35%, var(--pmx-border)); background: var(--pmx-muted-surface); }
+.pf-management-shell .pmx-shortcut-icon { display: grid; grid-row: span 2; place-items: center; width: 36px; height: 36px; background: color-mix(in srgb, var(--pmx-red) 10%, var(--pmx-surface)); color: var(--pmx-red); border-radius: 10px; font-size: 20px; }
+.pf-management-shell .pmx-shortcuts strong { grid-column: 2; grid-row: 1; font-size: 12px; font-weight: 830; }
+.pf-management-shell .pmx-shortcuts small { grid-column: 2; grid-row: 2; color: var(--pmx-muted); font-size: 10px; }
+.pf-management-shell .pmx-shortcut-arrow { grid-column: 3; grid-row: 1 / 3; color: var(--pmx-red); }
+.pf-management-shell .pmx-panel-empty { padding: 38px 21px; color: var(--pmx-muted); font-size: 12px; text-align: center; }
+.pf-management-shell .pmx-empty-project { text-align: center; margin: 20px auto 45px; padding: 52px 18px; background: var(--pmx-surface); border: 1px dashed var(--pmx-border); border-radius: var(--pmx-radius); }
+.pf-management-shell .pmx-big-icon { font-size: 36px; color: var(--pmx-red); }
+.pf-management-shell .pmx-empty-project h2 { font-size: 23px; margin: 14px 0 7px; }
+.pf-management-shell .pmx-empty-project p { max-width: 620px; margin: 0 auto 18px; font-size: 13px; line-height: 1.7; color: var(--pmx-muted); }
+.pf-management-shell .pmx-empty-project > span:last-child { color: var(--pmx-muted); font-size: 12px; }
+.pf-management-shell .pmx-loading { padding: 25px; min-height: 300px; border: 1px solid var(--pmx-border); border-radius: var(--pmx-radius); background: var(--pmx-surface); }
+.pf-management-shell .pmx-loading p { color: var(--pmx-muted); font-size: 12px; }
+.pf-management-shell .pmx-loading-bar { height: 35px; width: 47%; border-radius: 9px; background: var(--pmx-muted-surface); animation: pmx-pulse 1.3s ease-in-out infinite alternate; }
+.pf-management-shell .pmx-loading-panels { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin: 20px 0; }
+.pf-management-shell .pmx-loading-panels span { height: 130px; border-radius: 12px; background: var(--pmx-muted-surface); animation: pmx-pulse 1.3s ease-in-out infinite alternate; }
+@keyframes pmx-pulse { from { opacity: .5; } to { opacity: 1; } }
+.pf-management-shell .pmx-notice { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 13px 16px; border: 1px solid var(--pmx-border); border-radius: 10px; margin-bottom: 15px; font-size: 12px; }
+.pf-management-shell .pmx-notice-error { color: var(--pmx-red); border-color: color-mix(in srgb, var(--pmx-red) 32%, var(--pmx-border)); }
+.pf-management-shell .pmx-notice button { min-height: 34px; border: 1px solid var(--pmx-border); background: var(--pmx-surface); color: var(--pmx-text); border-radius: 7px; padding: 0 10px; cursor: pointer; }
+
+/* Harmonize the existing Income, Expense, Combined Ledger, Parties and Bills UI. */
+.pf-management-shell .pfl-page { border-radius: var(--pmx-radius); border-color: var(--pmx-border); background: var(--pmx-page); box-shadow: 0 7px 22px rgba(26,38,53,.035); margin-top: 0; color: var(--pmx-text); }
+.pf-management-shell .pfl-head { padding: 22px 25px; background: var(--pmx-surface); border-color: var(--pmx-border); }
+.pf-management-shell .pfl-head h2 { font-size: 23px; line-height: 1.25; color: var(--pmx-text); }
+.pf-management-shell .pfl-head p { font-size: 12px; line-height: 1.6; color: var(--pmx-muted); }
+.pf-management-shell .pfl-eyebrow { font-size: 10px; color: var(--pmx-red); letter-spacing: .09em; }
+.pf-management-shell .pfl-project-bar { background: var(--pmx-muted-surface); color: var(--pmx-text); }
+.pf-management-shell .pfl-table-shell { border-color: var(--pmx-border); background: var(--pmx-surface); }
+.pf-management-shell .pfl-table th { font-size: 10px; letter-spacing: .04em; padding: 12px 13px; color: var(--pmx-muted); }
+.pf-management-shell .pfl-table td { font-size: 12px; line-height: 1.45; padding: 13px; color: var(--pmx-text); }
+.pf-management-shell .pfl-table td .pfl-name { color: var(--pmx-text); }
+.pf-management-shell .pfl-btn { font-size: 12px; font-weight: 780; border-color: var(--pmx-border); }
+.pf-management-shell .pfl-input, .pf-management-shell .pfl-select { font-size: 12px; }
+.pf-management-shell .pfl-summary strong { font-size: clamp(18px, 1.6vw, 26px); }
+.pf-management-shell .pm-page, .pf-management-shell .pm-report-page, .pf-management-shell .pm-contractor-page { border-radius: var(--pmx-radius); }
+.pf-management-shell button:focus-visible, .pf-management-shell a:focus-visible, .pf-management-shell input:focus-visible, .pf-management-shell select:focus-visible { outline: 2px solid var(--pmx-blue); outline-offset: 2px; }
+
+@media (max-width: 1300px) {
+  .pf-management-shell .pmx-metrics { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .pf-management-shell .pmx-content-grid { grid-template-columns: minmax(0,1fr) minmax(290px,.8fr); }
+  .pf-management-shell .pmx-shortcuts { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 980px) {
+  .pf-management-shell .pmx-topbar-main { padding: 20px; flex-direction: column; gap: 17px; }
+  .pf-management-shell .pmx-project-control { width: 100%; }
+  .pf-management-shell .pmx-content-grid { grid-template-columns: minmax(0,1fr); }
+  .pf-management-shell .pmx-right-column { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: auto; }
+  .pf-management-shell .pmx-metrics { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 640px) {
+  .pf-management-shell .pmx-topbar { border-radius: 12px; margin-bottom: 16px; }
+  .pf-management-shell .pmx-topbar-main { padding: 17px; }
+  .pf-management-shell .pmx-heading-line h1 { font-size: 24px; }
+  .pf-management-shell .pmx-nav { padding: 8px; gap: 3px; }
+  .pf-management-shell .pmx-nav-link { min-height: 39px; padding: 7px 10px; font-size: 11px; }
+  .pf-management-shell .pmx-overview-intro { flex-direction: column; align-items: flex-start; }
+  .pf-management-shell .pmx-overview-actions { width: 100%; }
+  .pf-management-shell .pmx-quiet-button, .pf-management-shell .pmx-primary-button { flex: 1; padding: 0 9px; font-size: 11px; }
+  .pf-management-shell .pmx-metrics { gap: 9px; }
+  .pf-management-shell .pmx-metric { min-height: 131px; padding: 13px; }
+  .pf-management-shell .pmx-metric-top { font-size: 10px; }
+  .pf-management-shell .pmx-metric strong { font-size: clamp(14px, 4vw, 20px); margin-top: 17px; }
+  .pf-management-shell .pmx-metric p { font-size: 10px; }
+  .pf-management-shell .pmx-metric-primary { grid-column: span 2; }
+  .pf-management-shell .pmx-right-column { grid-template-columns: 1fr; }
+  .pf-management-shell .pmx-panel-heading { padding: 16px; }
+  .pf-management-shell .pmx-panel-heading h3 { font-size: 17px; }
+  .pf-management-shell .pmx-panel-heading a { font-size: 11px; }
+  .pf-management-shell .pmx-activity-controls { flex-direction: column; align-items: stretch; padding: 12px; }
+  .pf-management-shell .pmx-activity-controls input { width: 100%; max-width: none; }
+  .pf-management-shell .pmx-shortcuts { grid-template-columns: 1fr; gap: 9px; }
+  .pf-management-shell .pfl-head { padding: 17px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pf-management-shell .pmx-loading-bar, .pf-management-shell .pmx-loading-panels span { animation: none; }
+}
+@media print {
+  .pf-management-shell .pmx-topbar, .pf-management-shell .pmx-shortcuts { display: none !important; }
+}
