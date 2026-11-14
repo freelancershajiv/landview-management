@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { selectRows } from "@/lib/supabase-data";
+import { loadReceivableAuthority } from "@/lib/billing-receivable-authority";
 import {
   billingAmount,
   billingPaymentIsEffective,
@@ -26,11 +27,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     }
 
-    const [projects, bills, payments] = await Promise.all([
+    const [projects, bills, payments, authority] = await Promise.all([
       selectRows("projects", { limit: 5000 }),
       selectRows("bills", { limit: 5000 }),
       selectRows("payments", { limit: 5000 }),
+      loadReceivableAuthority(),
     ]);
+    if (!authority.complete) throw new Error("Receivable ledger is incomplete.");
 
     const effectiveBills = bills.filter(billIsEffective);
     const effectivePayments = payments.filter(billingPaymentIsEffective);
@@ -51,6 +54,12 @@ export async function GET(request: NextRequest) {
     const categoryTotals = new Map<CanonicalBillingCategory, CategoryNumbers>();
 
     const rows = projects.map((project) => {
+      const receivable = authority.projects.get(String(project.id));
+      const dueByCategory: Record<string, number> | null = receivable ? {
+        "Engineering Bill": receivable.engineeringDue,
+        "Supervision Bill": receivable.supervisionDue,
+        "Other Services Bill": receivable.otherDue,
+      } : null;
       const categories: Record<string, CategoryNumbers> = {};
       let gross = 0;
       let discount = 0;
@@ -79,7 +88,7 @@ export async function GET(request: NextRequest) {
       }
 
       for (const [categoryName, values] of Object.entries(categories)) {
-        values.due = Math.max(0, values.billed - values.paid);
+        values.due = dueByCategory ? (dueByCategory[categoryName] ?? 0) : Math.max(0, values.billed - values.paid);
         const category = categoryName as CanonicalBillingCategory;
         const total = categoryTotals.get(category) || emptyCategory();
         total.gross += values.gross;
@@ -99,7 +108,8 @@ export async function GET(request: NextRequest) {
         discount,
         billed,
         paid,
-        due: Math.max(0, billed - paid),
+        due: receivable?.totalDue ?? Math.max(0, billed - paid),
+        writeoffTotal: receivable?.writeoffTotal ?? 0,
         categories,
       };
     });

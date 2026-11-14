@@ -267,7 +267,8 @@ async function getProjectBilling(projectId: unknown) {
     payments: validPayments.map(pay=>paymentLegacy(pay,p.project_code)),
     totalBill,
     totalPaid,
-    due: Math.max(0,totalBill-totalPaid)
+    // Preserve historical billed/paid totals; exclude write-offs only from collectible due.
+    due: (await (await import("@/lib/billing-receivable-authority")).loadReceivableAuthority({ projectId: String(p.id) })).projects.get(String(p.id))?.totalDue ?? Math.max(0,totalBill-totalPaid)
   };
 }
 
@@ -310,7 +311,10 @@ export async function handleLandviewDataAction(action: string, input: Row, user:
   }
   if (action === "getBillingDashboard") {
     const [projects,{bills},payments]=await Promise.all([selectRows("projects",{limit:5000}),billTotals(),selectRows("payments",{limit:5000})]); const valid=payments.filter(effectivePayment); const totalBill=bills.reduce((s,b)=>s+num(b.net_amount ?? (num(b.amount)-num(b.discount))),0),totalPaid=valid.reduce((s,p)=>s+num(p.amount),0);
-    return {projectCount:projects.length,billCount:bills.length,paymentCount:valid.length,totalBill,totalPaid,pending:Math.max(0,totalBill-totalPaid)};
+    const { loadReceivableAuthority } = await import("@/lib/billing-receivable-authority");
+    const authority = await loadReceivableAuthority();
+    if (!authority.complete) throw new Error("Receivable ledger is incomplete.");
+    return {projectCount:projects.length,billCount:bills.length,paymentCount:valid.length,totalBill,totalPaid,pending:authority.totals.due};
   }
   if (action === "getProjectBilling") { const r=await getProjectBilling(input.projectId||input.Project_ID); return {projectId:r.projectId,bills:r.bills,payments:r.payments,totalBill:r.totalBill,totalPaid:r.totalPaid,due:r.due}; }
   if (action === "getBillingRecords") { const r=await getProjectBilling(input.projectId||input.Project_ID); const cat=text(input.category).toLowerCase(); return !cat?r.bills:r.bills.filter((b:Row)=>categoryOf(b).toLowerCase().includes(cat)); }
@@ -322,9 +326,84 @@ export async function handleLandviewDataAction(action: string, input: Row, user:
     return rows.map(r=>({Invoice_ID:r.invoice_code||r.invoice_no||r.id,Invoice_No:r.invoice_no||r.invoice_code||"",Project_ID:byId.get(r.project_id)||"",Issue_Date:r.issue_date||"",Due_Date:r.due_date||"",Amount:num(r.amount),Status:r.status||"",PDF_URL:r.pdf_url||r.download_url||"",Download_URL:r.download_url||"",File_ID:r.pdf_file_id||r.drive_file_id||"",Folder_URL:r.invoice_folder_url||"",Created_At:r.created_at||""}));
   }
   if (action === "getBillingBook") {
-    const [{projects,byId},bills,payments]=await Promise.all([projectMaps(),selectRows("bills",{limit:5000}),selectRows("payments",{limit:5000})]); const pb=new Map<string,Row[]>(),pp=new Map<string,Row[]>(); for(const b of bills.filter(effectiveBill)){const a=pb.get(b.project_id)||[];a.push(b);pb.set(b.project_id,a);} for(const p of payments.filter(effectivePayment)){const a=pp.get(p.project_id)||[];a.push(p);pp.set(p.project_id,a);} const categories=new Map<string,Row>();
-    const rows=projects.map(p=>{const cats:Row={};let gross=0,discount=0,paid=0;for(const b of pb.get(p.id)||[]){const c=categoryOf(b),g=num(b.amount),d=num(b.discount);gross+=g;discount+=d;cats[c]??={gross:0,discount:0,billed:0,paid:0,due:0};cats[c].gross+=g;cats[c].discount+=d;cats[c].billed+=g-d;}for(const pay of pp.get(p.id)||[]){const c=categoryOf(pay);paid+=num(pay.amount);cats[c]??={gross:0,discount:0,billed:0,paid:0,due:0};cats[c].paid+=num(pay.amount);}for(const [c,v] of Object.entries(cats) as [string,any][])v.due=Math.max(0,v.billed-v.paid);for(const [c,v] of Object.entries(cats) as [string,any][]){const t=categories.get(c)||{category:c,gross:0,discount:0,billed:0,paid:0,due:0};for(const k of ["gross","discount","billed","paid","due"])t[k]+=v[k];categories.set(c,t);}const billed=gross-discount;return{projectId:p.project_code,projectName:p.project_name||"",clientName:p.client_name_snapshot||"",gross,discount,billed,paid,due:Math.max(0,billed-paid),categories:cats};});
-    const totals=rows.reduce((a,r)=>({gross:a.gross+r.gross,discount:a.discount+r.discount,billed:a.billed+r.billed,paid:a.paid+r.paid,due:a.due+r.due}),{gross:0,discount:0,billed:0,paid:0,due:0}); return {totals,categories:[...categories.values()],projects:rows,billCount:bills.filter(effectiveBill).length,paymentCount:payments.filter(effectivePayment).length};
+    const { loadReceivableAuthority } = await import("@/lib/billing-receivable-authority");
+    const [{ projects }, bills, payments, authority] = await Promise.all([
+      projectMaps(),
+      selectRows("bills", { limit: 5000 }),
+      selectRows("payments", { limit: 5000 }),
+      loadReceivableAuthority(),
+    ]);
+    if (!authority.complete) throw new Error("Receivable ledger is incomplete.");
+    const billsByProject = new Map<string, Row[]>();
+    const paymentsByProject = new Map<string, Row[]>();
+    for (const bill of bills.filter(effectiveBill)) {
+      const rows = billsByProject.get(String(bill.project_id)) || [];
+      rows.push(bill);
+      billsByProject.set(String(bill.project_id), rows);
+    }
+    for (const payment of payments.filter(effectivePayment)) {
+      const rows = paymentsByProject.get(String(payment.project_id)) || [];
+      rows.push(payment);
+      paymentsByProject.set(String(payment.project_id), rows);
+    }
+    const categories = new Map<string, Row>();
+    const rows = projects.map((project) => {
+      const cats: Row = {};
+      let gross = 0, discount = 0, paid = 0;
+      for (const bill of billsByProject.get(String(project.id)) || []) {
+        const category = categoryOf(bill);
+        const billGross = num(bill.amount);
+        const billDiscount = num(bill.discount);
+        gross += billGross;
+        discount += billDiscount;
+        cats[category] ??= { gross: 0, discount: 0, billed: 0, paid: 0, due: 0 };
+        cats[category].gross += billGross;
+        cats[category].discount += billDiscount;
+        cats[category].billed += billGross - billDiscount;
+      }
+      for (const payment of paymentsByProject.get(String(project.id)) || []) {
+        const category = categoryOf(payment);
+        paid += num(payment.amount);
+        cats[category] ??= { gross: 0, discount: 0, billed: 0, paid: 0, due: 0 };
+        cats[category].paid += num(payment.amount);
+      }
+      const receivable = authority.projects.get(String(project.id));
+      const dueByCategory: Record<string, number> | null = receivable ? {
+        "Engineering Bill": receivable.engineeringDue,
+        "Supervision Bill": receivable.supervisionDue,
+        "Other Services Bill": receivable.otherDue,
+      } : null;
+      for (const [category, values] of Object.entries(cats) as [string, Row][]) {
+        values.due = dueByCategory ? (dueByCategory[category] ?? 0) : Math.max(0, values.billed - values.paid);
+        const summary = categories.get(category) || { category, gross: 0, discount: 0, billed: 0, paid: 0, due: 0 };
+        for (const field of ["gross", "discount", "billed", "paid", "due"]) summary[field] += values[field];
+        categories.set(category, summary);
+      }
+      const billed = gross - discount;
+      return {
+        projectId: project.project_code,
+        projectName: project.project_name || "",
+        clientName: project.client_name_snapshot || "",
+        gross, discount, billed, paid,
+        due: receivable?.totalDue ?? Math.max(0, billed - paid),
+        writeoffTotal: receivable?.writeoffTotal ?? 0,
+        categories: cats,
+      };
+    });
+    const totals = rows.reduce((sum, row) => ({
+      gross: sum.gross + row.gross,
+      discount: sum.discount + row.discount,
+      billed: sum.billed + row.billed,
+      paid: sum.paid + row.paid,
+      due: sum.due + row.due,
+    }), { gross: 0, discount: 0, billed: 0, paid: 0, due: 0 });
+    return {
+      totals,
+      categories: [...categories.values()],
+      projects: rows,
+      billCount: bills.filter(effectiveBill).length,
+      paymentCount: payments.filter(effectivePayment).length,
+    };
   }
   if (action === "getChairmanPendingApprovals") {
     const {byId}=await projectMaps(); const rows=await selectRows("payments",{order:"payment_date:desc",limit:5000}); return rows.filter(r=>text(r.approval_status).toLowerCase()==="approved").map(r=>({Approval_Key:`payment:${r.payment_code}`,Source:"Payments",Source_ID:r.payment_code,Transaction_Type:r.transaction_type||"Income",Transaction_Date:r.payment_date||"",Project_ID:byId.get(r.project_id)||"",Description:r.notes||r.payment_for||"Client payment",Amount:num(r.amount),Category:r.income_category||r.payment_for||"Client Payment",Approval_Status:"Approved",Notes:r.review_notes||r.notes||"",Reviewed_By:r.reviewed_by||r.approved_by||"Master Admin",Reviewed_At:r.reviewed_at||r.approved_at||""}));

@@ -89,7 +89,8 @@ export default function FinanceControlCenterPage() {
     return sum + (event === "recovery" ? -value : event === "write_off" || event === "write off" ? value : 0);
   }, 0), [writeOffs]);
 
-  const receivables = Math.max(0, n(billing?.totals?.due) - Math.max(0, activeWriteOff));
+  // Billing Book due is already net of active write-offs; do not subtract twice.
+  const receivables = Math.max(0, n(billing?.totals?.due));
   const projectAdvance = n(health?.reconciliation?.advances?.amount);
   const mainBalance = n(balance?.currentBalance);
   const whatsappBalance = health?.whatsapp.latestLedgerBalance;
