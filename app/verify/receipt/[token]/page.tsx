@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { selectRows } from "@/lib/supabase-data";
+import ReceiptPrintActions from "@/components/receipt-print-actions";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { robots: { index: false, follow: false } };
@@ -26,15 +27,35 @@ export default async function VerifyReceiptPage({ params }: { params: Promise<{ 
   const payment = payments[0] as Row | undefined;
   const projects = payment?.project_id ? await selectRows("projects", { filters: { id: payment.project_id }, limit: 1 }).catch(() => []) : [];
   const project = projects[0] as Row | undefined;
+  const storedReceipts = payment ? await selectRows("payment_receipts", {
+    filters: { payment_id: payment.id }, limit: 1,
+  }).catch(() => []) : [];
+  const storedReceipt = storedReceipts[0] as Row | undefined;
+  const paymentStatus = text(payment?.approval_status || payment?.status).toLowerCase();
+  const validReceipt = storedReceipt
+    && text(storedReceipt.receipt_path) === receiptPath
+    && text(storedReceipt.status).toLowerCase() === "issued"
+    && !storedReceipt.voided_at
+    && ["approved", "received", "paid", "verified", "complete", "completed", "posted"].includes(paymentStatus);
 
-  if (!payment || !project) {
+  if (!payment || !project || !validReceipt) {
     return <main className="vr-shell"><style>{css}</style><section className="vr-card"><div className="vr-brand">LAND <span>VIEW</span></div><div className="vr-bad">!</div><h1>Receipt verification failed</h1><p>This receipt link is invalid, unavailable, or has been altered.</p><Link href="https://www.landview.com.bd">Visit LAND VIEW</Link></section></main>;
   }
 
-  const allocated = num(payment.invoice_allocated_amount);
-  const unallocated = num(payment.invoice_unallocated_amount);
-  const receiptCode = `RCPT-${text(payment.payment_code)}`;
+  const billedServices = await selectRows("bills", {
+    select: "bill_code,description", filters: { project_id: project.id }, limit: 5000,
+  }).catch(() => []);
+  const billDescriptions = new Map(billedServices.map((bill: Row) => [text(bill.bill_code), text(bill.description)]));
+  const paymentAllocations = await selectRows("payment_invoice_allocations", {
+    select: "bill_code,invoice_code,service_name,allocated_amount",
+    filters: { payment_id: payment.id }, limit: 500,
+  }).catch(() => []);
+  const allocated = paymentAllocations.reduce((sum: number, row: Row) => sum + num(row.allocated_amount), 0);
+  const unallocated = Math.max(0, num(payment.amount) - allocated);
+  const receiptCode = text(storedReceipt?.receipt_code) || `RCPT-${text(payment.payment_code)}`;
   const status = text(payment.approval_status || payment.status || "Approved");
+  const verificationUrl = "https://app.landview.com.bd" + receiptPath;
+  const qrUrl = "/api/billing-verification/qr?data=" + encodeURIComponent(verificationUrl);
 
   return <main className="vr-shell"><style>{css}</style><section className="vr-card">
     <header className="vr-head"><div><div className="vr-brand">LAND <span>VIEW</span></div><small>Architects & Engineers</small></div><div className="vr-ok"><b>✓</b><span>VERIFIED RECEIPT</span></div></header>
@@ -51,14 +72,31 @@ export default async function VerifyReceiptPage({ params }: { params: Promise<{ 
     <section className="vr-amount"><span>AMOUNT RECEIVED</span><strong>{money(payment.amount)}</strong><small>{status}</small></section>
     <section className="vr-split">
       <div><span>Allocated to invoices</span><strong>{money(allocated)}</strong></div>
-      <div className={unallocated > 0.009 ? "warn" : ""}><span>Unallocated / Advance</span><strong>{money(unallocated)}</strong></div>
+      <div className={unallocated > 0.009 ? "warn" : ""}><span>Not allocated to invoices</span><strong>{money(unallocated)}</strong></div>
     </section>
+    {paymentAllocations.length > 0 && <section className="vr-allocations">
+      <h2>Invoices covered by this payment</h2>
+      <table><thead><tr><th>Service / invoice</th><th>Amount allocated</th></tr></thead><tbody>
+        {paymentAllocations.map((item: Row, index: number) => <tr key={text(item.invoice_code) + index}>
+          <td><strong>{billDescriptions.get(text(item.bill_code)) || text(item.service_name) || "Invoice payment"}</strong><small>{text(item.bill_code)}</small></td>
+          <td>{money(item.allocated_amount)}</td>
+        </tr>)}
+      </tbody></table>
+      <p>Allocations shown are from the latest project payment ledger. The amount received and original payment ID remain unchanged after an allocation correction.</p>
+    </section>}
     {text(payment.notes) && <section className="vr-note"><span>Note</span><p>{text(payment.notes)}</p></section>}
+    <div className="vr-toolbar">
+      <ReceiptPrintActions />
+      <div className="vr-qr"><img src={qrUrl} width={98} height={98} alt="QR code to verify this receipt" /><small>Scan to verify</small></div>
+    </div>
     <div className="vr-actions"><Link href={`/client/billing/${encodeURIComponent(project.project_code)}`}>Open Client Billing</Link><span>Use your authorized client login to view invoices and full billing history.</span></div>
     <footer><strong>LAND VIEW — Architects & Engineers</strong><span>Feni Sadar, Feni, Bangladesh · www.landview.com.bd</span></footer>
   </section></main>;
 }
 
 const css = `
+.vr-allocations{margin-top:16px}.vr-allocations h2{font-size:13px;margin:0 0 10px}.vr-allocations table{width:100%;border-collapse:collapse}.vr-allocations th,.vr-allocations td{padding:9px 6px;border-bottom:1px solid #e2e6ea;text-align:left;font-size:11px}.vr-allocations td:last-child,.vr-allocations th:last-child{text-align:right}.vr-allocations th{font-size:9px;color:#667684}.vr-allocations td small{display:block;margin-top:4px;color:#687786}.vr-allocations p{font-size:10px;line-height:1.6;color:#74828d}.vr-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:18px;flex-wrap:wrap}.vr-qr{text-align:center}.vr-qr img{display:block;width:98px;height:98px}.vr-qr small{font-size:9px;color:#73808a}
+@media print{@page{size:A4 portrait;margin:13mm}.vr-shell{padding:0;background:#fff}.vr-card{box-shadow:none;border:0;padding:0;width:100%}.vr-actions,.vr-toolbar button{display:none!important}.vr-amount{-webkit-print-color-adjust:exact;print-color-adjust:exact}.vr-allocations{break-inside:avoid}}
+
 *{box-sizing:border-box}.vr-shell{min-height:100vh;padding:36px 18px;background:#f2f4f6;color:#111820;font-family:Arial,Helvetica,sans-serif}.vr-card{width:min(760px,100%);margin:0 auto;background:#fff;border:1px solid #d9dfe5;border-radius:16px;padding:28px;box-shadow:0 20px 60px rgba(0,0,0,.08)}.vr-head{display:flex;justify-content:space-between;gap:20px;align-items:center}.vr-brand{font-size:22px;font-weight:950;letter-spacing:.08em}.vr-brand span{color:#b27700}.vr-head small{display:block;margin-top:4px;color:#6d7780;font-size:10px;letter-spacing:.1em}.vr-ok{display:flex;align-items:center;gap:8px;color:#18733b;font-size:10px;font-weight:900}.vr-ok b{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#e9f7ef}.vr-rule{height:1px;background:#e2e6ea;margin:22px 0}.vr-hero span{color:#9b6900;font-size:9px;font-weight:950;letter-spacing:.14em}.vr-hero h1{margin:7px 0 8px;font-size:25px}.vr-hero p{margin:0;color:#6a747d;font-size:11px;line-height:1.6}.vr-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:22px}.vr-grid div,.vr-split div{padding:12px;border:1px solid #e1e5e9;border-radius:9px;background:#f8f9fa}.vr-grid span,.vr-split span,.vr-note span{display:block;color:#7a858e;font-size:8px;font-weight:900;text-transform:uppercase}.vr-grid strong,.vr-split strong{display:block;margin-top:6px;font-size:11px}.vr-amount{margin-top:12px;padding:22px;border-radius:12px;background:#111820;color:#fff}.vr-amount span{font-size:9px;color:#e0b34a;font-weight:900;letter-spacing:.12em}.vr-amount strong{display:block;margin-top:7px;font-size:28px}.vr-amount small{display:block;margin-top:5px;color:#9fb0bd}.vr-split{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px}.vr-split .warn strong{color:#a15c00}.vr-note{margin-top:12px;padding:12px;border-left:3px solid #b27700;background:#fff8e8}.vr-note p{margin:6px 0 0;font-size:11px;line-height:1.55}.vr-actions{margin-top:18px;padding:14px;border:1px solid #e2e6ea;border-radius:10px}.vr-actions a{display:inline-flex;padding:10px 13px;border-radius:7px;background:#b27700;color:#fff;text-decoration:none;font-size:10px;font-weight:900}.vr-actions span{display:block;margin-top:8px;color:#73808a;font-size:9px}.vr-bad{margin:24px auto 12px;width:46px;height:46px;display:grid;place-items:center;border-radius:50%;background:#ffecec;color:#b32828;font-size:22px;font-weight:900}.vr-card>h1{text-align:center}.vr-card>p{text-align:center;color:#6d7780}.vr-card>p+a{display:block;text-align:center}footer{display:flex;justify-content:space-between;gap:12px;margin-top:22px;padding-top:16px;border-top:1px solid #e2e6ea;color:#77818a;font-size:9px}footer strong{color:#303840}@media(max-width:650px){.vr-card{padding:20px}.vr-head{align-items:flex-start}.vr-grid{grid-template-columns:1fr 1fr}.vr-split{grid-template-columns:1fr}footer{flex-direction:column}}@media(max-width:430px){.vr-grid{grid-template-columns:1fr}.vr-brand{font-size:18px}.vr-ok span{display:none}}
 `;
