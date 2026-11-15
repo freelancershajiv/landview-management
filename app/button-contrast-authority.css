@@ -4,10 +4,12 @@
    or alter the established brand/surface palette. */
 
 @media screen {
-  /* Buttons inherit the foreground of their actual surface instead of
-     accidentally retaining a browser or legacy component text color. */
-  :where(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign) :is(button,[role="button"],a[role="button"]) {
-    color: inherit;
+  /* Do not override a component's explicit foreground color. Previously,
+     the higher-specificity :is() selector set color:inherit and silently
+     replaced white labels on custom red buttons (for example Site Visits).
+     :where() keeps this text-fill normalization at zero specificity. */
+  :where(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign)
+  :where(button,[role="button"],a[role="button"]) {
     -webkit-text-fill-color: currentColor;
   }
 
@@ -67,6 +69,15 @@
   .pf-redesign .pm-btn-dark.secondary {
     color: var(--lv-text-primary, #26323e) !important;
     -webkit-text-fill-color: currentColor !important;
+  }
+
+  /* The Management Site Visit CTA is a solid action with a custom class,
+     not the shared .primary alias. Protect its white label in both themes,
+     including Android WebView's text-fill rendering. */
+  .portal-admin .admin-site-entry button.ase-toggle,
+  .portal-admin .admin-site-entry button.ase-submit {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
   }
 
   /* Keep disabled actions legible; communicate state with cursor and opacity. */
