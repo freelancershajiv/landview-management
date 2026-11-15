@@ -1,6 +1,3 @@
-/* Finance 2.0 navigation authority.
-   Keep only genuinely duplicate legacy entries hidden. Bill Manager is an active Finance workflow. */
-.portal-admin .lv-nav-children > a[href="/admin/accounts/entry"],
-.portal-admin .lv-nav-children > a[href="/admin/finance/invoices"] {
-  display: none !important;
-}
+/* Billing 4.0: hide only the deprecated Accounts entry alias.
+   Billing, invoice center, due bills and ledger remain available. */
+.portal-admin .lv-nav-children > a[href="/admin/accounts/entry"] { display: none !important; }

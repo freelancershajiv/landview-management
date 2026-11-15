@@ -7,12 +7,12 @@ const items = [
   { href: "/admin", label: "Home", icon: "⌂" },
   { href: "/admin/projects", label: "Projects", icon: "▣" },
   { href: "/admin/site-visits", label: "Visits", icon: "⌖" },
-  { href: "/admin/finance/workspace", label: "Billing", icon: "৳" },
+  { href: "/admin/billing", label: "Billing", icon: "৳" },
 ] as const;
 
 function active(pathname: string, href: string) {
   if (href === "/admin") return pathname === href;
-  if (href === "/admin/finance/workspace") return pathname.startsWith("/admin/finance");
+  if (href === "/admin/billing") return pathname.startsWith("/admin/billing") || pathname.startsWith("/admin/finance");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

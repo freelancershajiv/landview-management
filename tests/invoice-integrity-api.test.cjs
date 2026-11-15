@@ -29,8 +29,10 @@ test("paid-vs-allocation gap is explicitly a review exception, not an automatic 
   assert.match(page, /not<\/b> a verified outstanding receivable/);
 });
 
-test("integrity page is available from finance navigation", () => {
+test("integrity page is available from canonical Billing 4.0 navigation", () => {
   const layout = read("app/admin/finance/layout.tsx");
-  assert.match(layout, /href="\/admin\/finance\/integrity"/);
+  const navigation = read("components/billing-navigation.tsx");
+  assert.match(layout, /<BillingNavigation \/>/);
+  assert.match(navigation, /href: "\/admin\/billing\/integrity"/);
   assert.match(page, /fetch\("\/api\/billing\/integrity"/);
 });

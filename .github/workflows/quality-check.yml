@@ -48,6 +48,12 @@ jobs:
       - name: Lint new invoice 3.2 modules
         run: npx eslint lib/invoice-correction-policy.ts app/api/billing/allocation-corrections/route.ts app/admin/finance/allocation-corrections/page.tsx
 
+      - name: Billing V4 migration-free reliability gate
+        run: node --test tests/billing-v4-reliability.test.cjs
+
+      - name: Billing V4 route/server lint
+        run: npx eslint app/api/billing/batch/route.ts app/api/billing/submission-status/route.ts components/billing-navigation.tsx components/billing-project-jump.tsx
+
       - name: Mobile V5 and centralized control regression gate
         run: node --test tests/mobile-management-responsive.test.cjs tests/mobile-v5-dashboard.test.cjs tests/mobile-v53-projects-finance.test.cjs tests/private-control-system.test.cjs tests/project-management-categories.test.cjs tests/site-visit-mobile-v54.test.cjs tests/mobile-v55-portals.test.cjs tests/mobile-sidebar-v56.test.cjs
 

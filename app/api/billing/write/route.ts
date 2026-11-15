@@ -7,7 +7,7 @@ import { getAdjustedProjectServiceFinancials } from "@/lib/billing-adjusted-fina
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const OTHER_SERVICE_TYPES = new Set(["Soil Test", "Digital Survey", "Municipality File Pass"]);
+const BILLING_CATEGORIES = new Set(["engineering bill", "other services bill", "supervision bill"]);
 
 function sameOrigin(request: NextRequest) {
   const origin = request.headers.get("origin");
@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const user = await requireLocalSession(request) as Record<string, unknown> | null;
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
     const role = roleOf(user);
-    if (!["admin", "manager", "accounts", "employee"].includes(role)) {
+    if (!["admin", "manager", "accounts"].includes(role)) {
       return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
     }
 
@@ -63,14 +63,51 @@ export async function POST(request: NextRequest) {
     const paymentCategory = normalized(body.Payment_For || body.Income_Category || body.Category);
     const serviceType = canonicalPaymentServiceType(body.Service_Type || body.serviceType);
     const serviceAllocations = Array.isArray(body.Service_Allocations) ? body.Service_Allocations as Array<Record<string, unknown>> : [];
-
-    if (action === "savePayment" && (paymentCategory === "other services bill" || paymentCategory === "other services" || paymentCategory === "others bill")) {
-      if (!OTHER_SERVICE_TYPES.has(serviceType)) {
-        return NextResponse.json({ success: false, error: "Choose Soil Test, Digital Survey or Municipality File Pass for Other Services." }, { status: 400 });
+    const receiveAdvance = body.Receive_Advance === true;
+    if (action === "savePayment") {
+      const requestedAmount = num(body.Amount);
+      if (!(requestedAmount > 0) || requestedAmount > 1_000_000_000) {
+        return NextResponse.json({ success: false, error: "Enter a valid positive payment amount." }, { status: 400 });
+      }
+      if (receiveAdvance) {
+        if (!projectCode || !BILLING_CATEGORIES.has(paymentCategory) || serviceAllocations.length || serviceType) {
+          return NextResponse.json({ success: false, error: "An advance requires a project and billing category, without a selected service or manual allocations." }, { status: 400 });
+        }
+        if (!["admin", "manager", "accounts"].includes(role)) {
+          return NextResponse.json({ success: false, error: "Finance editing access is required to receive advances." }, { status: 403 });
+        }
+      }
+      // Idempotency keys are server-verified against the original financial
+      // identity. A duplicate network retry cannot silently reuse a key for a
+      // different payment.
+      const prior = (await selectRows("payments", { select: "id,payment_code,project_id,amount,payment_date,income_category", filters: { idempotency_key: idempotencyKey }, limit: 1 }))[0];
+      if (prior) {
+        const projects = projectCode ? await selectRows("projects", { select: "id", filters: { project_code: projectCode }, limit: 1 }) : [];
+        if (String(prior.project_id || "") !== String(projects[0]?.id || "") ||
+            Math.abs(num(prior.amount) - requestedAmount) > .01 ||
+            normalized(prior.income_category) !== paymentCategory ||
+            text(prior.payment_date) !== text(body.Payment_Date || body.Date)) {
+          return NextResponse.json({ success: false, error: "This payment submission key belongs to another amount, date or project. Review the existing receipt before creating a new payment." }, { status: 409 });
+        }
       }
     }
 
-    if (action === "savePayment" && paymentCategory.includes("engineering")) {
+    if (action === "savePayment" && !receiveAdvance && paymentCategory === "other services bill") {
+      if (!projectCode || !serviceType) {
+        return NextResponse.json({ success: false, error: "Choose a billed Other Services service." }, { status: 400 });
+      }
+      const services = await getAdjustedProjectServiceFinancials(projectCode);
+      const selectedKey = workflowServiceKey(serviceType === "Municipality File Pass" ? "Municipality Approval Contract" : serviceType);
+      const selected = services.services.find((item) => item.billingCategory === "Other Services Bill" && item.serviceKey === selectedKey);
+      if (!selected) {
+        return NextResponse.json({ success: false, error: "The selected Other Services item is not billed to this project." }, { status: 400 });
+      }
+      if (num(body.Amount) > selected.due + .01) {
+        return NextResponse.json({ success: false, error: "Payment cannot exceed the selected billed service due. Use Receive Advance for additional money." }, { status: 400 });
+      }
+    }
+
+    if (action === "savePayment" && !receiveAdvance && paymentCategory.includes("engineering")) {
       if (!projectCode) return NextResponse.json({ success: false, error: "Project is required." }, { status: 400 });
       if (!serviceAllocations.length) {
         return NextResponse.json({ success: false, error: "Engineering Bill payments must be allocated to services. Use Finance → Service Payments." }, { status: 400 });
@@ -131,7 +168,7 @@ export async function POST(request: NextRequest) {
           data = { ...(data as Record<string, unknown>), Service_Type: serviceType, Finance_Scope: financeScope };
         }
 
-        if (paymentCategory.includes("engineering") && project) {
+        if (!receiveAdvance && paymentCategory.includes("engineering") && project) {
           const rows = serviceAllocations
             .map((allocation) => {
               const allocatedAmount = Math.max(0, num(allocation.amount || allocation.allocatedAmount));
@@ -154,7 +191,25 @@ export async function POST(request: NextRequest) {
               };
             })
             .filter(Boolean) as Array<Record<string, unknown>>;
-          if (rows.length) await insertRows("payment_service_allocations", rows);
+          if (rows.length) {
+            const existing = await selectRows("payment_service_allocations", {
+              select: "service_key,allocated_amount", filters: { payment_id: payment.id }, limit: 100,
+            });
+            const matches = (current: Array<Record<string, unknown>>) =>
+              current.length === rows.length && rows.every((expected) =>
+                current.some((item) => String(item.service_key) === String(expected.service_key) &&
+                  Math.abs(num(item.allocated_amount) - num(expected.allocated_amount)) <= .01));
+            if (existing.length && !matches(existing)) throw new Error("The existing service allocation conflicts with this payment. Reconcile before retrying.");
+            if (!existing.length) {
+              try { await insertRows("payment_service_allocations", rows); }
+              catch (problem) {
+                const after = await selectRows("payment_service_allocations", {
+                  select: "service_key,allocated_amount", filters: { payment_id: payment.id }, limit: 100,
+                });
+                if (!matches(after)) throw problem;
+              }
+            }
+          }
         }
 
         if (projectCode) {
@@ -181,7 +236,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error && error.name === "TimeoutError"
       ? "The billing write response timed out. Refresh Billing before trying again so you do not duplicate a transaction."
       : error instanceof Error ? error.message : "Billing write failed.";
-    const status = /required|invalid|cannot exceed|must be greater|choose soil test|allocat/i.test(message) ? 400 : 502;
+    const status = /belongs to another|conflicts with/i.test(message) ? 409 : /required|invalid|cannot exceed|must be greater|choose a billed|allocat|positive payment/i.test(message) ? 400 : 502;
     return NextResponse.json({ success: false, error: message }, { status, headers: { "Cache-Control": "no-store" } });
   }
 }

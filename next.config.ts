@@ -57,10 +57,18 @@ const nextConfig: NextConfig = {
     return [
       { source: "/api/landview", destination: "/api/landview-hybrid" },
       { source: "/api/project-management", destination: "/api/project-management-ledger" },
+      // Billing V4 public-facing admin URL; all existing route implementations
+      // remain in one place and preserve their original permission guards.
+      { source: "/admin/billing/:path*", destination: "/admin/finance/:path*" },
     ];
   },
   async redirects() {
-    return [{ source: "/", has: [{ type: "host", value: "app.landview.com.bd" }], destination: "/login", permanent: false }];
+    return [
+      // Temporary compatibility redirect (not a permanent browser cache)
+      // preserves old links, project query params and bookmarks.
+      { source: "/admin/finance/:path*", destination: "/admin/billing/:path*", permanent: false },
+      { source: "/", has: [{ type: "host", value: "app.landview.com.bd" }], destination: "/login", permanent: false },
+    ];
   },
   async headers() {
     return [

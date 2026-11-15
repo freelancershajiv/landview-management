@@ -18,6 +18,13 @@ on:
       - "lib/invoice-reminders.ts"
       - "lib/sheet-invoices.ts"
       - "tests/invoice-*.test.cjs"
+      - "tests/billing-v4-reliability.test.cjs"
+      - "app/api/billing/batch/**"
+      - "app/api/billing/submission-status/**"
+      - "app/admin/finance/page.tsx"
+      - "components/billing-navigation.tsx"
+      - "components/billing-project-jump.tsx"
+      - "next.config.ts"
       - "tests/proposal-billing-conversion.test.cjs"
       - ".github/workflows/invoice-integrity-regression.yml"
   workflow_dispatch:
@@ -50,6 +57,11 @@ jobs:
             tests/invoice-single-bill-status.test.cjs \
             tests/proposal-billing-conversion.test.cjs \
             tests/invoice-center.test.cjs
+      - name: Billing V4 reliability tests
+        run: node --test tests/billing-v4-reliability.test.cjs
+      - name: Billing V4 route/server lint
+        run: npx eslint app/api/billing/batch/route.ts app/api/billing/submission-status/route.ts components/billing-navigation.tsx components/billing-project-jump.tsx
+
       - name: Lint new invoice correction modules
         run: npx eslint lib/invoice-correction-policy.ts app/api/billing/allocation-corrections/route.ts app/admin/finance/allocation-corrections/page.tsx
       - name: Typecheck

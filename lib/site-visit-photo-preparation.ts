@@ -95,7 +95,11 @@ export function siteVisitNetworkError(error: unknown, requestStarted: boolean): 
   if (!requestStarted && offline) return "You are offline. Reconnect before submitting. Your form and selected photos are still here.";
   // A POST can succeed on the server even when its response gets lost. Never
   // automatically retry and risk duplicate Site Visit records.
-  if (requestStarted && (offline || error instanceof TypeError || /failed to fetch|networkerror|network request failed|load failed/i.test(original))) {
+  // Preserve explicit server validation errors (for example "Project not
+  // found.") even when a browser reports a transient offline state.
+  const serverValidationError = /project not found|permission|access denied|invalid project|validation failed|missing required/i.test(original);
+  if (requestStarted && !serverValidationError &&
+      (offline || error instanceof TypeError || /failed to fetch|networkerror|network request failed|load failed/i.test(original))) {
     return "The connection was interrupted. The visit may already be saved. Check Recent Site Visits before submitting again; your form and photos remain here.";
   }
   return original || "Could not submit Site Visit.";
