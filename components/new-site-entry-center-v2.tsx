@@ -342,7 +342,7 @@ export default function NewSiteEntryCenterV2() {
         <h2>GPS & Notes</h2>
         <p>Current Location fills latitude, longitude and the same Google Maps Location Tag used by New Project.</p>
         <div className="nsp-actions" style={{ marginBottom: 10 }}>
-          <button type="button" className="nsp-btn primary" onClick={captureLocation} disabled={locating}>{locating ? "Getting location…" : "⌖ Use Current Location"}</button>
+          <button type="button" className="nsp-btn primary" data-lv-button="primary" onClick={captureLocation} disabled={locating}>{locating ? "Getting location…" : "⌖ Use Current Location"}</button>
           <span className="nsp-help">If browser location is blocked, paste a Maps link above and/or enter the coordinates manually.</span>
         </div>
         <div className="nsp-fields">
@@ -355,8 +355,8 @@ export default function NewSiteEntryCenterV2() {
         <div className="nsp-submit">
           <span className="nsp-help">All project fields are saved on the proposal and copied to the final project when converted.</span>
           <div className="nsp-actions">
-            <button type="button" className="nsp-btn" onClick={() => setForm(blankForm())} disabled={saving}>Clear</button>
-            <button type="button" className="nsp-btn primary" onClick={() => void submit()} disabled={saving}>{saving ? "Saving…" : canReview ? "Create Draft Proposal" : "Submit for Approval"}</button>
+            <button type="button" className="nsp-btn" data-lv-button="secondary" onClick={() => setForm(blankForm())} disabled={saving}>Clear</button>
+            <button type="button" className="nsp-btn primary" data-lv-button="primary" onClick={() => void submit()} disabled={saving}>{saving ? "Saving…" : canReview ? "Create Draft Proposal" : "Submit for Approval"}</button>
           </div>
         </div>
       </section>
@@ -365,7 +365,7 @@ export default function NewSiteEntryCenterV2() {
     <section className="nsp-register">
       <div className="nsp-register-head">
         <div><h2>{canReview ? "Site Entry Register & Approval Queue" : "My Site Entries"}</h2><p>{canReview ? "Review employee entries and open approved proposals." : "Track Management/Admin approval of your submitted proposals."}</p></div>
-        <button type="button" className="nsp-btn" onClick={() => void load()} disabled={loading}>↻ Refresh</button>
+        <button type="button" className="nsp-btn" data-lv-button="secondary" onClick={() => void load()} disabled={loading}>↻ Refresh</button>
       </div>
       <div className="nsp-metrics">
         <div className="nsp-metric"><span>Total Site Entries</span><strong>{entries.length}</strong></div>
@@ -387,9 +387,9 @@ export default function NewSiteEntryCenterV2() {
                 <td>{dateText(entry.createdAt)}<span className="nsp-sub">{entry.submittedRole || "employee"} · {entry.assignedTo || entry.createdBy || ""}</span></td>
                 <td><span className={`nsp-badge ${approval}`}>{approval}</span>{entry.approvalNotes && <span className="nsp-sub">{entry.approvalNotes}</span>}</td>
                 <td><div className="nsp-actions">
-                  {canReview && isPending && <button type="button" className="nsp-btn good" onClick={() => void review(entry, true)} disabled={Boolean(reviewing)}>{reviewing === entry.proposalId ? "Working…" : "Approve"}</button>}
-                  {canReview && isPending && <button type="button" className="nsp-btn danger" onClick={() => void review(entry, false)} disabled={Boolean(reviewing)}>Reject</button>}
-                  {canReview && approval.toLowerCase() === "approved" && <Link className="nsp-btn" href={`/admin/proposals/${encodeURIComponent(entry.proposalId)}`}>Open Proposal</Link>}
+                  {canReview && isPending && <button type="button" className="nsp-btn good" data-lv-button="success" onClick={() => void review(entry, true)} disabled={Boolean(reviewing)}>{reviewing === entry.proposalId ? "Working…" : "Approve"}</button>}
+                  {canReview && isPending && <button type="button" className="nsp-btn danger" data-lv-button="danger" onClick={() => void review(entry, false)} disabled={Boolean(reviewing)}>Reject</button>}
+                  {canReview && approval.toLowerCase() === "approved" && <Link className="nsp-btn" data-lv-button="secondary" href={`/admin/proposals/${encodeURIComponent(entry.proposalId)}`}>Open Proposal</Link>}
                 </div></td>
               </tr>;
             })}

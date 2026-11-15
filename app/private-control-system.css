@@ -1,0 +1,231 @@
+/*
+ * LAND VIEW PRIVATE CONTROL SYSTEM — central contract for interactive controls.
+ *
+ * Define button meaning with data-lv-button; do not infer text color from a
+ * naked .primary, .active or .danger class. Each variant supplies foreground,
+ * background, border and hover together, through a single semantic token pair.
+ *
+ * This final private stylesheet is loaded after legacy component/theme CSS by
+ * Admin, Project Management, Employee and Client layouts. Screen only; printed
+ * invoices, reports, PDF documents, public site and data logic are untouched.
+ *
+ * Adopt through <LVButton variant="primary"> or data-lv-button="primary".
+ * Values: primary, secondary, outline, soft, success, success-solid, danger,
+ * danger-solid, warning, tab-active. Avoid new per-page button color rules.
+ */
+
+@media screen {
+  /* The mobile dock lives beside (not inside) the portal shell. */
+  html:not([data-theme="dark"]) { --lv-ui-btn-soft-text: #a81820; }
+  html[data-theme="dark"] { --lv-ui-btn-soft-text: #ff858a; }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) {
+    --lv-ui-btn-solid: var(--lv-brand-primary);
+    --lv-ui-btn-solid-hover: var(--lv-brand-primary-hover);
+    --lv-ui-btn-solid-text: #fff;
+    --lv-ui-btn-neutral: var(--lv-control-bg);
+    --lv-ui-btn-neutral-hover: var(--lv-control-bg-hover);
+    --lv-ui-btn-neutral-text: var(--lv-text-primary);
+    --lv-ui-btn-outline: var(--lv-brand-text);
+    --lv-ui-btn-soft: var(--lv-brand-soft);
+    --lv-ui-btn-soft-hover: var(--lv-brand-soft-strong);
+    --lv-ui-btn-soft-text: #a81820; /* AA on light selected red tint */
+    --lv-ui-btn-success-solid: var(--lv-success-solid);
+    --lv-ui-btn-danger-solid: var(--lv-danger-solid);
+  }
+
+  /* A dark tint needs lighter ink, not the brand foreground used by filled buttons. */
+  html[data-theme="dark"] :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) {
+    --lv-ui-btn-soft-text: #ff858a;
+  }
+
+  /* The repeated data attribute is intentional: this central declaration
+     wins over historical specificity-heavy !important component rules. */
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"])[data-lv-button][data-lv-button] {
+    background: var(--lv-ui-bg, var(--lv-ui-btn-neutral)) !important;
+    border-color: var(--lv-ui-border, var(--lv-control-border)) !important;
+    color: var(--lv-ui-fg, var(--lv-ui-btn-neutral-text)) !important;
+    -webkit-text-fill-color: var(--lv-ui-fg, var(--lv-ui-btn-neutral-text)) !important;
+    box-shadow: var(--lv-ui-shadow, none) !important;
+    text-decoration: none;
+    touch-action: manipulation;
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  [data-lv-button="primary"] {
+    --lv-ui-bg: var(--lv-ui-btn-solid);
+    --lv-ui-hover-bg: var(--lv-ui-btn-solid-hover);
+    --lv-ui-fg: var(--lv-ui-btn-solid-text);
+    --lv-ui-border: var(--lv-ui-btn-solid);
+    --lv-ui-hover-border: var(--lv-ui-btn-solid-hover);
+    --lv-ui-shadow: 0 5px 14px var(--lv-brand-ring);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  [data-lv-button="secondary"] {
+    --lv-ui-bg: var(--lv-ui-btn-neutral);
+    --lv-ui-hover-bg: var(--lv-ui-btn-neutral-hover);
+    --lv-ui-fg: var(--lv-ui-btn-neutral-text);
+    --lv-ui-border: var(--lv-control-border);
+    --lv-ui-hover-border: var(--lv-border-strong);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  [data-lv-button="outline"] {
+    --lv-ui-bg: var(--lv-ui-btn-neutral);
+    --lv-ui-hover-bg: var(--lv-ui-btn-soft);
+    --lv-ui-fg: var(--lv-ui-btn-outline);
+    --lv-ui-border: var(--lv-brand-border);
+    --lv-ui-hover-border: var(--lv-brand-primary);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is([data-lv-button="soft"],[data-lv-button="tab-active"]) {
+    --lv-ui-bg: var(--lv-ui-btn-soft);
+    --lv-ui-hover-bg: var(--lv-ui-btn-soft-hover);
+    --lv-ui-fg: var(--lv-ui-btn-soft-text);
+    --lv-ui-border: var(--lv-brand-border);
+    --lv-ui-hover-border: var(--lv-brand-border);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  [data-lv-button="success"] {
+    --lv-ui-bg: var(--lv-success-soft);
+    --lv-ui-hover-bg: var(--lv-success-soft);
+    --lv-ui-fg: var(--lv-success);
+    --lv-ui-border: var(--lv-success-border);
+    --lv-ui-hover-border: var(--lv-success);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  [data-lv-button="success-solid"] {
+    --lv-ui-bg: var(--lv-ui-btn-success-solid);
+    --lv-ui-hover-bg: var(--lv-ui-btn-success-solid);
+    --lv-ui-fg: #fff;
+    --lv-ui-border: var(--lv-ui-btn-success-solid);
+    --lv-ui-hover-border: var(--lv-ui-btn-success-solid);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  [data-lv-button="danger"] {
+    --lv-ui-bg: var(--lv-danger-soft);
+    --lv-ui-hover-bg: var(--lv-danger-soft);
+    --lv-ui-fg: var(--lv-danger);
+    --lv-ui-border: var(--lv-danger-border);
+    --lv-ui-hover-border: var(--lv-danger);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  [data-lv-button="danger-solid"] {
+    --lv-ui-bg: var(--lv-ui-btn-danger-solid);
+    --lv-ui-hover-bg: var(--lv-ui-btn-danger-solid);
+    --lv-ui-fg: #fff;
+    --lv-ui-border: var(--lv-ui-btn-danger-solid);
+    --lv-ui-hover-border: var(--lv-ui-btn-danger-solid);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  [data-lv-button="warning"] {
+    --lv-ui-bg: var(--lv-warning-soft);
+    --lv-ui-hover-bg: var(--lv-warning-soft);
+    --lv-ui-fg: var(--lv-warning);
+    --lv-ui-border: var(--lv-warning-border);
+    --lv-ui-hover-border: var(--lv-warning);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"])[data-lv-button][data-lv-button]:hover:not(:disabled):not([aria-disabled="true"]) {
+    background: var(--lv-ui-hover-bg, var(--lv-ui-bg, var(--lv-control-bg-hover))) !important;
+    border-color: var(--lv-ui-hover-border, var(--lv-ui-border, var(--lv-control-border))) !important;
+    color: var(--lv-ui-fg, var(--lv-text-primary)) !important;
+    -webkit-text-fill-color: var(--lv-ui-fg, var(--lv-text-primary)) !important;
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"])[data-lv-button][data-lv-button]:is(:disabled,[aria-disabled="true"]) {
+    cursor: not-allowed !important;
+    opacity: .62;
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"])[data-lv-button][data-lv-button]:focus-visible {
+    outline: 2px solid var(--lv-brand-primary) !important;
+    outline-offset: 3px !important;
+    box-shadow: 0 0 0 4px var(--lv-brand-ring) !important;
+  }
+
+  /* Labels/icons inside an explicitly-managed control must inherit its
+     semantic foreground (not historical .muted or .primary text colors). */
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  [data-lv-button][data-lv-button] :is(span,strong,b,small,i,svg) {
+    color: inherit !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  /* Compatibility for established custom classes before JSX is migrated.
+     Coupled color/background pairs prevent another white-on-white/red-on-red.
+     New features should use data-lv-button, not extend this list. */
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"]):is(
+    .ase-toggle,.ase-submit,.nse-btn.primary,.nsp-btn.primary,
+    .b2-btn.primary,.bm-btn.primary,.due-link.primary,.lv-clean-btn.primary,
+    .pm-btn-primary,.lv-command-btn.primary,.bank-btn.primary
+  ):not([data-lv-button]) {
+    background: var(--lv-brand-primary) !important;
+    border-color: var(--lv-brand-primary) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  /* Exception: WhatsApp connection is green, not the red brand primary. */
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"]).employee-wa-btn.primary:not([data-lv-button]) {
+    background: var(--lv-success-solid) !important;
+    border-color: var(--lv-success-solid) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"]):is(.nse-btn.good,.nsp-btn.good,.b2-btn.success):not([data-lv-button]) {
+    background: var(--lv-success-soft) !important;
+    border-color: var(--lv-success-border) !important;
+    color: var(--lv-success) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"]):is(.nse-btn.danger,.nsp-btn.danger,.bm-btn.danger):not([data-lv-button]) {
+    background: var(--lv-danger-soft) !important;
+    border-color: var(--lv-danger-border) !important;
+    color: var(--lv-danger) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  /* Exception: tab states are soft/contrasting, not generic filled .primary. */
+  :is(.portal-admin,.pf-redesign)
+  :is(button,a):is(.bank-tabs button.active,.b2-tab.active,.due-filter.active):not([data-lv-button]) {
+    background: var(--lv-brand-soft-strong) !important;
+    border-color: var(--lv-brand-border) !important;
+    color: var(--lv-ui-btn-soft-text) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  /* Legacy navigation and mobile quick links are soft buttons even though
+     their styles pre-date data-lv-button. Keep their selected labels AA-safe. */
+  .portal-admin :is(.lv-nav-direct.active,.lv-nav-group-button.active,.lv-nav-children>a.active),
+  .lv-mobile-dock a.active,
+  .lv-mobile-dock a[aria-current="page"],
+  .portal-admin .lv-clean-mobile-quick a {
+    color: var(--lv-ui-btn-soft-text, #a81820) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+}
+
+@media screen and (max-width: 900px) {
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"])[data-lv-button][data-lv-button] {
+    min-height: 44px;
+  }
+}

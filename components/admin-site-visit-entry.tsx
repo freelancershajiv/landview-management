@@ -159,7 +159,7 @@ export default function AdminSiteVisitEntry() {
 
     <div className="ase-bar">
       <div><strong>Management Site Visit Entry</strong><small>Quick entry for Admins and Managers. Add several gallery photos to the same visit.</small></div>
-      <button type="button" className="ase-toggle" onClick={() => setOpen((value) => !value)}>{open ? "CLOSE" : "+ ADD SITE VISIT"}</button>
+      <button type="button" className="ase-toggle" data-lv-button="primary" onClick={() => setOpen((value) => !value)}>{open ? "CLOSE" : "+ ADD SITE VISIT"}</button>
     </div>
 
     {error && <div className="ase-error">{error}</div>}
@@ -201,7 +201,7 @@ export default function AdminSiteVisitEntry() {
       <div className="ase-gallery-note">{totalPhotos} / {MAX_TOTAL_PHOTOS} photos selected. Take multiple photos one by one, or add them from the gallery. Photos are compressed before upload. Admin and Manager uploads do not require GPS verification.</div>
 
       <label className="ase-field wide"><span>SITE NOTES / PROBLEM · OPTIONAL</span><textarea value={form.problemDetails} onChange={(event) => setForm((value) => ({ ...value, problemDetails: event.target.value }))} placeholder="What happened on site? Add a short note only if needed."/></label>
-      <button className="ase-submit" disabled={saving || loading}>{saving ? "UPLOADING & SUBMITTING…" : "SUBMIT SITE VISIT"}</button>
+      <button className="ase-submit" data-lv-button="primary" disabled={saving || loading}>{saving ? "UPLOADING & SUBMITTING…" : "SUBMIT SITE VISIT"}</button>
     </form>}
   </section>;
 }

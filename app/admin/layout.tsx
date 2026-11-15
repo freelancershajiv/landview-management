@@ -31,6 +31,8 @@ import "./admin-typography-authority.css";
 import "../button-contrast-authority.css";
 // Consolidated V5 private-mobile rules run after the theme and button layers.
 import "../admin/admin-mobile-v5.css";
+// Final centralized private control contract after all legacy/mobile layers.
+import "../private-control-system.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);

@@ -468,11 +468,11 @@ export default function ProjectsPage() {
   return <>
     <style dangerouslySetInnerHTML={{ __html: css }} />
     <div className="projects-register">
-      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="Projects" description="Projects are combined from LV - Auto Invoice → File List and the Running, Paused and Completed project folders in Google Drive. Auto Invoice details take priority where available." action={<button className="refresh-btn" type="button" onClick={load}>Refresh</button>} />
+      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="Projects" description="Projects are combined from LV - Auto Invoice → File List and the Running, Paused and Completed project folders in Google Drive. Auto Invoice details take priority where available." action={<button className="refresh-btn" data-lv-button="secondary" type="button" onClick={load}>Refresh</button>} />
       {error && <div className="error-inline">{error}</div>}
       <div className="projects-toolbar">
         <div className="projects-toolbar-left">
-          {(["Ongoing","Design Stage","Approval Stage","Supervision / Construction","Completed"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${stageFilter===item?"active":""}`} onClick={() => setStageFilter(item)}>{stageLabel(item)} · {counts[item]}</button>)}
+          {(["Ongoing","Design Stage","Approval Stage","Supervision / Construction","Completed"] as const).map((item) => <button key={item} type="button" className={`filter-btn ${stageFilter===item?"active":""}`} data-lv-button={stageFilter===item?"tab-active":"secondary"} aria-pressed={stageFilter===item} onClick={() => setStageFilter(item)}>{stageLabel(item)} · {counts[item]}</button>)}
         </div>
         <input className="projects-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search ID, client, folder, type, location, area or floor" />
       </div>

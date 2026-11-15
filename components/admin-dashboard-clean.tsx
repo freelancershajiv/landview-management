@@ -246,7 +246,7 @@ export default function AdminDashboardClean() {
 
     <div className="lv-clean-head">
       <div><h1>Dashboard</h1><p>Welcome back, {userName}. Here&apos;s what is happening across LAND VIEW today. · Updated {refreshTime}</p></div>
-      <div className="lv-clean-head-actions"><button type="button" className="lv-clean-btn" disabled={loading} aria-busy={loading} onClick={() => void load()}>{loading ? "Refreshing..." : "Refresh"}</button><Link className="lv-clean-btn primary" href="/admin/projects/new">+ New Project</Link></div>
+      <div className="lv-clean-head-actions"><button type="button" className="lv-clean-btn" data-lv-button="secondary" disabled={loading} aria-busy={loading} onClick={() => void load()}>{loading ? "Refreshing..." : "Refresh"}</button><Link className="lv-clean-btn primary" data-lv-button="primary" href="/admin/projects/new">+ New Project</Link></div>
     </div>
 
     <nav className="lv-clean-mobile-quick" aria-label="Mobile quick actions">

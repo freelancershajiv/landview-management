@@ -103,7 +103,7 @@ export default function DueBillsPage() {
       <div className="due-toolbar">
         <input className="due-search" aria-label="Search due bills" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search File ID, client, project, phone or address…" />
         <div className="due-filters">
-          {([ ["all","All Due"], ["engineering","Engineering"], ["supervision","Supervision"], ["other","Other Services"] ] as const).map(([key,label]) => <button key={key} className={`due-filter ${filter===key?"active":""}`} onClick={() => setFilter(key)}>{label}</button>)}
+          {([ ["all","All Due"], ["engineering","Engineering"], ["supervision","Supervision"], ["other","Other Services"] ] as const).map(([key,label]) => <button key={key} className={`due-filter ${filter===key?"active":""}`} data-lv-button={filter===key?"tab-active":"secondary"} aria-pressed={filter===key} onClick={() => setFilter(key)}>{label}</button>)}
         </div>
       </div>
       {/* A compact read-only representation of the exact same receivables.
@@ -132,9 +132,9 @@ export default function DueBillsPage() {
             <span>Last payment: {row.lastPaymentAmount > .009 ? money(row.lastPaymentAmount) : "—"} · {displayDate(row.lastPaymentDate)}</span>
           </div>
           <div className="due-mobile-actions">
-            <Link className="due-link primary" href={`/admin/finance/workspace?fileId=${encodeURIComponent(row.projectId)}`}>Open Billing</Link>
-            <Link className="due-link" href={`/admin/finance/service-payments?fileId=${encodeURIComponent(row.projectId)}`}>Receive</Link>
-            <Link className="due-link" href={`/admin/finance/invoices?fileId=${encodeURIComponent(row.projectId)}`}>Statement</Link>
+            <Link className="due-link primary" data-lv-button="primary" href={`/admin/finance/workspace?fileId=${encodeURIComponent(row.projectId)}`}>Open Billing</Link>
+            <Link className="due-link" data-lv-button="secondary" href={`/admin/finance/service-payments?fileId=${encodeURIComponent(row.projectId)}`}>Receive</Link>
+            <Link className="due-link" data-lv-button="secondary" href={`/admin/finance/invoices?fileId=${encodeURIComponent(row.projectId)}`}>Statement</Link>
           </div>
         </article>)}
       </div>}
@@ -150,7 +150,7 @@ export default function DueBillsPage() {
             <td className="due-number">{row.otherDue > .009 ? money(row.otherDue) : "—"}</td>
             <td className="due-number total">{money(row.totalDue)}{row.unallocatedAmount > .009 && <span className="due-note">{money(row.unallocatedAmount)} unallocated / advance</span>}</td>
             <td className="due-last"><strong>{row.lastPaymentAmount > .009 ? money(row.lastPaymentAmount) : "—"}</strong><span>{displayDate(row.lastPaymentDate)}</span></td>
-            <td><div className="due-actions"><Link className="due-link primary" href={`/admin/finance/workspace?fileId=${encodeURIComponent(row.projectId)}`}>Billing 2.0</Link><Link className="due-link" href={`/admin/finance/service-payments?fileId=${encodeURIComponent(row.projectId)}`}>Receive</Link><Link className="due-link" href={`/admin/finance/invoices?fileId=${encodeURIComponent(row.projectId)}`}>Statement</Link></div></td>
+            <td><div className="due-actions"><Link className="due-link primary" data-lv-button="primary" href={`/admin/finance/workspace?fileId=${encodeURIComponent(row.projectId)}`}>Billing 2.0</Link><Link className="due-link" data-lv-button="secondary" href={`/admin/finance/service-payments?fileId=${encodeURIComponent(row.projectId)}`}>Receive</Link><Link className="due-link" data-lv-button="secondary" href={`/admin/finance/invoices?fileId=${encodeURIComponent(row.projectId)}`}>Statement</Link></div></td>
           </tr>)}</tbody>
         </table> : <div className="due-empty">No due bills match this view.</div>}
       </div>

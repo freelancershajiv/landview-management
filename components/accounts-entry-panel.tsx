@@ -274,8 +274,8 @@ export default function AccountsEntryPanel({ type, onTypeChange, onClose, onSave
       <div className="aep-head">
         <div className="aep-title"><small>NEW LEDGER ENTRY</small><h2>{type === "income" ? "Add income" : "Add expense"}</h2></div>
         <div className="aep-actions">
-          <button type="button" className={`aep-tab income ${type === "income" ? "active" : ""}`} onClick={() => { onTypeChange("income"); setError(""); }}>Income</button>
-          <button type="button" className={`aep-tab expense ${type === "expense" ? "active" : ""}`} onClick={() => { onTypeChange("expense"); setError(""); }}>Expense</button>
+          <button type="button" className={`aep-tab income ${type === "income" ? "active" : ""}`} data-lv-button={type==="income"?"success":"secondary"} aria-pressed={type==="income"} onClick={() => { onTypeChange("income"); setError(""); }}>Income</button>
+          <button type="button" className={`aep-tab expense ${type === "expense" ? "active" : ""}`} data-lv-button={type==="expense"?"danger":"secondary"} aria-pressed={type==="expense"} onClick={() => { onTypeChange("expense"); setError(""); }}>Expense</button>
           <button type="button" className="aep-close" onClick={onClose}>Close</button>
         </div>
       </div>

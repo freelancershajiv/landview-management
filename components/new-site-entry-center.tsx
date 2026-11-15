@@ -327,7 +327,7 @@ export default function NewSiteEntryCenter() {
       <section className="nse-panel full">
         <h2>Administrative Location & GPS</h2>
         <div className="nse-location-actions">
-          <button type="button" className="nse-btn primary" onClick={captureLocation} disabled={locating}>{locating ? "Reading GPS…" : "⌖ Use Current Location"}</button>
+          <button type="button" className="nse-btn primary" data-lv-button="primary" onClick={captureLocation} disabled={locating}>{locating ? "Reading GPS…" : "⌖ Use Current Location"}</button>
           <span className="nse-help">GPS is recommended but manual coordinates remain available if browser permission is blocked.</span>
         </div>
         <div className="nse-fields">
@@ -346,8 +346,8 @@ export default function NewSiteEntryCenter() {
           <label className="full">Site notes / requirements<textarea value={form.siteNotes} onChange={(e) => patch("siteNotes", e.target.value)} placeholder="Client requirements, road condition, access, existing structures, observations, special instructions…" /></label>
         </div>
         <div className="nse-submit-row">
-          <button type="button" className="nse-btn" onClick={() => setForm(blankForm())} disabled={saving}>Clear</button>
-          <button type="button" className="nse-btn primary" onClick={() => void submit()} disabled={saving}>{saving ? "Saving…" : canReview ? "Create Draft Proposal" : "Submit for Approval"}</button>
+          <button type="button" className="nse-btn" data-lv-button="secondary" onClick={() => setForm(blankForm())} disabled={saving}>Clear</button>
+          <button type="button" className="nse-btn primary" data-lv-button="primary" onClick={() => void submit()} disabled={saving}>{saving ? "Saving…" : canReview ? "Create Draft Proposal" : "Submit for Approval"}</button>
         </div>
       </section>
     </div>
@@ -355,7 +355,7 @@ export default function NewSiteEntryCenter() {
     <section className="nse-register">
       <div className="nse-register-head">
         <div><h2>{canReview ? "Site Entry Register & Approval Queue" : "My Site Entries"}</h2><p>{canReview ? "Review employee submissions and open approved proposals." : "Track whether Management/Admin has approved your field submission."}</p></div>
-        <button type="button" className="nse-btn" onClick={() => void load()} disabled={loading}>↻ Refresh</button>
+        <button type="button" className="nse-btn" data-lv-button="secondary" onClick={() => void load()} disabled={loading}>↻ Refresh</button>
       </div>
       <div className="nse-metrics">
         <div className="nse-metric"><span>Total site entries</span><strong>{entries.length}</strong></div>
@@ -377,9 +377,9 @@ export default function NewSiteEntryCenter() {
                 <td>{dateText(entry.createdAt)}<span className="nse-sub">{entry.submittedRole || "employee"} · {entry.assignedTo || entry.createdBy || ""}</span></td>
                 <td><span className={`nse-badge ${approval}`}>{approval}</span>{entry.approvalNotes && <span className="nse-sub">{entry.approvalNotes}</span>}</td>
                 <td><div className="nse-row-actions">
-                  {canReview && isPending && <button type="button" className="nse-btn good" onClick={() => void review(entry, true)} disabled={Boolean(reviewing)}>{reviewing === entry.proposalId ? "Working…" : "Approve"}</button>}
-                  {canReview && isPending && <button type="button" className="nse-btn danger" onClick={() => void review(entry, false)} disabled={Boolean(reviewing)}>Reject</button>}
-                  {canReview && approval.toLowerCase() === "approved" && <Link className="nse-btn" href={`/admin/proposals/${encodeURIComponent(entry.proposalId)}`}>Open Proposal</Link>}
+                  {canReview && isPending && <button type="button" className="nse-btn good" data-lv-button="success" onClick={() => void review(entry, true)} disabled={Boolean(reviewing)}>{reviewing === entry.proposalId ? "Working…" : "Approve"}</button>}
+                  {canReview && isPending && <button type="button" className="nse-btn danger" data-lv-button="danger" onClick={() => void review(entry, false)} disabled={Boolean(reviewing)}>Reject</button>}
+                  {canReview && approval.toLowerCase() === "approved" && <Link className="nse-btn" data-lv-button="secondary" href={`/admin/proposals/${encodeURIComponent(entry.proposalId)}`}>Open Proposal</Link>}
                 </div></td>
               </tr>;
             })}

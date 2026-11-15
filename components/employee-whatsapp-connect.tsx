@@ -128,8 +128,8 @@ export default function EmployeeWhatsAppConnect() {
     </div>
 
     <div className="employee-wa-actions">
-      <button type="button" className="employee-wa-btn primary" disabled={loading} onClick={() => void load()}>{connected ? "CHECK CONNECTION" : sharedWithAdmin ? "CHECK ADMIN WHATSAPP" : "CONNECT WHATSAPP"}</button>
-      {!sharedWithAdmin && <button type="button" className="employee-wa-btn" disabled={resetting} onClick={() => void reset()}>{resetting ? "RESETTING…" : connected ? "RECONNECT" : "NEW QR"}</button>}
+      <button type="button" className="employee-wa-btn primary" data-lv-button="success-solid" disabled={loading} onClick={() => void load()}>{connected ? "CHECK CONNECTION" : sharedWithAdmin ? "CHECK ADMIN WHATSAPP" : "CONNECT WHATSAPP"}</button>
+      {!sharedWithAdmin && <button type="button" className="employee-wa-btn" data-lv-button="secondary" disabled={resetting} onClick={() => void reset()}>{resetting ? "RESETTING…" : connected ? "RECONNECT" : "NEW QR"}</button>}
     </div>
 
     {!sharedWithAdmin && !connected && qr && <div className="employee-wa-qr">

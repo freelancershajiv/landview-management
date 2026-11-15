@@ -13,14 +13,17 @@
     -webkit-text-fill-color: currentColor;
   }
 
-  /* Filled actions always use a foreground that contrasts with the solid fill.
+  /* Deliberately do not match bare .primary: some legacy tabs and soft controls
+     use that class without a solid background. Their foreground belongs to
+     the centralized explicit variant contract.
+     Filled actions always use a foreground that contrasts with the solid fill.
      Include nested labels/icons so utility classes on child spans cannot mute them. */
   :is(.public-site,.portal-admin,.portal-employee,.portal-client,.pf-redesign)
   :is(button,a,[role="button"]):is(
     .btn-primary,.btn-accent,.btn-dark,.login-submit,.public-btn-accent,
     .public-employee-link,.public-header-cta,.lv-btn-gold,.cp-primary,
     .pm-btn-primary,.pm-btn-income,.btn-success-solid,.btn-warning-solid,.btn-info-solid,.btn-danger-solid,.lv-clean-btn.primary,.nsdc-button,
-    .lv-command-btn.primary,.primary,[data-variant="primary"],
+    .lv-command-btn.primary,[data-variant="primary"],
     [data-variant="success-solid"],[data-variant="warning-solid"],
     [data-variant="info-solid"],[data-variant="danger-solid"]
   ),
@@ -35,13 +38,20 @@
     .btn-primary,.btn-accent,.btn-dark,.login-submit,.public-btn-accent,
     .public-employee-link,.public-header-cta,.lv-btn-gold,.cp-primary,
     .pm-btn-primary,.pm-btn-income,.btn-success-solid,.btn-warning-solid,.btn-info-solid,.btn-danger-solid,.lv-clean-btn.primary,.nsdc-button,
-    .lv-command-btn.primary,.primary,[data-variant="primary"],
+    .lv-command-btn.primary,[data-variant="primary"],
     [data-variant="success-solid"],[data-variant="warning-solid"],
     [data-variant="info-solid"],[data-variant="danger-solid"],
     [class*="primaryButton" i],[class*="printButton" i]
   ) > * {
     color: inherit !important;
     -webkit-text-fill-color: currentColor !important;
+  }
+
+  /* Preserve the old public-site .primary behavior. The private portals
+     now use data-lv-button for explicit contrast-safe variants instead. */
+  .public-site :is(button,a,[role="button"]).primary {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
   }
 
   /* Neutral and soft actions use the normal readable text token. */
