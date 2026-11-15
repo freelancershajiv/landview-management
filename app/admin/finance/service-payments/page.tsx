@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import ProjectReceiptHistory from "@/components/project-receipt-history";
 
 type Row = Record<string, any>;
 type Category = "Engineering Bill" | "Other Services Bill" | "Supervision Bill";
@@ -59,6 +60,7 @@ export default function ReceivePaymentPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [receiptPaymentCode, setReceiptPaymentCode] = useState("");
 
   useEffect(() => {
     const requested = new URLSearchParams(window.location.search).get("fileId")?.toUpperCase() || "";
@@ -135,13 +137,14 @@ export default function ReceivePaymentPage() {
 
     setBusy(true); setError(""); setMessage("");
     try {
+      let savedPayment: Row | null = null;
       if (category === "Engineering Bill") {
         if (Math.abs(allocatedTotal - amount) > 0.01) throw new Error("Allocated service amounts must exactly equal the payment amount.");
         for (const service of categoryServices) {
           const allocated = Math.max(0, num(allocations[service.serviceKey]));
           if (allocated > serviceDue(service) + 0.01) throw new Error(`${service.serviceName} allocation cannot exceed its due of ${money(serviceDue(service))}.`);
         }
-        await savePayment({
+        savedPayment = await savePayment({
           Project_ID: projectId,
           Payment_Date: paymentDate,
           Amount: amount,
@@ -165,7 +168,7 @@ export default function ReceivePaymentPage() {
         if (!service) throw new Error("Choose a billed service first.");
         if (amount > serviceDue(service) + 0.01) throw new Error(`${service.serviceName} has only ${money(serviceDue(service))} due.`);
         const serviceType = service.serviceName === "Municipality Approval Contract" ? "Municipality File Pass" : service.serviceName;
-        await savePayment({
+        savedPayment = await savePayment({
           Project_ID: projectId,
           Payment_Date: paymentDate,
           Amount: amount,
@@ -182,8 +185,10 @@ export default function ReceivePaymentPage() {
           Idempotency_Key: `receive-payment-${crypto.randomUUID()}`,
         });
       }
-      setMessage("Payment saved. Invoice allocation and receipt lifecycle will reconcile automatically.");
+      const paymentCode = String(savedPayment?.Payment_ID || savedPayment?.paymentCode || "").trim();
       await loadProject(projectId);
+      setReceiptPaymentCode(paymentCode);
+      setMessage(paymentCode ? `Payment ${paymentCode} saved. Open the linked receipt below.` : "Payment saved. Refresh receipts to view the recorded payment.");
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not save payment.");
     } finally { setBusy(false); }
@@ -198,7 +203,7 @@ export default function ReceivePaymentPage() {
     {error && <div className="rp-msg bad">{error}</div>}{message && <div className="rp-msg good">{message}</div>}
 
     <section className="rp-card rp-select">
-      <div className="rp-field"><label>Project / File ID</label><select value={projectId} onChange={(e) => { setProjectId(e.target.value); void loadProject(e.target.value); }}><option value="">Choose project</option>{projects.map((p) => <option key={p.projectId || p.project_code} value={p.projectId || p.project_code}>{p.projectId || p.project_code} · {p.ownerName || p.projectName || p.project_name || "Project"}</option>)}</select></div>
+      <div className="rp-field"><label>Project / File ID</label><select value={projectId} onChange={(e) => { setProjectId(e.target.value); setReceiptPaymentCode(""); void loadProject(e.target.value); }}><option value="">Choose project</option>{projects.map((p) => <option key={p.projectId || p.project_code} value={p.projectId || p.project_code}>{p.projectId || p.project_code} · {p.ownerName || p.projectName || p.project_name || "Project"}</option>)}</select></div>
     </section>
 
     <div className="rp-tabs">{CATEGORY_ORDER.map((item) => <button key={item} className={`rp-tab ${category === item ? "active" : ""}`} onClick={() => { setCategory(item); setAllocations({}); setPaymentAmount(""); setSelectedService(""); }}>{item}</button>)}</div>
@@ -223,6 +228,7 @@ export default function ReceivePaymentPage() {
           <button className="rp-btn" disabled={busy || loading || !categoryServices.length} onClick={() => void pay()}>{busy ? "Saving…" : "Save Payment"}</button>
         </section>
       </div>
+      <div style={{marginTop:14}}><ProjectReceiptHistory projectId={projectId} highlightPaymentCode={receiptPaymentCode} /></div>
     </> : !loading && <div className="rp-empty">Choose a project to receive payment.</div>}
   </main>;
 }

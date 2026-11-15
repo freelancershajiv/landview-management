@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ClientCertificateCenter, { type CertificateSummary } from "@/components/client-certificate-center";
 import styles from "@/app/client/client.module.css";
+import ProjectReceiptHistory from "@/components/project-receipt-history";
 
 type Row = Record<string, any>;
 type ClientProject = {
@@ -166,6 +167,8 @@ export default function ClientPortalPage(){
       <div className={styles.projectHeader}><div><small className={styles.panelKicker}>ACCOUNT POSITION</small><h2>Invoices & Payments</h2></div><button className="cp-secondary" onClick={()=>project&&(window.location.href=`/client/billing/${encodeURIComponent(project.projectId)}`)}>GENERATE INVOICE</button></div>
       <div className={styles.tableWrap}><table><thead><tr><th>Category</th><th>Bill</th><th>Paid</th><th>Due</th></tr></thead><tbody>{project&&<><tr><td><span className={styles.projectName}>Engineering</span></td><td>৳ {money(project.finance.engineeringBill)}</td><td>৳ {money(project.finance.engineeringPaid)}</td><td><strong>৳ {money(project.finance.engineeringDue)}</strong></td></tr><tr><td><span className={styles.projectName}>Supervision</span></td><td>৳ {money(project.finance.supervisionBill)}</td><td>৳ {money(project.finance.supervisionPaid)}</td><td><strong>৳ {money(project.finance.supervisionDue)}</strong></td></tr><tr><td><span className={styles.projectName}>Others</span></td><td>৳ {money(project.finance.othersBill)}</td><td>৳ {money(project.finance.othersPaid)}</td><td><strong>৳ {money(project.finance.othersDue)}</strong></td></tr></>}</tbody></table></div>
     </section>
+
+    <section className={`${styles.projects} cp-section`} id="receipts">{projects.map((p) => <div key={p.projectId} style={{marginBottom:16}}><ProjectReceiptHistory projectId={p.projectId} clientView /></div>)}</section>
 
     <section id="documents" className={`${styles.projects} cp-section`}><div className={styles.projectHeader}><div><small className={styles.panelKicker}>PROJECT FILES</small><h2>Documents</h2></div></div><div className={styles.empty}><h3>Project documents</h3><p>Approved drawings, files and project records will appear here when they are made available to the client portal.</p></div></section>
 
