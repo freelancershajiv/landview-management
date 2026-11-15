@@ -19,6 +19,10 @@ type ReceiptPayment = {
 };
 
 const money = (amount: number) => "৳" + Number(amount || 0).toLocaleString("en-BD", { maximumFractionDigits: 2 });
+const printHref = (receiptUrl: string) => {
+  const token = /^\/verify\/receipt\/([A-Za-z0-9]{20,80})$/.exec(receiptUrl)?.[1];
+  return token ? "/api/billing/receipt-print?token=" + encodeURIComponent(token) + "&autoprint=1" : "";
+};
 const date = (value: string) => {
   if (!value) return "—";
   const parts = value.slice(0, 10).split("-");
@@ -83,7 +87,8 @@ export default function ProjectReceiptHistory({
       <strong>Saved payment: {selected.paymentCode} · {money(selected.amount)}</strong>
       <div className="lv-receipt-actions" style={{marginTop:8}}>
         {selected.receiptUrl ? <>
-          <a className="lv-receipt-action primary" href={selected.receiptUrl} target="_blank" rel="noreferrer">View / Print Receipt</a>
+          <a className="lv-receipt-action" href={selected.receiptUrl} target="_blank" rel="noreferrer">View Receipt</a>
+          {printHref(selected.receiptUrl) && <a className="lv-receipt-action primary" href={printHref(selected.receiptUrl)} target="_blank" rel="noopener noreferrer">Print / Save PDF</a>}
           <button type="button" onClick={() => void copyReceipt(selected.receiptUrl, selected.paymentCode)}>{copied === selected.paymentCode ? "Link copied" : "Copy receipt link"}</button>
         </> : <span>Receipt not yet issued; verify payment approval and refresh.</span>}
       </div>
@@ -101,7 +106,8 @@ export default function ProjectReceiptHistory({
           <span key={item.invoiceCode + i}>{item.serviceName || item.billCode || "Invoice"} · {money(item.amount)}<small>{item.billCode}</small></span>
         ) : <span>No invoice allocation recorded</span>}</div></td>
         <td>{payment.receiptUrl ? <div className="lv-receipt-actions">
-          <a className="lv-receipt-action primary" href={payment.receiptUrl} target="_blank" rel="noreferrer">View / PDF</a>
+          <a className="lv-receipt-action" href={payment.receiptUrl} target="_blank" rel="noreferrer">View</a>
+          {printHref(payment.receiptUrl) && <a className="lv-receipt-action primary" href={printHref(payment.receiptUrl)} target="_blank" rel="noopener noreferrer">Print / PDF</a>}
           <button type="button" onClick={() => void copyReceipt(payment.receiptUrl, payment.paymentCode)}>{copied===payment.paymentCode?"Copied":"Share link"}</button>
         </div> : <small>Not issued</small>}</td>
       </tr>)}</tbody>
