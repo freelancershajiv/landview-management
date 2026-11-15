@@ -21,8 +21,7 @@ const employeeNav = [
   { href: "/employee#projects", label: "My Projects", icon: "▣" },
   { href: "/employee#workflow", label: "Workflow", icon: "↗" },
   { href: "/employee#visits", label: "Site Visits", icon: "⌖" },
-  { href: "/employee#documents", label: "Documents", icon: "□" },
-  { href: "/employee#attendance", label: "Attendance", icon: "◷" },
+  { href: "/employee#records", label: "Field & Files", icon: "□" },
   { href: "/employee#expenses", label: "Expenses", icon: "৳" },
   { href: "/employee#certificates", label: "Certificates", icon: "◫" },
 ];
@@ -50,6 +49,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [employeeSearch, setEmployeeSearch] = useState("");
   const [activeHash, setActiveHash] = useState("#dashboard");
   const [passwordOpen, setPasswordOpen] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
@@ -61,7 +61,14 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
 
   useEffect(() => {
     const update = () => setActiveHash(window.location.hash || "#dashboard");
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setMobileOpen(false); };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (document.querySelector(".lv-client-side.open, .portal-employee .employee-sidebar.open")) {
+        document.querySelector<HTMLButtonElement>(".lv-client-menu, .portal-employee .employee-menu")?.focus();
+      }
+      setMobileOpen(false);
+      setEmployeeSearch("");
+    };
     update();
     window.addEventListener("hashchange", update);
     window.addEventListener("keydown", escape);
@@ -99,6 +106,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
   function goEmployeeSection(hash: string) {
     if (portal !== "employee") return;
     setMobileOpen(false);
+    setEmployeeSearch("");
     const next = hash.startsWith("#") ? hash : `#${hash}`;
     window.history.replaceState(null, "", `/employee${next}`);
     setActiveHash(next);
@@ -156,18 +164,19 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
     return <div className="lv-client-shell">
       <style>{`
         .lv-client-shell{min-height:100vh;background:var(--theme-bg-_091017, #091017);color:var(--theme-ink-_eef2f5, #eef2f5);display:grid;grid-template-columns:278px minmax(0,1fr);font-family:Inter,Arial,Helvetica,sans-serif}.lv-client-shell *{box-sizing:border-box}.lv-client-side{position:sticky;top:0;height:100vh;padding:22px 22px 24px;background:linear-gradient(180deg,var(--theme-bg-_0b1219, #0b1219) 0%,var(--theme-bg-_0a1117, #0a1117) 100%);border-right:1px solid var(--theme-line-_202b34, #202b34);display:flex;flex-direction:column;z-index:30}.lv-client-brand{display:flex;align-items:center;gap:12px;color:var(--lv-text-on-chrome);text-decoration:none;padding:4px 2px 22px}.lv-client-brand img{width:52px;height:52px;object-fit:contain}.lv-client-brand strong{display:block;font-size:22px;letter-spacing:.08em;line-height:1}.lv-client-brand small{display:block;margin-top:6px;color:var(--theme-ink-_9da8b2, #9da8b2);font-size:11px}.lv-client-nav{display:grid;gap:8px;margin-top:8px}.lv-client-nav a{height:50px;display:flex;align-items:center;gap:13px;padding:0 15px;border-radius:9px;color:var(--theme-ink-_d6dde3, #d6dde3);text-decoration:none;font-size:14px;border:1px solid transparent;transition:.18s ease}.lv-client-nav a:hover{background:var(--theme-bg-_121b23, #121b23);border-color:var(--theme-line-_25323d, #25323d);color:var(--lv-text-on-chrome)}.lv-client-nav a[aria-current="location"]{background:var(--lv-brand-primary);color:var(--lv-text-on-chrome);border-color:var(--lv-brand-primary);box-shadow:0 10px 28px var(--lv-brand-ring)}.lv-client-nav .navIcon{width:22px;height:22px;display:grid;place-items:center;font-size:19px}.lv-client-help{margin-top:auto;padding:16px;border:1px solid var(--theme-line-_25313b, #25313b);border-radius:12px;background:var(--theme-bg-_0d161e, #0d161e)}.lv-client-help strong{font-size:13px}.lv-client-help p{margin:4px 0 12px;color:var(--theme-ink-_8f9ba5, #8f9ba5);font-size:11px;line-height:1.45}.lv-client-help a{height:40px;border-radius:8px;background:var(--theme-bg-_273543, #273543);color:var(--lv-text-on-chrome);text-decoration:none;display:grid;place-items:center;font-size:12px;font-weight:700}.lv-client-foot{padding-top:22px;color:var(--theme-ink-_7d8993, #7d8993);font-size:11px;line-height:1.5}.lv-client-stage{min-width:0}.lv-client-top{height:76px;position:sticky;top:0;z-index:25;background:var(--theme-bg-rgba_10_17_24__94_, rgba(10,17,24,.94));backdrop-filter:blur(16px);border-bottom:1px solid var(--theme-line-_202b34, #202b34);display:flex;align-items:center;justify-content:space-between;padding:0 30px}.lv-client-top h1{font-size:22px;margin:0}.lv-client-user{display:flex;align-items:center;gap:12px}.lv-client-avatar{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;background:var(--lv-brand-primary);font-weight:800}.lv-client-user div{display:grid}.lv-client-user strong{font-size:13px}.lv-client-user small{font-size:11px;color:var(--theme-ink-_95a0aa, #95a0aa);margin-top:3px}.lv-client-signout{border:1px solid var(--theme-line-_31404c, #31404c);background:var(--theme-bg-_111a22, #111a22);color:var(--theme-ink-_dfe5e9, #dfe5e9);height:36px;padding:0 12px;border-radius:8px;cursor:pointer}.lv-client-menu{display:none;border:1px solid var(--theme-line-_31404c, #31404c);background:var(--theme-bg-_111a22, #111a22);color:var(--lv-text-on-chrome);border-radius:8px;height:38px;padding:0 12px}.lv-client-content{width:min(1260px,calc(100% - 48px));margin:0 auto;padding:0 0 42px}.lv-client-overlay{display:none}
-        @media(max-width:980px){.lv-client-shell{grid-template-columns:1fr}.lv-client-side{position:fixed;left:0;top:0;width:280px;transform:translateX(-105%);transition:.22s ease;box-shadow:30px 0 60px var(--theme-shadow-rgba_0_0_0__45_, rgba(0,0,0,.45))}.lv-client-side.open{transform:translateX(0)}.lv-client-overlay{display:block;position:fixed;inset:0;background:var(--theme-bg-rgba_0_0_0__52_, rgba(0,0,0,.52));z-index:29;border:0}.lv-client-top{padding:0 18px}.lv-client-menu{display:inline-flex;align-items:center}.lv-client-content{width:min(100% - 28px,1260px)}.lv-client-user div{display:none}}
+        @media(max-width:980px){.lv-client-shell{grid-template-columns:1fr}.lv-client-side{position:fixed;left:0;top:0;width:min(300px,88vw);transform:translateX(-105%);visibility:hidden;pointer-events:none;transition:transform .22s ease,visibility .22s ease;box-shadow:30px 0 60px var(--theme-shadow-rgba_0_0_0__45_, rgba(0,0,0,.45))}.lv-client-side.open{transform:translateX(0);visibility:visible;pointer-events:auto}.lv-client-overlay{display:block;position:fixed;inset:0;background:var(--theme-bg-rgba_0_0_0__52_, rgba(0,0,0,.52));z-index:29;border:0}.lv-client-top{padding:0 18px}.lv-client-menu{display:inline-flex;align-items:center}.lv-client-content{width:min(100% - 28px,1260px)}.lv-client-user div{display:none}}
+        .lv-client-shell :is(.lv-client-menu,.lv-client-signout,.lv-client-nav a):focus-visible{outline:3px solid var(--lv-brand-primary);outline-offset:3px}
         @media(max-width:560px){.lv-client-top h1{font-size:18px}.lv-client-avatar{width:38px;height:38px}.lv-client-signout{display:none}.lv-client-content{width:calc(100% - 20px)}}
       `}</style>
-      {mobileOpen && <button aria-label="Close menu" className="lv-client-overlay" onClick={()=>setMobileOpen(false)} />}
-      <aside className={`lv-client-side ${mobileOpen?"open":""}`}>
+      {mobileOpen && <button type="button" aria-label="Close menu" className="lv-client-overlay" onClick={()=>{setMobileOpen(false);document.querySelector<HTMLButtonElement>(".lv-client-menu")?.focus();}} />}
+      <aside id="client-portal-navigation" className={`lv-client-side ${mobileOpen?"open":""}`}>
         <Link href="/client" className="lv-client-brand"><img src="/land-view-logo-light.svg" alt="LAND VIEW"/><span><strong>LAND VIEW</strong><small>Engineers and Architects</small></span></Link>
-        <nav className="lv-client-nav" aria-label="Client portal navigation">{clientNav.map(item=><Link key={item.href} href={item.href} aria-current={item.href.endsWith(activeHash)?"location":undefined} onClick={()=>{setActiveHash(item.href.slice(item.href.indexOf("#")));setMobileOpen(false);}}><span className="navIcon">{item.icon}</span><span>{item.label}</span></Link>)}</nav>
+        <nav className="lv-client-nav" aria-label="Client portal navigation">{clientNav.map(item=>{const hash=item.href.includes("#")?item.href.slice(item.href.indexOf("#")):"";return <Link key={item.href} href={item.href} aria-current={hash&&hash===activeHash?"location":undefined} onClick={()=>{if(hash)setActiveHash(hash);setMobileOpen(false);}}><span className="navIcon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;})}</nav>
         <div className="lv-client-help"><strong>Need Help?</strong><p>Contact our support team for project, invoice or certificate assistance.</p><a href="mailto:landviewcivil@gmail.com">Contact Us</a></div>
         <div className="lv-client-foot">© 2026 LAND VIEW<br/>Engineers and Architects<br/>Your Vision. Our Expertise.</div>
       </aside>
       <div className="lv-client-stage">
-        <header className="lv-client-top"><div style={{display:"flex",alignItems:"center",gap:12}}><button className="lv-client-menu" onClick={()=>setMobileOpen(v=>!v)}>Menu</button><h1>Client Portal</h1></div><div className="lv-client-user"><div className="lv-client-avatar">{initials}</div><div><strong>{String(name)}</strong><small>LAND VIEW Client</small></div><button className="lv-client-signout" onClick={logout}>Sign out</button></div></header>
+        <header className="lv-client-top"><div style={{display:"flex",alignItems:"center",gap:12}}><button type="button" className="lv-client-menu" aria-label={mobileOpen?"Close client navigation":"Open client navigation"} aria-controls="client-portal-navigation" aria-expanded={mobileOpen} onClick={()=>setMobileOpen(v=>!v)}>Menu</button><h1>Client Portal</h1></div><div className="lv-client-user"><div className="lv-client-avatar">{initials}</div><div><strong>{String(name)}</strong><small>LAND VIEW Client</small></div><button className="lv-client-signout" onClick={logout}>Sign out</button></div></header>
         <main id="workspace-content" className="lv-client-content">{children}</main>
       </div>
     </div>;
@@ -185,6 +194,10 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
   );
 
   const employeeApprovals = isChairmanEmployee(user);
+  const employeeSearchResults = employeeSearch.trim()
+    ? [...employeeNav, ...(employeeApprovals ? [{ href: "/employee#approvals", label: "Approvals", icon: "✓" }] : [])]
+      .filter(item => item.label.toLowerCase().includes(employeeSearch.trim().toLowerCase())).slice(0, 6)
+    : [];
 
   return <div className="admin-shell tmg-shell portal-employee employee-reference-shell">
     <style>{`
@@ -256,11 +269,23 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
       }
       @media(max-width:520px){.portal-employee .employee-action.signout-action{display:none}}
       @media(max-width:430px){.portal-employee .employee-search input{font-size:11px}.portal-employee .employee-search{padding:0 9px}.portal-employee .employee-menu{width:34px;flex-basis:34px}.portal-employee .employee-avatar{width:34px;height:34px}}
-      @media(max-width:360px){.portal-employee .employee-search{display:none}.portal-employee .employee-tools{margin-left:auto}}
+      @media(max-width:360px){.portal-employee .employee-search{display:flex;flex:1 1 auto;min-width:0}.portal-employee .employee-tools{margin-left:auto}.portal-employee .employee-search input{min-width:0}}
+      .portal-employee .employee-search{position:relative}
+      .portal-employee .employee-search-results{position:absolute;top:calc(100% + 7px);left:0;right:0;min-width:min(290px,90vw);
+        max-height:min(360px,55dvh);overflow-y:auto;overscroll-behavior:contain;padding:7px;
+        border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-panel);
+        box-shadow:var(--lv-shadow-lg);z-index:180}
+      .portal-employee .employee-search-results button{display:block;width:100%;min-height:44px;padding:9px 12px;border:0;
+        border-radius:8px;background:transparent;color:var(--lv-text-primary);text-align:left;font-size:13px;font-weight:750;cursor:pointer}
+      .portal-employee .employee-search-results button:hover,.portal-employee .employee-search-results button:focus-visible{
+        background:var(--lv-brand-soft);color:var(--lv-brand-text);outline:2px solid var(--lv-brand-primary);outline-offset:0}
+      .portal-employee .employee-search-empty{font-size:12px;line-height:1.4;color:var(--lv-text-secondary);padding:12px}
+      @media(max-width:900px){.portal-employee .employee-search input{font-size:16px!important}}
+      @media(prefers-reduced-motion:reduce){.portal-employee :is(.employee-nav,.employee-search-results){scroll-behavior:auto!important}}
     `}</style>
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
     {mobileOpen && <button type="button" className="employee-nav-overlay" aria-label="Close navigation" onClick={()=>setMobileOpen(false)} />}
-    <aside className={mobileOpen ? "employee-sidebar open" : "employee-sidebar"}>
+    <aside id="employee-portal-navigation" className={mobileOpen ? "employee-sidebar open" : "employee-sidebar"}>
       <button type="button" className="employee-brand" onClick={()=>goEmployeeSection("#dashboard")} aria-label="Open Employee Dashboard">
         <img src="/land-view-logo.svg" alt="LAND VIEW"/>
         <span><strong>LAND VIEW</strong><small>EMPLOYEE WORKSPACE</small></span>
@@ -279,8 +304,19 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
     </aside>
     <header className="employee-topbar">
       <div className="employee-topbar-inner">
-        <button className="employee-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-expanded={mobileOpen} onClick={()=>setMobileOpen(v=>!v)}>☰</button>
-        <div className="employee-search" role="search"><span aria-hidden="true">⌕</span><input aria-label="Search employee workspace" placeholder="Search..." /></div>
+        <button type="button" className="employee-menu" aria-label={mobileOpen?"Close navigation":"Open navigation"} aria-controls="employee-portal-navigation" aria-expanded={mobileOpen} onClick={()=>setMobileOpen(v=>!v)}>☰</button>
+        <div className="employee-search" role="search"><span aria-hidden="true">⌕</span>
+          <input type="search" aria-label="Find an employee workspace page" placeholder="Find a page…" autoComplete="off"
+            value={employeeSearch} aria-expanded={Boolean(employeeSearch.trim())} aria-controls="employee-page-results"
+            onChange={e=>setEmployeeSearch(e.target.value)}
+            onKeyDown={e=>{if(e.key==="Enter"&&employeeSearchResults[0]){e.preventDefault();goEmployeeSection(employeeSearchResults[0].href.split("#")[1]);}
+              else if(e.key==="Escape"){setEmployeeSearch("");}}}/>
+          {employeeSearch.trim()&&<div id="employee-page-results" className="employee-search-results" role="region" aria-label="Matching workspace pages">
+            {employeeSearchResults.length?employeeSearchResults.map(item=><button type="button" key={item.href}
+              onClick={()=>goEmployeeSection(item.href.split("#")[1])}>{item.icon} &nbsp; {item.label}</button>)
+              : <div className="employee-search-empty">No matching workspace page</div>}
+          </div>}
+        </div>
         <div className="employee-tools">
           <div className="employee-user"><div className="employee-avatar">{initials}</div><div className="employee-user-copy"><strong>{String(name)}</strong><small>{actingFromAdmin ? "Admin acting as" : "Employee"} · {String(employeeId)}</small></div></div>
           {actingFromAdmin && <button className="employee-action admin-mode-action" onClick={returnToAdmin} disabled={roleSwitchBusy}>{roleSwitchBusy ? "Switching..." : "Return to Admin"}</button>}

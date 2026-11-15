@@ -383,8 +383,8 @@ export default function EmployeeSiteVisitCenter() {
                 <small>{dateText(visit.Visit_Date)} · {visit.Employee_Name || visit.Visited_By || "Employee"}</small>
                 {visit.Problem_Details && <p>{visit.Problem_Details}</p>}
                 {(visit.Visit_Photo_Available || visit.Problem_Photo_Available) && <div className="sv-photo-row">
-                  {visit.Visit_Photo_Available && <a href={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=visit"} target="_blank" rel="noreferrer"><img src={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=visit"} alt="Site visit" /></a>}
-                  {visit.Problem_Photo_Available && <a href={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=problem"} target="_blank" rel="noreferrer"><img src={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=problem"} alt="Problem" /></a>}
+                  {visit.Visit_Photo_Available && <a href={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=visit"} target="_blank" rel="noreferrer"><img loading="lazy" decoding="async" src={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=visit"} alt="Site visit" /></a>}
+                  {visit.Problem_Photo_Available && <a href={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=problem"} target="_blank" rel="noreferrer"><img loading="lazy" decoding="async" src={"/api/site-visits/media?visitId=" + encodeURIComponent(visit.Visit_ID) + "&kind=problem"} alt="Problem" /></a>}
                 </div>}
               </div>
               <div className="sv-row-side">

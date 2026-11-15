@@ -115,6 +115,8 @@ test("mobile network failures do not cause automatic duplicate submissions", () 
   assert.match(helper.siteVisitNetworkError(new Error("Failed to fetch"), true), /Check Recent Site Visits/);
   helper.sandbox.navigator.onLine = false;
   assert.match(helper.siteVisitNetworkError(new Error("Offline"), false), /Reconnect before submitting/);
+  // Restore the simulated connection before checking a non-network response.
+  helper.sandbox.navigator.onLine = true;
   assert.equal(helper.siteVisitNetworkError(new Error("Project not found."), true), "Project not found.");
   for (const name of ["components/admin-site-visit-entry.tsx", "components/employee-site-visit-center.tsx"]) {
     const content = read(name);

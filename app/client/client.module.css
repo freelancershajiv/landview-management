@@ -13,3 +13,43 @@
 .financeUpdateFooter{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;border-top:1px solid var(--line);margin-top:13px;padding-top:13px;color:var(--theme-ink-_aeb8c0, #aeb8c0);font-size:10px}
 @media(max-width:1050px){.financeUpdateStats{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:620px){.financeUpdate{padding:17px}.financeUpdateHeader{align-items:stretch;flex-direction:column}.seeMoreButton{width:100%}.financeUpdateStats{grid-template-columns:1fr}.financeUpdateFooter{display:grid}}
+
+
+/* V5.5 client mobile readability + reduced data use. Keep print/PDF untouched. */
+.tableHint{display:none}
+@media screen and (max-width:620px){
+  .root{min-width:0}
+  .hero{background-image:linear-gradient(120deg,var(--theme-bg-rgba_7_13_19__98_,rgba(7,13,19,.98)),var(--theme-bg-_1b2832,#1b2832))!important}
+  .projectVisual{background-image:linear-gradient(140deg,var(--theme-bg-_202d37,#202d37),var(--theme-bg-_0d151c,#0d151c))!important}
+  .overviewGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .projectCard{grid-column:1/-1}
+  .metricCard{min-height:114px;padding:14px;min-width:0}
+  .metricCard strong{font-size:clamp(18px,5.2vw,26px);line-height:1.2;overflow-wrap:anywhere}
+  .metricCard span{font-size:12px;line-height:1.3}
+  .metricCard small{font-size:11px;line-height:1.35}
+  .metricIcon{width:34px;height:34px;margin-bottom:8px;font-size:17px}
+  .quickActions{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .action{min-width:0;min-height:66px;padding:10px;gap:7px;overflow-wrap:anywhere}
+  .action strong{font-size:12px;line-height:1.3}
+  .action small{font-size:11px;line-height:1.35}
+  .financeUpdateStats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .financeUpdateStats>div{min-width:0;padding:12px}
+  .financeUpdateStats strong{font-size:clamp(16px,4.8vw,22px);overflow-wrap:anywhere}
+  .financeUpdateStats>div:last-child:nth-child(odd){grid-column:1/-1}
+  .root :is(button,a){touch-action:manipulation}
+  .root :is(.refresh,.action,.printButton,.seeMoreButton):focus-visible{outline:3px solid var(--lv-brand-primary);outline-offset:2px}
+  .refresh,.seeMoreButton,:global(.cp-secondary){min-height:44px!important;font-size:12px!important}
+  .tableHint{display:block;padding:10px 14px 0;margin:0!important;font-size:12px;line-height:1.4;color:var(--lv-text-secondary)}
+  .tableWrap{max-width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-x:contain}
+  .tableWrap:focus-visible{outline:3px solid var(--lv-brand-primary);outline-offset:-3px}
+  .root th{font-size:12px}
+  .root td{font-size:12px}
+}
+@media screen and (max-width:360px){
+  .quickActions{grid-template-columns:minmax(0,1fr)}
+  .projectCard{grid-template-columns:70px minmax(0,1fr)}
+  .projectVisual{height:70px}
+}
+@media (prefers-reduced-motion:reduce){
+  .skeleton span{animation:none}
+}
