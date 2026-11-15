@@ -36,7 +36,7 @@ export default function AccountsInlineEntryBridge() {
         .accounts-inline-entry-backdrop{position:fixed;inset:0;z-index:1500;display:grid;place-items:center;padding:18px;background:rgba(0,0,0,.74);overflow:auto}
         .accounts-inline-entry-dialog{width:min(1080px,100%);max-height:94vh;overflow:auto}
         .accounts-inline-entry-dialog .accounts-entry-panel{margin:0;box-shadow:0 30px 90px rgba(0,0,0,.45)}
-        .accounts-inline-save-message{margin:0 0 9px;padding:9px 12px;border:1px solid var(--theme-line-_2e6345,#2e6345);border-radius:8px;background:var(--theme-bg-_183524,#183524);color:var(--theme-ink-_a2e6b8,#a2e6b8);font-size:9px;font-weight:800}
+        .accounts-inline-save-message{margin:0 0 9px;padding:9px 12px;border:1px solid var(--theme-line-_2e6345,#2e6345);border-radius:8px;background:var(--theme-bg-_183524,#183524);color:var(--lv-success,#2d7350);font-size:9px;font-weight:800}
       `}</style>
       <div className="accounts-inline-entry-dialog">
         {savedMessage && <div className="accounts-inline-save-message">{savedMessage}</div>}
