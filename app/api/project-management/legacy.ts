@@ -2,15 +2,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { employeeCodeOf, insertRows, normalizeProjectCode, selectRows, updateRows, deleteRows, upsertRows } from "@/lib/supabase-data";
+import { PM_EXPENSE_CATEGORIES } from "@/lib/project-management-categories";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, any>;
-const EXPENSE_CATEGORIES = ["Cash","Bricks","Brick Chips","Masonry","R.C.C Masonry","Finishing Masonry","Stone & Sand","Cement & Steel","Security","Other Expenses","Electric Contractor","Electrical Material","Plumbing Contractor","Plumbing Material","Tiles","Door","Grills"] as const;
+// The category catalog must stay aligned with expense entry selectors.
 
 function normalizeExpenseCategory(value: unknown) {
-  const raw = clean(value, 120).toLowerCase().replace(/&/g, "and").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
+  const exact = clean(value, 120);
+  // A selected expense category is a financial classification, not a fuzzy
+  // suggestion. Preserve verified historical spelling and newly entered labels
+  // when importing a master-ledger row; never silently recode them as "Other".
+  if ((PM_EXPENSE_CATEGORIES as readonly string[]).includes(exact)) return exact;
+  const raw = exact.toLowerCase().replace(/&/g, "and").replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
   const aliases: Record<string,string> = {
     cash:"Cash",bricks:"Bricks",masonry:"Masonry","stone and sand":"Stone & Sand",stone:"Stone & Sand",sand:"Stone & Sand",
     "cement and steel":"Cement & Steel",cement:"Cement & Steel",steel:"Cement & Steel",security:"Security","r.c.c masonry":"R.C.C Masonry","finishing masonry":"Finishing Masonry",
@@ -19,7 +25,7 @@ function normalizeExpenseCategory(value: unknown) {
     "plumbing material":"Plumbing Material",plumbing:"Plumbing Material",tiles:"Tiles",door:"Door",doors:"Door",
     "door and woods":"Door",grill:"Grills",grills:"Grills","ss grill":"Grills"
   };
-  return aliases[raw] || "Other Expenses";
+  return aliases[raw] || exact || "Other Expenses";
 }
 function guessExpenseCategory(category: unknown, description: unknown) {
   const raw = `${clean(category,180)} ${clean(description,500)}`.toLowerCase();

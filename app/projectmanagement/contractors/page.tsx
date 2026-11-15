@@ -7,30 +7,11 @@
 /* eslint-disable react-hooks/exhaustive-deps, react-hooks/set-state-in-effect */
 
 import { useEffect, useMemo, useState } from "react";
+import ProjectExpenseCategorySelect from "@/components/project-expense-category-select";
+import { pmExpenseCategoryOptions } from "@/lib/project-management-categories";
 
-const CATEGORIES = [
-  "Masonry",
-  "R.C.C Masonry",
-  "Finishing Masonry",
-  "Electric Contractor",
-  "Plumbing Contractor",
-  "Bricks",
-  "Brick Chips",
-  "Stone",
-  "Stone & Sand",
-  "Cement",
-  "Cement & Steel",
-  "Syleth Sand",
-  "Normal Sand",
-  "Filling Sand",
-  "Filling Soil",
-  "Electrical Material",
-  "Plumbing Material",
-  "Tiles",
-  "Door",
-  "Grills",
-  "Other Expenses",
-];
+// Supplier and contractor categories share the full Project Management catalog.
+
 
 const SUPPLIER_CATEGORIES = new Set([
   "Bricks",
@@ -203,6 +184,7 @@ export default function ContractorBillsPage(){
   const billNet = Math.max(0,billGross-num(billForm.deduction));
 
   async function saveContract(){
+    if(!String(contractForm.category||"").trim()){setError("Select or enter a supplier / contractor category.");return;}
     setSaving(true); setError("");
     try{
       const r = await fetch("/api/project-management",{
@@ -495,7 +477,7 @@ export default function ContractorBillsPage(){
               <div className="cb-form">
                 <label><span>Party Type</span><select value={contractForm.partyType} onChange={e=>setContractForm({...contractForm,partyType:e.target.value})}><option>Supplier</option><option>Contractor</option></select></label>
                 <label><span>Party Name</span><input value={contractForm.contractorName} onChange={e=>setContractForm({...contractForm,contractorName:e.target.value})} placeholder="Supplier / contractor name"/></label>
-                <label><span>Category</span><select value={contractForm.category} onChange={e=>setContractForm({...contractForm,category:e.target.value})}>{CATEGORIES.map(c=><option key={c}>{c}</option>)}</select></label>
+                <label><span>Category</span><ProjectExpenseCategorySelect value={contractForm.category} options={pmExpenseCategoryOptions(data,contractForm.category)} onChange={category=>setContractForm({...contractForm,category})}/></label>
                 <label><span>Billing Unit</span><input value={contractForm.billingUnit} onChange={e=>setContractForm({...contractForm,billingUnit:e.target.value})} placeholder="SFT / POINT / FLAT"/></label>
                 <label><span>Contract Quantity / Project Size</span><input value={contractForm.contractQuantity} onChange={e=>setContractForm({...contractForm,contractQuantity:e.target.value})} inputMode="decimal" placeholder="0.000"/></label>
                 <label><span>Agreed Rate</span><input value={contractForm.agreedRate} onChange={e=>setContractForm({...contractForm,agreedRate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label>

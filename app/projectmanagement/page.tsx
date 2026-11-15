@@ -3,9 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import ProjectManagementRedesign from "@/components/project-management-redesign";
+import ProjectExpenseCategorySelect from "@/components/project-expense-category-select";
+import { PM_INCOME_CATEGORIES, pmExpenseCategoryOptions } from "@/lib/project-management-categories";
 
-const CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling","Bricks","Brick Chips","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];
-const INCOME_CATEGORIES = ["Cash","Cheque","Bank Transfer","Scrap Selling"];
+// Expense-entry choices come from the central catalog, not this project's used rows.
+const INCOME_CATEGORIES = [...PM_INCOME_CATEGORIES];
 const RECEIVED_FROM_OPTIONS = ["Mr. Mahi Bhai","Scrap Selling","Mr. Jamaluddin"];
 const SUPPLIER_CATEGORIES = new Set(["Bricks","Brick Chips","Stone","Stone & Sand","Cement","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Electrical Material","Electrical Materials","Plumbing Material","Plumbing Materials","Tiles","Door","Doors & Wood","Grills","SS Grills & Works"]);
 const partyLabel=(category:string)=>SUPPLIER_CATEGORIES.has(String(category||"").trim())?"Supplier":"Contractor";
@@ -86,7 +88,10 @@ function ProjectManagementClassic(){
 
   const incomeCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.debit)>0)),[entries,categories]);
   const incomeEntryCategories=INCOME_CATEGORIES;
-  const expenseEntryCategories=categories.filter(c=>!INCOME_CATEGORIES.includes(c));
+  const expenseEntryCategories=useMemo(()=>
+    pmExpenseCategoryOptions(data, entryType==="expense"?form.category:undefined, partyForm.category),
+    [data,entryType,form.category,partyForm.category]
+  );
   const expenseCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.credit)>0)),[entries,categories]);
   const filtered=useMemo(()=>{
     const q=search.trim().toLowerCase();
@@ -196,6 +201,7 @@ function ProjectManagementClassic(){
         memo:form.category==="Cheque" ? `CHEQUE_STATUS:${form.chequeStatus==="On Hold"?"ON_HOLD":"CASHED"}${form.memo.trim()?`\n${form.memo.trim()}`:""}` : form.memo
       };
       if(!form.details.trim())throw new Error("Details are required.");
+      if(!String(form.category||"").trim())throw new Error("Select or enter an expense category.");
       if((entryType==="income" && (body.debit<=0||body.credit!==0)) || (entryType==="expense" && (body.credit<=0||body.debit!==0)))throw new Error("Enter a positive "+entryType+" amount only.");
       if(body.debit>0 && !RECEIVED_FROM_OPTIONS.includes(String(body.receivedFrom||"")))throw new Error("Select a valid Received From option.");
       const r=await fetch("/api/project-management",{
@@ -283,6 +289,7 @@ function ProjectManagementClassic(){
   async function saveParty(){
     if(!data?.selectedProject)return;
     if(!partyForm.name.trim()){setError("Supplier / contractor name is required.");return;}
+    if(!partyForm.category.trim()){setError("Select or enter a supplier / contractor category.");return;}
     setPartySaving(true);setError("");
     try{
       const r=await fetch("/api/project-management",{
@@ -745,7 +752,9 @@ function ProjectManagementClassic(){
               <label><span>Date</span><input type="date" value={form.entryDate} onChange={e=>setForm({...form,entryDate:e.target.value})}/></label>
               {entryType==="income"&&<label><span>Received From</span><select value={RECEIVED_FROM_OPTIONS.includes(form.receivedFrom)?form.receivedFrom:""} onChange={e=>setForm({...form,receivedFrom:e.target.value})}><option value="" disabled>Select source</option>{RECEIVED_FROM_OPTIONS.map(option=><option key={option} value={option}>{option}</option>)}</select></label>}
               <label><span>Paid To</span><input list="pm-party-options" value={form.paidTo} onChange={e=>setForm({...form,paidTo:e.target.value,supplier:e.target.value})} placeholder="Supplier / contractor / other party"/></label>
-              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span><select value={form.category} onChange={e=>{const category=e.target.value;const suggested=entryType==="expense"?suggestedPartyForCategory(data,category):"";setForm({...form,category,paidTo:suggested||form.paidTo,supplier:suggested||form.paidTo,chequeStatus:category==="Cheque"?form.chequeStatus:"Cashed"});}}>{(entryType==="income" ? incomeEntryCategories : expenseEntryCategories).map(c=><option key={c}>{c}</option>)}</select></label>
+              <label><span>{entryType==="income" ? "Income Category" : "Expense Category"}</span>{entryType==="income"
+                  ? <select value={form.category} onChange={e=>setForm({...form,category:e.target.value,chequeStatus:e.target.value==="Cheque"?form.chequeStatus:"Cashed"})}>{incomeEntryCategories.map(c=><option key={c}>{c}</option>)}</select>
+                  : <ProjectExpenseCategorySelect value={form.category} options={expenseEntryCategories} onChange={category=>{const suggested=suggestedPartyForCategory(data,category);setForm({...form,category,paidTo:suggested||form.paidTo,supplier:suggested||form.paidTo});}}/>}</label>
               {entryType==="income"&&form.category==="Cheque"&&<label><span>Cheque Status</span><select value={form.chequeStatus||"Cashed"} onChange={e=>setForm({...form,chequeStatus:e.target.value})}><option value="On Hold">On Hold</option><option value="Cashed">Cashed</option></select></label>}
               <label className="full"><span>Details</span><input value={form.details} onChange={e=>setForm({...form,details:e.target.value})} placeholder={entryType==="income" ? "Describe the income / transfer" : "Describe the expense"}/></label>
               {entryType==="expense"&&<><label><span>Qty / SFT</span><input value={form.sft} onChange={e=>setForm({...form,sft:e.target.value})} inputMode="decimal" placeholder="0.000"/></label><label><span>Rate</span><input value={form.rate} onChange={e=>setForm({...form,rate:e.target.value})} inputMode="decimal" placeholder="0.00"/></label></>}
@@ -822,7 +831,7 @@ function ProjectManagementClassic(){
               <div className="pm-form-grid pm-party-form-grid">
                 <label className="full"><span>Party Name</span><input value={partyForm.name} onChange={e=>setPartyForm({...partyForm,name:e.target.value})} placeholder="Supplier / contractor name"/></label>
                 <label><span>Party Type</span><select value={partyForm.partyType} onChange={e=>setPartyForm({...partyForm,partyType:e.target.value})}><option>Supplier</option><option>Contractor</option></select></label>
-                <label><span>Category</span><select value={partyForm.category} onChange={e=>setPartyForm({...partyForm,category:e.target.value})}>{expenseEntryCategories.map(c=><option key={c}>{c}</option>)}</select></label>
+                <label><span>Category</span><ProjectExpenseCategorySelect value={partyForm.category} options={expenseEntryCategories} onChange={category=>setPartyForm({...partyForm,category})}/></label>
                 <label><span>Billing Unit</span><input value={partyForm.billingUnit} onChange={e=>setPartyForm({...partyForm,billingUnit:e.target.value})} placeholder="SFT / POINT / CFT"/></label>
                 <label><span>Contract Quantity</span><input value={partyForm.quantity} onChange={e=>setPartyForm({...partyForm,quantity:e.target.value})} inputMode="decimal"/></label>
                 <label><span>Agreed Rate</span><input value={partyForm.rate} onChange={e=>setPartyForm({...partyForm,rate:e.target.value})} inputMode="decimal"/></label>
@@ -910,7 +919,7 @@ function ProjectManagementClassic(){
                 {masterSearch&&<button onClick={()=>setMasterSearch("")}>×</button>}
               </div>
               <select value={pullCategory} onChange={e=>setPullCategory(e.target.value)}>
-                {CATEGORIES.map(c=><option key={c}>{c}</option>)}
+                {expenseEntryCategories.map(c=><option key={c}>{c}</option>)}
               </select>
             </div>
             <div className="pm-table-wrap pm-master-table">
