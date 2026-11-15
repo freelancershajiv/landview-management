@@ -10,6 +10,7 @@ const main = [
   { href: "/admin/billing/invoice-center", label: "Invoice Center" },
   { href: "/admin/billing/service-payments", label: "Receive Payment" },
   { href: "/admin/billing/due-bills", label: "Due Bills" },
+  { href: "/admin/billing/writeoffs", label: "Write-Offs" },
   { href: "/admin/billing/reconciliation", label: "Reconciliation" },
 ];
 const advanced = [
