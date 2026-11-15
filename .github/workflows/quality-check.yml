@@ -49,7 +49,7 @@ jobs:
         run: npx eslint lib/invoice-correction-policy.ts app/api/billing/allocation-corrections/route.ts app/admin/finance/allocation-corrections/page.tsx
 
       - name: Mobile V5 and centralized control regression gate
-        run: node --test tests/mobile-management-responsive.test.cjs tests/mobile-v5-dashboard.test.cjs tests/mobile-v53-projects-finance.test.cjs tests/private-control-system.test.cjs tests/project-management-categories.test.cjs
+        run: node --test tests/mobile-management-responsive.test.cjs tests/mobile-v5-dashboard.test.cjs tests/mobile-v53-projects-finance.test.cjs tests/private-control-system.test.cjs tests/project-management-categories.test.cjs tests/site-visit-mobile-v54.test.cjs
 
       - name: Typecheck
         run: npx tsc --noEmit

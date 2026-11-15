@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { isSiteVisitPhoto, prepareSiteVisitPhoto, siteVisitNetworkError } from "@/lib/site-visit-photo-preparation";
 
 type Row = Record<string, any>;
 
@@ -17,38 +18,18 @@ function dateText(value: any) {
   return Number.isNaN(date.getTime()) ? "—" : date.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function compressImage(file: File, maxDimension = 1400, quality = 0.78): Promise<File> {
-  return new Promise((resolve, reject) => {
-    if (!file.type.startsWith("image/")) return reject(new Error("Please select an image file."));
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      const scale = Math.min(1, maxDimension / Math.max(img.width, img.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(img.width * scale));
-      canvas.height = Math.max(1, Math.round(img.height * scale));
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return reject(new Error("Could not prepare photo."));
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
-        if (!blob) return reject(new Error("Could not prepare photo."));
-        resolve(new File([blob], file.name.replace(/\.(jpe?g|png|webp|heic|heif)$/i, "") + ".jpg", { type: "image/jpeg" }));
-      }, "image/jpeg", quality);
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read photo. Please take a new photo and try again."));
-    };
-    img.src = url;
-  });
-}
-
 export default function EmployeeSiteVisitCenter() {
   const [projects, setProjects] = useState<Row[]>([]);
   const [visits, setVisits] = useState<Row[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
+  const [uploadStage, setUploadStage] = useState("");
+  const [offline, setOffline] = useState(false);
+  const visitCameraId = useId();
+  const visitGalleryId = useId();
+  const problemCameraId = useId();
+  const problemGalleryId = useId();
   const [retryingVisit, setRetryingVisit] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -95,6 +76,25 @@ export default function EmployeeSiteVisitCenter() {
       }).catch(() => {});
     }
   }, []);
+
+  useEffect(() => {
+    const update = () => setOffline(navigator.onLine === false);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
+
+  function choosePhoto(kind: "visit" | "problem", file: File | null) {
+    if (submittingRef.current) return;
+    if (file && !isSiteVisitPhoto(file)) {
+      setError("Choose a photo from your camera or gallery.");
+      return;
+    }
+    if (kind === "visit") setVisitPhoto(file);
+    else setProblemPhoto(file);
+    setError("");
+  }
 
   const selectedProject = useMemo(
     () => projects.find((project) => String(project.Project_ID) === String(projectId)),
@@ -201,12 +201,16 @@ export default function EmployeeSiteVisitCenter() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSaving(true);
     setError("");
     setNotice("");
+    let requestStarted = false;
     try {
       if (!projectId) throw new Error("Select a project.");
       if (!location) throw new Error("Verify your location before submitting.");
+      if (navigator.onLine === false) throw new Error("You are offline. Reconnect before submitting; your notes and photos are preserved.");
 
       const body = new FormData();
       body.append("projectId", projectId);
@@ -219,9 +223,18 @@ export default function EmployeeSiteVisitCenter() {
       body.append("locationLongitude", String(location.longitude));
       body.append("locationAccuracyM", String(location.accuracyM));
       body.append("locationCapturedAt", location.capturedAt);
-      if (visitPhoto) body.append("visitPhoto", await compressImage(visitPhoto));
-      if (problemPhoto) body.append("problemPhoto", await compressImage(problemPhoto));
+      if (visitPhoto) {
+        setUploadStage("Preparing site photo…");
+        body.append("visitPhoto", await prepareSiteVisitPhoto(visitPhoto));
+      }
+      if (problemPhoto) {
+        setUploadStage("Preparing problem photo…");
+        body.append("problemPhoto", await prepareSiteVisitPhoto(problemPhoto));
+      }
 
+      if (navigator.onLine === false) throw new Error("You are offline. Reconnect before submitting; your notes and photos are preserved.");
+      setUploadStage("Uploading and saving Site Visit… Do not close this page.");
+      requestStarted = true;
       const response = await fetch("/api/site-visits", { method: "POST", body, credentials: "same-origin" });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not submit Site Visit."));
@@ -238,10 +251,13 @@ export default function EmployeeSiteVisitCenter() {
       setVisitPhoto(null);
       setProblemPhoto(null);
       setLocation(null);
+      setUploadStage("Updating visit history…");
       await load();
-    } catch (e: any) {
-      setError(e?.message || "Could not submit Site Visit.");
+    } catch (e: unknown) {
+      setError(siteVisitNetworkError(e, requestStarted));
     } finally {
+      submittingRef.current = false;
+      setUploadStage("");
       setSaving(false);
     }
   }
@@ -260,6 +276,20 @@ export default function EmployeeSiteVisitCenter() {
       .sv-list{display:grid;gap:8px;padding:12px}.sv-row{border:1px solid var(--theme-line-_2b353e,#2b353e);border-radius:9px;background:var(--theme-bg-_10171d,#10171d);padding:12px;display:grid;grid-template-columns:1fr auto;gap:9px}.sv-row strong{display:block;font-size:10px}.sv-row small{display:block;margin-top:4px;color:var(--theme-ink-_7e8993,#7e8993);font-size:8px}.sv-row p{margin:7px 0 0;color:var(--theme-ink-_abb6be,#abb6be);font-size:9px;line-height:1.45}.sv-photo-row{display:flex;gap:6px;margin-top:8px}.sv-photo-row a{width:52px;height:42px;border-radius:6px;overflow:hidden;border:1px solid var(--theme-line-_35414b,#35414b);background:var(--theme-bg-_0a1014,#0a1014);display:block}.sv-photo-row img{width:100%;height:100%;object-fit:cover}.sv-status{align-self:start;padding:5px 7px;border-radius:999px;background:var(--theme-bg-_173827,#173827);color:var(--theme-ink-_a7dfbb,#a7dfbb);font-size:7px;font-weight:900}.sv-empty{padding:26px;text-align:center;color:var(--theme-ink-_7e8993,#7e8993);font-size:9px}.sv-refresh{border:1px solid var(--theme-line-_3b4650,#3b4650);border-radius:7px;background:transparent;color:var(--theme-ink-_c7d0d7,#c7d0d7);padding:7px 9px;font-size:8px;cursor:pointer}
       .sv-row-side{display:grid;justify-items:end;align-content:start;gap:6px}.sv-wa{max-width:150px;padding:5px 7px;border-radius:7px;font-size:7px;font-weight:900;text-align:right;background:#292015;color:#f1c27d;border:1px solid #5a452a}.sv-wa.sent{background:#102719;color:#9be0ac;border-color:#2d5f40}.sv-wa.failed,.sv-wa.skipped{background:#321718;color:#ffaaa5;border-color:#6c292e}.sv-wa-retry{border:1px solid #6b3134;border-radius:7px;background:#b91d25;color:#fff;padding:6px 8px;font-size:7px;font-weight:900;cursor:pointer}.sv-wa-retry:disabled{opacity:.55;cursor:wait}.sv-wa-reason{max-width:190px;color:#c7908f!important;text-align:right;line-height:1.35}
       @media(max-width:900px){.sv-grid{grid-template-columns:1fr}.sv-card.recent{order:2}}@media(max-width:600px){.sv-hero{padding:16px}.sv-simple-form{padding:13px}.sv-location-box{align-items:stretch;flex-direction:column}.sv-location-btn{width:100%}.sv-uploads{grid-template-columns:1fr 1fr}.sv-upload-box{min-height:88px}.sv-helper{align-items:flex-start;flex-direction:column}.sv-submit{height:46px}.sv-row-side{justify-items:end}}
+      /* V5.4 mobile fieldwork: two separate camera/gallery choices, no hidden full-card input. */
+      .sv-upload-box{cursor:default;min-width:0}
+      .sv-upload-box .sv-file-input{position:absolute;inset:auto;width:1px;height:1px;opacity:0;pointer-events:none}
+      .sv-upload-box:focus-within{outline:2px solid var(--lv-brand-primary);outline-offset:2px}
+      .sv-upload-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;width:100%}
+      .sv-upload-choice{display:inline-flex;align-items:center;justify-content:center;min-height:44px;flex:1 1 110px;padding:8px 10px;
+        border:1px solid var(--lv-control-border);border-radius:9px;background:var(--lv-control-bg);color:var(--lv-text-primary);
+        -webkit-text-fill-color:currentColor;font-size:12px;font-weight:800;line-height:1.3;cursor:pointer;touch-action:manipulation}
+      .sv-upload-choice.camera{background:var(--lv-brand-primary);border-color:var(--lv-brand-primary);color:#fff;-webkit-text-fill-color:#fff}
+      .sv-upload-choice.is-disabled{opacity:.55;cursor:wait}
+      .sv-upload-remove{min-height:44px;padding:9px 12px;border-radius:9px;font-size:12px;font-weight:800}
+      .sv-upload-box small{overflow-wrap:anywhere;max-width:100%;font-size:11px}
+      .sv-progress{font-size:12px;line-height:1.5}
+      @media(max-width:600px){.sv-uploads{grid-template-columns:minmax(0,1fr)}.sv-step select,.sv-step textarea{font-size:16px;min-height:44px}.sv-msg{font-size:12px;line-height:1.45}.sv-hero p{font-size:12px}.sv-hero small{font-size:10px}.sv-step>span{font-size:11px}.sv-submit{font-size:12px}}
     `}</style>
 
     <div className="sv-hero">
@@ -268,16 +298,17 @@ export default function EmployeeSiteVisitCenter() {
       <p>Select the project, verify GPS, add photos or a short note, then submit.</p>
     </div>
 
-    {error && <div className="sv-msg err">{error}</div>}
-    {notice && <div className="sv-msg ok">{notice}</div>}
+    {error && <div className="sv-msg err" role="alert">{error}</div>}
+    {notice && <div className="sv-msg ok" role="status">{notice}</div>}
+    {offline && <div className="sv-msg err" role="status">Offline — reconnect before submitting. Your notes and selected photos remain on this page.</div>}
 
     <div className="sv-grid">
       <section className="sv-card">
         <div className="sv-card-head"><div><strong>New Site Visit</strong><small>Today's date is added automatically.</small></div><span>EMPLOYEE</span></div>
-        <form className="sv-simple-form" onSubmit={submit}>
+        <form className="sv-simple-form" onSubmit={submit} aria-busy={saving}>
           <label className="sv-step">
             <span>1 · PROJECT</span>
-            <select value={projectId} onChange={(e) => { setProjectId(e.target.value); setLocation(null); setNotice(""); }}>
+            <select value={projectId} disabled={saving} onChange={(e) => { setProjectId(e.target.value); setLocation(null); setNotice(""); }}>
               <option value="">Select project</option>
               {projects.map((project) => <option key={project.Project_ID} value={project.Project_ID}>{project.Project_ID} · {project.Project_Name || project.Client_Name || "Project"}</option>)}
             </select>
@@ -290,38 +321,51 @@ export default function EmployeeSiteVisitCenter() {
                 <strong>{location ? "Verified at project site" : "GPS verification required"}</strong>
                 <small className={location ? "ok" : ""}>{location ? Math.round(location.distanceM) + " m from site · accuracy " + Math.round(location.accuracyM) + " m" : "Your exact location is checked against the registered project site."}</small>
               </div>
-              <button type="button" className={`sv-location-btn${location ? " verified" : ""}`} onClick={() => void verifyLocation()} disabled={locationChecking || !projectId}>{locationChecking ? "CHECKING GPS…" : location ? "✓ VERIFIED" : locationPermission === "denied" ? "TRY GPS AGAIN" : "VERIFY GPS"}</button>
+              <button type="button" className={`sv-location-btn${location ? " verified" : ""}`} data-lv-button={location ? "success-solid" : "primary"} onClick={() => void verifyLocation()} disabled={locationChecking || saving || !projectId}>{locationChecking ? "CHECKING GPS…" : location ? "✓ VERIFIED" : locationPermission === "denied" ? "TRY GPS AGAIN" : "VERIFY GPS"}</button>
             </div>
           </div>
 
           <div className="sv-step">
             <span>3 · PHOTOS</span>
             <div className="sv-uploads">
-              <label className={`sv-upload-box${visitPhoto ? " has-file" : ""}`}>
-                <span className="sv-upload-plus">{visitPhoto ? "✓" : "+"}</span>
+              <div className={`sv-upload-box${visitPhoto ? " has-file" : ""}`}>
+                <span className="sv-upload-plus" aria-hidden="true">{visitPhoto ? "✓" : "+"}</span>
                 <strong>SITE PHOTO</strong>
-                <small>{visitPhoto ? visitPhoto.name : "Take or choose a site photo"}</small>
-                <input type="file" accept="image/*" capture="environment" onChange={(e) => setVisitPhoto(e.target.files?.[0] || null)} />
-              </label>
-              <label className={`sv-upload-box${problemPhoto ? " has-file" : ""}`}>
-                <span className="sv-upload-plus">{problemPhoto ? "✓" : "+"}</span>
+                <small>{visitPhoto ? visitPhoto.name : "Take a picture or select from gallery"}</small>
+                <div className="sv-upload-actions">
+                  <label className={`sv-upload-choice camera${saving ? " is-disabled" : ""}`} htmlFor={visitCameraId}>📷 Camera</label>
+                  <label className={`sv-upload-choice${saving ? " is-disabled" : ""}`} htmlFor={visitGalleryId}>Gallery</label>
+                </div>
+                <input id={visitCameraId} className="sv-file-input" type="file" accept="image/*" capture="environment" disabled={saving} onChange={(e) => { if (e.target.files?.[0]) choosePhoto("visit", e.target.files[0]); e.target.value = ""; }} />
+                <input id={visitGalleryId} className="sv-file-input" type="file" accept="image/*" disabled={saving} onChange={(e) => { if (e.target.files?.[0]) choosePhoto("visit", e.target.files[0]); e.target.value = ""; }} />
+                {visitPhoto && <button type="button" className="sv-upload-remove" data-lv-button="danger" disabled={saving} onClick={() => choosePhoto("visit", null)}>Remove site photo</button>}
+              </div>
+              <div className={`sv-upload-box${problemPhoto ? " has-file" : ""}`}>
+                <span className="sv-upload-plus" aria-hidden="true">{problemPhoto ? "✓" : "+"}</span>
                 <strong>PROBLEM PHOTO</strong>
-                <small>{problemPhoto ? problemPhoto.name : "Optional"}</small>
-                <input type="file" accept="image/*" capture="environment" onChange={(e) => setProblemPhoto(e.target.files?.[0] || null)} />
-              </label>
+                <small>{problemPhoto ? problemPhoto.name : "Optional — camera or gallery"}</small>
+                <div className="sv-upload-actions">
+                  <label className={`sv-upload-choice camera${saving ? " is-disabled" : ""}`} htmlFor={problemCameraId}>📷 Camera</label>
+                  <label className={`sv-upload-choice${saving ? " is-disabled" : ""}`} htmlFor={problemGalleryId}>Gallery</label>
+                </div>
+                <input id={problemCameraId} className="sv-file-input" type="file" accept="image/*" capture="environment" disabled={saving} onChange={(e) => { if (e.target.files?.[0]) choosePhoto("problem", e.target.files[0]); e.target.value = ""; }} />
+                <input id={problemGalleryId} className="sv-file-input" type="file" accept="image/*" disabled={saving} onChange={(e) => { if (e.target.files?.[0]) choosePhoto("problem", e.target.files[0]); e.target.value = ""; }} />
+                {problemPhoto && <button type="button" className="sv-upload-remove" data-lv-button="danger" disabled={saving} onClick={() => choosePhoto("problem", null)}>Remove problem photo</button>}
+              </div>
             </div>
           </div>
 
           <label className="sv-step">
             <span>4 · SITE NOTES / PROBLEM</span>
-            <textarea value={siteNotes} onChange={(e) => setSiteNotes(e.target.value)} placeholder="What happened at the site? Add any problem or instruction here. (Optional)" />
+            <textarea value={siteNotes} disabled={saving} onChange={(e) => setSiteNotes(e.target.value)} placeholder="What happened at the site? Add any problem or instruction here. (Optional)" />
           </label>
 
-          <button className="sv-submit" disabled={saving || !projectId || !location}>{saving ? "SUBMITTING…" : "SUBMIT SITE VISIT"}</button>
+          {uploadStage && <div className="sv-msg ok sv-progress" role="status" aria-live="polite">{uploadStage}</div>}
+          <button className="sv-submit" data-lv-button="primary" disabled={saving || offline || !projectId || !location}>{saving ? "PREPARING / UPLOADING…" : "SUBMIT SITE VISIT"}</button>
 
           <div className="sv-helper">
             <span>Photos are compressed automatically before upload.</span>
-            <button type="button" onClick={() => void testGps()} disabled={gpsTesting}>{gpsTesting ? "Testing GPS…" : "Having GPS trouble? Test location"}</button>
+            <button type="button" onClick={() => void testGps()} disabled={gpsTesting || saving}>{gpsTesting ? "Testing GPS…" : "Having GPS trouble? Test location"}</button>
           </div>
           {gpsTestResult && <div className="sv-gps-test">{gpsTestResult}</div>}
         </form>
@@ -346,7 +390,7 @@ export default function EmployeeSiteVisitCenter() {
               <div className="sv-row-side">
                 <span className="sv-status">{visit.Status || "Completed"}</span>
                 {waLabel && <span className={`sv-wa ${waStatus}`}>{waLabel}</span>}
-                {waStatus && waStatus !== "sent" && <button type="button" className="sv-wa-retry" disabled={retryingVisit === visit.Visit_ID} onClick={() => void retryWhatsApp(String(visit.Visit_ID || ""))}>{retryingVisit === visit.Visit_ID ? "RETRYING…" : "RETRY WHATSAPP"}</button>}
+                {waStatus && waStatus !== "sent" && <button type="button" className="sv-wa-retry" data-lv-button="primary" disabled={retryingVisit === visit.Visit_ID} onClick={() => void retryWhatsApp(String(visit.Visit_ID || ""))}>{retryingVisit === visit.Visit_ID ? "RETRYING…" : "RETRY WHATSAPP"}</button>}
                 {waStatus && waStatus !== "sent" && visit.WhatsApp_Publish_Reason && <small className="sv-wa-reason">{visit.WhatsApp_Publish_Reason}</small>}
               </div>
             </article>;

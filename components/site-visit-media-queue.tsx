@@ -62,7 +62,12 @@ export default function SiteVisitMediaQueue({ canRetry = false }: { canRetry?: b
     }
   }, [canRetry, load, processing]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const refreshAfterNewVisit = () => { void load(); };
+    window.addEventListener("landview:site-visit-created", refreshAfterNewVisit);
+    return () => window.removeEventListener("landview:site-visit-created", refreshAfterNewVisit);
+  }, [load]);
 
   // Admin dashboard visits should heal an overdue queue automatically. This is
   // especially important on the current Hobby deployment where frequent cron

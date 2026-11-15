@@ -898,3 +898,56 @@
     grid-column: 1 / -1;
   }
 }
+
+
+/* V5.4 Site Visit fieldwork: accessible mobile photo controls and progress.
+   Uses the existing central control palette, not a new button color layer. */
+@media screen and (max-width: 900px) {
+  .portal-admin.portal-admin .site-visits-page .ase-form {
+    padding: 12px !important;
+    gap: 12px !important;
+    min-width: 0 !important;
+  }
+  .portal-admin.portal-admin .site-visits-page .ase-field span,
+  .portal-admin.portal-admin .site-visits-page .ase-upload strong {
+    font-size: 12px !important;
+    line-height: 1.4 !important;
+    letter-spacing: .025em !important;
+  }
+  .portal-admin.portal-admin .site-visits-page :is(.ase-field select,.ase-field textarea) {
+    min-height: 46px !important;
+    font-size: 16px !important;
+    line-height: 1.4 !important;
+    min-width: 0 !important;
+  }
+  .portal-admin.portal-admin .site-visits-page .ase-upload small {
+    font-size: 12px !important;
+    overflow-wrap: anywhere;
+  }
+  .portal-admin.portal-admin .site-visits-page .ase-photo-action {
+    min-height: 44px !important;
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+    line-height: 1.35 !important;
+    flex: 1 1 120px;
+    touch-action: manipulation;
+  }
+  .portal-admin.portal-admin .site-visits-page .ase-photo-item {
+    min-width: 0 !important;
+    font-size: 12px !important;
+    min-height: 44px !important;
+  }
+  .portal-admin.portal-admin .site-visits-page .ase-photo-item button {
+    min-height: 44px !important;
+    padding: 8px 11px !important;
+    font-size: 11px !important;
+  }
+  .portal-admin.portal-admin .site-visits-page :is(.ase-gallery-note,.ase-info,.ase-error,.ase-ok) {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+  }
+  .portal-admin.portal-admin .site-visits-page .ase-submit {
+    min-height: 48px !important;
+    font-size: 13px !important;
+  }
+}

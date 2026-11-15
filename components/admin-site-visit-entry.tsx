@@ -1,39 +1,12 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { isSiteVisitPhoto, prepareSiteVisitPhoto, siteVisitNetworkError } from "@/lib/site-visit-photo-preparation";
 
 type ProjectRow = { Project_ID?: string; Project_Name?: string; Client_Name?: string; Location?: string; Status?: string };
 type EmployeeRow = { Employee_ID?: string; Employee_Name?: string; Designation?: string; Status?: string };
 
 const MAX_TOTAL_PHOTOS = 8;
-
-function compressImage(file: File, maxDimension = 1200, quality = 0.7): Promise<File> {
-  return new Promise((resolve, reject) => {
-    if (!file.type.startsWith("image/")) return reject(new Error("Please select an image file."));
-    const image = new Image();
-    const url = URL.createObjectURL(file);
-    image.onload = () => {
-      URL.revokeObjectURL(url);
-      const scale = Math.min(1, maxDimension / Math.max(image.width, image.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.max(1, Math.round(image.width * scale));
-      canvas.height = Math.max(1, Math.round(image.height * scale));
-      const context = canvas.getContext("2d");
-      if (!context) return reject(new Error("Could not prepare photo."));
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      canvas.toBlob((blob) => {
-        if (!blob) return reject(new Error("Could not prepare photo."));
-        const base = file.name.replace(/\.(jpe?g|png|webp|heic|heif)$/i, "") || "site-visit";
-        resolve(new File([blob], `${base}.jpg`, { type: "image/jpeg" }));
-      }, "image/jpeg", quality);
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("Could not read photo."));
-    };
-    image.src = url;
-  });
-}
 
 function fileSummary(files: File[], emptyText: string) {
   if (!files.length) return emptyText;
@@ -46,6 +19,9 @@ export default function AdminSiteVisitEntry() {
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const submittingRef = useRef(false);
+  const [uploadStage, setUploadStage] = useState("");
+  const [offline, setOffline] = useState(false);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -93,10 +69,22 @@ export default function AdminSiteVisitEntry() {
   }
 
   useEffect(() => { void loadEntryData(); }, []);
+  useEffect(() => {
+    const update = () => setOffline(navigator.onLine === false);
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => { window.removeEventListener("online", update); window.removeEventListener("offline", update); };
+  }, []);
 
   function choosePhotos(kind: "visit" | "problem", list: FileList | null) {
-    const incoming = Array.from(list || []).filter((file) => file.type.startsWith("image/"));
-    if (!incoming.length) return;
+    if (submittingRef.current) return;
+    const raw = Array.from(list || []);
+    const incoming = raw.filter(isSiteVisitPhoto);
+    if (!incoming.length) {
+      if (raw.length) setError("Choose image files from your camera or gallery.");
+      return;
+    }
     const available = Math.max(0, MAX_TOTAL_PHOTOS - visitPhotos.length - problemPhotos.length);
     const next = incoming.slice(0, available);
     if (!next.length) {
@@ -109,6 +97,7 @@ export default function AdminSiteVisitEntry() {
   }
 
   function removePhoto(kind: "visit" | "problem", index: number) {
+    if (submittingRef.current) return;
     if (kind === "visit") setVisitPhotos((current) => current.filter((_, i) => i !== index));
     else setProblemPhotos((current) => current.filter((_, i) => i !== index));
     setError("");
@@ -116,19 +105,27 @@ export default function AdminSiteVisitEntry() {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (saving) return;
+    if (submittingRef.current) return;
+    submittingRef.current = true;
     setSaving(true);
     setError("");
     setNotice("");
+    let requestStarted = false;
     try {
       if (!form.projectId) throw new Error("Select a project.");
+      if (navigator.onLine === false) throw new Error("You are offline. Reconnect before submitting; your form and photos are preserved.");
       if (visitPhotos.length + problemPhotos.length > MAX_TOTAL_PHOTOS) throw new Error(`Select no more than ${MAX_TOTAL_PHOTOS} photos.`);
 
       const body = new FormData();
       Object.entries(form).forEach(([key, value]) => body.append(key, value));
-      for (const file of visitPhotos) body.append("visitPhotos", await compressImage(file));
-      for (const file of problemPhotos) body.append("problemPhotos", await compressImage(file));
-
+      const allFiles = [...visitPhotos.map(file => ({ file, key: "visitPhotos" })), ...problemPhotos.map(file => ({ file, key: "problemPhotos" }))];
+      for (const [index, item] of allFiles.entries()) {
+        setUploadStage(`Preparing photo ${index + 1} of ${allFiles.length}…`);
+        body.append(item.key, await prepareSiteVisitPhoto(item.file, 1200));
+      }
+      if (navigator.onLine === false) throw new Error("You are offline. Reconnect before submitting; your form and photos are preserved.");
+      setUploadStage("Uploading and saving Site Visit… Do not close this page.");
+      requestStarted = true;
       const response = await fetch("/api/admin/site-visits", { method: "POST", body, credentials: "same-origin" });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.success) throw new Error(String(json?.error || "Could not submit Site Visit."));
@@ -144,10 +141,12 @@ export default function AdminSiteVisitEntry() {
       setVisitPhotos([]);
       setProblemPhotos([]);
       setForm((current) => ({ ...current, visitDate: new Date().toISOString().slice(0, 10), purpose: "Site Visit", problemDetails: "", actionRequired: "", notes: "" }));
-      if (wa === "sent") window.setTimeout(() => window.location.reload(), 1200);
-    } catch (e: any) {
-      setError(e?.message || "Could not submit Site Visit.");
+      window.dispatchEvent(new Event("landview:site-visit-created"));
+    } catch (e: unknown) {
+      setError(siteVisitNetworkError(e, requestStarted));
     } finally {
+      submittingRef.current = false;
+      setUploadStage("");
       setSaving(false);
     }
   }
@@ -159,13 +158,14 @@ export default function AdminSiteVisitEntry() {
 
     <div className="ase-bar">
       <div><strong>Management Site Visit Entry</strong><small>Quick entry for Admins and Managers. Add several gallery photos to the same visit.</small></div>
-      <button type="button" className="ase-toggle" data-lv-button="primary" onClick={() => setOpen((value) => !value)}>{open ? "CLOSE" : "+ ADD SITE VISIT"}</button>
+      <button type="button" className="ase-toggle" data-lv-button="primary" disabled={saving} aria-expanded={open} onClick={() => setOpen((value) => !value)}>{open ? "CLOSE" : "+ ADD SITE VISIT"}</button>
     </div>
 
-    {error && <div className="ase-error">{error}</div>}
-    {notice && <div className="ase-ok">{notice}</div>}
+    {error && <div className="ase-error" role="alert">{error}</div>}
+    {notice && <div className="ase-ok" role="status">{notice}</div>}
+    {offline && <div className="ase-error" role="status">Offline — reconnect before submitting. Your selected photos and notes are still here.</div>}
 
-    {open && <form className="ase-form" onSubmit={submit}>
+    {open && <form className="ase-form" onSubmit={submit} aria-busy={saving}>
       <div className="ase-info"><strong>MANAGEMENT ENTRY</strong> · GPS is not required. Select an employee only when you want the visit recorded in that employee&apos;s name.</div>
       <label className="ase-field"><span>PROJECT</span><select value={form.projectId} onChange={(event) => setForm((value) => ({ ...value, projectId: event.target.value }))} disabled={loading}><option value="">{loading ? "Loading projects…" : "Select project"}</option>{projects.map((project) => <option key={project.Project_ID} value={project.Project_ID}>{project.Project_ID} · {project.Project_Name || project.Client_Name || "Project"}</option>)}</select></label>
       <label className="ase-field"><span>ISSUE AS</span><select value={form.employeeId} onChange={(event) => setForm((value) => ({ ...value, employeeId: event.target.value }))} disabled={loading}><option value="">Management direct entry</option>{employees.map((employee) => <option key={employee.Employee_ID} value={employee.Employee_ID}>{employee.Employee_ID} · {employee.Employee_Name || "Employee"}</option>)}</select></label>
@@ -178,10 +178,10 @@ export default function AdminSiteVisitEntry() {
             <label className="ase-photo-action camera" htmlFor={visitCameraId}>📷 TAKE PHOTO</label>
             <label className="ase-photo-action" htmlFor={visitGalleryId}>ADD FROM GALLERY</label>
           </div>
-          <input id={visitCameraId} className="ase-file-input" type="file" accept="image/*" capture="environment" onChange={(event) => { choosePhotos("visit", event.target.files); event.target.value = ""; }} />
-          <input id={visitGalleryId} className="ase-file-input" type="file" accept="image/*" multiple onChange={(event) => { choosePhotos("visit", event.target.files); event.target.value = ""; }} />
+          <input id={visitCameraId} className="ase-file-input" type="file" disabled={saving} accept="image/*" capture="environment" onChange={(event) => { choosePhotos("visit", event.target.files); event.target.value = ""; }} />
+          <input id={visitGalleryId} className="ase-file-input" type="file" disabled={saving} accept="image/*" multiple onChange={(event) => { choosePhotos("visit", event.target.files); event.target.value = ""; }} />
           {visitPhotos.length > 0 && <div className="ase-photo-list">{visitPhotos.map((file, index) =>
-            <div className="ase-photo-item" key={`${index}-${file.name}-${file.lastModified}`}><span>{file.name}</span><button type="button" onClick={() => removePhoto("visit", index)} aria-label={`Remove site photo ${index + 1}`}>REMOVE</button></div>
+            <div className="ase-photo-item" key={`${index}-${file.name}-${file.lastModified}`}><span>{file.name}</span><button type="button" disabled={saving} onClick={() => removePhoto("visit", index)} aria-label={`Remove site photo ${index + 1}`}>REMOVE</button></div>
           )}</div>}
         </div>
         <div className="ase-upload-card">
@@ -191,17 +191,18 @@ export default function AdminSiteVisitEntry() {
             <label className="ase-photo-action camera" htmlFor={problemCameraId}>📷 TAKE PHOTO</label>
             <label className="ase-photo-action" htmlFor={problemGalleryId}>ADD FROM GALLERY</label>
           </div>
-          <input id={problemCameraId} className="ase-file-input" type="file" accept="image/*" capture="environment" onChange={(event) => { choosePhotos("problem", event.target.files); event.target.value = ""; }} />
-          <input id={problemGalleryId} className="ase-file-input" type="file" accept="image/*" multiple onChange={(event) => { choosePhotos("problem", event.target.files); event.target.value = ""; }} />
+          <input id={problemCameraId} className="ase-file-input" type="file" disabled={saving} accept="image/*" capture="environment" onChange={(event) => { choosePhotos("problem", event.target.files); event.target.value = ""; }} />
+          <input id={problemGalleryId} className="ase-file-input" type="file" disabled={saving} accept="image/*" multiple onChange={(event) => { choosePhotos("problem", event.target.files); event.target.value = ""; }} />
           {problemPhotos.length > 0 && <div className="ase-photo-list">{problemPhotos.map((file, index) =>
-            <div className="ase-photo-item" key={`${index}-${file.name}-${file.lastModified}`}><span>{file.name}</span><button type="button" onClick={() => removePhoto("problem", index)} aria-label={`Remove problem photo ${index + 1}`}>REMOVE</button></div>
+            <div className="ase-photo-item" key={`${index}-${file.name}-${file.lastModified}`}><span>{file.name}</span><button type="button" disabled={saving} onClick={() => removePhoto("problem", index)} aria-label={`Remove problem photo ${index + 1}`}>REMOVE</button></div>
           )}</div>}
         </div>
       </div>
       <div className="ase-gallery-note">{totalPhotos} / {MAX_TOTAL_PHOTOS} photos selected. Take multiple photos one by one, or add them from the gallery. Photos are compressed before upload. Admin and Manager uploads do not require GPS verification.</div>
 
       <label className="ase-field wide"><span>SITE NOTES / PROBLEM · OPTIONAL</span><textarea value={form.problemDetails} onChange={(event) => setForm((value) => ({ ...value, problemDetails: event.target.value }))} placeholder="What happened on site? Add a short note only if needed."/></label>
-      <button className="ase-submit" data-lv-button="primary" disabled={saving || loading}>{saving ? "UPLOADING & SUBMITTING…" : "SUBMIT SITE VISIT"}</button>
+      {uploadStage && <div className="ase-info" role="status" aria-live="polite">{uploadStage}</div>}
+      <button className="ase-submit" data-lv-button="primary" disabled={saving || loading || offline}>{saving ? "PREPARING / UPLOADING…" : "SUBMIT SITE VISIT"}</button>
     </form>}
   </section>;
 }

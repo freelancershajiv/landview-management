@@ -25,7 +25,12 @@ export default function SiteVisitsAdmin({canDelete=false}:{canDelete?:boolean}){
     }catch(e:any){setError(e?.message||"Could not load Site Visits.");}
     finally{setLoading(false);}
   }
-  useEffect(()=>{void load();},[]);
+  useEffect(() => {
+    void load();
+    const onVisitCreated = () => { void load(); };
+    window.addEventListener("landview:site-visit-created", onVisitCreated);
+    return () => window.removeEventListener("landview:site-visit-created", onVisitCreated);
+  }, []);
 
   async function deleteVisit(visit:Row){
     const visitId=String(visit?.Visit_ID||"").trim();
