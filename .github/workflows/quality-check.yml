@@ -51,6 +51,12 @@ jobs:
       - name: Billing V4 migration-free reliability gate
         run: node --test tests/billing-v4-reliability.test.cjs
 
+      - name: Billing 4.1 reconciliation review gate
+        run: node --test tests/billing-reconciliation-41.test.cjs
+
+      - name: Billing 4.1 scoped lint
+        run: npx eslint lib/billing-reconciliation-41.ts app/api/billing/reconciliation-41/route.ts app/admin/finance/reconciliation/page.tsx
+
       - name: Billing V4 route/server lint
         run: npx eslint app/api/billing/batch/route.ts app/api/billing/submission-status/route.ts components/billing-navigation.tsx components/billing-project-jump.tsx
 
