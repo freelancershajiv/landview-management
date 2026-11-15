@@ -24,7 +24,7 @@ export default function BillingProjectJump() {
       .bv4-jump-links a[aria-disabled=true]{opacity:.45;pointer-events:none}
       @media(max-width:650px){.bv4-jump-links a{flex:1 1 140px}.bv4-jump input{max-width:100%}}
     `}</style>
-    <div><h2>Find a project's billing</h2><p>Open its complete bill history, individual invoices, receipt links and due position using the same File ID.</p></div>
+    <div><h2>Find project billing</h2><p>Open its complete bill history, individual invoices, receipt links and due position using the same File ID.</p></div>
     <div className="bv4-jump-row">
       <input aria-label="LAND VIEW File ID" value={entered} onChange={(event) => setEntered(event.target.value)} placeholder="Enter LV-157, LV-209 or LV-243" autoComplete="off" />
       <span style={{ fontSize: 12, color: "var(--lv-text-secondary)" }}>{code ? `Selected: ${code}` : entered ? "Enter a valid LV number" : "Choose a project"}</span>
