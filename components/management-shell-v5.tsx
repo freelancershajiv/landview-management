@@ -165,6 +165,8 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [mobileFindOpen, setMobileFindOpen] = useState(false);
+  const [pageQuery, setPageQuery] = useState("");
   const [expandedSection, setExpandedSection] = useState("");
   const [access, setAccess] = useState<WorkspaceAccess>(() => {
     const role = roleOf(initialUser);
@@ -179,6 +181,8 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
   const [roleSwitchBusy, setRoleSwitchBusy] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
   const navigationRef = useRef<HTMLElement>(null);
+  const mobileFindInputRef = useRef<HTMLInputElement>(null);
+  const mobileFindButtonRef = useRef<HTMLButtonElement>(null);
 
   const role = roleOf(initialUser);
   const isAdmin = role === "admin";
@@ -199,6 +203,15 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
     return items.length ? [{ ...entry, items }] : [];
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [all, isAdmin, permissions]);
+
+  // Search only pages the current role can actually open.
+  const searchablePages = useMemo(
+    () => visibleSidebar.flatMap((entry) => entry.kind === "link" ? [entry.item] : entry.items),
+    [visibleSidebar],
+  );
+  const pageResults = searchablePages
+    .filter((item) => item.label.toLowerCase().includes(pageQuery.trim().toLowerCase()))
+    .slice(0, 8);
 
   const activeItem = useMemo(() => {
     const sorted = [...ALL_NAV_ITEMS].sort((a, b) => b.href.length - a.href.length);
@@ -229,12 +242,14 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
 
   useEffect(() => {
     setMobileOpen(false);
+    setMobileFindOpen(false);
+    setPageQuery("");
     if (activeGroup) setExpandedSection(activeGroup);
   }, [pathname, activeGroup]);
 
   useEffect(() => {
     const desktop = window.matchMedia("(min-width: 901px)");
-    const closeOnDesktop = () => { if (desktop.matches) setMobileOpen(false); };
+    const closeOnDesktop = () => { if (desktop.matches) { setMobileOpen(false); setMobileFindOpen(false); } };
     desktop.addEventListener("change", closeOnDesktop);
     return () => desktop.removeEventListener("change", closeOnDesktop);
   }, []);
@@ -255,6 +270,16 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [mobileOpen]);
+
+  useEffect(() => {
+    if (mobileFindOpen) mobileFindInputRef.current?.focus();
+  }, [mobileFindOpen]);
+
+  function openPageFromSearch(href: string) {
+    setMobileFindOpen(false);
+    setPageQuery("");
+    router.push(href);
+  }
 
   async function logout() {
     try { await landViewApi.logout(); } catch {}
@@ -350,18 +375,8 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
     .lv-nav-children>a:hover,.lv-nav-children>a.active{background:var(--lv-brand-soft);color:var(--lv-brand-text)}
     .sidebar-footer-account{display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;color:inherit;text-decoration:none}.sidebar-footer-account:hover{background:var(--lv-brand-soft)}
     @media screen and (min-width:901px){.portal-admin .primary-nav{visibility:visible!important;pointer-events:auto!important}.portal-admin .mobile-nav-overlay{display:none!important}}
-    @media screen and (max-width:900px){
-      .portal-admin .masthead{position:sticky!important;top:0!important;z-index:300!important}
-      .portal-admin .utility-bar{position:relative!important;z-index:220!important;min-height:64px!important;height:64px!important}
-      .portal-admin .utility-inner{min-height:64px!important;height:64px!important}
-      .portal-admin .primary-nav:not(.open){display:none!important;visibility:hidden!important;pointer-events:none!important}
-      .portal-admin .mobile-nav-overlay{position:fixed!important;inset:64px 0 0 0!important;z-index:199!important;border:0!important;padding:0!important;background:rgba(0,0,0,.48)!important;cursor:pointer!important}
-      .portal-admin .tmg-mobile-menu{position:relative!important;z-index:220!important;pointer-events:auto!important;touch-action:manipulation!important}
-      .portal-admin .primary-nav.open{display:block!important;position:fixed!important;z-index:210!important;top:64px!important;right:0!important;bottom:0!important;left:0!important;width:100%!important;height:calc(100dvh - 64px)!important;max-height:calc(100dvh - 64px)!important;overflow-y:auto!important;overflow-x:hidden!important;padding:14px 14px max(24px,env(safe-area-inset-bottom))!important;box-sizing:border-box!important;visibility:visible!important;opacity:1!important;transform:none!important}
-      .portal-admin .primary-nav.open .primary-nav-inner{display:grid!important;grid-template-columns:1fr!important;width:100%!important;height:auto!important;max-height:none!important;overflow:visible!important;padding:0!important;margin:0!important;gap:4px!important}
-      .portal-admin .admin-mobile-account{display:grid;gap:8px;margin:0;padding:12px;border-top:1px solid var(--lv-border-default)}
-      .portal-admin .admin-mobile-account button,.portal-admin .admin-mobile-account a{min-height:44px;padding:10px 14px;text-align:left;border:1px solid var(--lv-border-default);border-radius:9px;background:var(--lv-surface-panel);color:var(--lv-text-primary);font-size:12px;cursor:pointer;text-decoration:none}
-    }
+    /* Mobile shell geometry, drawer and account controls are owned exclusively
+       by app/admin/admin-mobile-authority.css; avoid inline CSS conflicts. */
     .primary-nav{position:relative;z-index:90;overflow:visible!important}
     .primary-nav-inner{position:relative;z-index:91;display:grid;gap:4px;overflow:visible!important;padding:3px 0}
   `;
@@ -372,16 +387,40 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
     <header className="masthead">
       {mobileOpen && <button type="button" tabIndex={-1} aria-label="Close navigation overlay" className="mobile-nav-overlay" onClick={() => setMobileOpen(false)} />}
       <div className="utility-bar"><div className="utility-inner">
-        <button type="button" ref={menuButtonRef} className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} aria-controls="admin-mobile-navigation" onClick={(event) => { event.stopPropagation(); setMobileOpen((value) => !value); }}>{mobileOpen ? "×" : "☰"}</button>
-        <div className="global-search" role="search"><span aria-hidden="true">⌕</span><input aria-label="Search LAND VIEW" placeholder="Search..." /></div>
+        <button type="button" ref={menuButtonRef} className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} aria-controls="admin-mobile-navigation" onClick={(event) => { event.stopPropagation(); setMobileFindOpen(false); setMobileOpen((value) => !value); }}>{mobileOpen ? "×" : "☰"}</button>
+        <Link href="/admin" className="lv-mobile-brand" onClick={() => { setMobileFindOpen(false); setMobileOpen(false); }} aria-label="LAND VIEW Management dashboard">
+          <strong>LAND VIEW</strong><small>MANAGEMENT</small>
+        </Link>
+        <div className="global-search" role="search">
+          <span aria-hidden="true">⌕</span>
+          <input type="search" aria-label="Find a management page" placeholder="Find a page..." value={pageQuery} onChange={(event) => setPageQuery(event.target.value)} onKeyDown={(event) => {
+            if (event.key === "Enter" && pageResults[0]) { event.preventDefault(); openPageFromSearch(pageResults[0].href); }
+            if (event.key === "Escape") setPageQuery("");
+          }} />
+          {pageQuery.trim() && <div className="lv-desktop-page-results" aria-label="Matching management pages">
+            {pageResults.length ? pageResults.map((item) => <Link key={item.href} href={item.href} onClick={() => setPageQuery("")}>{item.label}</Link>) : <p>No matching page</p>}
+          </div>}
+        </div>
+        <button type="button" ref={mobileFindButtonRef} className="lv-mobile-find-toggle" aria-label={mobileFindOpen ? "Close page search" : "Find a page"} aria-expanded={mobileFindOpen} aria-controls="lv-mobile-page-finder" onClick={() => { setMobileOpen(false); setMobileFindOpen((open) => !open); }}>{mobileFindOpen ? "×" : "⌕"}</button>
         <div className="utility-items">
-          <button type="button" className="notification-button" aria-label="Notifications"><span aria-hidden="true">♧</span><b>3</b></button>
+          {(all || permissions["dashboard.view"]) && <Link href="/admin/todo" className="notification-button" aria-label="Open To Do" title="Open To Do" onClick={() => { setMobileOpen(false); setMobileFindOpen(false); }}><span aria-hidden="true">✓</span></Link>}
           <Link href="/admin/account" className="utility-item user-utility" style={{ textDecoration: "none", color: "inherit" }}><div className="utility-avatar">{String(name).slice(0, 1).toUpperCase()}</div><span><small>{roleLabel(role)}</small>{name}</span></Link>
           {isAdmin && <button className="utility-logout" onClick={switchToEmployeeMode} disabled={roleSwitchBusy}>{roleSwitchBusy ? "SWITCHING..." : "EMP-0002 MODE"}</button>}
           {(isAdmin || isManager) && quickConfigured && <button className="utility-logout" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `TRUSTED ${daysLeft}D` : "TRUST DEVICE"}</button>}
           {(isAdmin || isManager) && <button className="utility-logout" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN LOCK" : "SET PIN"}</button>}
           <button className="utility-logout" onClick={logout}>Sign out</button>
         </div>
+        {mobileFindOpen && <div className="lv-mobile-find-panel" id="lv-mobile-page-finder" role="search" aria-label="Find management pages">
+          <label htmlFor="lv-mobile-find-input">Find a page</label>
+          <input ref={mobileFindInputRef} id="lv-mobile-find-input" type="search" autoComplete="off" value={pageQuery} placeholder="Projects, billing, site visits..." onChange={(event) => setPageQuery(event.target.value)} onKeyDown={(event) => {
+            if (event.key === "Enter" && pageResults[0]) { event.preventDefault(); openPageFromSearch(pageResults[0].href); }
+            if (event.key === "Escape") { setMobileFindOpen(false); mobileFindButtonRef.current?.focus(); }
+          }} />
+          <div className="lv-mobile-find-results">
+            {pageResults.length ? pageResults.map((item) => <Link key={item.href} href={item.href} onClick={() => { setMobileFindOpen(false); setPageQuery(""); }}>{item.label}</Link>) : <p>No matching management page</p>}
+          </div>
+          <button type="button" className="lv-mobile-find-dismiss" onClick={() => { setMobileFindOpen(false); mobileFindButtonRef.current?.focus(); }}>Close search</button>
+        </div>}
       </div></div>
 
       <nav ref={navigationRef} id="admin-mobile-navigation" aria-label="Management" className={`primary-nav ${mobileOpen ? "open" : ""}`}>

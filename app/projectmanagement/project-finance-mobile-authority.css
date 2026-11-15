@@ -144,6 +144,10 @@
     .pm-table-scroll,
     .pm-ledger-wrap,
     .pm-ledger-table-wrap,
+    .pmr-table-scroll,
+    .pmx-table-scroll,
+    .pfl-table-shell,
+    .cb-table,
     .table-scroll,
     .table-card,
     [class*="table-wrap" i],
@@ -210,14 +214,58 @@
 
   .pf-redesign .pm-actions,
   .pf-redesign :where(.pm-filter-actions,.pm-form-actions) {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
   .pf-redesign .pm-stats {
-    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
   }
 
   .pf-redesign table {
     min-width: 620px !important;
+  }
+}
+
+
+/* Mobile finance V4: keep new reconciliation and ledger cards within the
+   viewport; never squash financial tables or truncate accounting amounts. */
+@media screen and (max-width: 900px) {
+  .pf-redesign :is(.pmr-panel,.pmx-panel,.pfl-panel,.cb-panel,.pmx-heading-line,.pmr-panel-head,.pmr-panel-toolbar) {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .pf-redesign :is(.pmx-heading-line,.pmr-panel-head,.pmr-panel-toolbar,.rpt-statement-head) {
+    flex-wrap: wrap !important;
+    gap: 9px !important;
+  }
+
+  .pf-redesign :is(.pmr-table-scroll,.pmx-table-scroll,.pfl-table-shell) {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .pf-redesign .pm-stat {
+    min-width: 0 !important;
+  }
+
+  .pf-redesign .pm-stat :is(strong,b) {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+}
+
+@media screen and (max-width: 370px) {
+  .pf-redesign .pm-actions,
+  .pf-redesign :where(.pm-filter-actions,.pm-form-actions) {
+    grid-template-columns: minmax(0,1fr) !important;
+  }
+
+  .pf-redesign .pm-stats {
+    grid-template-columns: minmax(0,1fr) !important;
   }
 }
