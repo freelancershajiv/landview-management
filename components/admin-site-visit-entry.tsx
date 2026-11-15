@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 type ProjectRow = { Project_ID?: string; Project_Name?: string; Client_Name?: string; Location?: string; Status?: string };
 type EmployeeRow = { Employee_ID?: string; Employee_Name?: string; Designation?: string; Status?: string };
@@ -51,6 +51,11 @@ export default function AdminSiteVisitEntry() {
   const [notice, setNotice] = useState("");
   const [visitPhotos, setVisitPhotos] = useState<File[]>([]);
   const [problemPhotos, setProblemPhotos] = useState<File[]>([]);
+  const visitCameraId = useId();
+  const visitGalleryId = useId();
+  const problemCameraId = useId();
+  const problemGalleryId = useId();
+  const totalPhotos = visitPhotos.length + problemPhotos.length;
   const [form, setForm] = useState({
     projectId: "",
     employeeId: "",
@@ -91,13 +96,22 @@ export default function AdminSiteVisitEntry() {
 
   function choosePhotos(kind: "visit" | "problem", list: FileList | null) {
     const incoming = Array.from(list || []).filter((file) => file.type.startsWith("image/"));
-    const otherCount = kind === "visit" ? problemPhotos.length : visitPhotos.length;
-    const available = Math.max(0, MAX_TOTAL_PHOTOS - otherCount);
+    if (!incoming.length) return;
+    const available = Math.max(0, MAX_TOTAL_PHOTOS - visitPhotos.length - problemPhotos.length);
     const next = incoming.slice(0, available);
-    if (incoming.length > available) setError(`A Site Visit can contain up to ${MAX_TOTAL_PHOTOS} photos in total.`);
-    else setError("");
-    if (kind === "visit") setVisitPhotos(next);
-    else setProblemPhotos(next);
+    if (!next.length) {
+      setError(`A Site Visit can contain up to ${MAX_TOTAL_PHOTOS} photos in total. Remove a photo before adding another.`);
+      return;
+    }
+    if (kind === "visit") setVisitPhotos((current) => [...current, ...next]);
+    else setProblemPhotos((current) => [...current, ...next]);
+    setError(incoming.length > available ? `Only ${available} more photo${available === 1 ? "" : "s"} can be added. Maximum ${MAX_TOTAL_PHOTOS} per Site Visit.` : "");
+  }
+
+  function removePhoto(kind: "visit" | "problem", index: number) {
+    if (kind === "visit") setVisitPhotos((current) => current.filter((_, i) => i !== index));
+    else setProblemPhotos((current) => current.filter((_, i) => i !== index));
+    setError("");
   }
 
   async function submit(event: React.FormEvent) {
@@ -140,7 +154,7 @@ export default function AdminSiteVisitEntry() {
 
   return <section className="admin-site-entry">
     <style>{`
-      .admin-site-entry{display:grid;gap:12px;margin-bottom:16px}.ase-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 17px;border:1px solid var(--theme-line-_303a44,#303a44);border-radius:13px;background:linear-gradient(145deg,var(--theme-bg-_151c23,#151c23),var(--theme-bg-_0d1217,#0d1217))}.ase-bar strong{display:block;font-size:12px}.ase-bar small{display:block;margin-top:4px;color:var(--theme-ink-_83909a,#83909a);font-size:8px;line-height:1.45}.ase-toggle{height:38px;padding:0 14px;border:1px solid #8d282d;border-radius:8px;background:#c9232b;color:#fff;font-size:9px;font-weight:900;cursor:pointer;white-space:nowrap}.ase-form{display:grid;grid-template-columns:1fr 1fr;gap:11px;padding:17px;border:1px solid var(--theme-line-_303a44,#303a44);border-radius:13px;background:var(--theme-bg-_0e141a,#0e141a)}.ase-field{display:grid;gap:6px}.ase-field.wide{grid-column:1/-1}.ase-field span{font-size:8px;font-weight:900;letter-spacing:.08em;color:var(--theme-ink-_84909b,#84909b)}.ase-field select,.ase-field textarea{width:100%;border:1px solid var(--theme-line-_34404a,#34404a);border-radius:8px;background:var(--theme-bg-_0a1015,#0a1015);color:var(--theme-ink-_f1f4f6,#f1f4f6);padding:11px;font-size:10px;outline:none}.ase-field textarea{min-height:92px;resize:vertical}.ase-field select:focus,.ase-field textarea:focus{border-color:#d61f26;box-shadow:0 0 0 3px rgba(214,31,38,.08)}.ase-upload{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px}.ase-upload label{display:grid;gap:6px;min-height:106px;padding:13px;border:1px dashed var(--theme-line-_3b4751,#3b4751);border-radius:9px;background:var(--theme-bg-_0b1116,#0b1116);align-content:center}.ase-upload strong{font-size:9px}.ase-upload small{font-size:8px;color:var(--theme-ink-_77838e,#77838e);line-height:1.45}.ase-upload input{font-size:8px}.ase-gallery-note{grid-column:1/-1;margin-top:-2px;color:var(--theme-ink-_77838e,#77838e);font-size:8px;line-height:1.45}.ase-submit{grid-column:1/-1;height:42px;border:0;border-radius:8px;background:linear-gradient(180deg,#e53138,#bd171e);color:#fff;font-size:9px;font-weight:900;cursor:pointer}.ase-submit:disabled{opacity:.55;cursor:wait}.ase-info{grid-column:1/-1;padding:9px 11px;border:1px solid var(--theme-line-_2d5f40,#2d5f40);border-radius:8px;background:var(--theme-bg-_152c1e,#152c1e);color:var(--theme-ink-_a6dfb8,#a6dfb8);font-size:8px;line-height:1.5}.ase-error{padding:10px 12px;border:1px solid var(--theme-line-_6c292e,#6c292e);border-radius:8px;background:var(--theme-bg-_341617,#341617);color:var(--theme-ink-_ffaaa5,#ffaaa5);font-size:9px}.ase-ok{padding:10px 12px;border:1px solid var(--theme-line-_2d5f40,#2d5f40);border-radius:8px;background:var(--theme-bg-_152c1e,#152c1e);color:var(--theme-ink-_a6dfb8,#a6dfb8);font-size:9px}@media(max-width:700px){.ase-bar{align-items:flex-start;flex-direction:column}.ase-toggle{width:100%}.ase-form,.ase-upload{grid-template-columns:1fr}.ase-field.wide,.ase-submit,.ase-upload,.ase-info,.ase-gallery-note{grid-column:auto}}
+      .admin-site-entry{display:grid;gap:12px;margin-bottom:16px}.ase-bar{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:15px 17px;border:1px solid var(--theme-line-_303a44,#303a44);border-radius:13px;background:linear-gradient(145deg,var(--theme-bg-_151c23,#151c23),var(--theme-bg-_0d1217,#0d1217))}.ase-bar strong{display:block;font-size:12px}.ase-bar small{display:block;margin-top:4px;color:var(--theme-ink-_83909a,#83909a);font-size:8px;line-height:1.45}.ase-toggle{height:38px;padding:0 14px;border:1px solid #8d282d;border-radius:8px;background:#c9232b;color:#fff;font-size:9px;font-weight:900;cursor:pointer;white-space:nowrap}.ase-form{display:grid;grid-template-columns:1fr 1fr;gap:11px;padding:17px;border:1px solid var(--theme-line-_303a44,#303a44);border-radius:13px;background:var(--theme-bg-_0e141a,#0e141a)}.ase-field{display:grid;gap:6px}.ase-field.wide{grid-column:1/-1}.ase-field span{font-size:8px;font-weight:900;letter-spacing:.08em;color:var(--theme-ink-_84909b,#84909b)}.ase-field select,.ase-field textarea{width:100%;border:1px solid var(--theme-line-_34404a,#34404a);border-radius:8px;background:var(--theme-bg-_0a1015,#0a1015);color:var(--theme-ink-_f1f4f6,#f1f4f6);padding:11px;font-size:10px;outline:none}.ase-field textarea{min-height:92px;resize:vertical}.ase-field select:focus,.ase-field textarea:focus{border-color:#d61f26;box-shadow:0 0 0 3px rgba(214,31,38,.08)}.ase-upload{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:10px}.ase-upload-card{display:grid;gap:6px;min-height:106px;padding:13px;border:1px dashed var(--theme-line-_3b4751,#3b4751);border-radius:9px;background:var(--theme-bg-_0b1116,#0b1116);align-content:center}.ase-upload strong{font-size:9px}.ase-upload small{font-size:8px;color:var(--theme-ink-_77838e,#77838e);line-height:1.45}.ase-upload-actions{display:flex;gap:8px;flex-wrap:wrap}.ase-photo-action{min-height:38px;display:inline-flex;align-items:center;justify-content:center;padding:8px 12px;border:1px solid var(--theme-line-_3b4751,#3b4751);border-radius:8px;color:var(--theme-ink-_f1f4f6,#f1f4f6);background:var(--theme-bg-_17212a,#17212a);font-size:9px;font-weight:900;cursor:pointer;text-align:center}.ase-photo-action.camera{border-color:#a3252b;background:#c9232b;color:#fff}.ase-photo-action:focus-within{outline:2px solid #d61f26;outline-offset:2px}.ase-file-input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}.ase-photo-list{display:grid;gap:5px;margin-top:4px}.ase-photo-item{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:6px;background:var(--theme-bg-_151c23,#151c23);color:var(--theme-ink-_cad2d8,#cad2d8);font-size:9px}.ase-photo-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.ase-photo-item button{flex:0 0 auto;border:0;border-radius:4px;padding:5px 7px;background:var(--theme-bg-_341617,#341617);color:var(--theme-ink-_ffaaa5,#ffaaa5);font-size:8px;font-weight:900;cursor:pointer}.ase-gallery-note{grid-column:1/-1;margin-top:-2px;color:var(--theme-ink-_77838e,#77838e);font-size:8px;line-height:1.45}.ase-submit{grid-column:1/-1;height:42px;border:0;border-radius:8px;background:linear-gradient(180deg,#e53138,#bd171e);color:#fff;font-size:9px;font-weight:900;cursor:pointer}.ase-submit:disabled{opacity:.55;cursor:wait}.ase-info{grid-column:1/-1;padding:9px 11px;border:1px solid var(--theme-line-_2d5f40,#2d5f40);border-radius:8px;background:var(--theme-bg-_152c1e,#152c1e);color:var(--theme-ink-_a6dfb8,#a6dfb8);font-size:8px;line-height:1.5}.ase-error{padding:10px 12px;border:1px solid var(--theme-line-_6c292e,#6c292e);border-radius:8px;background:var(--theme-bg-_341617,#341617);color:var(--theme-ink-_ffaaa5,#ffaaa5);font-size:9px}.ase-ok{padding:10px 12px;border:1px solid var(--theme-line-_2d5f40,#2d5f40);border-radius:8px;background:var(--theme-bg-_152c1e,#152c1e);color:var(--theme-ink-_a6dfb8,#a6dfb8);font-size:9px}@media(max-width:700px){.ase-bar{align-items:flex-start;flex-direction:column}.ase-toggle{width:100%}.ase-form,.ase-upload{grid-template-columns:1fr}.ase-field.wide,.ase-submit,.ase-upload,.ase-info,.ase-gallery-note{grid-column:auto}}
     `}</style>
 
     <div className="ase-bar">
@@ -157,10 +171,34 @@ export default function AdminSiteVisitEntry() {
       <label className="ase-field"><span>ISSUE AS</span><select value={form.employeeId} onChange={(event) => setForm((value) => ({ ...value, employeeId: event.target.value }))} disabled={loading}><option value="">Management direct entry</option>{employees.map((employee) => <option key={employee.Employee_ID} value={employee.Employee_ID}>{employee.Employee_ID} · {employee.Employee_Name || "Employee"}</option>)}</select></label>
 
       <div className="ase-upload">
-        <label><strong>SITE PHOTOS</strong><small>{fileSummary(visitPhotos, "Choose one or several photos from gallery/files")}</small><input type="file" accept="image/jpeg,image/png,image/webp,image/*" multiple onChange={(event) => choosePhotos("visit", event.target.files)}/></label>
-        <label><strong>PROBLEM PHOTOS · OPTIONAL</strong><small>{fileSummary(problemPhotos, "Choose one or several problem photos")}</small><input type="file" accept="image/jpeg,image/png,image/webp,image/*" multiple onChange={(event) => choosePhotos("problem", event.target.files)}/></label>
+        <div className="ase-upload-card">
+          <strong>SITE PHOTOS</strong>
+          <small>{fileSummary(visitPhotos, "Take a photo or add pictures from your gallery")}</small>
+          <div className="ase-upload-actions">
+            <label className="ase-photo-action camera" htmlFor={visitCameraId}>📷 TAKE PHOTO</label>
+            <label className="ase-photo-action" htmlFor={visitGalleryId}>ADD FROM GALLERY</label>
+          </div>
+          <input id={visitCameraId} className="ase-file-input" type="file" accept="image/*" capture="environment" onChange={(event) => { choosePhotos("visit", event.target.files); event.target.value = ""; }} />
+          <input id={visitGalleryId} className="ase-file-input" type="file" accept="image/*" multiple onChange={(event) => { choosePhotos("visit", event.target.files); event.target.value = ""; }} />
+          {visitPhotos.length > 0 && <div className="ase-photo-list">{visitPhotos.map((file, index) =>
+            <div className="ase-photo-item" key={`${index}-${file.name}-${file.lastModified}`}><span>{file.name}</span><button type="button" onClick={() => removePhoto("visit", index)} aria-label={`Remove site photo ${index + 1}`}>REMOVE</button></div>
+          )}</div>}
+        </div>
+        <div className="ase-upload-card">
+          <strong>PROBLEM PHOTOS · OPTIONAL</strong>
+          <small>{fileSummary(problemPhotos, "Take a problem photo or add pictures from your gallery")}</small>
+          <div className="ase-upload-actions">
+            <label className="ase-photo-action camera" htmlFor={problemCameraId}>📷 TAKE PHOTO</label>
+            <label className="ase-photo-action" htmlFor={problemGalleryId}>ADD FROM GALLERY</label>
+          </div>
+          <input id={problemCameraId} className="ase-file-input" type="file" accept="image/*" capture="environment" onChange={(event) => { choosePhotos("problem", event.target.files); event.target.value = ""; }} />
+          <input id={problemGalleryId} className="ase-file-input" type="file" accept="image/*" multiple onChange={(event) => { choosePhotos("problem", event.target.files); event.target.value = ""; }} />
+          {problemPhotos.length > 0 && <div className="ase-photo-list">{problemPhotos.map((file, index) =>
+            <div className="ase-photo-item" key={`${index}-${file.name}-${file.lastModified}`}><span>{file.name}</span><button type="button" onClick={() => removePhoto("problem", index)} aria-label={`Remove problem photo ${index + 1}`}>REMOVE</button></div>
+          )}</div>}
+        </div>
       </div>
-      <div className="ase-gallery-note">Up to {MAX_TOTAL_PHOTOS} photos per Site Visit in total. Photos are compressed before upload and Admin and Manager uploads do not require GPS verification.</div>
+      <div className="ase-gallery-note">{totalPhotos} / {MAX_TOTAL_PHOTOS} photos selected. Take multiple photos one by one, or add them from the gallery. Photos are compressed before upload. Admin and Manager uploads do not require GPS verification.</div>
 
       <label className="ase-field wide"><span>SITE NOTES / PROBLEM · OPTIONAL</span><textarea value={form.problemDetails} onChange={(event) => setForm((value) => ({ ...value, problemDetails: event.target.value }))} placeholder="What happened on site? Add a short note only if needed."/></label>
       <button className="ase-submit" disabled={saving || loading}>{saving ? "UPLOADING & SUBMITTING…" : "SUBMIT SITE VISIT"}</button>
