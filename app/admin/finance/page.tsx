@@ -20,6 +20,7 @@ const reviews = [
   { title: "Financial Integrity", href: "/admin/billing/integrity", description: "Allocation and missing-reference exceptions" },
   { title: "Allocation Corrections", href: "/admin/billing/allocation-corrections", description: "Audited two-person approval" },
   { title: "Credit / Debit Notes", href: "/admin/billing/adjustments", description: "Preserve original issued bills" },
+  { title: "Write-Offs & Recoveries", href: "/admin/billing/writeoffs", description: "Audited uncollectible dues and recovered payments" },
   { title: "Billing Controls", href: "/admin/billing/billing-control", description: "Financial gates and approval overrides" },
 ];
 
