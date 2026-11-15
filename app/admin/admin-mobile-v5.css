@@ -951,3 +951,155 @@
     font-size: 13px !important;
   }
 }
+
+
+/* V5.6: one quiet Management drawer, one scroll surface and no duplicate
+   LAND VIEW heading/account blocks. Desktop and print are deliberately unchanged. */
+@media screen and (min-width:901px) {
+  .portal-admin .lv-mobile-drawer-head { display:none !important; }
+}
+@media screen and (max-width:900px) {
+  .portal-admin.portal-admin .primary-nav,
+  .portal-admin.portal-admin .primary-nav.open,
+  .portal-admin.portal-admin .primary-nav:not(.open) {
+    width:min(86vw,320px) !important;
+    max-width:calc(100vw - 20px) !important;
+    border-radius:0 16px 16px 0 !important;
+    border-right:1px solid var(--lv-border-default) !important;
+    background:var(--lv-surface-panel) !important;
+    box-shadow:18px 0 44px rgba(0,0,0,.19) !important;
+    overflow:hidden !important;
+  }
+  .portal-admin.portal-admin .primary-nav .sidebar-brand {
+    display:none !important;
+  }
+  .portal-admin.portal-admin .primary-nav .sidebar-footer {
+    display:none !important;
+  }
+  .portal-admin.portal-admin .lv-mobile-drawer-head {
+    display:flex !important;flex:0 0 auto !important;align-items:center !important;
+    justify-content:space-between !important;gap:12px !important;
+    min-height:64px !important;padding:10px 14px 10px max(16px,env(safe-area-inset-left)) !important;
+    margin:0 !important;border-bottom:1px solid var(--lv-border-default) !important;
+    background:var(--lv-surface-elevated) !important;
+  }
+  .portal-admin.portal-admin .lv-mobile-drawer-heading {
+    display:flex;flex-direction:column;gap:4px;min-width:0;
+  }
+  .portal-admin.portal-admin .lv-mobile-drawer-heading strong {
+    font-size:16px !important;font-weight:850 !important;line-height:1.15 !important;
+    color:var(--lv-text-strong) !important;
+  }
+  .portal-admin.portal-admin .lv-mobile-drawer-heading small {
+    font-size:10px !important;font-weight:750 !important;letter-spacing:.045em;
+    line-height:1.3 !important;color:var(--lv-text-secondary) !important;
+    overflow-wrap:anywhere;
+  }
+  .portal-admin.portal-admin .lv-mobile-drawer-close {
+    display:grid !important;flex:0 0 44px !important;place-items:center !important;
+    width:44px !important;height:44px !important;min-height:44px !important;
+    padding:0 !important;border:1px solid var(--lv-control-border) !important;
+    border-radius:12px !important;background:var(--lv-control-bg) !important;
+    color:var(--lv-text-primary) !important;-webkit-text-fill-color:currentColor !important;
+    font:700 25px/1 Arial,system-ui,sans-serif !important;cursor:pointer;touch-action:manipulation;
+  }
+  .portal-admin.portal-admin .primary-nav .primary-nav-inner,
+  .portal-admin.portal-admin .primary-nav.open .primary-nav-inner {
+    display:block !important;flex:1 1 auto !important;min-height:0 !important;
+    position:relative !important;width:100% !important;
+    padding:12px 12px calc(20px + env(safe-area-inset-bottom)) !important;
+    margin:0 !important;overflow-y:auto !important;overflow-x:hidden !important;
+    overscroll-behavior:contain !important;-webkit-overflow-scrolling:touch;
+    scrollbar-width:thin;scrollbar-color:var(--lv-control-border) transparent;
+  }
+  .portal-admin.portal-admin .primary-nav .lv-nav-stack {
+    display:grid !important;gap:5px !important;
+  }
+  .portal-admin.portal-admin .primary-nav :is(.lv-nav-direct,.lv-nav-group-button) {
+    display:grid !important;align-items:center !important;
+    min-height:48px !important;width:100% !important;min-width:0 !important;
+    padding:9px 12px !important;margin:0 !important;
+    border-radius:11px !important;line-height:1.35 !important;
+    font-size:13px !important;font-weight:750 !important;
+    background:transparent;color:var(--lv-text-primary) !important;
+    -webkit-text-fill-color:currentColor !important;
+    box-sizing:border-box !important;white-space:normal !important;
+  }
+  .portal-admin.portal-admin .primary-nav .lv-nav-direct {
+    grid-template-columns:24px minmax(0,1fr) !important;
+  }
+  .portal-admin.portal-admin .primary-nav .lv-nav-group-button {
+    grid-template-columns:24px minmax(0,1fr) 16px !important;
+  }
+  .portal-admin.portal-admin .primary-nav .lv-nav-children {
+    display:grid !important;gap:4px !important;
+    padding:5px 0 7px 20px !important;min-width:0 !important;
+  }
+  .portal-admin.portal-admin .primary-nav .lv-nav-children>a {
+    display:grid !important;grid-template-columns:22px minmax(0,1fr) !important;
+    align-items:center !important;gap:8px !important;
+    min-height:44px !important;padding:8px 10px !important;
+    border-radius:9px !important;font-size:12px !important;
+    line-height:1.4 !important;min-width:0 !important;
+    color:var(--lv-text-secondary) !important;-webkit-text-fill-color:currentColor !important;
+    overflow-wrap:anywhere;
+  }
+  .portal-admin.portal-admin .primary-nav :is(.lv-nav-direct.active,.lv-nav-group-button.active,.lv-nav-children>a.active),
+  .portal-admin.portal-admin .primary-nav :is(.lv-nav-direct[aria-current="page"],.lv-nav-children>a[aria-current="page"]) {
+    background:var(--lv-brand-soft-strong) !important;
+    color:var(--lv-ui-btn-soft-text,var(--lv-brand-text)) !important;
+    -webkit-text-fill-color:currentColor !important;
+  }
+  .portal-admin.portal-admin .primary-nav .lv-nav-stack .nav-icon {
+    color:inherit !important;font-size:17px !important;line-height:1 !important;
+  }
+  /* Account options participate in the same scroll area; no second
+     independently scrolling panel or permanent stack of security actions. */
+  .portal-admin.portal-admin .primary-nav .admin-mobile-account {
+    display:block !important;flex:none !important;min-height:0 !important;
+    max-height:none !important;overflow:visible !important;
+    margin:14px 0 0 !important;padding:13px 0 0 !important;
+    border-top:1px solid var(--lv-border-default) !important;
+    background:transparent !important;
+  }
+  .portal-admin.portal-admin .lv-mobile-drawer-account {
+    display:block !important;margin:0 !important;padding:0 !important;
+  }
+  .portal-admin.portal-admin .lv-mobile-drawer-account>summary {
+    display:flex !important;align-items:center !important;
+    justify-content:space-between !important;gap:8px !important;
+    min-height:48px !important;list-style:none !important;
+    padding:10px 12px !important;border:1px solid var(--lv-control-border) !important;
+    border-radius:11px !important;background:var(--lv-control-bg) !important;
+    color:var(--lv-text-primary) !important;cursor:pointer;
+    font-size:13px !important;font-weight:800 !important;
+  }
+  .portal-admin.portal-admin .lv-mobile-drawer-account>summary::-webkit-details-marker{display:none}
+  .portal-admin.portal-admin .lv-mobile-drawer-account[open]>summary span:last-child{transform:rotate(180deg)}
+  .portal-admin.portal-admin .lv-mobile-drawer-account-actions {
+    display:grid !important;gap:6px !important;padding:8px 0 0 !important;
+  }
+  .portal-admin.portal-admin .lv-mobile-drawer-account-actions :is(button,a) {
+    display:flex !important;align-items:center !important;
+    min-height:44px !important;padding:9px 12px !important;
+    border:1px solid var(--lv-control-border) !important;
+    border-radius:9px !important;background:var(--lv-control-bg) !important;
+    color:var(--lv-text-primary) !important;font-size:12px !important;
+    line-height:1.35 !important;text-align:left !important;
+    -webkit-text-fill-color:currentColor !important;
+  }
+  .portal-admin.portal-admin .primary-nav :is(.lv-mobile-drawer-close,.lv-nav-direct,.lv-nav-group-button,.lv-nav-children>a,.lv-mobile-drawer-account>summary,.lv-mobile-drawer-account-actions button,.lv-mobile-drawer-account-actions a):focus-visible {
+    outline:3px solid var(--lv-brand-primary) !important;outline-offset:2px !important;
+  }
+}
+@media screen and (max-width:520px) {
+  .portal-admin.portal-admin .primary-nav,
+  .portal-admin.portal-admin .primary-nav.open,
+  .portal-admin.portal-admin .primary-nav:not(.open) {
+    width:min(88vw,320px) !important;
+  }
+}
+@media (prefers-reduced-motion:reduce) and (max-width:900px) {
+  .portal-admin.portal-admin .primary-nav {transition:none !important}
+  .portal-admin.portal-admin .lv-nav-chevron {transition:none !important}
+}

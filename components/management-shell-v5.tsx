@@ -180,6 +180,7 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
   const [quickBusy, setQuickBusy] = useState(false);
   const [roleSwitchBusy, setRoleSwitchBusy] = useState(false);
   const menuButtonRef = useRef<HTMLButtonElement>(null);
+  const drawerCloseRef = useRef<HTMLButtonElement>(null);
   const navigationRef = useRef<HTMLElement>(null);
   const mobileFindInputRef = useRef<HTMLInputElement>(null);
   const mobileFindButtonRef = useRef<HTMLButtonElement>(null);
@@ -258,10 +259,21 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
     if (!mobileOpen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    drawerCloseRef.current?.focus({ preventScroll: true });
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        event.preventDefault();
         setMobileOpen(false);
         menuButtonRef.current?.focus();
+      } else if (event.key === "Tab" && navigationRef.current) {
+        const visible = Array.from(navigationRef.current.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),summary,[tabindex]:not([tabindex="-1"])'
+        )).filter(item => item.getClientRects().length > 0);
+        if (!visible.length) return;
+        const first = visible[0];
+        const last = visible[visible.length - 1];
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -375,17 +387,19 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
     .lv-nav-children>a:hover,.lv-nav-children>a.active{background:var(--lv-brand-soft);color:var(--lv-brand-text)}
     .sidebar-footer-account{display:flex;align-items:center;gap:10px;padding:8px;border-radius:9px;color:inherit;text-decoration:none}.sidebar-footer-account:hover{background:var(--lv-brand-soft)}
     @media screen and (min-width:901px){.portal-admin .primary-nav{visibility:visible!important;pointer-events:auto!important}.portal-admin .mobile-nav-overlay{display:none!important}}
-    /* Mobile shell geometry, drawer and account controls are owned exclusively
-       by app/admin/admin-mobile-authority.css; avoid inline CSS conflicts. */
-    .primary-nav{position:relative;z-index:90;overflow:visible!important}
-    .primary-nav-inner{position:relative;z-index:91;display:grid;gap:4px;overflow:visible!important;padding:3px 0}
+    /* Desktop keeps its legacy sidebar geometry. The mobile scroll region is
+       owned by admin-mobile-v5.css, without contradictory overflow rules. */
+    @media screen and (min-width:901px){
+      .primary-nav{position:relative;z-index:90;overflow:visible!important}
+      .primary-nav-inner{position:relative;z-index:91;display:grid;gap:4px;overflow:visible!important;padding:3px 0}
+    }
   `;
 
   return <div className="admin-shell tmg-shell portal-admin">
     <style dangerouslySetInnerHTML={{ __html: navStyles }} />
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
     <header className="masthead">
-      {mobileOpen && <button type="button" tabIndex={-1} aria-label="Close navigation overlay" className="mobile-nav-overlay" onClick={() => setMobileOpen(false)} />}
+      {mobileOpen && <button type="button" tabIndex={-1} aria-label="Close navigation overlay" className="mobile-nav-overlay" onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus(); }} />}
       <div className="utility-bar"><div className="utility-inner">
         <button type="button" ref={menuButtonRef} className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} aria-controls="admin-mobile-navigation" onClick={(event) => { event.stopPropagation(); setMobileFindOpen(false); setMobileOpen((value) => !value); }}>{mobileOpen ? "×" : "☰"}</button>
         <Link href="/admin" className="lv-mobile-brand" onClick={() => { setMobileFindOpen(false); setMobileOpen(false); }} aria-label="LAND VIEW Management dashboard">
@@ -424,6 +438,10 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
       </div></div>
 
       <nav ref={navigationRef} id="admin-mobile-navigation" aria-label="Management" className={`primary-nav ${mobileOpen ? "open" : ""}`}>
+        <div className="lv-mobile-drawer-head">
+          <div className="lv-mobile-drawer-heading"><strong>Navigation</strong><small>LAND VIEW · {roleLabel(role)}</small></div>
+          <button type="button" ref={drawerCloseRef} className="lv-mobile-drawer-close" aria-label="Close management navigation" onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus(); }}>×</button>
+        </div>
         <Link href="/admin" className="sidebar-brand" onClick={() => setMobileOpen(false)}>
           <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
           <span><strong>LAND VIEW</strong><small>MANAGEMENT SYSTEM</small></span>
@@ -452,14 +470,18 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
               </section>;
             })}
           </div>
-        </div>
-
-        <div className="admin-mobile-account">
-          {(isAdmin || isManager) && <Link href="/admin/account" onClick={() => setMobileOpen(false)}>My Account</Link>}
-          {isAdmin && <button type="button" onClick={switchToEmployeeMode} disabled={roleSwitchBusy}>{roleSwitchBusy ? "Switching..." : "Switch to EMP-0002 workspace"}</button>}
-          {(isAdmin || isManager) && quickConfigured && <button type="button" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `Trusted device · ${daysLeft} days` : "Trust this device"}</button>}
-          {(isAdmin || isManager) && <button type="button" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN lock" : "Set PIN"}</button>}
-          <button type="button" onClick={logout}>Sign out</button>
+          <div className="admin-mobile-account">
+            <details className="lv-mobile-drawer-account">
+              <summary><span>Account & security</span><span aria-hidden="true">⌄</span></summary>
+              <div className="lv-mobile-drawer-account-actions">
+                {(isAdmin || isManager) && <Link href="/admin/account" onClick={() => setMobileOpen(false)}>My Account</Link>}
+                {isAdmin && <button type="button" onClick={switchToEmployeeMode} disabled={roleSwitchBusy}>{roleSwitchBusy ? "Switching..." : "Switch to EMP-0002 workspace"}</button>}
+                {(isAdmin || isManager) && quickConfigured && <button type="button" onClick={toggleTrustedDevice} disabled={quickBusy}>{trustedDevice ? `Trusted device · ${daysLeft} days` : "Trust this device"}</button>}
+                {(isAdmin || isManager) && <button type="button" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN lock" : "Set PIN"}</button>}
+                <button type="button" onClick={logout}>Sign out</button>
+              </div>
+            </details>
+          </div>
         </div>
 
         <div className="sidebar-footer">

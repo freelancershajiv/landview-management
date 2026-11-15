@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useRef, useState } from "react";
 import { clearStoredSession, landViewApi, readSessionCache, SessionUser } from "@/lib/api";
 
 type PortalType = "employee" | "client";
@@ -49,6 +49,7 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
   const [ready, setReady] = useState(false);
   const [error, setError] = useState("");
   const [mobileOpen, setMobileOpen] = useState(false);
+  const drawerCloseRef = useRef<HTMLButtonElement>(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [activeHash, setActiveHash] = useState("#dashboard");
   const [passwordOpen, setPasswordOpen] = useState(false);
@@ -74,6 +75,30 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
     window.addEventListener("keydown", escape);
     return () => { window.removeEventListener("hashchange", update); window.removeEventListener("keydown", escape); };
   }, []);
+
+  // A rotated phone or expanded browser must never retain a mobile focus trap.
+  useEffect(() => {
+    const desktop = window.matchMedia(portal === "client" ? "(min-width:981px)" : "(min-width:901px)");
+    const onResize = () => { if (desktop.matches) setMobileOpen(false); };
+    desktop.addEventListener("change", onResize);
+    return () => desktop.removeEventListener("change", onResize);
+  }, [portal]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    drawerCloseRef.current?.focus({ preventScroll: true });
+    const onTrap = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const drawer = document.querySelector<HTMLElement>(".lv-client-side.open, .portal-employee .employee-sidebar.open");
+      if (!drawer) return;
+      const items = Array.from(drawer.querySelectorAll<HTMLElement>("a[href],button:not([disabled]),summary")).filter(item => item.getClientRects().length > 0);
+      if (!items.length) return;
+      if (event.shiftKey && document.activeElement === items[0]) { event.preventDefault(); items[items.length - 1].focus(); }
+      if (!event.shiftKey && document.activeElement === items[items.length - 1]) { event.preventDefault(); items[0].focus(); }
+    };
+    document.addEventListener("keydown", onTrap);
+    return () => document.removeEventListener("keydown", onTrap);
+  }, [mobileOpen]);
 
   useEffect(() => {
     let cancelled = false;
@@ -102,6 +127,11 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
     void verify();
     return () => { cancelled = true; };
   }, [portal, router]);
+
+  function closeMobileNavigation() {
+    setMobileOpen(false);
+    document.querySelector<HTMLButtonElement>(".lv-client-menu, .portal-employee .employee-menu")?.focus();
+  }
 
   function goEmployeeSection(hash: string) {
     if (portal !== "employee") return;
@@ -167,10 +197,61 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
         @media(max-width:980px){.lv-client-shell{grid-template-columns:1fr}.lv-client-side{position:fixed;left:0;top:0;width:min(300px,88vw);transform:translateX(-105%);visibility:hidden;pointer-events:none;transition:transform .22s ease,visibility .22s ease;box-shadow:30px 0 60px var(--theme-shadow-rgba_0_0_0__45_, rgba(0,0,0,.45))}.lv-client-side.open{transform:translateX(0);visibility:visible;pointer-events:auto}.lv-client-overlay{display:block;position:fixed;inset:0;background:var(--theme-bg-rgba_0_0_0__52_, rgba(0,0,0,.52));z-index:29;border:0}.lv-client-top{padding:0 18px}.lv-client-menu{display:inline-flex;align-items:center}.lv-client-content{width:min(100% - 28px,1260px)}.lv-client-user div{display:none}}
         .lv-client-shell :is(.lv-client-menu,.lv-client-signout,.lv-client-nav a):focus-visible{outline:3px solid var(--lv-brand-primary);outline-offset:3px}
         @media(max-width:560px){.lv-client-top h1{font-size:18px}.lv-client-avatar{width:38px;height:38px}.lv-client-signout{display:none}.lv-client-content{width:calc(100% - 20px)}}
+
+        .lv-client-mobile-drawer-head{display:none}
+        @media screen and (max-width:980px){
+          .lv-client-shell .lv-client-side,.lv-client-shell .lv-client-side.open{
+            width:min(86vw,320px)!important;max-width:calc(100vw - 20px)!important;
+            padding:0 14px calc(12px + env(safe-area-inset-bottom))!important;
+            display:flex!important;flex-direction:column!important;
+            overflow:hidden!important;border-radius:0 16px 16px 0!important;
+            border-right:1px solid var(--lv-border-default)!important
+          }
+          .lv-client-shell .lv-client-mobile-drawer-head{
+            display:flex!important;flex:0 0 auto!important;align-items:center!important;
+            justify-content:space-between!important;gap:10px;min-height:64px;
+            margin:0 -14px 0!important;padding:9px 14px!important;
+            border-bottom:1px solid var(--lv-border-default)!important;
+            background:var(--lv-surface-elevated)!important
+          }
+          .lv-client-shell .lv-client-mobile-drawer-head>div{display:grid;gap:4px;min-width:0}
+          .lv-client-shell .lv-client-mobile-drawer-head strong{font-size:16px;color:var(--lv-text-strong);font-weight:850}
+          .lv-client-shell .lv-client-mobile-drawer-head small{font-size:10px;color:var(--lv-text-secondary);font-weight:750;letter-spacing:.04em}
+          .lv-client-shell .lv-client-brand,.lv-client-shell .lv-client-foot{display:none!important}
+          .lv-client-shell .lv-client-nav{
+            flex:1 1 auto!important;min-height:0!important;margin:0!important;
+            display:flex!important;flex-direction:column!important;gap:4px!important;
+            padding:12px 0!important;overflow-y:auto!important;overflow-x:hidden!important;
+            overscroll-behavior:contain;-webkit-overflow-scrolling:touch
+          }
+          .lv-client-shell .lv-client-nav a{
+            flex:0 0 auto!important;min-height:48px!important;height:auto!important;
+            padding:11px 12px!important;gap:11px!important;
+            border-radius:10px!important;line-height:1.35!important;font-size:13px!important;
+            font-weight:750!important;white-space:normal!important;
+          }
+          .lv-client-shell .lv-client-help{
+            flex:0 0 auto!important;margin:8px 0 0!important;padding:12px!important;
+            border-radius:11px!important;min-width:0!important
+          }
+          .lv-client-shell .lv-client-help p{font-size:12px!important;line-height:1.4!important}
+          .lv-client-shell .lv-client-help a{height:44px!important;min-height:44px!important;font-size:12px!important}
+          .lv-client-shell .lv-mobile-drawer-close{display:grid!important;flex:0 0 44px!important;place-items:center!important;
+            width:44px!important;height:44px!important;border:1px solid var(--lv-control-border)!important;
+            border-radius:11px!important;background:var(--lv-control-bg)!important;
+            color:var(--lv-text-primary)!important;font:700 24px/1 Arial,system-ui,sans-serif!important;cursor:pointer}
+          .lv-client-shell :is(.lv-client-nav a,.lv-mobile-drawer-close,.lv-client-help a):focus-visible{
+            outline:3px solid var(--lv-brand-primary)!important;outline-offset:2px!important
+          }
+        }
+        @media (prefers-reduced-motion:reduce) and (max-width:980px){
+          .lv-client-shell .lv-client-side{transition:none!important}
+        }
       `}</style>
-      {mobileOpen && <button type="button" aria-label="Close menu" className="lv-client-overlay" onClick={()=>{setMobileOpen(false);document.querySelector<HTMLButtonElement>(".lv-client-menu")?.focus();}} />}
+      {mobileOpen && <button type="button" aria-label="Close menu" className="lv-client-overlay" onClick={closeMobileNavigation} />}
       <aside id="client-portal-navigation" className={`lv-client-side ${mobileOpen?"open":""}`}>
-        <Link href="/client" className="lv-client-brand"><img src="/land-view-logo-light.svg" alt="LAND VIEW"/><span><strong>LAND VIEW</strong><small>Engineers and Architects</small></span></Link>
+        <div className="lv-client-mobile-drawer-head"><div><strong>Navigation</strong><small>LAND VIEW · CLIENT</small></div><button type="button" ref={drawerCloseRef} className="lv-mobile-drawer-close" aria-label="Close client navigation" onClick={closeMobileNavigation}>×</button></div>
+        <Link href="/client" className="lv-client-brand" onClick={()=>setMobileOpen(false)}><img src="/land-view-logo-light.svg" alt="LAND VIEW"/><span><strong>LAND VIEW</strong><small>Engineers and Architects</small></span></Link>
         <nav className="lv-client-nav" aria-label="Client portal navigation">{clientNav.map(item=>{const hash=item.href.includes("#")?item.href.slice(item.href.indexOf("#")):"";return <Link key={item.href} href={item.href} aria-current={hash&&hash===activeHash?"location":undefined} onClick={()=>{if(hash)setActiveHash(hash);setMobileOpen(false);}}><span className="navIcon" aria-hidden="true">{item.icon}</span><span>{item.label}</span></Link>;})}</nav>
         <div className="lv-client-help"><strong>Need Help?</strong><p>Contact our support team for project, invoice or certificate assistance.</p><a href="mailto:landviewcivil@gmail.com">Contact Us</a></div>
         <div className="lv-client-foot">© 2026 LAND VIEW<br/>Engineers and Architects<br/>Your Vision. Our Expertise.</div>
@@ -282,10 +363,58 @@ export default function RolePortalShell({ portal, children }: { portal: PortalTy
       .portal-employee .employee-search-empty{font-size:12px;line-height:1.4;color:var(--lv-text-secondary);padding:12px}
       @media(max-width:900px){.portal-employee .employee-search input{font-size:16px!important}}
       @media(prefers-reduced-motion:reduce){.portal-employee :is(.employee-nav,.employee-search-results){scroll-behavior:auto!important}}
+
+      .portal-employee .employee-mobile-drawer-head{display:none}
+      @media screen and (max-width:900px){
+        .portal-employee .employee-sidebar.open{
+          width:min(86vw,320px)!important;max-width:calc(100vw - 20px)!important;
+          overflow:hidden!important;border-radius:0 16px 16px 0!important;
+          border-right:1px solid var(--lv-border-default)!important;
+          box-shadow:18px 0 44px rgba(0,0,0,.19)!important
+        }
+        .portal-employee .employee-brand{display:none!important}
+        .portal-employee .employee-mobile-drawer-head{
+          display:flex!important;align-items:center!important;justify-content:space-between!important;gap:12px;
+          flex:0 0 auto!important;min-height:64px!important;
+          padding:10px 14px!important;border-bottom:1px solid var(--lv-border-default)!important;
+          background:var(--lv-surface-elevated)!important
+        }
+        .portal-employee .employee-mobile-drawer-head>div{display:grid;gap:4px;min-width:0}
+        .portal-employee .employee-mobile-drawer-head strong{font-size:16px!important;font-weight:850!important;color:var(--lv-text-strong)!important}
+        .portal-employee .employee-mobile-drawer-head small{font-size:10px!important;font-weight:750!important;color:var(--lv-text-secondary)!important;letter-spacing:.04em}
+        .portal-employee .employee-mobile-drawer-head .lv-mobile-drawer-close{
+          display:grid!important;flex:0 0 44px!important;place-items:center!important;
+          width:44px!important;height:44px!important;padding:0!important;
+          border:1px solid var(--lv-control-border)!important;border-radius:11px!important;
+          background:var(--lv-control-bg)!important;color:var(--lv-text-primary)!important;
+          font:700 24px/1 Arial,system-ui,sans-serif!important;cursor:pointer
+        }
+        .portal-employee .employee-nav{
+          display:flex!important;flex-direction:column!important;flex:1 1 auto!important;
+          gap:4px!important;padding:12px!important;min-height:0!important;
+          overflow-y:auto!important;overflow-x:hidden!important;overscroll-behavior:contain
+        }
+        .portal-employee .employee-nav-label{padding:5px 10px 9px!important;font-size:10px!important;color:var(--lv-text-secondary)!important}
+        .portal-employee .employee-nav-button{
+          flex:0 0 auto!important;width:100%!important;min-height:48px!important;
+          padding:10px 12px!important;border-radius:10px!important;
+          font-size:13px!important;font-weight:750!important;line-height:1.4!important;
+          color:var(--lv-text-primary)!important
+        }
+        .portal-employee .employee-sidebar-footer{
+          flex:0 0 auto!important;padding:9px 12px calc(10px + env(safe-area-inset-bottom))!important;
+          border-top:1px solid var(--lv-border-default)!important
+        }
+        .portal-employee .employee-mobile-drawer-head .lv-mobile-drawer-close:focus-visible,
+        .portal-employee .employee-nav-button:focus-visible{
+          outline:3px solid var(--lv-brand-primary)!important;outline-offset:2px!important
+        }
+      }
     `}</style>
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
-    {mobileOpen && <button type="button" className="employee-nav-overlay" aria-label="Close navigation" onClick={()=>setMobileOpen(false)} />}
+    {mobileOpen && <button type="button" className="employee-nav-overlay" aria-label="Close navigation" onClick={closeMobileNavigation} />}
     <aside id="employee-portal-navigation" className={mobileOpen ? "employee-sidebar open" : "employee-sidebar"}>
+      <div className="employee-mobile-drawer-head"><div><strong>Navigation</strong><small>LAND VIEW · EMPLOYEE</small></div><button type="button" ref={drawerCloseRef} className="lv-mobile-drawer-close" aria-label="Close employee navigation" onClick={closeMobileNavigation}>×</button></div>
       <button type="button" className="employee-brand" onClick={()=>goEmployeeSection("#dashboard")} aria-label="Open Employee Dashboard">
         <img src="/land-view-logo.svg" alt="LAND VIEW"/>
         <span><strong>LAND VIEW</strong><small>EMPLOYEE WORKSPACE</small></span>
