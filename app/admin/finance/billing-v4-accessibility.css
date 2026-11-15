@@ -1,0 +1,62 @@
+/* Billing V4: scoped, screen-only readability bridge.
+   Only the Billing shell and its forms, not general Accounts or printed invoices. */
+@media screen {
+  .billing-nav-shell,
+  .bv4,
+  .rp,
+  .fbe,
+  .direct-bill-page {
+    -webkit-font-smoothing: antialiased;
+  }
+  .rp .rp-head small,
+  .rp .rp-head p,
+  .rp .rp-field label,
+  .rp .rp-tab,
+  .rp .rp-table th,
+  .rp .rp-table td,
+  .rp .rp-btn,
+  .rp .rp-msg,
+  .rp .rp-empty,
+  .rp .rp-stat span,
+  .fbe label,
+  .direct-bill-page .db-field label,
+  .direct-bill-page .db-table th,
+  .direct-bill-page .db-table td {
+    font-size: max(12px, 0.75rem);
+    line-height: 1.45;
+  }
+  .rp .rp-field input:not([type="checkbox"]),
+  .rp .rp-field select,
+  .rp .rp-field textarea,
+  .direct-bill-page .db-field input,
+  .direct-bill-page .db-field select,
+  .direct-bill-page .db-field textarea,
+  .fbe input,
+  .fbe select {
+    font-size: 14px;
+    min-height: 42px;
+  }
+  .rp .rp-btn,
+  .direct-bill-page .db-btn,
+  .billing-nav-shell a {
+    min-height: 42px;
+    font-size: 12px;
+  }
+  .rp .rp-stat strong { font-size: 17px; }
+  .rp .rp-table { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .rp .rp-form { min-width: 0; }
+}
+@media screen and (max-width: 640px) {
+  .rp .rp-field input:not([type="checkbox"]),
+  .rp .rp-field select,
+  .rp .rp-field textarea,
+  .direct-bill-page .db-field input,
+  .direct-bill-page .db-field select,
+  .direct-bill-page .db-field textarea {
+    font-size: 16px;
+    min-height: 44px;
+  }
+  .rp .rp-layout { grid-template-columns: minmax(0, 1fr); }
+  .rp .rp-form { padding: 14px; }
+  .billing-nav-shell .billing-nav-core a { min-height: 44px; }
+}

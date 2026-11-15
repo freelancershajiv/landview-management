@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { landViewApi, type BillingBookData } from "@/lib/api";
 import {
   BILL_CATEGORIES,
@@ -62,16 +62,19 @@ function freshLines(): ServiceLine[] {
 function pricingFor(line: ServiceLine) {
   return normalizedBillPricing({ mode: line.entryMode, quantity: line.quantity, unitPrice: line.unitPrice, amount: line.amount });
 }
-async function writeBill(payload: Record<string, unknown>) {
-  const response = await fetch("/api/billing/write", {
+async function writeFullBillBatch(payload: Record<string, unknown>) {
+  const response = await fetch("/api/billing/batch", {
     method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", cache: "no-store",
-    body: JSON.stringify({ action: "saveBill", ...payload }),
+    body: JSON.stringify(payload),
   });
-  const raw = await response.text();
-  let json: ApiEnvelope | null = null;
-  try { json = raw ? JSON.parse(raw) as ApiEnvelope : null; } catch { json = null; }
-  if (!response.ok || !json?.success) throw new Error(json?.error || json?.message || "Could not create bill item.");
-  return json.data;
+  const json = await response.json().catch(() => null) as ApiEnvelope | null;
+  if (!response.ok || !json?.success) throw new Error(json?.error || json?.message || "Could not save the full bill batch.");
+  return json.data as { count: number; recovered: boolean; billCodes: string[] };
+}
+async function batchFingerprint(payload: Record<string, unknown>) {
+  const data = new TextEncoder().encode(JSON.stringify(payload));
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(hash)).map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 export default function DirectFullBillWorkspace() {
@@ -88,11 +91,31 @@ export default function DirectFullBillWorkspace() {
   const [message, setMessage] = useState("");
   const [savedProjectId, setSavedProjectId] = useState("");
   const [savedState, setSavedState] = useState<BillState | "">("");
+  const pendingBatch = useRef<{ id: string; fingerprint: string } | null>(null);
+  const [pendingWarning, setPendingWarning] = useState(false);
+  function clearPendingBatch() {
+    pendingBatch.current = null;
+    setPendingWarning(false);
+    try { window.sessionStorage.removeItem("lv-billing-full-batch-v4"); } catch { /* Browser storage disabled. */ }
+  }
+  function startNewBatchAfterReview() {
+    if (!window.confirm("Only start a new submission after checking the project's Bill Manager for an earlier saved bill. Continue?")) return;
+    clearPendingBatch();
+    setError("");
+  }
 
   useEffect(() => {
     let cancelled = false;
     const queryId = normalizeProjectId(new URLSearchParams(window.location.search).get("fileId") || "");
     if (queryId) setProjectId(queryId);
+    try {
+      const stored = window.sessionStorage.getItem("lv-billing-full-batch-v4");
+      const previous = stored ? JSON.parse(stored) : null;
+      if (previous && typeof previous.id === "string" && typeof previous.fingerprint === "string" && previous.createdAt > Date.now() - 86400000) {
+        pendingBatch.current = { id: previous.id, fingerprint: previous.fingerprint };
+        window.setTimeout(() => setPendingWarning(true), 0);
+      }
+    } catch { /* Browser storage disabled. */ }
     Promise.all([landViewApi.getProjects(), landViewApi.getBillingBook()])
       .then(([projectRows, billingBook]) => {
         if (cancelled) return;
@@ -198,39 +221,40 @@ export default function DirectFullBillWorkspace() {
     }
 
     setSaving(true); setError(""); setMessage(""); setSavedProjectId(""); setSavedState("");
-    let saved = 0;
     try {
-      const batchId = crypto.randomUUID();
-      for (const [index, line] of activeLines.entries()) {
-        const pricing = pricingFor(line);
-        const discount = numberValue(line.discount);
-        await writeBill({
-          Project_ID: normalizedId,
-          Bill_Date: billDate,
-          Description: `[${line.category}] ${line.service.trim()}`,
-          Quantity: pricing.quantity,
-          Unit_Price: pricing.unitPrice,
-          Amount: pricing.gross,
-          Discount: discount,
-          Status: status,
-          Billing_Category: line.category,
-          Category: line.category,
-          Created_Via: "Direct Full Billing",
-          Notes: ["Direct / Full Bill — no proposal required", notes.trim()].filter(Boolean).join(" | "),
-          Idempotency_Key: `direct-full-${batchId}-${index}`,
-        });
-        saved += 1;
+      const payload = {
+        projectId: normalizedId, billDate, status, notes: notes.trim(),
+        lines: activeLines.map((line) => {
+          const pricing = pricingFor(line);
+          return {
+            category: line.category, service: line.service.trim(), quantity: pricing.quantity,
+            unitPrice: pricing.unitPrice, amount: pricing.gross, discount: numberValue(line.discount),
+          };
+        }),
+      };
+      const fingerprint = await batchFingerprint(payload);
+      const previous = pendingBatch.current;
+      if (previous && previous.fingerprint !== fingerprint) {
+        throw new Error("An earlier full-bill request is unresolved. Check Bill Manager before changing or resubmitting the batch.");
       }
+      const batchId = previous?.id || crypto.randomUUID();
+      if (!previous) {
+        pendingBatch.current = { id: batchId, fingerprint };
+        setPendingWarning(true);
+        try { window.sessionStorage.setItem("lv-billing-full-batch-v4", JSON.stringify({ id: batchId, fingerprint, createdAt: Date.now() })); }
+        catch { /* The in-memory batch ID is still retained. */ }
+      }
+      const result = await writeFullBillBatch({ ...payload, batchId });
+      clearPendingBatch();
       setSavedProjectId(normalizedId);
       setSavedState(status);
-      setMessage(status === "Draft"
-        ? `${saved} service item${saved === 1 ? "" : "s"} saved as a draft full bill for ${normalizedId}. Review or discount it in Full Bill Editor before issuing.`
-        : `${saved} service item${saved === 1 ? "" : "s"} issued for ${normalizedId}. Existing payments were not changed and will automatically reduce the invoice due.`);
+      setMessage(result.recovered
+        ? `Existing full-bill submission was verified: ${result.count} service rows. No duplicate bill was created.`
+        : `Full bill saved atomically: ${result.count} service rows ${status === "Draft" ? "drafted" : "issued"}. All rows succeeded in one transaction.`);
       const updatedBook = await landViewApi.getBillingBook().catch(() => null);
       if (updatedBook) setBook(updatedBook);
     } catch (err) {
-      const base = err instanceof Error ? err.message : "Could not complete the direct bill.";
-      setError(saved > 0 ? `${saved} item${saved === 1 ? " was" : "s were"} saved before an error occurred. Do not re-enter those saved lines. ${base}` : base);
+      setError(`${err instanceof Error ? err.message : "Could not save the full bill."} Check the project Bill Manager; use the same unchanged batch to safely retry.`);
     } finally { setSaving(false); }
   }
 
@@ -239,9 +263,13 @@ export default function DirectFullBillWorkspace() {
       .direct-bill-page{color:var(--theme-ink-_e8edf1,#e8edf1);line-height:1.45}.db-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:18px}.db-head small{display:block;color:#ef6c66;font-weight:900;letter-spacing:.11em}.db-head h1{margin:5px 0 0;font-size:32px;color:var(--theme-ink-_f8fafc,#f8fafc)}.db-actions,.db-row-actions{display:flex;gap:8px;flex-wrap:wrap}.db-btn{border:1px solid var(--theme-line-_3b454e,#3b454e);background:var(--theme-bg-_151d24,#151d24);color:var(--theme-ink-_edf1f4,#edf1f4);padding:10px 13px;border-radius:8px;font-weight:850;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;min-height:40px}.db-btn.primary{background:#d94b45;border-color:#d94b45;color:#fff}.db-btn.draft{border-color:#8a7440;background:#292417;color:#f6dc9a}.db-btn:disabled{opacity:.55;cursor:not-allowed}.db-note{padding:11px 13px;border:1px solid var(--theme-line-_31513d,#31513d);background:var(--theme-bg-_18281f,#18281f);color:var(--theme-ink-_a9deb8,#a9deb8);border-radius:8px;margin-bottom:14px}.db-note.error{border-color:#67352f;background:#34201e;color:#ffaaa3}.db-panel{border:1px solid var(--theme-line-_313b44,#313b44);border-radius:11px;background:var(--theme-bg-_11181e,#11181e);padding:16px;margin-bottom:14px}.db-panel h2{margin:0 0 12px;font-size:18px}.db-grid{display:grid;grid-template-columns:1fr 1fr;gap:11px}.db-field{display:grid;gap:6px}.db-field.full{grid-column:1/-1}.db-field label{font-size:10px;font-weight:900;color:var(--theme-ink-_aab5bd,#aab5bd);text-transform:uppercase;letter-spacing:.05em}.db-field input,.db-field select,.db-field textarea{min-height:42px;padding:9px 10px;border:1px solid var(--theme-line-_36414a,#36414a);border-radius:7px;background:var(--theme-bg-_0d141a,#0d141a);color:var(--theme-ink-_fff,#fff);color-scheme:dark}.db-field textarea{min-height:76px;resize:vertical}.db-project{grid-column:1/-1;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:4px}.db-project div,.db-stat{border:1px solid var(--theme-line-_35414a,#35414a);border-radius:8px;background:var(--theme-bg-_0f171d,#0f171d);padding:10px}.db-project span,.db-stat span{display:block;color:var(--theme-ink-_8f9aa3,#8f9aa3);font-size:9px;text-transform:uppercase;letter-spacing:.05em}.db-project strong,.db-stat strong{display:block;margin-top:4px;font-size:12px;word-break:break-word}.db-discount-panel{display:flex;justify-content:space-between;align-items:end;gap:14px;padding:12px 13px;margin:0 0 12px;border:1px solid #6c5930;border-radius:9px;background:#211e15}.db-discount-copy strong{display:block;color:#f5d98c;font-size:12px}.db-discount-copy span{display:block;margin-top:4px;color:var(--theme-ink-_aab5bd,#aab5bd);font-size:10px}.db-discount-control{display:flex;gap:8px;align-items:end;min-width:320px}.db-discount-control label{display:grid;gap:5px;flex:1;font-size:9px;font-weight:900;text-transform:uppercase;color:#f5d98c}.db-discount-control input{min-height:40px;width:100%;padding:8px 10px;border:1px solid #746237;border-radius:7px;background:#11100c;color:#fff}.db-table{overflow:auto;border:1px solid var(--theme-line-_303b44,#303b44);border-radius:9px}.db-table table{width:100%;border-collapse:collapse;min-width:1320px}.db-table th,.db-table td{padding:8px;border-bottom:1px solid var(--theme-line-_28323a,#28323a);text-align:left;font-size:11px;vertical-align:middle}.db-table th{font-size:9px;text-transform:uppercase;color:var(--theme-ink-_8f9aa3,#8f9aa3);letter-spacing:.05em}.db-table input,.db-table select{width:100%;min-height:38px;padding:7px 8px;border:1px solid var(--theme-line-_36414a,#36414a);border-radius:6px;background:var(--theme-bg-_0d141a,#0d141a);color:var(--theme-ink-_fff,#fff);color-scheme:dark}.db-table input:disabled{opacity:.55}.db-service{min-width:220px}.db-mode{width:145px}.db-qty{width:85px}.db-money{width:125px}.db-gross{white-space:nowrap}.db-delete{border:1px solid #73363a;background:#351b1d;color:#ffaaa5;border-radius:7px;padding:8px 10px;font-weight:900;cursor:pointer;white-space:nowrap}.db-delete:disabled{opacity:.5;cursor:not-allowed}.db-bottom{display:flex;justify-content:space-between;gap:10px;align-items:center;margin-top:12px;flex-wrap:wrap}.db-summary{display:grid;grid-template-columns:repeat(5,minmax(120px,1fr));gap:8px;margin-top:14px}.db-stat strong{font-size:17px}.db-due strong{color:#ff9e97}.db-paid strong{color:#a9deb8}.db-submit{display:flex;justify-content:flex-end;gap:8px;margin-top:15px;flex-wrap:wrap}.db-help{font-size:11px;color:var(--theme-ink-_9da9b2,#9da9b2);margin:8px 0 0}@media(max-width:900px){.db-head{align-items:flex-start;flex-direction:column}.db-grid{grid-template-columns:1fr}.db-field.full{grid-column:auto}.db-project{grid-template-columns:1fr 1fr}.db-summary{grid-template-columns:1fr 1fr}.db-discount-panel{align-items:stretch;flex-direction:column}.db-discount-control{min-width:0;width:100%}}@media(max-width:600px){.db-project,.db-summary{grid-template-columns:1fr}.db-actions{width:100%}.db-actions .db-btn{flex:1}.db-submit{flex-direction:column}.db-submit .db-btn{width:100%}.db-discount-control{flex-direction:column;align-items:stretch}.db-discount-control .db-btn{width:100%}}
     `}</style>
 
+    {pendingWarning && <section className="db-note" role="status" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <span>A full-bill submission needs confirmation. Check Bill Manager before starting a different batch.</span>
+      <button type="button" className="db-btn" onClick={startNewBatchAfterReview} disabled={saving}>Start different batch after review</button>
+    </section>}
     <header className="db-head">
-      <div><small>LAND VIEW / CLIENT BILLING</small><h1>Direct / Full Bill</h1></div>
-      <div className="db-actions"><Link className="db-btn" href="/admin/finance">← Finance Home</Link>{savedProjectId && <Link className="db-btn primary" href={savedState === "Draft" ? `/admin/finance/full-bill-editor?fileId=${encodeURIComponent(savedProjectId)}` : `/admin/finance/invoices?fileId=${encodeURIComponent(savedProjectId)}`}>{savedState === "Draft" ? "Review draft" : "Open invoice"}</Link>}</div>
+      <div><small>LAND VIEW / CLIENT BILLING</small><h1>Direct / Full Bill</h1><p className="db-help">Save every service row together in one atomic database transaction. A failed insert rolls back all rows; repeated submissions reuse a unique batch ID.</p></div>
+      <div className="db-actions"><Link className="db-btn" href="/admin/billing">← Billing Home</Link>{savedProjectId && <Link className="db-btn primary" href={savedState === "Draft" ? `/admin/finance/full-bill-editor?fileId=${encodeURIComponent(savedProjectId)}` : `/admin/finance/invoices?fileId=${encodeURIComponent(savedProjectId)}`}>{savedState === "Draft" ? "Review draft" : "Open invoice"}</Link>}</div>
     </header>
 
     <div className="db-note"><strong>One pricing model everywhere.</strong> Every service can be entered as Quantity × Rate or Flat Amount. Other Services default to Quantity × Rate, so Soil Test, Survey, Municipality work and similar items can carry proper quantities.</div>
