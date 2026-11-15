@@ -15,6 +15,7 @@ const quick = [
   { title: "Full Bill Editor", href: "/admin/billing/full-bill-editor", detail: "Revise drafts and approved adjustments" },
 ];
 const reviews = [
+  { title: "Billing Reconciliation 4.1", href: "/admin/billing/reconciliation", description: "Receipt, ledger and advance evidence review worklist" },
   { title: "Payment Lifecycle", href: "/admin/billing/payment-lifecycle", description: "Receipt and advance review" },
   { title: "Financial Integrity", href: "/admin/billing/integrity", description: "Allocation and missing-reference exceptions" },
   { title: "Allocation Corrections", href: "/admin/billing/allocation-corrections", description: "Audited two-person approval" },
