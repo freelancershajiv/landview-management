@@ -101,11 +101,43 @@ export default function DueBillsPage() {
 
     <section>
       <div className="due-toolbar">
-        <input className="due-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search File ID, client, project, phone or address…" />
+        <input className="due-search" aria-label="Search due bills" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search File ID, client, project, phone or address…" />
         <div className="due-filters">
           {([ ["all","All Due"], ["engineering","Engineering"], ["supervision","Supervision"], ["other","Other Services"] ] as const).map(([key,label]) => <button key={key} className={`due-filter ${filter===key?"active":""}`} onClick={() => setFilter(key)}>{label}</button>)}
         </div>
       </div>
+      {/* A compact read-only representation of the exact same receivables.
+          The desktop table remains available and no billing state is changed. */}
+      {(!loading || loaded) && visibleRows.length > 0 && <div className="due-mobile-cards" aria-label="Due bills mobile summary">
+        {visibleRows.map((row) => <article className="due-mobile-card" key={row.projectId}>
+          <div className="due-mobile-card-head">
+            <div className="due-mobile-identity">
+              <span className="due-file">{row.projectId}</span>
+              <strong>{row.clientName || row.projectName || "Client"}</strong>
+              {row.projectName && row.projectName !== row.clientName && <small>{row.projectName}</small>}
+            </div>
+            <div className="due-mobile-amount">
+              <span>Total collectible due</span>
+              <strong>{money(row.totalDue)}</strong>
+            </div>
+          </div>
+          <div className="due-mobile-breakdown">
+            <div><span>Engineering</span><strong>{row.engineeringDue > .009 ? money(row.engineeringDue) : "—"}</strong></div>
+            <div><span>Supervision</span><strong>{row.supervisionDue > .009 ? money(row.supervisionDue) : "—"}</strong></div>
+            <div><span>Other services</span><strong>{row.otherDue > .009 ? money(row.otherDue) : "—"}</strong></div>
+          </div>
+          {row.unallocatedAmount > .009 && <p className="due-mobile-warning">{money(row.unallocatedAmount)} unallocated / advance — not applied to this due</p>}
+          <div className="due-mobile-meta">
+            <span>{row.phone || "No contact"}{row.address ? ` · ${row.address}` : ""}</span>
+            <span>Last payment: {row.lastPaymentAmount > .009 ? money(row.lastPaymentAmount) : "—"} · {displayDate(row.lastPaymentDate)}</span>
+          </div>
+          <div className="due-mobile-actions">
+            <Link className="due-link primary" href={`/admin/finance/workspace?fileId=${encodeURIComponent(row.projectId)}`}>Open Billing</Link>
+            <Link className="due-link" href={`/admin/finance/service-payments?fileId=${encodeURIComponent(row.projectId)}`}>Receive</Link>
+            <Link className="due-link" href={`/admin/finance/invoices?fileId=${encodeURIComponent(row.projectId)}`}>Statement</Link>
+          </div>
+        </article>)}
+      </div>}
       <div className="due-table-wrap">
         {loading && !loaded ? <div className="due-empty">Loading current Billing 2.0 receivables…</div> : visibleRows.length ? <table className="due-table">
           <thead><tr><th>File ID</th><th>Client / Project</th><th>Contact</th><th>Engineering Due</th><th>Supervision Due</th><th>Other Due</th><th>Total Due</th><th>Last Payment</th><th>Actions</th></tr></thead>

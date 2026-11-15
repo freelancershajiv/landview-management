@@ -477,6 +477,7 @@ export default function ProjectsPage() {
         <input className="projects-search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search ID, client, folder, type, location, area or floor" />
       </div>
       <section className="register-shell">
+        <p className="projects-mobile-swipe">Swipe the project register sideways for lifecycle and WhatsApp controls. Tap a project ID to open its dashboard.</p>
         <div className="register-scroll">
           <table className="project-table">
             <thead><tr><th>Project</th><th>Type</th><th>Location / Area</th><th className="wa-cell">WhatsApp</th><th>Design Stage</th><th>Approval Stage</th><th>Supervision / Construction</th><th>Current Stage</th><th>Service team</th><th>Drive</th><th className="public-cell">Public website</th></tr></thead>
@@ -498,7 +499,7 @@ export default function ProjectsPage() {
                 const details = [project.Number_of_Stories, project.Project_Area].filter(Boolean).join(" · ");
                 return <Fragment key={id}>
                   <tr>
-                    <td><div className="project-main"><span className="project-id">{id}</span><div><strong>{clientName}</strong>{secondaryProjectName && <small>{secondaryProjectName}</small>}{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}{canManage && <Link className="reference-link" href={`/admin/projects/${encodeURIComponent(id)}/references`}>Reference Images ↗</Link>}</div></div></td>
+                    <td><div className="project-main"><Link className="project-id project-id-link" href={`/admin/projects/${encodeURIComponent(id)}`} aria-label={`Open ${id} project dashboard`}>{id}</Link><div><strong>{clientName}</strong>{secondaryProjectName && <small>{secondaryProjectName}</small>}{project.Phone_Number && <small>{String(project.Phone_Number)}</small>}{canManage && <Link className="reference-link" href={`/admin/projects/${encodeURIComponent(id)}/references`}>Reference Images ↗</Link>}</div></div></td>
                     <td>{String(project.Project_Type || "—")}</td>
                     <td><div>{String(project.Location || "—")}</div>{details && <div className="muted" style={{marginTop:4}}>{details}</div>}</td>
                     <td className="wa-cell"><div className="wa-controls">

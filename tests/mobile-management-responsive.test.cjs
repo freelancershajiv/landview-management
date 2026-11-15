@@ -4,7 +4,8 @@ const fs = require("node:fs");
 
 const read = (path) => fs.readFileSync(path, "utf8");
 const shell = read("components/management-shell-v5.tsx");
-const mobile = read("app/admin/admin-mobile-authority.css");
+// The original geometry remains in the base file; V4/V5 refinements moved to the final cascade layer.
+const mobile = read("app/admin/admin-mobile-authority.css") + "\n" + read("app/admin/admin-mobile-v5.css");
 const finance = read("app/projectmanagement/project-finance-mobile-authority.css");
 
 test("Management mobile header has real branding and a working page finder", () => {
@@ -22,18 +23,18 @@ test("One authoritative mobile drawer replaces the conflicting inline fullscreen
   assert.match(mobile, /width: min\(88vw, 360px\) !important/);
   assert.match(mobile, /body:has\(\.portal-admin\.portal-admin \.primary-nav\.open\)/);
   assert.match(mobile, /\.portal-admin\.portal-admin \.admin-mobile-account \{/);
-  assert.match(mobile, /max-height: min\(36dvh, 285px\)/);
+  assert.match(mobile, /max-height:\s*min\(36dvh,\s*285px\)/);
 });
 
 test("Mobile screen keeps search, safe-area, touch targets and dock usable", () => {
-  assert.match(mobile, /\.portal-admin\.portal-admin \.global-search \{\s*display: none !important/);
+  assert.match(mobile, /\.portal-admin\.portal-admin \.global-search \{\s*display:\s*none !important/);
   assert.match(mobile, /content: none !important/);
   assert.match(mobile, /lv-mobile-find-panel/);
   assert.match(mobile, /min-height: 44px !important/);
   assert.match(mobile, /\.lv-mobile-dock \{[\s\S]*?position:fixed !important/);
   assert.match(mobile, /grid-template-columns:\s*repeat\(4,\s*minmax\(0,1fr\)\)/);
   assert.match(mobile, /body:has\(\.portal-admin\) \.lv-theme-switch/);
-  assert.match(mobile, /@media screen and \(min-width: 901px\)/);
+  assert.match(mobile, /@media screen and \(min-width:\s*901px\)/);
 });
 
 test("Finance tables swipe inside cards and summary adapts at phone widths", () => {

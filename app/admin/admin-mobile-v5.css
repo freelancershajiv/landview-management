@@ -415,3 +415,486 @@
     font-size: 12px !important;
   }
 }
+
+
+/* V5.3 - Projects, Billing and Finance: mobile-only layout improvements.
+   Keep the complete desktop register, all original finance actions, and
+   authoritative financial data untouched. */
+@media screen {
+  .portal-admin .projects-mobile-swipe,
+  .portal-admin .due-mobile-cards { display: none; }
+}
+
+@media screen and (max-width: 900px) {
+  .portal-admin.portal-admin :is(.projects-register,.pc,.due-page,.b2-shell,.bm-page) {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .portal-admin.portal-admin .projects-register .projects-toolbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .portal-admin.portal-admin .projects-toolbar-left {
+    display: flex !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 5px;
+  }
+
+  .portal-admin.portal-admin .projects-toolbar-left > * {
+    flex: 0 0 auto !important;
+    min-height: 44px !important;
+  }
+
+  .portal-admin.portal-admin .projects-register .projects-search {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 46px !important;
+    font-size: 16px !important;
+    box-sizing: border-box;
+  }
+
+  .portal-admin.portal-admin .projects-register .register-shell {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+  }
+
+  .portal-admin.portal-admin .projects-mobile-swipe {
+    display: block !important;
+    margin: 0 !important;
+    padding: 11px 13px;
+    border-bottom: 1px solid var(--lv-border-default);
+    background: var(--lv-surface-muted);
+    color: var(--lv-text-secondary) !important;
+    font-size: 12px !important;
+    line-height: 1.5;
+  }
+
+  .portal-admin.portal-admin .projects-register .register-scroll {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Keep the project identifier pinned while staff swipe the 11-column
+     register; all original stage and WhatsApp controls remain accessible. */
+  .portal-admin.portal-admin .project-table {
+    width: max-content !important;
+    min-width: 1460px !important;
+    max-width: none !important;
+    table-layout: auto !important;
+  }
+
+  .portal-admin.portal-admin .project-table thead th:first-child,
+  .portal-admin.portal-admin .project-table tbody td:first-child:not([colspan]) {
+    position: sticky !important;
+    left: 0 !important;
+    z-index: 3 !important;
+    min-width: 200px !important;
+    max-width: 238px !important;
+    background: var(--lv-surface-panel) !important;
+    border-right: 1px solid var(--lv-border-default) !important;
+    box-shadow: 4px 0 11px rgba(0,0,0,.07);
+  }
+
+  .portal-admin.portal-admin .project-table tbody td[colspan] {
+    position: static !important;
+    max-width: none !important;
+    box-shadow: none !important;
+  }
+
+  .portal-admin.portal-admin .project-table thead th:first-child {
+    z-index: 4 !important;
+    background: var(--lv-surface-muted) !important;
+  }
+
+  .portal-admin.portal-admin .project-table .project-main {
+    min-width: 0 !important;
+    gap: 8px !important;
+  }
+
+  .portal-admin.portal-admin .project-table .project-main > div {
+    min-width: 0 !important;
+    overflow-wrap: anywhere;
+  }
+
+  .portal-admin.portal-admin .projects-register .project-id-link {
+    min-height: 44px !important;
+    min-width: 65px !important;
+    color: var(--lv-brand-text) !important;
+    -webkit-text-fill-color: currentColor !important;
+    text-decoration: underline !important;
+    text-underline-offset: 3px;
+    font-size: 12px !important;
+    font-weight: 900 !important;
+  }
+
+  .portal-admin.portal-admin .projects-register :is(.wa-toggle,.wa-check,.team-button,select) {
+    min-height: 44px !important;
+    font-size: 12px !important;
+    touch-action: manipulation;
+  }
+
+  .portal-admin.portal-admin .projects-register .wa-group-input {
+    min-height: 44px !important;
+    font-size: 16px !important;
+  }
+
+  /* Project workspace navigation stays visible below the Management bar. */
+  .portal-admin.portal-admin .pc .pc-tabs {
+    position: sticky !important;
+    top: var(--lv-mobile-topbar, 64px) !important;
+    z-index: 20 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    gap: 6px !important;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .portal-admin.portal-admin .pc .pc-tabs :is(button,.pc-tab-link) {
+    min-height: 44px !important;
+    font-size: 12px !important;
+    touch-action: manipulation;
+  }
+
+  .portal-admin.portal-admin .pc :is(.pc-actions,.form-actions,.pc-panel-head) {
+    flex-wrap: wrap !important;
+    gap: 9px !important;
+  }
+
+  .portal-admin.portal-admin .pc :is(.pc-grid,.pc-two,.pc-finance-grid,.pc-stage-grid,.service-grid) {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .portal-admin.portal-admin .pc .pc-stat {
+    min-width: 0 !important;
+    padding: 13px !important;
+  }
+
+  .portal-admin.portal-admin .pc .pc-stat span {
+    font-size: 11px !important;
+    line-height: 1.35 !important;
+  }
+
+  .portal-admin.portal-admin .pc .pc-stat strong {
+    font-size: clamp(15px, 4vw, 21px) !important;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .portal-admin.portal-admin .pc :is(.pc-note,.pc-row small,.pc-stage-note) {
+    font-size: 12px !important;
+    line-height: 1.5 !important;
+  }
+
+  .portal-admin.portal-admin .pc :is(.pc-panel,.form-card,.service-card) {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .portal-admin.portal-admin .pc :is(button,.btn,input,select,textarea) {
+    min-height: 44px !important;
+  }
+
+  /* Due Bills uses compact cards, while the full accessible table remains
+     available unchanged at desktop widths. */
+  .portal-admin.portal-admin .due-page .due-table-wrap:has(> .due-table) {
+    display: none !important;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-cards {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 11px !important;
+    padding: 11px 0 !important;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-card {
+    min-width: 0;
+    display: grid;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--lv-border-default);
+    border-radius: 13px;
+    background: var(--lv-surface-panel);
+    color: var(--lv-text-primary);
+    box-shadow: var(--lv-shadow-sm);
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-card-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-identity {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 9px;
+    min-width: 0;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-identity > strong {
+    flex: 1 1 55%;
+    color: var(--lv-text-strong);
+    font-size: 15px;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-identity > small {
+    flex-basis: 100%;
+    color: var(--lv-text-secondary);
+    font-size: 12px;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-amount {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 10px;
+    padding-top: 8px;
+    border-top: 1px solid var(--lv-border-default);
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-amount span {
+    color: var(--lv-text-secondary);
+    font-size: 12px;
+    font-weight: 750;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-amount strong {
+    color: var(--lv-danger);
+    font-size: clamp(18px, 5vw, 24px);
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-breakdown {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-breakdown > div {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    padding: 9px;
+    border-radius: 9px;
+    background: var(--lv-surface-muted);
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-breakdown > div:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-breakdown span {
+    font-size: 11px;
+    color: var(--lv-text-muted);
+    font-weight: 750;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-breakdown strong {
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-warning {
+    margin: 0;
+    padding: 9px;
+    background: var(--lv-warning-soft);
+    color: var(--lv-warning);
+    border-radius: 8px;
+    font-size: 12px;
+    line-height: 1.4;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-meta {
+    display: grid;
+    gap: 4px;
+    color: var(--lv-text-secondary);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-actions .due-link {
+    display: inline-flex !important;
+    align-items: center;
+    justify-content: center;
+    min-width: 0 !important;
+    min-height: 44px !important;
+    padding: 7px 5px;
+    text-align: center;
+    font-size: 12px !important;
+  }
+
+  .portal-admin.portal-admin .due-page .due-mobile-actions .due-link.primary,
+  .portal-admin.portal-admin .b2-shell .b2-btn.primary,
+  .portal-admin.portal-admin .bm-page .bm-btn.primary {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  .portal-admin.portal-admin .due-page .due-summary {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    gap: 9px;
+  }
+
+  .portal-admin.portal-admin .due-page .due-summary .due-stat.total {
+    grid-column: 1 / -1;
+  }
+
+  .portal-admin.portal-admin .due-page :is(.due-toolbar,.due-head) {
+    flex-wrap: wrap !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .portal-admin.portal-admin .due-page :is(.due-refresh,.due-search,.due-filter) {
+    min-height: 44px !important;
+    font-size: 12px !important;
+  }
+
+  .portal-admin.portal-admin .due-page .due-search {
+    width: 100% !important;
+    max-width: none !important;
+    min-width: 0 !important;
+    font-size: 16px !important;
+  }
+
+  .portal-admin.portal-admin .due-page .due-stat span {
+    font-size: 11px !important;
+    line-height: 1.4 !important;
+  }
+
+  .portal-admin.portal-admin .due-page .due-stat strong {
+    font-size: 17px !important;
+    overflow-wrap: anywhere;
+  }
+
+  /* Billing 2.0 and Bill Manager: readable controls and independent swipe
+     areas instead of a whole-page horizontal overflow. */
+  .portal-admin.portal-admin .b2-shell :is(.b2-head,.b2-project,.b2-alert),
+  .portal-admin.portal-admin .bm-page :is(.bm-head,.bm-actions) {
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  .portal-admin.portal-admin .b2-shell :is(.b2-head p,.b2-project span,.b2-alert span),
+  .portal-admin.portal-admin .bm-page :is(.bm-head p,.bm-msg) {
+    font-size: 12px !important;
+    line-height: 1.45;
+  }
+
+  .portal-admin.portal-admin .b2-shell .b2-kpis {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    gap: 9px !important;
+  }
+
+  .portal-admin.portal-admin .b2-shell .b2-kpi span,
+  .portal-admin.portal-admin .bm-page :is(.bm-summary span,.bm-total span) {
+    font-size: 11px !important;
+    line-height: 1.4;
+  }
+
+  .portal-admin.portal-admin .b2-shell .b2-kpi strong {
+    font-size: 17px !important;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .portal-admin.portal-admin :is(.b2-shell .b2-table-wrap,.bm-page .bm-table-wrap) {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  .portal-admin.portal-admin :is(.b2-shell .b2-table,.bm-page .bm-table) {
+    min-width: 820px !important;
+    max-width: none !important;
+  }
+
+  .portal-admin.portal-admin .b2-shell :is(.b2-btn,.b2-tab),
+  .portal-admin.portal-admin .bm-page .bm-btn {
+    min-height: 44px !important;
+    font-size: 12px !important;
+    touch-action: manipulation;
+  }
+
+  .portal-admin.portal-admin .b2-shell :is(input,select),
+  .portal-admin.portal-admin .bm-page :is(.bm-input,.bm-select,.bm-textarea) {
+    max-width: 100% !important;
+    min-width: 0 !important;
+    min-height: 46px !important;
+    font-size: 16px !important;
+  }
+
+  .portal-admin.portal-admin .bm-page .bm-backdrop {
+    max-height: 100dvh !important;
+    overflow-y: auto !important;
+    padding: max(10px, env(safe-area-inset-top)) 10px max(10px,env(safe-area-inset-bottom)) !important;
+  }
+
+  .portal-admin.portal-admin .bm-page .bm-modal {
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 24px) !important;
+    overflow-y: auto !important;
+  }
+
+  /* Finance reconciliation preserves source rows and accounting precision.
+     Summary tiles remain legible and history tables scroll inside panels. */
+  .pf-redesign .pm-finance-summary .pm-stats {
+    grid-template-columns: repeat(2, minmax(0,1fr)) !important;
+    gap: 9px !important;
+  }
+
+  .pf-redesign .pm-finance-summary .pm-stat:last-child:nth-child(odd) {
+    grid-column: 1 / -1 !important;
+  }
+
+  .pf-redesign .pm-stat :is(strong,b) {
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@media screen and (max-width: 360px) {
+  .portal-admin.portal-admin .due-page .due-mobile-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .portal-admin.portal-admin .due-page .due-mobile-actions .due-link.primary {
+    grid-column: 1 / -1;
+  }
+}
