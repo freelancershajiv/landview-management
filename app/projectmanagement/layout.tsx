@@ -38,12 +38,12 @@ import "./project-finance-selector-theme.css";
 import "../brand-palette-original.css";
 // Keep Admin/management screen text readable after every route-specific layer.
 import "../admin/admin-typography-authority.css";
-// Final finance button foreground authority after route-specific CSS.
-import "../button-contrast-authority.css";
 // V2 design system is applied after the legacy and global palette layers.
 import "./project-management-workspace-v2.css";
 // V3 read-only finance reconciliation and audit-view styles.
 import "./project-finance-reconciliation-v3.css";
+// Final finance button foreground authority runs after V2 and V3.
+import "../button-contrast-authority.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);

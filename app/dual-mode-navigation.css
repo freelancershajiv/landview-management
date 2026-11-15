@@ -71,10 +71,12 @@
     transform: none !important;
   }
 
-  html:not([data-theme="dark"]) .portal-admin .primary-nav a:hover::before,
+  html:not([data-theme="dark"]) .portal-admin .primary-nav a:hover::before {
+    background: var(--lv-brand-primary) !important;
+  }
   html:not([data-theme="dark"]) .portal-admin .primary-nav a:hover .nav-icon {
     color: var(--lv-brand-text) !important;
-    background: var(--lv-brand-primary) !important;
+    background: transparent !important;
   }
 
   html:not([data-theme="dark"]) .portal-admin .primary-nav a.active,

@@ -274,13 +274,13 @@
 
   .portal-admin :where(.btn-primary,.btn-accent,button[type="submit"],[class*="primaryButton" i],[class*="printButton" i]) {
     border-color: var(--theme-line-_e22d34, #e22d34) !important;
-    background: linear-gradient(180deg,#e53138,#bd171e) !important;
+    background: linear-gradient(180deg,#d61f26,#a9151b) !important;
     color: #fff !important;
     box-shadow: 0 9px 24px var(--theme-shadow-rgba_214_31_38__20_, rgba(214,31,38,.20)) !important;
   }
 
   .portal-admin :where(.btn-primary,.btn-accent,button[type="submit"],[class*="primaryButton" i],[class*="printButton" i]):hover:not(:disabled) {
-    background: linear-gradient(180deg,#f03c43,#cc1b22) !important;
+    background: linear-gradient(180deg,#cb1c23,#a9151b) !important;
     transform: translateY(-1px) !important;
   }
 
