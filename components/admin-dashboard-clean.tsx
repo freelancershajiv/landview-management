@@ -227,7 +227,7 @@ export default function AdminDashboardClean() {
   return <div className="lv-clean-dashboard">
     <style>{`
       .lv-clean-dashboard{--red:#d91925;--red2:#b80f1a;--redsoft:#fff1f2;--ink:#182131;--muted:#778196;--line:#e8ebef;--panel:#fff;--bg:#f5f7fa;color:var(--ink);display:grid;gap:14px;padding:18px 18px 36px;background:var(--bg);min-height:100%}
-      .lv-clean-dashboard *{box-sizing:border-box}.lv-clean-dashboard h1,.lv-clean-dashboard h2,.lv-clean-dashboard h3,.lv-clean-dashboard p{margin:0}.lv-clean-dashboard a{text-decoration:none;color:inherit}
+      .lv-clean-mobile-quick{display:none}.lv-clean-dashboard *{box-sizing:border-box}.lv-clean-dashboard h1,.lv-clean-dashboard h2,.lv-clean-dashboard h3,.lv-clean-dashboard p{margin:0}.lv-clean-dashboard a{text-decoration:none;color:inherit}
       .lv-clean-head{display:flex;align-items:end;justify-content:space-between;gap:18px}.lv-clean-head h1{font-size:28px;letter-spacing:-.035em}.lv-clean-head p{margin-top:5px;color:var(--muted);font-size:11px}.lv-clean-head-actions{display:flex;gap:8px}.lv-clean-btn{height:36px;padding:0 13px;border:1px solid var(--line);border-radius:8px;background:#fff;color:#364152;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:850}.lv-clean-btn.primary{border-color:var(--red);background:var(--red);color:#fff;box-shadow:0 5px 14px rgba(217,25,37,.16)}
       .lv-clean-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.lv-clean-kpi{position:relative;min-height:126px;padding:18px 16px 16px 72px;border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:0 4px 14px rgba(15,23,42,.035)}.lv-clean-kpi-icon{position:absolute;left:18px;top:18px;width:42px;height:42px;border-radius:50%;display:grid;place-items:center;background:var(--redsoft);color:var(--red);font-size:18px;font-weight:900}.lv-clean-kpi span{display:block;color:#687386;font-size:10px;font-weight:800}.lv-clean-kpi strong{display:block;margin-top:7px;font-size:23px;letter-spacing:-.025em;line-height:1.1}.lv-clean-kpi small{display:block;margin-top:9px;color:#8a94a3;font-size:9px}.lv-clean-kpi small b{color:#159455}.lv-clean-kpi.expense small b{color:var(--red)}
       .lv-clean-grid-main{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(360px,.9fr);gap:12px}.lv-clean-card{border:1px solid var(--line);border-radius:13px;background:#fff;box-shadow:0 4px 16px rgba(15,23,42,.035);overflow:hidden}.lv-clean-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 18px 0}.lv-clean-title{display:flex;align-items:center;gap:9px}.lv-clean-title i{font-style:normal;color:var(--red);font-size:16px}.lv-clean-title h2{font-size:15px}.lv-clean-link{color:#1670d2!important;font-size:9px;font-weight:800}
@@ -246,16 +246,23 @@ export default function AdminDashboardClean() {
 
     <div className="lv-clean-head">
       <div><h1>Dashboard</h1><p>Welcome back, {userName}. Here&apos;s what is happening across LAND VIEW today. · Updated {refreshTime}</p></div>
-      <div className="lv-clean-head-actions"><button type="button" className="lv-clean-btn" onClick={() => void load()}>Refresh</button><Link className="lv-clean-btn primary" href="/admin/projects/new">+ New Project</Link></div>
+      <div className="lv-clean-head-actions"><button type="button" className="lv-clean-btn" disabled={loading} aria-busy={loading} onClick={() => void load()}>{loading ? "Refreshing..." : "Refresh"}</button><Link className="lv-clean-btn primary" href="/admin/projects/new">+ New Project</Link></div>
     </div>
+
+    <nav className="lv-clean-mobile-quick" aria-label="Mobile quick actions">
+      <Link href="/admin/projects/new"><span className="lv-mobile-action-icon" aria-hidden="true">+</span><span>New Project</span></Link>
+      <Link href="/admin/finance/workspace"><span className="lv-mobile-action-icon" aria-hidden="true">৳</span><span>Billing</span></Link>
+      <Link href="/admin/site-visits"><span className="lv-mobile-action-icon" aria-hidden="true">⌖</span><span>Site Visits</span></Link>
+      <Link href="/admin/todo"><span className="lv-mobile-action-icon" aria-hidden="true">✓</span><span>To Do</span></Link>
+    </nav>
 
     {error && <div className="lv-dashboard-error">{error}</div>}
     {loading && !dashboard ? <div className="lv-dashboard-loading"><span/><span/><span/><span/></div> : <>
       <section className="lv-clean-kpis">
         <article className="lv-clean-kpi"><div className="lv-clean-kpi-icon">▣</div><span>Active Projects</span><strong>{active}</strong><small><b>{num(operations.projectStageChanges)} updates</b> today</small></article>
-        <article className="lv-clean-kpi"><div className="lv-clean-kpi-icon">৳</div><span>Current Balance</span><strong>{money(balance?.currentBalance)}</strong><small><b>{money(brief?.finance?.netMovement)}</b> today</small></article>
-        <article className="lv-clean-kpi"><div className="lv-clean-kpi-icon">↗</div><span>This Month Income</span><strong>{money(latestMonth.income)}</strong><small><b>{money(brief?.finance?.received)}</b> received today</small></article>
-        <article className="lv-clean-kpi expense"><div className="lv-clean-kpi-icon">▤</div><span>This Month Expenses</span><strong>{money(latestMonth.expenses)}</strong><small><b>{money(brief?.finance?.spent)}</b> spent today</small></article>
+        <article className="lv-clean-kpi"><div className="lv-clean-kpi-icon">৳</div><span>Current Balance</span><strong>{balance?.currentBalance != null ? money(balance.currentBalance) : "—"}</strong><small><b>{money(brief?.finance?.netMovement)}</b> today</small></article>
+        <article className="lv-clean-kpi"><div className="lv-clean-kpi-icon">↗</div><span>This Month Income</span><strong>{series.length ? money(latestMonth.income) : "—"}</strong><small><b>{money(brief?.finance?.received)}</b> received today</small></article>
+        <article className="lv-clean-kpi expense"><div className="lv-clean-kpi-icon">▤</div><span>This Month Expenses</span><strong>{series.length ? money(latestMonth.expenses) : "—"}</strong><small><b>{money(brief?.finance?.spent)}</b> spent today</small></article>
       </section>
 
       <section className="lv-clean-grid-main">
@@ -267,7 +274,7 @@ export default function AdminDashboardClean() {
         <article className="lv-clean-card">
           <div className="lv-clean-card-head"><div className="lv-clean-title"><i>▥</i><h2>Finance Summary</h2></div><Link className="lv-clean-link" href="/admin/accounts">View Report</Link></div>
           <div className="lv-finance-body">
-            <div className="lv-finance-summary"><div><strong>{money(balance?.totalIncome)}</strong><span>Total Income</span></div><div><strong>{money(balance?.totalExpenses)}</strong><span>Total Expenses</span></div></div>
+            <div className="lv-finance-summary"><div><strong>{balance?.totalIncome != null ? money(balance.totalIncome) : "—"}</strong><span>Total Income</span></div><div><strong>{balance?.totalExpenses != null ? money(balance.totalExpenses) : "—"}</strong><span>Total Expenses</span></div></div>
             <div className="lv-chart">{series.slice(-6).map((item, index) => <div className="lv-chart-group" key={item.key || index}><div className="lv-chart-bar" style={{height:`${Math.max(3,(num(item.income)/chartMax)*100)}%`}}/><div className="lv-chart-bar expense" style={{height:`${Math.max(3,(num(item.expenses)/chartMax)*100)}%`}}/><span className="lv-chart-label">{item.label || item.key}</span></div>)}</div>
             <div className="lv-chart-legend"><span><i/>Income</span><span><i className="exp"/>Expenses</span></div>
           </div>

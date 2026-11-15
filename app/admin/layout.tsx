@@ -29,6 +29,8 @@ import "../brand-palette-original.css";
 import "./admin-typography-authority.css";
 // Final Admin button foreground authority after legacy and route-specific CSS.
 import "../button-contrast-authority.css";
+// Consolidated V5 private-mobile rules run after the theme and button layers.
+import "../admin/admin-mobile-v5.css";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["admin", "manager"]);

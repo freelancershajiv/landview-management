@@ -44,6 +44,8 @@ import "./project-management-workspace-v2.css";
 import "./project-finance-reconciliation-v3.css";
 // Final finance button foreground authority runs after V2 and V3.
 import "../button-contrast-authority.css";
+// Consolidated V5 private-mobile rules run after the theme and button layers.
+import "../admin/admin-mobile-v5.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);
