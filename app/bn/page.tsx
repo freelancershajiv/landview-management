@@ -4,7 +4,7 @@ import PublicHeader from "@/components/public-header";
 import { business, jsonLd, siteUrl } from "@/lib/site-info";
 
 export const metadata: Metadata = {
-  title: { absolute: "ইঞ্জিনিয়ারিং ও আর্কিটেকচার কনসালটেন্সি বাংলাদেশ | LAND VIEW" },
+  title: { absolute: "ফেনিতে আর্কিটেকচার ও স্ট্রাকচারাল ডিজাইন | LAND VIEW" },
   description: "ফেনি ভিত্তিক LAND VIEW Engineers & Architects বাংলাদেশে আর্কিটেকচারাল ডিজাইন, স্ট্রাকচারাল ডিজাইন, 3D ডিজাইন, সাইট সুপারভিশন, এস্টিমেট, সার্ভে ও সয়েল টেস্ট সেবা প্রদান করে।",
   alternates: {
     canonical: `${siteUrl}/bn`,
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
     },
   },
   openGraph: {
-    title: "ইঞ্জিনিয়ারিং ও আর্কিটেকচার কনসালটেন্সি বাংলাদেশ | LAND VIEW",
+    title: "ফেনিতে আর্কিটেকচার ও স্ট্রাকচারাল ডিজাইন | LAND VIEW",
     description: "ফেনি থেকে বাংলাদেশজুড়ে উপযুক্ত প্রকল্পে সমন্বিত আর্কিটেকচার ও ইঞ্জিনিয়ারিং কনসালটেন্সি।",
     url: `${siteUrl}/bn`,
     siteName: business.name,
@@ -59,9 +59,9 @@ export default function BanglaPage() {
     <PublicHeader />
     <section className="bn-hero"><div className="bn-wrap">
       <span className="bn-kicker">LAND VIEW ENGINEERS &amp; ARCHITECTS · ফেনি, বাংলাদেশ</span>
-      <h1>বাংলাদেশে আর্কিটেকচার ও ইঞ্জিনিয়ারিং কনসালটেন্সি</h1>
+      <h1>ফেনিতে আর্কিটেকচার ও স্ট্রাকচারাল ডিজাইন কনসালটেন্সি</h1>
       <p>LAND VIEW ভবন পরিকল্পনা, আর্কিটেকচারাল ডিজাইন, স্ট্রাকচারাল ডিজাইন, 3D ভিজ্যুয়ালাইজেশন, বিল্ডিং সার্ভিস ডিজাইন, এস্টিমেট, জরিপ, সয়েল টেস্ট সমন্বয় এবং সাইট সুপারভিশনের মাধ্যমে একটি সমন্বিত কনসালটেন্সি অভিজ্ঞতা দিতে কাজ করে। আমাদের অফিস ফেনি সদরে।</p>
-      <div className="bn-actions"><Link className="bn-btn bn-primary" href="/contact">প্রকল্প নিয়ে কথা বলুন</Link><Link className="bn-btn bn-outline" href="/projects">প্রকল্প দেখুন</Link><Link className="bn-btn bn-outline" href="/">English</Link></div>
+      <div className="bn-actions"><Link className="bn-btn bn-primary" href="/contact">প্রকল্প নিয়ে কথা বলুন</Link><Link className="bn-btn bn-outline" href="/projects">প্রকল্প দেখুন</Link><Link className="bn-btn bn-outline" href="/">English</Link><Link className="bn-btn bn-outline" href="/feni">ফেনি অফিস</Link></div>
     </div></section>
 
     <section className="bn-section"><div className="bn-wrap">

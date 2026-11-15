@@ -4,8 +4,8 @@ import { siteUrl } from "@/lib/site-info";
 import "./public-home-v2.css";
 
 export const metadata: Metadata = {
-  title: { absolute: "Architectural & Structural Design Consultancy in Bangladesh | LAND VIEW" },
-  description: "LAND VIEW Engineers & Architects is a Feni-based architecture and engineering consultancy serving building projects in Bangladesh with architectural design, structural design, 3D visualization, approval drawings, survey coordination, estimates and site supervision.",
+  title: { absolute: "Architects & Structural Engineers in Feni | LAND VIEW" },
+  description: "LAND VIEW is an architecture and structural engineering consultancy in Feni, Bangladesh, offering building planning, structural design, 3D visualization, soil test coordination, plan approval drawings and site supervision.",
   alternates: {
     canonical: "/",
     languages: {
@@ -19,14 +19,14 @@ export const metadata: Metadata = {
     locale: "en_BD",
     url: siteUrl,
     siteName: "LAND VIEW Engineers & Architects",
-    title: "Architectural & Structural Design Consultancy in Bangladesh | LAND VIEW",
-    description: "Feni-based architectural and structural design consultancy for residential and commercial building projects across Bangladesh.",
+    title: "Architects & Structural Engineers in Feni | LAND VIEW",
+    description: "Feni-based architects and structural engineering consultancy for residential and commercial building design in Feni and across Bangladesh.",
     images: [{ url: "/land-view-logo.png", alt: "LAND VIEW Engineers & Architects" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Architectural & Structural Design Consultancy in Bangladesh | LAND VIEW",
-    description: "Feni-based architectural and structural design consultancy for building projects across Bangladesh.",
+    title: "Architects & Structural Engineers in Feni | LAND VIEW",
+    description: "Architecture, structural design, building planning and engineering consultancy based in Feni, Bangladesh.",
     images: ["/land-view-logo.png"],
   },
 };

@@ -20,12 +20,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   if (!service) return {};
   const url = `https://www.landview.com.bd/services/${service.slug}`;
   return {
-    title: `${service.name} in Bangladesh`,
+    title: `${service.name} in Feni`,
     description: service.description,
     keywords: service.keywords,
     alternates: { canonical: url },
-    openGraph: { title: `${service.name} in Bangladesh | LAND VIEW`, description: service.description, url, siteName: "LAND VIEW Engineers & Architects", type: "article" },
-    twitter: { card: "summary_large_image", title: `${service.name} in Bangladesh | LAND VIEW`, description: service.description },
+    openGraph: { title: `${service.name} in Feni | LAND VIEW`, description: service.description, url, siteName: "LAND VIEW Engineers & Architects", type: "article" },
+    twitter: { card: "summary_large_image", title: `${service.name} in Feni | LAND VIEW`, description: service.description },
     robots: { index: true, follow: true },
   };
 }
@@ -59,7 +59,7 @@ export default async function ServicePage({ params }: PageProps) {
           <div className="sv2-detail-grid">
             <div>
               <div className="sv2-service-icon" aria-hidden="true">{service.icon}</div>
-              <h1>{service.name}<br />in Bangladesh</h1>
+              <h1>{service.name}<br />in Feni</h1>
               <p>{service.description}</p>
               <div className="sv2-actions"><a className="sv2-btn sv2-btn-whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">Discuss on WhatsApp</a><Link className="sv2-btn sv2-btn-outline" href="/projects">View Projects</Link></div>
             </div>

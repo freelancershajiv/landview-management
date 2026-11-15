@@ -5,12 +5,12 @@ import { publicServices, type PublicService } from "@/lib/public-services";
 import "./services-v2.css";
 
 export const metadata: Metadata = {
-  title: "Architecture, Engineering & Building Consultancy Services | LAND VIEW",
+  title: { absolute: "Architecture & Engineering Services in Feni | LAND VIEW" },
   description: "Explore LAND VIEW architecture, structural engineering, 3D visualization, building services, costing, approval support, survey, soil investigation and site supervision services in Feni and across Bangladesh.",
   keywords: ["architect in Feni", "structural engineer Feni", "building design Feni", "engineering consultant Feni", "architectural design Feni", "plan approval Feni", "soil test Feni", "digital survey Feni"],
   alternates: { canonical: "https://www.landview.com.bd/services" },
-  openGraph: { title: "Architecture & Engineering Services | LAND VIEW", description: "Coordinated building consultancy from design and engineering through approval support and construction-stage services.", url: "https://www.landview.com.bd/services", siteName: "LAND VIEW Engineers & Architects", type: "website" },
-  twitter: { card: "summary_large_image", title: "Architecture & Engineering Services | LAND VIEW", description: "Explore LAND VIEW building design and engineering services in Bangladesh." },
+  openGraph: { title: "Architecture & Engineering Services in Feni | LAND VIEW", description: "Coordinated building consultancy from design and engineering through approval support and construction-stage services.", url: "https://www.landview.com.bd/services", siteName: "LAND VIEW Engineers & Architects", type: "website" },
+  twitter: { card: "summary_large_image", title: "Architecture & Engineering Services in Feni | LAND VIEW", description: "Explore architectural design, structural engineering, approval and building consultancy services from LAND VIEW in Feni." },
   robots: { index: true, follow: true },
 };
 

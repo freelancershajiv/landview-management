@@ -23,6 +23,7 @@ export const businessSchema = {
   url: siteUrl,
   logo: `${siteUrl}/land-view-logo.png`,
   image: `${siteUrl}/land-view-logo.png`,
+  sameAs: ["https://www.facebook.com/landviewcivil/"],
   email: business.email,
   telephone: business.telephone,
   address: business.address,
