@@ -10,11 +10,11 @@ import "./slideshow.css";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: { absolute: "Architecture & Engineering Projects in Bangladesh | LAND VIEW" },
-  description: "Explore public LAND VIEW architecture and engineering projects by category, stage, district and consultancy service, with project images, location information and project details.",
+  title: { absolute: "Building Design Projects in Feni & Bangladesh | LAND VIEW" },
+  description: "Explore LAND VIEW architectural and structural design projects in Feni and across Bangladesh, with public project photos, locations, building details and consultancy services.",
   alternates: { canonical: "/projects" },
   openGraph: {
-    title: "LAND VIEW Architecture & Engineering Projects",
+    title: "LAND VIEW Building Design Projects in Feni & Bangladesh",
     description: "Explore selected public architecture, engineering and construction-stage projects from LAND VIEW Engineers & Architects.",
     url: "https://www.landview.com.bd/projects",
     type: "website",

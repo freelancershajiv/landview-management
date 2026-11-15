@@ -10,8 +10,8 @@ import styles from "./page.module.css";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: { absolute: "Building Project Case Studies | LAND VIEW" },
-  description: "Explore selected LAND VIEW architecture, engineering and construction-support case studies from Feni and across Bangladesh, with project scope, location, stage and published client feedback where available.",
+  title: { absolute: "Building Design Case Studies in Feni | LAND VIEW" },
+  description: "Explore published LAND VIEW residential and commercial design case studies in Feni and across Bangladesh, with project location, design scope and construction-stage details.",
   alternates: { canonical: "/case-studies" },
   openGraph: {
     title: "LAND VIEW Project Case Studies",

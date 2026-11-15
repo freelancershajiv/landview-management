@@ -63,7 +63,7 @@ export default async function ServicePage({ params }: PageProps) {
               <p>{service.description}</p>
               <div className="sv2-actions"><a className="sv2-btn sv2-btn-whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">Discuss on WhatsApp</a><Link className="sv2-btn sv2-btn-outline" href="/projects">View Projects</Link></div>
             </div>
-            <aside className="sv2-service-summary"><span>SERVICE OVERVIEW</span><strong>{service.name}</strong><p>Feni Sadar, Feni-3900 · Available for suitable projects in Feni and elsewhere in Bangladesh, subject to project scope and coordination requirements.</p></aside>
+            <aside className="sv2-service-summary"><span>SERVICE OVERVIEW</span><strong>{service.name}</strong><p>Feni Sadar, Feni-3900 · Available for suitable projects in Feni and elsewhere in Bangladesh, subject to project scope and coordination requirements. <Link href="/feni" style={{ color: "#ef888d", textDecoration: "underline" }}>Find our Feni office</Link>.</p></aside>
           </div>
         </div>
       </section>

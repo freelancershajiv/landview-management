@@ -1,48 +1,26 @@
 import type { MetadataRoute } from "next";
-import { getPublicProjectsForSeo } from "@/lib/public-projects-server";
 import { publicServices } from "@/lib/public-services";
-
-export const dynamic = "force-dynamic";
 
 const baseUrl = "https://www.landview.com.bd";
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  let projects: Awaited<ReturnType<typeof getPublicProjectsForSeo>> = [];
-
-  // The static/service sitemap must remain available even if the public
-  // projects backend is temporarily unavailable.
-  try {
-    projects = await getPublicProjectsForSeo();
-  } catch (error) {
-    console.error("Sitemap project fetch failed:", error);
-  }
-
-  const projectEntries: MetadataRoute.Sitemap = projects
-    .filter((project) => String(project.projectId || "").trim())
-    .map((project) => ({
-      url: `${baseUrl}/projects/${encodeURIComponent(String(project.projectId))}`,
-      changeFrequency: "monthly" as const,
-      priority: project.publicReady ? 0.8 : 0.65,
-      images: project.coverImageUrl ? [String(project.coverImageUrl)] : undefined,
-    }));
-
+// Always-available core sitemap, independent of the projects database.
+export default function sitemap(): MetadataRoute.Sitemap {
   const serviceEntries: MetadataRoute.Sitemap = publicServices.map((service) => ({
     url: `${baseUrl}/services/${service.slug}`,
     changeFrequency: "monthly" as const,
-    priority: 0.85,
+    priority: 0.8,
   }));
 
   return [
     { url: baseUrl, changeFrequency: "weekly", priority: 1 },
     { url: `${baseUrl}/bn`, changeFrequency: "monthly", priority: 0.9 },
-    { url: `${baseUrl}/feni`, changeFrequency: "monthly", priority: 0.9 },
-    { url: `${baseUrl}/services`, changeFrequency: "monthly", priority: 0.95 },
+    { url: `${baseUrl}/feni`, changeFrequency: "monthly", priority: 0.95 },
+    { url: `${baseUrl}/services`, changeFrequency: "monthly", priority: 0.9 },
     ...serviceEntries,
     { url: `${baseUrl}/contact`, changeFrequency: "monthly", priority: 0.8 },
-    { url: `${baseUrl}/team`, changeFrequency: "monthly", priority: 0.8 },
+    { url: `${baseUrl}/team`, changeFrequency: "monthly", priority: 0.75 },
     { url: `${baseUrl}/projects`, changeFrequency: "weekly", priority: 0.9 },
-    { url: `${baseUrl}/projects/map`, changeFrequency: "weekly", priority: 0.85 },
-    { url: `${baseUrl}/case-studies`, changeFrequency: "weekly", priority: 0.9 },
-    ...projectEntries,
+    { url: `${baseUrl}/projects/map`, changeFrequency: "weekly", priority: 0.75 },
+    { url: `${baseUrl}/case-studies`, changeFrequency: "monthly", priority: 0.85 },
   ];
 }

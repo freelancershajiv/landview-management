@@ -20,7 +20,7 @@ export default function robots(): MetadataRoute.Robots {
         ],
       },
     ],
-    sitemap: "https://www.landview.com.bd/sitemap.xml",
+    sitemap: ["https://www.landview.com.bd/sitemap.xml", "https://www.landview.com.bd/projects/sitemap.xml"],
     host: "https://www.landview.com.bd",
   };
 }

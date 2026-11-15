@@ -10,6 +10,7 @@ const nav = [
   { href: "/projects", label: "Projects" },
   { href: "/projects/map", label: "Map" },
   { href: "/team", label: "Team" },
+  { href: "/feni", label: "Feni Office" },
   { href: "/contact", label: "Contact" },
 ];
 
