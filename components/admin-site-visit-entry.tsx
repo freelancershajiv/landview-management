@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { isSiteVisitPhoto, prepareSiteVisitPhoto, siteVisitNetworkError } from "@/lib/site-visit-photo-preparation";
+import { isSiteVisitPhoto, isSiteVisitOffline, prepareSiteVisitPhoto, siteVisitNetworkError } from "@/lib/site-visit-photo-preparation";
 
 type ProjectRow = { Project_ID?: string; Project_Name?: string; Client_Name?: string; Location?: string; Status?: string };
 type EmployeeRow = { Employee_ID?: string; Employee_Name?: string; Designation?: string; Status?: string };
@@ -113,7 +113,7 @@ export default function AdminSiteVisitEntry() {
     let requestStarted = false;
     try {
       if (!form.projectId) throw new Error("Select a project.");
-      if (navigator.onLine === false) throw new Error("You are offline. Reconnect before submitting; your form and photos are preserved.");
+      if (isSiteVisitOffline()) throw new Error("You are offline. Reconnect before submitting; your form and photos are preserved.");
       if (visitPhotos.length + problemPhotos.length > MAX_TOTAL_PHOTOS) throw new Error(`Select no more than ${MAX_TOTAL_PHOTOS} photos.`);
 
       const body = new FormData();
@@ -123,7 +123,7 @@ export default function AdminSiteVisitEntry() {
         setUploadStage(`Preparing photo ${index + 1} of ${allFiles.length}…`);
         body.append(item.key, await prepareSiteVisitPhoto(item.file, 1200));
       }
-      if (navigator.onLine === false) throw new Error("You are offline. Reconnect before submitting; your form and photos are preserved.");
+      if (isSiteVisitOffline()) throw new Error("You are offline. Reconnect before submitting; your form and photos are preserved.");
       setUploadStage("Uploading and saving Site Visit… Do not close this page.");
       requestStarted = true;
       const response = await fetch("/api/admin/site-visits", { method: "POST", body, credentials: "same-origin" });

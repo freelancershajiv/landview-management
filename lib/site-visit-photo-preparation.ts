@@ -83,6 +83,10 @@ export async function prepareSiteVisitPhoto(file: File, maxDimension = 1400): Pr
   }
 }
 
+export function isSiteVisitOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
+}
+
 export function siteVisitNetworkError(error: unknown, requestStarted: boolean): string {
   const original = error && typeof error === "object" && "message" in error
     ? String((error as { message?: unknown }).message || "Unknown error")

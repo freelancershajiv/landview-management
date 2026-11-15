@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { isSiteVisitPhoto, prepareSiteVisitPhoto, siteVisitNetworkError } from "@/lib/site-visit-photo-preparation";
+import { isSiteVisitPhoto, isSiteVisitOffline, prepareSiteVisitPhoto, siteVisitNetworkError } from "@/lib/site-visit-photo-preparation";
 
 type Row = Record<string, any>;
 
@@ -210,7 +210,7 @@ export default function EmployeeSiteVisitCenter() {
     try {
       if (!projectId) throw new Error("Select a project.");
       if (!location) throw new Error("Verify your location before submitting.");
-      if (navigator.onLine === false) throw new Error("You are offline. Reconnect before submitting; your notes and photos are preserved.");
+      if (isSiteVisitOffline()) throw new Error("You are offline. Reconnect before submitting; your notes and photos are preserved.");
 
       const body = new FormData();
       body.append("projectId", projectId);
@@ -232,7 +232,7 @@ export default function EmployeeSiteVisitCenter() {
         body.append("problemPhoto", await prepareSiteVisitPhoto(problemPhoto));
       }
 
-      if (navigator.onLine === false) throw new Error("You are offline. Reconnect before submitting; your notes and photos are preserved.");
+      if (isSiteVisitOffline()) throw new Error("You are offline. Reconnect before submitting; your notes and photos are preserved.");
       setUploadStage("Uploading and saving Site Visit… Do not close this page.");
       requestStarted = true;
       const response = await fetch("/api/site-visits", { method: "POST", body, credentials: "same-origin" });
