@@ -83,7 +83,7 @@ function ProjectManagementClassic(){
     const fromData=Array.isArray(data?.categories)
       ? data.categories.map((x:any)=>String(x?.category||"").trim()).filter(Boolean)
       : [];
-    return Array.from(new Set(fromData.length?fromData:CATEGORIES));
+    return Array.from(new Set(fromData.length ? fromData : [...PM_INCOME_CATEGORIES, ...pmExpenseCategoryOptions(data)]));
   },[data]);
 
   const incomeCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.debit)>0)),[entries,categories]);
