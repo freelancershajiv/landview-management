@@ -415,7 +415,7 @@ export default function FullBillEditorPage() {
 
       await load(fileId);
       setMessage(changed
-        ? `Full bill saved. ${changed} change${changed === 1 ? "" : "s"} applied across the project in one save.`
+        ? `Full bill editor applied ${changed} change${changed === 1 ? "" : "s"}. Issued-bill revisions remain separately audited; review the latest invoice and history.`
         : "No changes were needed. The full bill is already up to date.");
     } catch (cause) {
       const failure = `${changed ? `${changed} change${changed === 1 ? " was" : "s were"} saved before the error. ` : ""}${cause instanceof Error ? cause.message : "Could not save the full bill."}`;
