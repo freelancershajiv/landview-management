@@ -38,10 +38,13 @@ export async function getAdjustedProjectServiceFinancials(projectCode: string) {
   ]);
   const services = base.services.map((service) => {
     const credit = credits.get(service.serviceKey) || { total: 0, serviceDiscount: 0, otherCredit: 0 };
-    const discount = money2(Math.max(0, service.discount) + credit.serviceDiscount);
-    const net = money2(Math.max(0, service.net - credit.total));
+    // The canonical receivable authority already nets all posted credit/debit
+    // notes and applies write-offs/advances to collectible dues. This display
+    // layer must not subtract those credits again or rebuild due from cash only.
+    const discount = money2(Math.max(0, service.discount));
+    const net = money2(Math.max(0, service.net));
     const paid = money2(Math.min(net, Math.max(0, service.paid)));
-    const due = money2(Math.max(0, net - paid));
+    const due = money2(Math.max(0, Math.min(net, service.due)));
     return {
       ...service,
       discount,
@@ -77,9 +80,11 @@ export async function getAdjustedBillingV2Snapshot(projectCode: string, actor = 
     const contractGross = money2(Math.max(0, num(service.contractGross)));
     const contractDiscount = money2(Math.max(0, num(service.contractDiscount)) + credit.serviceDiscount);
     const contractNet = money2(Math.max(0, num(service.contractNet) - credit.serviceDiscount));
-    const billedNet = money2(Math.max(0, num(service.billedNet) - credit.total));
+    // The Billing V2 snapshot is already based on canonical billed values,
+    // allocations and approved write-offs. Preserve its collectible due.
+    const billedNet = money2(Math.max(0, num(service.billedNet)));
     const paid = money2(Math.min(billedNet, Math.max(0, num(service.paid))));
-    const due = money2(Math.max(0, billedNet - paid));
+    const due = money2(Math.max(0, Math.min(billedNet, num(service.due))));
     const unbilled = money2(Math.max(0, contractNet - billedNet));
     let financeStatus = text(service.financeStatus);
     if (billedNet <= 0 && num(service.readyToBill) > 0) financeStatus = "Ready to Bill";
