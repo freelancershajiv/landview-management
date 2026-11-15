@@ -86,7 +86,7 @@ export default async function VerifyReceiptPage({ params }: { params: Promise<{ 
     </section>}
     {text(payment.notes) && <section className="vr-note"><span>Note</span><p>{text(payment.notes)}</p></section>}
     <div className="vr-toolbar">
-      <ReceiptPrintActions />
+      <ReceiptPrintActions receiptToken={clean} />
       <div className="vr-qr"><img src={qrUrl} width={98} height={98} alt="QR code to verify this receipt" /><small>Scan to verify</small></div>
     </div>
     <div className="vr-actions"><Link href={`/client/billing/${encodeURIComponent(project.project_code)}`}>Open Client Billing</Link><span>Use your authorized client login to view invoices and full billing history.</span></div>
