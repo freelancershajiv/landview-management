@@ -133,7 +133,7 @@ export default function DueBillsPage() {
           </div>
           <div className="due-mobile-actions">
             <Link className="due-link primary" data-lv-button="primary" href={`/admin/finance/workspace?fileId=${encodeURIComponent(row.projectId)}`}>Open Billing</Link>
-            <Link className="due-link" data-lv-button="secondary" href={`/admin/finance/service-payments?fileId=${encodeURIComponent(row.projectId)}`}>Receive</Link>
+            <Link className="due-link" data-lv-button="secondary" href={`/admin/finance/service-payments?fileId=${encodeURIComponent(row.projectId)}`}>Receive</Link><Link className="due-link" data-lv-button="secondary" href={`/admin/billing/writeoffs?fileId=${encodeURIComponent(row.projectId)}`}>Write Off</Link>
             <Link className="due-link" data-lv-button="secondary" href={`/admin/finance/invoices?fileId=${encodeURIComponent(row.projectId)}`}>Statement</Link>
           </div>
         </article>)}
@@ -150,7 +150,7 @@ export default function DueBillsPage() {
             <td className="due-number">{row.otherDue > .009 ? money(row.otherDue) : "—"}</td>
             <td className="due-number total">{money(row.totalDue)}{row.unallocatedAmount > .009 && <span className="due-note">{money(row.unallocatedAmount)} unallocated / advance</span>}</td>
             <td className="due-last"><strong>{row.lastPaymentAmount > .009 ? money(row.lastPaymentAmount) : "—"}</strong><span>{displayDate(row.lastPaymentDate)}</span></td>
-            <td><div className="due-actions"><Link className="due-link primary" data-lv-button="primary" href={`/admin/finance/workspace?fileId=${encodeURIComponent(row.projectId)}`}>Billing 2.0</Link><Link className="due-link" data-lv-button="secondary" href={`/admin/finance/service-payments?fileId=${encodeURIComponent(row.projectId)}`}>Receive</Link><Link className="due-link" data-lv-button="secondary" href={`/admin/finance/invoices?fileId=${encodeURIComponent(row.projectId)}`}>Statement</Link></div></td>
+            <td><div className="due-actions"><Link className="due-link primary" data-lv-button="primary" href={`/admin/finance/workspace?fileId=${encodeURIComponent(row.projectId)}`}>Billing 2.0</Link><Link className="due-link" data-lv-button="secondary" href={`/admin/finance/service-payments?fileId=${encodeURIComponent(row.projectId)}`}>Receive</Link><Link className="due-link" data-lv-button="secondary" href={`/admin/billing/writeoffs?fileId=${encodeURIComponent(row.projectId)}`}>Write Off</Link><Link className="due-link" data-lv-button="secondary" href={`/admin/finance/invoices?fileId=${encodeURIComponent(row.projectId)}`}>Statement</Link></div></td>
           </tr>)}</tbody>
         </table> : <div className="due-empty">No due bills match this view.</div>}
       </div>
