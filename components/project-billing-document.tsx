@@ -135,6 +135,21 @@ export function safePdfTitle(value: string) {
     .replace(/\s+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") || "LAND-VIEW-Project-Billing-Statement";
 }
 
+// Chromium's Save as PDF suggestion is taken from the current document title.
+// Match the JPG export's project/client convention, with a label per document.
+export function billingPdfTitle(result: SheetInvoices) {
+  const kind = result.document?.kind;
+  const documentLabel = kind === "single"
+    ? [result.document?.category || "Single", "Bill"].join("-")
+    : kind === "due" ? "Due-Bill" : "Billing-Statement";
+  return safePdfTitle([
+    result.id,
+    kind === "single" ? (result.document?.invoiceCode || result.document?.billCode || "") : "",
+    result.client.name || "Project",
+    documentLabel,
+  ].filter(Boolean).join("-"));
+}
+
 let billingPrintPending = false;
 
 export async function printBillingPdf(result: SheetInvoices) {
@@ -164,17 +179,37 @@ export async function printBillingPdf(result: SheetInvoices) {
     billingPrintPending = false;
   }
   const previousTitle = document.title;
-  document.title = safePdfTitle(`${result.id}-${result.client.name || result.id || "Project"}-Billing-Statement`);
+  const pdfTitle = billingPdfTitle(result);
+  const keepPdfTitle = () => {
+    if (document.title !== pdfTitle) document.title = pdfTitle;
+  };
+  // Next.js may update the managed <title> during billing state changes.
+  // Keep the print filename stable until the browser finishes saving.
+  const titleObserver = new MutationObserver(keepPdfTitle);
+  titleObserver.observe(document.head, { childList: true, characterData: true, subtree: true });
+  keepPdfTitle();
+
   let restored = false;
+  let restoreDelay: number | undefined;
   const restoreTitle = () => {
     if (restored) return;
     restored = true;
+    titleObserver.disconnect();
+    window.removeEventListener("beforeprint", keepPdfTitle);
+    window.removeEventListener("afterprint", queueRestore);
+    if (restoreDelay) window.clearTimeout(restoreDelay);
     document.title = previousTitle;
-    window.removeEventListener("afterprint", restoreTitle);
   };
-  window.addEventListener("afterprint", restoreTitle, { once: true });
-  window.setTimeout(restoreTitle, 60000);
+  const queueRestore = () => {
+    // Some print dialogs dispatch afterprint before the OS Save As picker
+    // has finished; avoid resetting the suggested filename too early.
+    if (!restoreDelay) restoreDelay = window.setTimeout(restoreTitle, 15000);
+  };
+  window.addEventListener("beforeprint", keepPdfTitle);
+  window.addEventListener("afterprint", queueRestore, { once: true });
+  window.setTimeout(restoreTitle, 120000);
   await new Promise<void>((resolve) => window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+    keepPdfTitle();
     window.print(); resolve();
   })));
   return true;
