@@ -32,3 +32,14 @@ Use --lv-surface-*, --lv-text-*, --lv-brand-*, --lv-control-* and semantic statu
 Run npm test, npm run lint, npm run build; test 360/390/768 px and desktop widths, both modes, all four roles, sidebar/drawer/dock, dialogs, forms, tables, error/disabled, invoice print preview. Use one integrated preview rather than serial deployments. Do not promote to production without verification.
 
 Important: the entrypoint establishes a single authority for new and migrated styles, but does not claim that every legacy inline color/style is already converted.
+
+## Phase 2 — High-traffic module migration (17 November 2026)
+
+- Extracted the embedded CSS from Projects register, Projects navigation, Due Bills, Billing Workspace and Bill Manager. Rules remain page-specific, but now live in dedicated stylesheets with explicit Admin/page scoping, rather than global inline style tags.
+- Migrated Admin dashboard shortcut links from one-off style objects to the existing LVButtonLink soft variant.
+- Moved all --pf-* and --pmx-* semantic aliases from two Project Management stylesheets into the single private theme entrypoint; left PM layout CSS and transaction logic unchanged.
+- Added centralized light/dark appearance for Admin dashboard, Projects register and project detail, Due Bills, Bill Manager, Billing Workspace, and Project Management. Improved formerly 7–10px billing labels and controls using shared density tokens.
+- The historical Admin dashboard embedded CSS remains temporarily, because regression fixtures directly inspect it; its color tokens are now centralized.
+- Screenshots and authenticated interaction tests are still required. Do not delete further mobile or print overrides before visual QA.
+
+Release scope: presentation files, stylesheet imports, and dashboard shortcut rendering only. No accounting calculations, persisted records, APIs, permissions, invoice PDF rules or database migrations changed.

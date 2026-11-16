@@ -4,24 +4,6 @@
 
 @media screen {
   .pf-redesign {
-    --pf-bg: var(--lv-surface-page) !important;
-    --pf-surface: var(--lv-surface-panel) !important;
-    --pf-surface-soft: var(--lv-surface-muted) !important;
-    --pf-surface-strong: var(--lv-surface-chrome) !important;
-    --pf-ink: var(--lv-text-primary) !important;
-    --pf-muted: var(--lv-text-muted) !important;
-    --pf-line: var(--lv-border-default) !important;
-    --pf-line-strong: var(--lv-border-strong) !important;
-    --pf-brand: var(--lv-brand-primary) !important;
-    --pf-brand-dark: var(--lv-brand-primary-hover) !important;
-    --pf-green: var(--lv-success) !important;
-    --pf-green-soft: var(--lv-success-soft) !important;
-    --pf-blue: var(--lv-info) !important;
-    --pf-blue-soft: var(--lv-info-soft) !important;
-    --pf-amber: var(--lv-warning) !important;
-    --pf-amber-soft: var(--lv-warning-soft) !important;
-    --pf-red-soft: var(--lv-danger-soft) !important;
-    --pf-shadow: var(--lv-shadow-sm) !important;
     background: var(--lv-surface-page) !important;
     color: var(--lv-text-primary) !important;
   }
