@@ -325,7 +325,7 @@ export default function WhatsAppPage() {
                   </button>
                 </div>
 
-                <div className="lv-wa-messages" style={{ flex: 1, padding: 18, background: "var(--lv-surface-muted)", overflowY: "auto", maxHeight: 500 }>
+                <div className="lv-wa-messages" style={{ flex: 1, padding: 18, background: "var(--lv-surface-muted)", overflowY: "auto", maxHeight: 500 }}>
                   {!messages.length ? <div style={{ color: "var(--lv-text-muted)" }}>No messages yet.</div> : messages.map((message) => (
                     <div key={message.id} style={{ display: "flex", justifyContent: message.direction === "outbound" ? "flex-end" : "flex-start", marginBottom: 10 }}>
                       <div className={`lv-wa-bubble ${message.direction === "outbound" ? "is-outbound" : "is-inbound"}`} style={{ maxWidth: "78%", borderRadius: 13, padding: "10px 12px", background: message.direction === "outbound" ? "#dcfce7" : "#fff", border: "1px solid var(--lv-border-default)", color: "var(--lv-text-strong)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
