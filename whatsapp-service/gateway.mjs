@@ -225,6 +225,7 @@ function createEmployeeSession(employeeId) {
       state.sock = wa
 
       wa.ev.on('creds.update', () => {
+        if (state.sock !== wa) return
         saveCreds().catch((error) => {
           state.lastError = String(error?.message || error)
           logger.error({ employeeId, err: state.lastError }, 'Employee WhatsApp credential save failed')
@@ -232,11 +233,16 @@ function createEmployeeSession(employeeId) {
       })
 
       wa.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
+        if (state.sock !== wa) return
         if (qr) {
           state.connection = 'pairing'
-          state.qrDataUrl = await QRCode.toDataURL(qr, { margin: 1, width: 360 }).catch(() => '')
+          const qrDataUrl = await QRCode.toDataURL(qr, { margin: 1, width: 360 }).catch(() => '')
+          if (state.sock !== wa) return
+          state.qrDataUrl = qrDataUrl
         }
         if (connection === 'open') {
+          if (state.reconnectTimer) clearTimeout(state.reconnectTimer)
+          state.reconnectTimer = null
           state.connection = 'open'
           state.qrDataUrl = ''
           state.lastError = ''
@@ -244,11 +250,12 @@ function createEmployeeSession(employeeId) {
           await saveCreds().catch((error) => {
             state.lastError = String(error?.message || error)
           })
+          if (state.sock !== wa) return
           logger.info({ employeeId, phoneNumber: phoneFromUserId(wa.user?.id) }, 'Employee WhatsApp connected')
           if (employeeId === FINANCE_EMPLOYEE_ID) scheduleFinanceDrain(250)
         }
         if (connection === 'close') {
-          if (state.sock === wa) state.sock = null
+          state.sock = null
           const code = disconnectCode(lastDisconnect?.error)
           state.lastError = String(lastDisconnect?.error?.message || `Disconnected (${code || 'unknown'})`)
           state.qrDataUrl = ''
@@ -272,12 +279,14 @@ function createEmployeeSession(employeeId) {
   async function reset() {
     if (state.reconnectTimer) clearTimeout(state.reconnectTimer)
     state.reconnectTimer = null
-    try { await state.sock?.logout() } catch {}
+    // Detach first so late events from the old device cannot alter the new session.
+    const previousSocket = state.sock
     state.sock = null
     state.qrDataUrl = ''
     state.lastError = ''
     state.connection = 'resetting'
     employeeGroupCache.delete(employeeId)
+    try { await previousSocket?.logout() } catch {}
     await store('authReset', { sessionId })
     await connect()
   }
@@ -488,6 +497,11 @@ function authorized(req) {
 }
 
 const app = express()
+// The Render public root is a liveness check, not a session-status endpoint.
+app.get('/', (_req, res) => {
+  res.set('cache-control', 'no-store')
+  return res.json({ ok: true, service: 'land-view-whatsapp' })
+})
 const employeeJson = express.json({ limit: '64kb' })
 
 app.get('/employee/status', async (req, res) => {
