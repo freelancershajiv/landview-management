@@ -21,3 +21,4 @@ jobs:
           node --check whatsapp-service/gateway.mjs
           node --check whatsapp-service/startup.mjs
           node --check whatsapp-service/bootstrap.mjs
+          node --test tests/whatsapp-hardening.test.cjs

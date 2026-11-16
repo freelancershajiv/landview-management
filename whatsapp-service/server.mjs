@@ -189,6 +189,7 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
       state.sock = wa
 
       wa.ev.on('creds.update', () => {
+        if (state.sock !== wa) return
         saveCreds().catch((error) => {
           state.lastError = String(error?.message || error)
           logger.error({ sessionId, err: state.lastError }, `${label} credential save failed`)
@@ -197,6 +198,7 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
 
       if (onMessages) {
         wa.ev.on('messages.upsert', (event) => {
+          if (state.sock !== wa) return
           Promise.resolve(onMessages(event, wa)).catch((error) => {
             state.lastError = String(error?.message || error)
             logger.error({ sessionId, err: state.lastError }, `${label} inbound message handler failed`)
@@ -205,13 +207,19 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
       }
 
       wa.ev.on('connection.update', async ({ connection, lastDisconnect, qr }) => {
+        // Ignore late events from sockets replaced during reconnect or reset.
+        if (state.sock !== wa) return
         if (qr) {
           state.connection = 'pairing'
-          state.qrDataUrl = await QRCode.toDataURL(qr, { margin: 1, width: 360 }).catch(() => '')
+          const qrDataUrl = await QRCode.toDataURL(qr, { margin: 1, width: 360 }).catch(() => '')
+          if (state.sock !== wa) return
+          state.qrDataUrl = qrDataUrl
           logger.info({ sessionId }, `${label} pairing QR is available`)
         }
 
         if (connection === 'open') {
+          if (state.reconnectTimer) clearTimeout(state.reconnectTimer)
+          state.reconnectTimer = null
           state.connection = 'open'
           state.openedAt = Date.now()
           state.qrDataUrl = ''
@@ -222,6 +230,7 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
             state.lastError = String(error?.message || error)
             logger.error({ sessionId, err: state.lastError }, `${label} credential save on open failed`)
           }
+          if (state.sock !== wa) return
           logger.info({ sessionId, user: wa.user?.id }, `${label} connected`)
           await Promise.resolve(onOpen?.(wa)).catch((error) => {
             state.lastError = String(error?.message || error)
@@ -230,7 +239,7 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
         }
 
         if (connection === 'close') {
-          if (state.sock === wa) state.sock = null
+          state.sock = null
           const code = disconnectCode(lastDisconnect?.error)
           state.lastError = String(lastDisconnect?.error?.message || `Disconnected (${code || 'unknown'})`)
           if (code === DisconnectReason.loggedOut) {
@@ -253,11 +262,16 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
   }
 
   async function reset() {
-    try { await state.sock?.logout() } catch {}
+    // Detach before logout: the old socket may emit a delayed close/QR event.
+    if (state.reconnectTimer) clearTimeout(state.reconnectTimer)
+    state.reconnectTimer = null
+    const previousSocket = state.sock
     state.sock = null
-    state.qrDataUrl = ''
-    await store('authReset', { sessionId })
     state.connection = 'resetting'
+    state.qrDataUrl = ''
+    state.lastError = ''
+    try { await previousSocket?.logout() } catch {}
+    await store('authReset', { sessionId })
     scheduleReconnect(500)
   }
 
@@ -851,7 +865,11 @@ const app = express()
 app.disable('x-powered-by')
 app.use(express.json({ limit: '64kb' }))
 
-app.get('/', (_req, res) => res.json({ ok: true, adminBot: siteSession.status(), siteVisitBot: siteSession.status(), clientBot: clientSession.status(), centralized: true }))
+// Public liveness must never expose linked-device state, phone numbers or pairing QR codes.
+app.get('/', (_req, res) => {
+  res.set('cache-control', 'no-store')
+  return res.json({ ok: true, service: 'land-view-whatsapp' })
+})
 app.get('/health', (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   res.set('cache-control', 'no-store')

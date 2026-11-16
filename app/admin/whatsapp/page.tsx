@@ -33,6 +33,8 @@ function statusText(state: PairState | null, loading: boolean) {
   if (state.paired) return "Connected";
   if (state.qrAvailable) return "Waiting for QR scan";
   if (state.connection === "logged_out") return "Pairing reset required";
+  if (state.connection === "service_error" || state.connection === "error") return "Service unavailable";
+  if (state.connection === "disconnected") return "Reconnecting…";
   return "Preparing connection";
 }
 function when(value?: string | null) {
@@ -110,12 +112,10 @@ function BotCard({
 
 export default function WhatsAppPage() {
   const [siteState, setSiteState] = useState<PairState | null>(null);
-  const [clientState, setClientState] = useState<PairState | null>(null);
   const [accountRole, setAccountRole] = useState("");
   const [loading, setLoading] = useState(true);
   const [siteError, setSiteError] = useState("");
-  const [clientError, setClientError] = useState("");
-  const [resetting, setResetting] = useState<"site" | "client" | "">("");
+  const [resetting, setResetting] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -132,7 +132,6 @@ export default function WhatsAppPage() {
     // start another poll while the previous request is still in flight.
     if (statusRequestInFlight.current) return;
     statusRequestInFlight.current = true;
-    if (!siteState && !clientState) setLoading(true);
 
     const requestStatus = async (url: string, label: string, setState: (value: PairState) => void, setError: (value: string) => void) => {
       try {
@@ -151,10 +150,8 @@ export default function WhatsAppPage() {
     };
 
     try {
-      await Promise.all([
-        requestStatus("/api/admin/whatsapp", "Site Visit bot", setSiteState, setSiteError),
-        requestStatus("/api/admin/whatsapp/client?mode=status", "client bot", setClientState, setClientError),
-      ]);
+      // All client, finance and Site Visit messaging uses one central Admin session.
+      await requestStatus("/api/admin/whatsapp", "Admin bot", setSiteState, setSiteError);
     } finally {
       setLoading(false);
       statusRequestInFlight.current = false;
@@ -189,20 +186,18 @@ export default function WhatsAppPage() {
     }
   }
 
-  async function resetPairing(which: "site" | "client") {
-    const name = which === "site" ? "central Admin bot" : "central Admin bot";
-    if (!confirm(`Reset the ${name} linked-device session and generate a new QR code?`)) return;
-    setResetting(which);
+  async function resetPairing() {
+    if (!confirm("Reset the central Admin WhatsApp linked device? This also disconnects client replies, finance, and Site Visit notifications until it reconnects.")) return;
+    setResetting(true);
     try {
-      const url = which === "site" ? "/api/admin/whatsapp" : "/api/admin/whatsapp/client";
-      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reset" }) });
+      const response = await fetch("/api/admin/whatsapp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reset" }) });
       const json = await response.json().catch(() => null);
-      if (!response.ok || !json?.success) throw new Error(json?.error || "Could not reset pairing.");
+      if (!response.ok || !json?.success) throw Error(json?.error || "Could not reset pairing.");
       await new Promise((resolve) => setTimeout(resolve, 900));
       await loadStatus();
     } catch (err: any) {
-      if (which === "site") setSiteError(String(err?.message || err)); else setClientError(String(err?.message || err));
-    } finally { setResetting(""); }
+      setSiteError(String(err?.message || err));
+    } finally { setResetting(false); }
   }
 
   async function sendReply() {
@@ -243,8 +238,8 @@ export default function WhatsAppPage() {
       .then((json) => setAccountRole(String(json?.data?.role || "").trim().toLowerCase()))
       .catch(() => setAccountRole(""));
     loadStatus(); loadConversations();
-    const statusTimer = window.setInterval(loadStatus, 6000);
-    const inboxTimer = window.setInterval(loadConversations, 8000);
+    const statusTimer = window.setInterval(loadStatus, 15000);
+    const inboxTimer = window.setInterval(loadConversations, 12000);
     return () => { window.clearInterval(statusTimer); window.clearInterval(inboxTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -252,7 +247,7 @@ export default function WhatsAppPage() {
   useEffect(() => {
     if (!selectedId) return;
     loadMessages(selectedId);
-    const timer = window.setInterval(() => loadMessages(selectedId), 6000);
+    const timer = window.setInterval(() => loadMessages(selectedId), 12000);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
@@ -281,7 +276,7 @@ export default function WhatsAppPage() {
       ) : null}
 
       <div className="lv-wa-bot-grid" style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(360px,1fr))", gap: 18 }}>
-        <BotCard title="Admin Bot · EMP-0002" description="Your WhatsApp number. This single session sends Admin and EMP-0002 messages, client project updates/replies, project finance updates and Site Visit announcements." state={siteState} loading={loading} error={siteError || clientError} onReset={() => resetPairing("site")} resetting={resetting === "site"} />
+        <BotCard title="Admin Bot · EMP-0002" description="Your WhatsApp number. This single session sends Admin and EMP-0002 messages, client project updates/replies, project finance updates and Site Visit announcements." state={siteState} loading={loading} error={siteError} onReset={resetPairing} resetting={resetting} />
       </div>
 
       <section className="lv-wa-card lv-wa-inbox-card" style={{ marginTop: 22, border: "1px solid var(--lv-border-default)", borderRadius: 16, background: "var(--lv-surface-panel)", overflow: "hidden", boxShadow: "0 8px 30px rgba(15,23,42,.05)" }}>
@@ -297,7 +292,7 @@ export default function WhatsAppPage() {
 
         <div className="lv-wa-inbox-grid" style={{ display: "grid", gridTemplateColumns: "minmax(260px,340px) minmax(0,1fr)", minHeight: 520 }}>
           <aside className="lv-wa-conversations" aria-label="Client conversations" style={{ borderRight: "1px solid var(--lv-border-default)", background: "var(--lv-surface-muted)", overflowY: "auto", maxHeight: 680 }}>
-            {!conversations.length ? <div style={{ padding: 22, color: "var(--lv-text-muted)", lineHeight: 1.6 }}>No client conversations yet. Once the dedicated number is paired, incoming client messages will appear here.</div> : conversations.map((row) => (
+            {!conversations.length ? <div style={{ padding: 22, color: "var(--lv-text-muted)", lineHeight: 1.6 }}>No client conversations yet. Once the central Admin number is paired, incoming client messages will appear here.</div> : conversations.map((row) => (
               <button className={`lv-wa-conversation ${row.id === selectedId ? "is-selected" : ""}`} type="button" aria-pressed={row.id === selectedId} key={row.id} onClick={() => setSelectedId(row.id)} style={{ width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid var(--lv-border-default)", padding: "14px 16px", cursor: "pointer", background: row.id === selectedId ? "#fff" : "transparent" }}>
                 <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
                   <strong style={{ color: "var(--lv-text-strong)" }}>{row.client_name || row.phone_number || "Unknown client"}</strong>
