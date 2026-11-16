@@ -66,17 +66,20 @@ export async function downloadReceiptPdfV4(receiptToken: string): Promise<number
     const footer = sheet.querySelector<HTMLElement>("footer.bottom");
     if (!footer) throw new Error("The receipt verification footer is missing.");
     const legal = sheet.querySelector<HTMLElement>(".legal");
+    const stableDoc: Document = doc;
+    const stableSheet: HTMLElement = sheet;
+    const stableFooter: HTMLElement = footer;
     const content = Array.from(sheet.children) as HTMLElement[];
-    let current: HTMLElement;
+    let current = doc.createElement("main");
     const pages: HTMLElement[] = [];
 
     function newPage() {
       if (pages.length >= 100) throw new Error("Receipt exceeds the 100-page PDF safeguard.");
-      const page = doc.createElement("main");
+      const page = stableDoc.createElement("main");
       page.className = "sheet";
-      const brand = sheet.querySelector<HTMLElement>("header.header")?.cloneNode(true);
+      const brand = stableSheet.querySelector<HTMLElement>("header.header")?.cloneNode(true);
       if (brand) page.append(brand);
-      page.append(footer.cloneNode(true));
+      page.append(stableFooter.cloneNode(true));
       container.append(page);
       pages.push(page);
       current = page;
