@@ -113,11 +113,9 @@ function BotCard({
 
 export default function WhatsAppPage() {
   const [siteState, setSiteState] = useState<PairState | null>(null);
-  const [clientState, setClientState] = useState<PairState | null>(null);
   const [accountRole, setAccountRole] = useState("");
   const [loading, setLoading] = useState(true);
   const [siteError, setSiteError] = useState("");
-  const [clientError, setClientError] = useState("");
   const [resetting, setResetting] = useState<"site" | "client" | "">("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState("");
@@ -159,7 +157,7 @@ export default function WhatsAppPage() {
     // start another poll while the previous request is still in flight.
     if (statusRequestInFlight.current) return;
     statusRequestInFlight.current = true;
-    if (!siteState && !clientState) setLoading(true);
+    if (!siteState) setLoading(true);
 
     const requestStatus = async (url: string, label: string, setState: (value: PairState) => void, setError: (value: string) => void) => {
       try {
@@ -178,10 +176,8 @@ export default function WhatsAppPage() {
     };
 
     try {
-      await Promise.all([
-        requestStatus("/api/admin/whatsapp", "Site Visit bot", setSiteState, setSiteError),
-        requestStatus("/api/admin/whatsapp/client?mode=status", "client bot", setClientState, setClientError),
-      ]);
+      // Shared Admin/EMP-0002 session is the sole pairing state.
+      await requestStatus("/api/admin/whatsapp", "Admin WhatsApp", setSiteState, setSiteError);
     } finally {
       setLoading(false);
       statusRequestInFlight.current = false;
@@ -229,7 +225,7 @@ export default function WhatsAppPage() {
       await new Promise((resolve) => setTimeout(resolve, 900));
       await loadStatus();
     } catch (err: any) {
-      if (which === "site") setSiteError(String(err?.message || err)); else setClientError(String(err?.message || err));
+      setSiteError(String(err?.message || err));
     } finally { setResetting(""); }
   }
 
@@ -411,7 +407,7 @@ export default function WhatsAppPage() {
             <Link className="lv-wa-v2-action-link" href="/admin/whatsapp/operations">View delivery health</Link>
           </div>
           {accountRole === "manager" && <div className="lv-wa-v2-manager-connect"><h3>Management personal connection</h3><p>Site Visit group messages use the Management account's linked WhatsApp session.</p><EmployeeWhatsAppConnect /></div>}
-          <BotCard title="Admin / EMP-0002 WhatsApp" description="The current central connection sends client updates and replies, project finance notifications, and Site Visit announcements." state={siteState} loading={loading} error={siteError || clientError} onReset={() => resetPairing("site")} resetting={resetting === "site"} />
+          <BotCard title="Admin / EMP-0002 WhatsApp" description="The current central connection sends client updates and replies, project finance notifications, and Site Visit announcements." state={siteState} loading={loading} error={siteError} onReset={() => resetPairing("site")} resetting={resetting === "site"} />
           <div className="lv-wa-v2-guidance"><strong>Reset only when needed</strong><p>Resetting signs out the linked device and requires another QR scan. Your finance records and message history are not changed by this screen.</p></div>
         </section>
       )}

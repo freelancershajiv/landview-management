@@ -41,6 +41,7 @@ test("Pairing repair retains explicit confirmation and slow-provider poll guard"
   assert.match(home, /<BotCard/);
   assert.match(home, /<EmployeeWhatsAppConnect/);
   assert.match(home, /statusRequestInFlight\.current/);
+  assert.doesNotMatch(home, /requestStatus\("\/api\/admin\/whatsapp\/client\?mode=status"/);
   assert.match(home, /window\.setInterval\(loadStatus, 15000\)/);
   assert.match(home, /window\.setInterval\(loadConversations, 15000\)/);
   assert.match(home, /window\.setInterval\(loadDeliveryStats, 60000\)/);
