@@ -178,6 +178,14 @@ export async function printBillingPdf(result: SheetInvoices) {
     clearTimeout(timer);
     billingPrintPending = false;
   }
+  let prepared: Awaited<ReturnType<typeof import("@/lib/billing-pdf-v4")["prepareBillingV4"]>>;
+  try {
+    const { prepareBillingV4 } = await import("@/lib/billing-pdf-v4");
+    prepared = await prepareBillingV4(result);
+  } catch (error) {
+    window.alert(error instanceof Error ? error.message : "Unable to paginate the A4 invoice.");
+    return false;
+  }
   const previousTitle = document.title;
   const pdfTitle = billingPdfTitle(result);
   const keepPdfTitle = () => {
@@ -195,6 +203,7 @@ export async function printBillingPdf(result: SheetInvoices) {
     if (restored) return;
     restored = true;
     titleObserver.disconnect();
+    prepared.dispose();
     window.removeEventListener("beforeprint", keepPdfTitle);
     window.removeEventListener("afterprint", queueRestore);
     if (restoreDelay) window.clearTimeout(restoreDelay);

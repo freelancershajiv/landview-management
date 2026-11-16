@@ -13,10 +13,12 @@ import {
 import ProjectBillingDocument, {
   billingVerificationSnapshot,
   printBillingPdf,
+  billingPdfTitle,
 } from "@/components/project-billing-document";
 import EmailInvoiceButton from "@/components/email-invoice-button";
 import WhatsAppInvoiceButton from "@/components/whatsapp-invoice-button";
 import { saveBillingJpg } from "@/lib/save-document-jpg";
+import { downloadBillingPdfV4, openBillingPreviewV4 } from "@/lib/billing-pdf-v4";
 import InvoicePaymentReconciliationPanel, { type InvoicePaymentReconciliation } from "@/components/invoice-payment-reconciliation-panel";
 import styles from "./invoice.module.css";
 
@@ -567,6 +569,8 @@ export default function ProjectBillingPage() {
                 {dueOnly ? "Generating Due Bill…" : "Generate Due Bill"}
               </button>
             )}
+            <button className={styles.printButton} type="button" onClick={() => { try { openBillingPreviewV4(result, billingPdfTitle(result)); } catch (error) { setError(error instanceof Error ? error.message : "Could not open A4 preview."); } }} disabled={singleBillPrint !== null || archivingStatement}>A4 Preview</button>
+            <button className={styles.printButton} type="button" onClick={() => void (async () => { if (await archiveStatement("project")) await downloadBillingPdfV4(result, billingPdfTitle(result)); })().catch((error) => setError(error instanceof Error ? error.message : "Could not download PDF."))} disabled={singleBillPrint !== null || archivingStatement}>Download PDF</button>
             <button className={styles.printButton} type="button" onClick={() => void (async () => { if (await archiveStatement("project")) await printBillingPdf(result); })()} disabled={singleBillPrint !== null || archivingStatement}>Print / Save PDF</button>
             <button className={styles.printButton} type="button" onClick={() => void (async () => { if (await archiveStatement("project")) await saveBillingJpg(result); })().catch((error) => setError(error instanceof Error ? error.message : "Could not save JPG."))} disabled={singleBillPrint !== null || archivingStatement}>Save JPG</button>
           </div>

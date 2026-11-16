@@ -369,3 +369,22 @@
     font-size: 9.2pt !important;
   }
 }
+
+
+/* V4: print ONLY the measured A4 page collection while an export is active. */
+@media print {
+  body:has([data-lv-v4-print]) > :not([data-lv-v4-print]) { display: none !important; }
+  body:has([data-lv-v4-print]) [data-lv-v4-print] {
+    position: static !important; left: 0 !important; top: 0 !important;
+    display: block !important; width: 210mm !important; height: auto !important;
+    z-index: auto !important; margin: 0 !important; padding: 0 !important;
+    pointer-events: auto !important;
+  }
+  body:has([data-lv-v4-print]) [data-lv-v4-print] .lvInvoicePage {
+    height: 296mm !important; max-height: 296mm !important;
+    break-after: page !important; page-break-after: always !important;
+  }
+  body:has([data-lv-v4-print]) [data-lv-v4-print] .lvInvoicePage:last-child {
+    break-after: auto !important; page-break-after: auto !important;
+  }
+}

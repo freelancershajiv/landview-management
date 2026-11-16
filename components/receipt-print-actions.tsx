@@ -5,7 +5,20 @@ import { useState } from "react";
 export default function ReceiptPrintActions({ receiptToken }: { receiptToken: string }) {
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState("");
-  const printUrl = "/api/billing/receipt-print?token=" + encodeURIComponent(receiptToken) + "&autoprint=1";
+  const [exporting, setExporting] = useState(false);
+  const previewUrl = "/api/billing/receipt-print?token=" + encodeURIComponent(receiptToken);
+  const printUrl = previewUrl + "&autoprint=1";
+
+  async function downloadPdf() {
+    if (exporting) return;
+    setExporting(true); setError("");
+    try {
+      const { downloadReceiptPdfV4 } = await import("@/lib/receipt-pdf-v4");
+      await downloadReceiptPdfV4(receiptToken);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "The receipt PDF could not be downloaded.");
+    } finally { setExporting(false); }
+  }
 
   async function copyLink() {
     try {
@@ -15,7 +28,9 @@ export default function ReceiptPrintActions({ receiptToken }: { receiptToken: st
   }
 
   return <div style={{display:"flex",alignItems:"center",gap:8,flexWrap:"wrap"}}>
+    <a href={previewUrl} target="_blank" rel="noopener noreferrer" style={secondary}>A4 Preview</a>
     <a href={printUrl} target="_blank" rel="noopener noreferrer" style={primary}>Print / Save PDF</a>
+    <button type="button" disabled={exporting} onClick={() => void downloadPdf()} style={primary}>{exporting ? "Preparing PDF…" : "Download PDF"}</button>
     <button type="button" onClick={() => void copyLink()} style={secondary}>{copied ? "Link copied" : "Copy verification link"}</button>
     {error && <small role="alert" style={{color:"#b42318"}}>{error}</small>}
   </div>;
