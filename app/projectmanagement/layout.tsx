@@ -46,8 +46,8 @@ import "./project-finance-reconciliation-v3.css";
 import "../button-contrast-authority.css";
 // Consolidated V5 private-mobile rules run after the theme and button layers.
 import "../admin/admin-mobile-v5.css";
-// Final centralized private control contract after all legacy/mobile layers.
-import "../private-control-system.css";
+// Final centralized private UI theme and control contract after all legacy/mobile layers.
+import "../private-theme.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);

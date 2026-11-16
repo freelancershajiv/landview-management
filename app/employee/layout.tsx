@@ -4,8 +4,8 @@ import EmployeeLocationCheck from "@/components/employee-location-check";
 import AccountShortcut from "@/components/account-shortcut";
 import { requirePortalSession } from "@/lib/server-auth";
 import "../button-contrast-authority.css";
-// Final centralized private control contract; loaded after legacy colors.
-import "../private-control-system.css";
+// Final centralized private UI theme and control contract; loaded after legacy colors.
+import "../private-theme.css";
 
 export default async function EmployeeLayout({ children }: { children: React.ReactNode }) {
   const session = await requirePortalSession(["employee"]);

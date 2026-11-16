@@ -3,17 +3,6 @@
    Existing ledger, party, contractor bill and reporting data models are untouched. */
 
 .pf-redesign {
-  --pmx-surface: var(--lv-surface-panel, #fff);
-  --pmx-page: var(--lv-surface-page, #f5f7fa);
-  --pmx-muted-surface: var(--lv-surface-muted, #f8fafb);
-  --pmx-border: var(--lv-border-default, #e1e5eb);
-  --pmx-text: var(--lv-text-primary, #1c2938);
-  --pmx-muted: var(--lv-text-secondary, #687789);
-  --pmx-red: var(--lv-brand-primary, #bd2f37);
-  --pmx-blue: var(--lv-info, #2161b2);
-  --pmx-positive: var(--lv-success, #25815b);
-  --pmx-warning: var(--lv-warning, #a76b1e);
-  --pmx-radius: 16px;
   color: var(--pmx-text);
 }
 .pf-redesign .pmx-topbar {

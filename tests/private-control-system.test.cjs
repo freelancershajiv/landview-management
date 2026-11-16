@@ -7,10 +7,10 @@ const css = read("app/private-control-system.css");
 const legacy = read("app/button-contrast-authority.css");
 const roles = ["admin", "projectmanagement", "employee", "client"];
 
-test("all four private portals load one central control system last", () => {
+test("all four private portals load one centralized theme/control contract last", () => {
   for (const role of roles) {
     const layout = read("app/" + role + "/layout.tsx");
-    const central = layout.indexOf('import "../private-control-system.css";');
+    const central = layout.indexOf('import "../private-theme.css";');
     assert.ok(central > -1, role + " does not import the central control system");
     const old = layout.indexOf('import "../button-contrast-authority.css";');
     assert.ok(central > old, role + " loads old overrides after the central control system");
@@ -18,6 +18,7 @@ test("all four private portals load one central control system last", () => {
       assert.ok(central > layout.indexOf("admin-mobile-v5.css"), role + " load order is incorrect");
     }
   }
+  assert.match(read("app/private-theme.css"), /@import "\.\/private-control-system\.css";/);
   assert.match(css, /@media screen \{/);
   assert.doesNotMatch(css, /@media print/);
 });

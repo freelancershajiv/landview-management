@@ -1,0 +1,517 @@
+/* LAND VIEW private theme — one entrypoint for Admin, Project Management,
+   Employee and Client. Loaded after route CSS. Screen UI only; print/PDF safe.
+   Historical action variants remain in the imported central control contract. */
+@import "./private-control-system.css";
+
+@media screen {
+  /* One semantic private palette. Preserve the existing LAND VIEW red. */
+  html:not([data-theme="dark"]) :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) {
+    color-scheme: light;
+    --lv-brand-primary: #d61f26 !important;
+    --lv-brand-primary-hover: #ad171d !important;
+    --lv-brand-text: #d61f26 !important;
+    --lv-brand-soft: rgba(214,31,38,.09) !important;
+    --lv-brand-soft-strong: rgba(214,31,38,.15) !important;
+    --lv-brand-border: rgba(214,31,38,.34) !important;
+    --lv-brand-ring: rgba(214,31,38,.18) !important;
+    --lv-surface-page: #eef2f5 !important;
+    --lv-surface-panel: #fbfcfd !important;
+    --lv-surface-elevated: #ffffff !important;
+    --lv-surface-muted: #f5f7f9 !important;
+    --lv-surface-subtle: #e9eef2 !important;
+    --lv-surface-hover: #f1f4f6 !important;
+    --lv-text-strong: #15202b !important;
+    --lv-text-primary: #26323e !important;
+    --lv-text-secondary: #566472 !important;
+    --lv-text-muted: #5d6a76 !important;
+    --lv-border-soft: #dfe5ea !important;
+    --lv-border-default: #d2dae1 !important;
+    --lv-border-strong: #bdc8d1 !important;
+    --lv-control-bg: #ffffff !important;
+    --lv-control-bg-hover: #f4f7f9 !important;
+    --lv-control-border: #c8d2da !important;
+    --lv-control-placeholder: #60707d !important;
+    --lv-success: #2d7350 !important;
+    --lv-success-soft: #edf7f1 !important;
+    --lv-success-border: #bdddc9 !important;
+    --lv-success-solid: #2d7350 !important;
+    --lv-warning: #7d5c1b !important;
+    --lv-warning-soft: #fff7df !important;
+    --lv-warning-border: #ead89f !important;
+    --lv-warning-solid: #755414 !important;
+    --lv-danger: #a92c33 !important;
+    --lv-danger-soft: #fff0f1 !important;
+    --lv-danger-border: #e8bec2 !important;
+    --lv-danger-solid: #a92c33 !important;
+    --lv-info: #2f648e !important;
+    --lv-info-soft: #eef5fb !important;
+    --lv-info-border: #bfd4e6 !important;
+    --lv-info-solid: #28587c !important;
+  }
+  html[data-theme="dark"] :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) {
+    color-scheme: dark;
+    --lv-brand-primary: #d61f26 !important;
+    --lv-brand-primary-hover: #ad171d !important;
+    --lv-brand-text: #ef4a50 !important;
+    --lv-brand-soft: rgba(214,31,38,.11) !important;
+    --lv-brand-soft-strong: rgba(214,31,38,.18) !important;
+    --lv-brand-border: rgba(239,74,80,.40) !important;
+    --lv-brand-ring: rgba(239,74,80,.22) !important;
+    --lv-surface-page: #0b0f13 !important;
+    --lv-surface-panel: #11171d !important;
+    --lv-surface-elevated: #161d24 !important;
+    --lv-surface-muted: #0f141a !important;
+    --lv-surface-subtle: #1a222a !important;
+    --lv-surface-hover: #182028 !important;
+    --lv-text-strong: #f4f6f8 !important;
+    --lv-text-primary: #dfe5e9 !important;
+    --lv-text-secondary: #aeb8c1 !important;
+    --lv-text-muted: #96a2ad !important;
+    --lv-border-soft: #26313b !important;
+    --lv-border-default: #303c47 !important;
+    --lv-border-strong: #43515d !important;
+    --lv-control-bg: #11171d !important;
+    --lv-control-bg-hover: #182028 !important;
+    --lv-control-border: #394754 !important;
+    --lv-control-placeholder: #84909b !important;
+    --lv-success: #7bc79b !important;
+    --lv-success-soft: #173827 !important;
+    --lv-success-border: #28583d !important;
+    --lv-success-solid: #2f6f50 !important;
+    --lv-warning: #e7c36e !important;
+    --lv-warning-soft: #3c3015 !important;
+    --lv-warning-border: #735d2d !important;
+    --lv-warning-solid: #6f5117 !important;
+    --lv-danger: #ff9aa0 !important;
+    --lv-danger-soft: #35171a !important;
+    --lv-danger-border: #7e2b31 !important;
+    --lv-danger-solid: #9c2930 !important;
+    --lv-info: #8dbce4 !important;
+    --lv-info-soft: #14283a !important;
+    --lv-info-border: #2d5678 !important;
+    --lv-info-solid: #2f6289 !important;
+  }
+
+  /* Private component scale shared by all four portals. */
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) {
+    --lv-ui-body-size: 14px;
+    --lv-ui-caption-size: 12px;
+    --lv-ui-label-size: 13px;
+    --lv-ui-heading-size: 20px;
+    --lv-ui-control-height: 40px;
+    --lv-ui-touch-height: 44px;
+    --lv-ui-gap: 12px;
+    --lv-ui-panel-padding: 20px;
+    --lv-ui-radius: var(--lv-radius-md,10px);
+    --lv-ui-radius-lg: var(--lv-radius-lg,14px);
+  }
+
+  /* New component styles are opt-in. Do not override finance geometry or
+     infer button meaning from ambiguous .primary / .active class names. */
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-card {
+    background: var(--lv-surface-panel);
+    color: var(--lv-text-primary);
+    border: 1px solid var(--lv-border-default);
+    border-radius: var(--lv-ui-radius-lg);
+    box-shadow: var(--lv-shadow-sm);
+    padding: var(--lv-ui-panel-padding);
+    min-width: 0;
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-heading {
+    margin: 0;
+    font-size: var(--lv-ui-heading-size);
+    line-height: 1.25;
+    font-weight: 750;
+    color: var(--lv-text-strong);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-label {
+    display: block;
+    margin-bottom: 6px;
+    font-size: var(--lv-ui-label-size);
+    font-weight: 650;
+    color: var(--lv-text-secondary);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(.lv-ui-input,.lv-ui-select,.lv-ui-textarea,[data-lv-field]) {
+    box-sizing: border-box;
+    min-width: 0;
+    min-height: var(--lv-ui-control-height);
+    max-width: 100%;
+    background: var(--lv-control-bg);
+    border: 1px solid var(--lv-control-border);
+    border-radius: var(--lv-ui-radius);
+    color: var(--lv-text-primary);
+    font: inherit;
+    font-size: var(--lv-ui-body-size);
+    padding: 9px 12px;
+    caret-color: var(--lv-brand-primary);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(.lv-ui-input,.lv-ui-select,.lv-ui-textarea,[data-lv-field])::placeholder {
+    color: var(--lv-control-placeholder);
+    opacity: 1;
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(.lv-ui-input,.lv-ui-select,.lv-ui-textarea,[data-lv-field]):focus-visible {
+    outline: 2px solid var(--lv-brand-primary);
+    outline-offset: 2px;
+    border-color: var(--lv-brand-primary);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(.lv-ui-input,.lv-ui-select,.lv-ui-textarea,[data-lv-field])[aria-invalid="true"] {
+    border-color: var(--lv-danger-solid);
+    box-shadow: 0 0 0 2px var(--lv-danger-soft);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(.lv-ui-input,.lv-ui-select,.lv-ui-textarea,[data-lv-field]):disabled {
+    background: var(--lv-control-disabled-bg,var(--lv-surface-subtle));
+    color: var(--lv-control-disabled-text,var(--lv-text-muted));
+    cursor: not-allowed;
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--lv-ui-gap);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--lv-border-default);
+    border-radius: var(--lv-ui-radius);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-table {
+    width: 100%;
+    border-collapse: collapse;
+    color: var(--lv-text-primary);
+    background: var(--lv-surface-panel);
+    font-size: var(--lv-ui-body-size);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-table :is(th,td) {
+    padding: 11px 13px;
+    border-bottom: 1px solid var(--lv-border-soft);
+    text-align: start;
+    vertical-align: middle;
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-table th {
+    background: var(--lv-surface-muted);
+    color: var(--lv-text-secondary);
+    font-size: var(--lv-ui-caption-size);
+    font-weight: 700;
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-table tbody tr:hover {
+    background: var(--lv-surface-hover);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-table-wrap:focus-visible {
+    outline: 2px solid var(--lv-brand-primary);
+    outline-offset: 2px;
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 9px;
+    border: 1px solid var(--lv-border-default);
+    border-radius: 999px;
+    font-size: var(--lv-ui-caption-size);
+    font-weight: 650;
+    background: var(--lv-surface-muted);
+    color: var(--lv-text-primary);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-badge[data-status="success"] {
+    background: var(--lv-success-soft); border-color: var(--lv-success-border); color: var(--lv-success);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-badge[data-status="warning"] {
+    background: var(--lv-warning-soft); border-color: var(--lv-warning-border); color: var(--lv-warning);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-badge[data-status="danger"] {
+    background: var(--lv-danger-soft); border-color: var(--lv-danger-border); color: var(--lv-danger);
+  }
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-badge[data-status="info"] {
+    background: var(--lv-info-soft); border-color: var(--lv-info-border); color: var(--lv-info);
+  }
+
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :where(input,select,textarea):focus-visible { outline-color: var(--lv-brand-primary); }
+
+  @media (max-width: 900px) {
+    :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) {
+      --lv-ui-panel-padding: 14px;
+      --lv-ui-gap: 10px;
+    }
+    :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+    :is(.lv-ui-input,.lv-ui-select,.lv-ui-textarea,[data-lv-field]) {
+      min-height: var(--lv-ui-touch-height);
+      font-size: 16px;
+    }
+    :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) .lv-ui-actions > [data-lv-button] {
+      min-height: var(--lv-ui-touch-height);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+    :is(.lv-ui-card,.lv-ui-input,.lv-ui-select,.lv-ui-textarea,[data-lv-button]) {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+
+  /* High-traffic module migration. Page CSS owns geometry; private-theme
+     owns foreground/background pairs and cross-portal semantic aliases. */
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) {
+    --lv-surface-input: var(--lv-control-bg);
+    --lv-border-subtle: var(--lv-border-soft);
+  }
+
+  /* Project Management semantic compatibility aliases — defined once. */
+  .pf-redesign {
+    --pf-bg: var(--lv-surface-page) !important;
+    --pf-surface: var(--lv-surface-panel) !important;
+    --pf-surface-soft: var(--lv-surface-muted) !important;
+    --pf-surface-strong: var(--lv-surface-chrome) !important;
+    --pf-ink: var(--lv-text-primary) !important;
+    --pf-muted: var(--lv-text-muted) !important;
+    --pf-line: var(--lv-border-default) !important;
+    --pf-line-strong: var(--lv-border-strong) !important;
+    --pf-brand: var(--lv-brand-primary) !important;
+    --pf-brand-dark: var(--lv-brand-primary-hover) !important;
+    --pf-green: var(--lv-success) !important;
+    --pf-green-soft: var(--lv-success-soft) !important;
+    --pf-blue: var(--lv-info) !important;
+    --pf-blue-soft: var(--lv-info-soft) !important;
+    --pf-amber: var(--lv-warning) !important;
+    --pf-amber-soft: var(--lv-warning-soft) !important;
+    --pf-red-soft: var(--lv-danger-soft) !important;
+    --pf-shadow: var(--lv-shadow-sm) !important;
+    --pmx-surface: var(--lv-surface-panel);
+    --pmx-page: var(--lv-surface-page);
+    --pmx-muted-surface: var(--lv-surface-muted);
+    --pmx-border: var(--lv-border-default);
+    --pmx-text: var(--lv-text-primary);
+    --pmx-muted: var(--lv-text-secondary);
+    --pmx-red: var(--lv-brand-primary);
+    --pmx-blue: var(--lv-info);
+    --pmx-positive: var(--lv-success);
+    --pmx-warning: var(--lv-warning);
+    --pmx-radius: 16px;
+  }
+
+  /* Admin dashboard */
+  .portal-admin .lv-admin-shortcuts { justify-content: flex-end; margin-bottom: 12px; }
+  .portal-admin .lv-ui-shortcut {
+    display:inline-flex; align-items:center; justify-content:center; gap:8px;
+    min-height:40px; padding:0 13px; border:1px solid var(--lv-brand-border);
+    border-radius:var(--lv-ui-radius); font-size:var(--lv-ui-label-size);
+    font-weight:750; text-decoration:none;
+  }
+  .portal-admin .lv-clean-dashboard {
+    --red: var(--lv-brand-primary) !important;
+    --red2: var(--lv-brand-primary-hover) !important;
+    --redsoft: var(--lv-brand-soft) !important;
+    --ink: var(--lv-text-primary) !important;
+    --muted: var(--lv-text-muted) !important;
+    --line: var(--lv-border-default) !important;
+    --panel: var(--lv-surface-panel) !important;
+    --bg: var(--lv-surface-page) !important;
+    background: var(--lv-surface-page) !important;
+    color: var(--lv-text-primary) !important;
+  }
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-card,.lv-clean-kpi) {
+    background:var(--lv-surface-panel) !important;
+    border-color:var(--lv-border-default) !important;
+    color:var(--lv-text-primary);
+  }
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-head p,.lv-clean-kpi span,.lv-clean-kpi small,.lv-clean-card small) {
+    color:var(--lv-text-secondary) !important;
+  }
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-title i,.lv-clean-link) {color:var(--lv-brand-text) !important;}
+
+  /* Projects register and its nested document/workflow pages */
+  .portal-admin .projects-register :is(.register-shell,.team-panel,.service-assignment) {
+    background:var(--lv-surface-panel) !important;
+    border-color:var(--lv-border-default) !important;
+    color:var(--lv-text-primary) !important;
+  }
+  .portal-admin .projects-register :is(.projects-search,.wa-group-input,.stage-select,.service-assignment select) {
+    background:var(--lv-control-bg) !important;
+    border-color:var(--lv-control-border) !important;
+    color:var(--lv-text-primary) !important;
+  }
+  .portal-admin .projects-register :is(.filter-btn,.refresh-btn,.team-button,.wa-check) {
+    background:var(--lv-control-bg) !important;
+    border-color:var(--lv-control-border) !important;
+    color:var(--lv-text-primary) !important;
+  }
+  .portal-admin .projects-register .filter-btn.active {
+    background:var(--lv-brand-primary) !important;
+    border-color:var(--lv-brand-primary) !important;
+    color:#fff !important;
+  }
+  .portal-admin .projects-register .project-table th {
+    background:var(--lv-surface-muted) !important;
+    border-color:var(--lv-border-soft) !important;
+    color:var(--lv-text-secondary) !important;
+    font-size:12px;
+  }
+  .portal-admin .projects-register .project-table td {
+    background:var(--lv-surface-panel) !important;
+    border-color:var(--lv-border-soft) !important;
+    color:var(--lv-text-primary) !important;
+    font-size:13px;
+  }
+  .portal-admin .projects-register .project-table tbody tr:hover > td { background:var(--lv-surface-hover) !important; }
+  .portal-admin .projects-register .project-table :is(td.public-cell,th.public-cell) { background:var(--lv-surface-muted) !important; }
+  .portal-admin .projects-register .team-row td { background:var(--lv-surface-muted) !important; }
+  .portal-admin .projects-register :is(.project-main strong,.service-assignment strong,.team-panel-head strong,.service-summary b) {
+    color:var(--lv-text-strong) !important;
+  }
+  .portal-admin .projects-register :is(.muted,.project-main small,.team-panel-head small,.service-assignment small,.register-note,.stage-cell small) {
+    color:var(--lv-text-secondary) !important;
+  }
+  .portal-admin .projects-register :is(.stage-cell small,.wa-status,.wa-toggle,.wa-check,.wa-group-input,.current-stage-badge) {font-size:12px;}
+  .portal-admin .projects-register :is(.project-id,.reference-link,.drive-link) {color:var(--lv-brand-text) !important;}
+  .portal-admin .projects-register .wa-toggle.on {
+    background:var(--lv-success-soft) !important;
+    border-color:var(--lv-success-border) !important;
+    color:var(--lv-success) !important;
+  }
+  .portal-admin .projects-register .wa-toggle.off {
+    background:var(--lv-danger-soft) !important;
+    border-color:var(--lv-danger-border) !important;
+    color:var(--lv-danger) !important;
+  }
+  .portal-admin .projects-register .wa-status.active {color:var(--lv-success) !important;}
+  .portal-admin .projects-register .wa-status.inactive,
+  .portal-admin .projects-register .wa-status.error {color:var(--lv-danger) !important;}
+  .portal-admin .projects-register .register-note {background:var(--lv-surface-muted) !important;}
+  .portal-admin .projects-register .current-stage-badge {
+    background:var(--lv-surface-subtle) !important;
+    color:var(--lv-text-primary) !important;
+  }
+  .portal-admin .projects-register .error-inline {
+    background:var(--lv-danger-soft) !important;
+    border-color:var(--lv-danger-border) !important;
+    color:var(--lv-danger) !important;
+  }
+  .portal-admin .projects-section-nav .projects-section-link:not(.primary) {
+    background:var(--lv-control-bg) !important;
+    border-color:var(--lv-control-border) !important;
+    color:var(--lv-text-primary) !important;
+    font-size:12px;
+  }
+  .portal-admin .projects-section-nav .projects-section-link.primary {
+    background:var(--lv-brand-primary) !important;
+    border-color:var(--lv-brand-primary) !important;
+    color:#fff !important;
+    font-size:12px;
+  }
+  .portal-admin .projects-section-nav .projects-section-link:focus-visible {
+    outline:2px solid var(--lv-brand-primary);
+    outline-offset:2px;
+  }
+  .portal-admin .projects-section-nav .projects-section-link:not(.primary):hover {
+    background:var(--lv-brand-soft) !important;
+    border-color:var(--lv-brand-border) !important;
+    color:var(--lv-brand-text) !important;
+  }
+
+  /* Billing workspace, Due Bills and Bill Manager: shared readable controls */
+  .portal-admin :is(.due-page,.b2-shell,.bm-page) {
+    color:var(--lv-text-primary);
+    --lv-surface-input:var(--lv-control-bg);
+    --lv-border-subtle:var(--lv-border-soft);
+  }
+  .portal-admin :is(.due-page,.b2-shell,.bm-page)
+  :is(input,select,textarea):not([type="checkbox"]):not([type="radio"]) {
+    background:var(--lv-control-bg) !important;
+    border-color:var(--lv-control-border) !important;
+    color:var(--lv-text-primary) !important;
+    font-size:14px !important;
+  }
+  .portal-admin :is(.due-page,.b2-shell,.bm-page)
+  :is(.due-table,.b2-table,.bm-table) :is(th,td) {
+    font-size:var(--lv-ui-caption-size) !important;
+    border-color:var(--lv-border-soft) !important;
+  }
+  .portal-admin :is(.due-page,.b2-shell,.bm-page)
+  :is(.due-head p,.due-stat span,.due-client span,.due-contact span,.due-last span,.due-note,
+       .b2-head p,.b2-project span,.b2-picker label,.b2-event,.b2-kpi small,
+       .bm-head p,.bm-modal p,.bm-field label,.bm-summary span) {
+    font-size:var(--lv-ui-caption-size) !important;
+    line-height:1.45;
+  }
+  .portal-admin :is(.due-page,.b2-shell,.bm-page)
+  :is(.due-refresh,.due-filter,.due-link,.b2-btn,.b2-tab,.bm-btn,.bm-status) {
+    font-size:var(--lv-ui-caption-size) !important;
+  }
+  .portal-admin :is(.due-page,.b2-shell,.bm-page) :is(.due-stat strong,.b2-kpi strong,.bm-total strong) {
+    font-variant-numeric:tabular-nums;
+  }
+  .portal-admin :is(.due-page,.b2-shell,.bm-page) :is(.due-search,.b2-picker input,.bm-input,.bm-select) {
+    min-height:var(--lv-ui-control-height) !important;
+  }
+  .portal-admin :is(.due-page,.b2-shell,.bm-page) :is(.due-refresh,.due-filter,.due-link,.b2-btn,.bm-btn) {
+    min-height:var(--lv-ui-control-height);
+  }
+  .portal-admin .bm-page .bm-textarea {min-height:90px;}
+
+  /* Project detail workspace: migrate its off-brand red and fixed light paints */
+  .portal-admin .pc {
+    --pc-red:var(--lv-brand-primary) !important;
+    --pc-red-dark:var(--lv-brand-primary-hover) !important;
+    --pc-red-soft:var(--lv-brand-soft) !important;
+    --pc-red-soft-2:var(--lv-brand-soft-strong) !important;
+    --pc-ink:var(--lv-text-primary) !important;
+    --pc-copy:var(--lv-text-secondary) !important;
+    --pc-border:var(--lv-border-default) !important;
+    --pc-muted:var(--lv-surface-muted) !important;
+    background:var(--lv-surface-page) !important;
+    color:var(--lv-text-primary) !important;
+  }
+  .portal-admin .pc :is(.page-head.page-hero,.pc-stat,.pc-card,.pc-panel,.pc-tabs,.pc-table-card) {
+    background:var(--lv-surface-panel) !important;
+    border-color:var(--lv-border-default) !important;
+    color:var(--lv-text-primary) !important;
+  }
+  .portal-admin .pc .pc-stat {
+    background:linear-gradient(135deg,var(--lv-surface-panel),var(--lv-brand-soft)) !important;
+  }
+  .portal-admin .pc :is(.btn:not(.btn-dark),.pc-tabs button:not(.active)) {
+    background:var(--lv-control-bg) !important;
+    border-color:var(--lv-control-border) !important;
+    color:var(--lv-text-primary) !important;
+  }
+  .portal-admin .pc :is(.btn-dark,.pc-tabs button.active) {
+    background:var(--lv-brand-primary) !important;
+    border-color:var(--lv-brand-primary) !important;
+    color:#fff !important;
+  }
+  .portal-admin .project-workspace-switcher {
+    background:var(--lv-surface-panel) !important;
+    border-color:var(--lv-border-default) !important;
+  }
+  .portal-admin .project-workspace-switcher a:not(.active) {
+    background:var(--lv-control-bg) !important;
+    border-color:var(--lv-control-border) !important;
+    color:var(--lv-text-primary) !important;
+  }
+  .portal-admin .project-workspace-switcher a.active {
+    background:var(--lv-brand-primary) !important;
+    border-color:var(--lv-brand-primary) !important;
+    color:#fff !important;
+  }
+  .portal-admin .project-workspace-switcher :is(strong,span) {color:var(--lv-text-primary) !important;}
+
+  /* PM presentation consumes the same density, while transactions stay untouched */
+  .pf-redesign :is(.pmx-project-control label,.pmx-workspace-overline,.pmx-section-kicker,
+      .pmx-project-caption,.pmx-metric-top,.pmx-metric p,.pmx-panel-heading p) {
+    font-size:var(--lv-ui-caption-size) !important;
+  }
+  .pf-redesign .pmx-project-control select {font-size:var(--lv-ui-body-size) !important;}
+  .pf-redesign .pmx-primary-button {
+    background:var(--lv-brand-primary) !important;
+    border-color:var(--lv-brand-primary) !important;
+    color:#fff !important;
+  }
+
+}
