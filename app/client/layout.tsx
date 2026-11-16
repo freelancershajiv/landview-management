@@ -5,8 +5,8 @@ import ClientLifecycleStrip from "@/components/client-lifecycle-strip";
 import ClientPortalHardening from "@/components/client-portal-hardening";
 import { requirePortalSession } from "@/lib/server-auth";
 import "../button-contrast-authority.css";
-// Final centralized private control contract; loaded after legacy colors.
-import "../private-control-system.css";
+// Final centralized private UI theme and control contract; loaded after legacy colors.
+import "../private-theme.css";
 
 export default async function ClientLayout({ children }: { children: React.ReactNode }) {
   await requirePortalSession(["client"]);
