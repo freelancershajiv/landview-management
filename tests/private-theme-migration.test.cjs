@@ -44,3 +44,24 @@ test("finance aliases and high-traffic palettes have one central owner", () => {
   ]) assert.ok(theme.includes(selector), "missing centralized module " + selector);
   assert.doesNotMatch(theme, /\bfetch\s*\(|@media print|@page/);
 });
+
+test("WhatsApp pages inherit the central private theme without changing delivery APIs", () => {
+  const layout = read("app/admin/whatsapp/layout.tsx");
+  const pairing = read("app/admin/whatsapp/page.tsx");
+  const operations = read("app/admin/whatsapp/operations/page.tsx");
+  assert.match(layout, /lv-wa-workspace/);
+  assert.match(layout, /lv-wa-nav-link/);
+  for (const selector of [".lv-wa-workspace",".lv-wa-card",".lv-wa-badge",".lv-wa-conversation",".lv-wa-qr-row",".lv-wa-inbox-grid",".lv-wa-operations-page",".lv-wa-tab",".lv-wa-table"]) {
+    assert.ok(theme.includes(selector), "Central WhatsApp theme is missing " + selector);
+  }
+  for (const screen of [pairing,operations]) {
+    assert.match(screen, /className="lv-wa-page/);
+    assert.match(screen, /data-lv-button=/);
+    assert.doesNotMatch(screen, /<style\b|@media print/);
+  }
+  assert.match(pairing, /\/api\/admin\/whatsapp\/client\?mode=status/);
+  assert.match(pairing, /\/api\/admin\/whatsapp/);
+  assert.match(operations, /\/api\/admin\/whatsapp\?mode=ops/);
+  assert.match(operations, /post\("retry_all_failed"/);
+  assert.match(pairing, /sendReply/);
+});

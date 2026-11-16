@@ -63,44 +63,44 @@ function BotCard({
 }) {
   const label = statusText(state, loading);
   return (
-    <section style={{ border: "1px solid #e2e8f0", borderRadius: 16, background: "white", padding: 22, boxShadow: "0 8px 30px rgba(15,23,42,.05)" }}>
+    <section className="lv-wa-card lv-wa-bot-card" style={{ border: "1px solid var(--lv-border-default)", borderRadius: 16, background: "var(--lv-surface-panel)", padding: 22, boxShadow: "0 8px 30px rgba(15,23,42,.05)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
         <div>
           <h2 style={{ margin: 0, fontSize: 20 }}>{title}</h2>
-          <p style={{ margin: "7px 0 0", color: "#64748b", lineHeight: 1.55 }}>{description}</p>
+          <p style={{ margin: "7px 0 0", color: "var(--lv-text-muted)", lineHeight: 1.55 }}>{description}</p>
         </div>
-        <span style={{ padding: "7px 11px", borderRadius: 999, fontSize: 12, fontWeight: 800, whiteSpace: "nowrap", background: state?.paired ? "#dcfce7" : state?.qrAvailable ? "#fef3c7" : "#e2e8f0", color: state?.paired ? "#166534" : state?.qrAvailable ? "#92400e" : "#334155" }}>
+        <span className={`lv-wa-badge ${state?.paired ? "is-success" : state?.qrAvailable ? "is-warning" : "is-muted"}`} style={{ padding: "7px 11px", borderRadius: 999, fontSize: 12, fontWeight: 800, whiteSpace: "nowrap", background: state?.paired ? "#dcfce7" : state?.qrAvailable ? "#fef3c7" : "#e2e8f0", color: state?.paired ? "#166534" : state?.qrAvailable ? "#92400e" : "#334155" }}>
           {state?.paired ? "READY" : state?.qrAvailable ? "PAIR NOW" : "STARTING"}
         </span>
       </div>
 
-      <div style={{ marginTop: 18, fontSize: 13, color: "#64748b" }}>Connection Status</div>
+      <div style={{ marginTop: 18, fontSize: 13, color: "var(--lv-text-muted)" }}>Connection Status</div>
       <div style={{ marginTop: 3, fontSize: 20, fontWeight: 800 }}>{label}</div>
 
-      {error ? <div style={{ marginTop: 15, padding: 12, borderRadius: 10, background: "#fef2f2", color: "#991b1b" }}>{error}</div> : null}
+      {error ? <div className="lv-wa-alert is-danger" role="alert" style={{ marginTop: 15, padding: 12, borderRadius: 10, background: "#fef2f2", color: "var(--lv-danger)" }}>{error}</div> : null}
 
       {state?.paired ? (
-        <div style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "#166534", lineHeight: 1.55 }}>
+        <div className="lv-wa-alert is-success" style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "var(--lv-success)", lineHeight: 1.55 }}>
           <strong>Connected.</strong> {dedicated ? "Clients can message this LAND VIEW number and queued client updates can be delivered." : "Admin, EMP-0002, client updates, project finance and Site Visit messaging are ready."}
         </div>
       ) : state?.qrDataUrl ? (
-        <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "minmax(210px, 300px) 1fr", gap: 20, alignItems: "center" }}>
-          <div style={{ border: "1px solid #e2e8f0", borderRadius: 14, padding: 10, textAlign: "center" }}>
+        <div className="lv-wa-qr-row" style={{ marginTop: 20, display: "grid", gridTemplateColumns: "minmax(210px, 300px) 1fr", gap: 20, alignItems: "center" }}>
+          <div className="lv-wa-qr-frame" style={{ border: "1px solid var(--lv-border-default)", borderRadius: 14, padding: 10, textAlign: "center" }}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={state.qrDataUrl} alt={`${title} pairing QR`} style={{ width: "100%", maxWidth: 280, height: "auto" }} />
           </div>
-          <div style={{ color: "#334155", lineHeight: 1.7 }}>
+          <div className="lv-wa-qr-help" style={{ color: "var(--lv-text-primary)", lineHeight: 1.7 }}>
             <strong>{dedicated ? "Scan using the dedicated LAND VIEW client WhatsApp number." : "Scan using your Admin / EMP-0002 WhatsApp number."}</strong>
             <div style={{ marginTop: 7 }}>WhatsApp → Linked devices → Link a device → scan the QR.</div>
-            {dedicated ? <div style={{ marginTop: 8, color: "#92400e" }}>Do not scan this client QR from the same account used for the internal Site Visit bot.</div> : null}
+            {dedicated ? <div style={{ marginTop: 8, color: "var(--lv-warning)" }}>Do not scan this client QR from the same account used for the internal Site Visit bot.</div> : null}
           </div>
         </div>
       ) : (
-        <div style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#f8fafc", color: "#475569" }}>Preparing a secure pairing session. This page refreshes automatically.</div>
+        <div className="lv-wa-alert is-muted" style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "var(--lv-surface-muted)", color: "var(--lv-text-secondary)" }}>Preparing a secure pairing session. This page refreshes automatically.</div>
       )}
 
-      <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid #e2e8f0" }}>
-        <button onClick={onReset} disabled={resetting} style={{ border: "1px solid #fecaca", color: "#991b1b", background: "#fff", borderRadius: 9, padding: "9px 12px", cursor: "pointer", fontWeight: 700 }}>
+      <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--lv-border-default)" }}>
+        <button className="lv-wa-btn lv-wa-btn-danger-soft" data-lv-button="danger" type="button" onClick={onReset} disabled={resetting} style={{ border: "1px solid #fecaca", color: "var(--lv-danger)", background: "var(--lv-surface-panel)", borderRadius: 9, padding: "9px 12px", cursor: "pointer", fontWeight: 700 }}>
           {resetting ? "Resetting…" : "Reset Pairing"}
         </button>
       </div>
@@ -258,14 +258,14 @@ export default function WhatsAppPage() {
   }, [selectedId]);
 
   return (
-    <main style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 20px 60px" }}>
+    <main className="lv-wa-page lv-wa-pair-page" style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 20px 60px" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: "#64748b" }}>LAND VIEW</div>
+          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--lv-text-muted)" }}>LAND VIEW</div>
           <h1 style={{ margin: "6px 0 8px", fontSize: 30 }}>WhatsApp Center</h1>
-          <p style={{ margin: 0, color: "#64748b", lineHeight: 1.6 }}>{accountRole === "manager" ? "Connect the WhatsApp linked to your Management employee profile for Site Visit group messages. The central EMP-0002 session remains available below for client-facing operations." : "One centralized Admin WhatsApp session powers Admin, EMP-0002, client updates/replies, project finance and Site Visit messaging. Other employees keep their own WhatsApp sessions."}</p>
+          <p style={{ margin: 0, color: "var(--lv-text-muted)", lineHeight: 1.6 }}>{accountRole === "manager" ? "Connect the WhatsApp linked to your Management employee profile for Site Visit group messages. The central EMP-0002 session remains available below for client-facing operations." : "One centralized Admin WhatsApp session powers Admin, EMP-0002, client updates/replies, project finance and Site Visit messaging. Other employees keep their own WhatsApp sessions."}</p>
         </div>
-        <button onClick={() => { loadStatus(); loadConversations(); }} disabled={loading} style={{ border: "1px solid #cbd5e1", background: "white", borderRadius: 10, padding: "10px 14px", cursor: "pointer", fontWeight: 700 }}>
+        <button className="lv-wa-btn" data-lv-button="secondary" type="button" onClick={() => { loadStatus(); loadConversations(); }} disabled={loading} style={{ border: "1px solid #cbd5e1", background: "var(--lv-surface-panel)", borderRadius: 10, padding: "10px 14px", cursor: "pointer", fontWeight: 700 }}>
           {loading ? "Checking…" : "Refresh"}
         </button>
       </div>
@@ -274,71 +274,71 @@ export default function WhatsAppPage() {
         <section style={{ marginTop: 24 }}>
           <div style={{ marginBottom: 10 }}>
             <h2 style={{ margin: 0, fontSize: 20 }}>Management WhatsApp Connection</h2>
-            <p style={{ margin: "6px 0 0", color: "#64748b", lineHeight: 1.55 }}>This connection uses the employee ID linked to the Management account, so Site Visit group messages are sent from the Manager&apos;s own WhatsApp session.</p>
+            <p style={{ margin: "6px 0 0", color: "var(--lv-text-muted)", lineHeight: 1.55 }}>This connection uses the employee ID linked to the Management account, so Site Visit group messages are sent from the Manager&apos;s own WhatsApp session.</p>
           </div>
           <EmployeeWhatsAppConnect />
         </section>
       ) : null}
 
-      <div style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(360px,1fr))", gap: 18 }}>
+      <div className="lv-wa-bot-grid" style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(360px,1fr))", gap: 18 }}>
         <BotCard title="Admin Bot · EMP-0002" description="Your WhatsApp number. This single session sends Admin and EMP-0002 messages, client project updates/replies, project finance updates and Site Visit announcements." state={siteState} loading={loading} error={siteError || clientError} onReset={() => resetPairing("site")} resetting={resetting === "site"} />
       </div>
 
-      <section style={{ marginTop: 22, border: "1px solid #e2e8f0", borderRadius: 16, background: "white", overflow: "hidden", boxShadow: "0 8px 30px rgba(15,23,42,.05)" }}>
-        <div style={{ padding: "18px 20px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+      <section className="lv-wa-card lv-wa-inbox-card" style={{ marginTop: 22, border: "1px solid var(--lv-border-default)", borderRadius: 16, background: "var(--lv-surface-panel)", overflow: "hidden", boxShadow: "0 8px 30px rgba(15,23,42,.05)" }}>
+        <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--lv-border-default)", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
           <div>
             <h2 style={{ margin: 0, fontSize: 20 }}>Client Inbox</h2>
-            <div style={{ marginTop: 4, color: "#64748b", fontSize: 13 }}>{unreadTotal ? `${unreadTotal} unread message${unreadTotal === 1 ? "" : "s"}` : "No unread messages"}</div>
+            <div style={{ marginTop: 4, color: "var(--lv-text-muted)", fontSize: 13 }}>{unreadTotal ? `${unreadTotal} unread message${unreadTotal === 1 ? "" : "s"}` : "No unread messages"}</div>
           </div>
-          <div style={{ fontSize: 12, color: "#64748b" }}>Auto-refreshes</div>
+          <div style={{ fontSize: 12, color: "var(--lv-text-muted)" }}>Auto-refreshes</div>
         </div>
 
-        {inboxError ? <div style={{ margin: 16, padding: 12, borderRadius: 10, background: "#fef2f2", color: "#991b1b" }}>{inboxError}</div> : null}
+        {inboxError ? <div className="lv-wa-alert is-danger" role="alert" style={{ margin: 16, padding: 12, borderRadius: 10, background: "#fef2f2", color: "var(--lv-danger)" }}>{inboxError}</div> : null}
 
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(260px,340px) minmax(0,1fr)", minHeight: 520 }}>
-          <aside style={{ borderRight: "1px solid #e2e8f0", background: "#f8fafc", overflowY: "auto", maxHeight: 680 }}>
-            {!conversations.length ? <div style={{ padding: 22, color: "#64748b", lineHeight: 1.6 }}>No client conversations yet. Once the dedicated number is paired, incoming client messages will appear here.</div> : conversations.map((row) => (
-              <button key={row.id} onClick={() => setSelectedId(row.id)} style={{ width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid #e2e8f0", padding: "14px 16px", cursor: "pointer", background: row.id === selectedId ? "#fff" : "transparent" }}>
+        <div className="lv-wa-inbox-grid" style={{ display: "grid", gridTemplateColumns: "minmax(260px,340px) minmax(0,1fr)", minHeight: 520 }}>
+          <aside className="lv-wa-conversations" aria-label="Client conversations" style={{ borderRight: "1px solid var(--lv-border-default)", background: "var(--lv-surface-muted)", overflowY: "auto", maxHeight: 680 }}>
+            {!conversations.length ? <div style={{ padding: 22, color: "var(--lv-text-muted)", lineHeight: 1.6 }}>No client conversations yet. Once the dedicated number is paired, incoming client messages will appear here.</div> : conversations.map((row) => (
+              <button className={`lv-wa-conversation ${row.id === selectedId ? "is-selected" : ""}`} type="button" aria-pressed={row.id === selectedId} key={row.id} onClick={() => setSelectedId(row.id)} style={{ width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid var(--lv-border-default)", padding: "14px 16px", cursor: "pointer", background: row.id === selectedId ? "#fff" : "transparent" }}>
                 <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-                  <strong style={{ color: "#0f172a" }}>{row.client_name || row.phone_number || "Unknown client"}</strong>
+                  <strong style={{ color: "var(--lv-text-strong)" }}>{row.client_name || row.phone_number || "Unknown client"}</strong>
                   {Number(row.unread_count || 0) > 0 ? <span style={{ minWidth: 22, height: 22, borderRadius: 999, background: "#0f172a", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{row.unread_count}</span> : null}
                 </div>
-                <div style={{ marginTop: 5, color: "#64748b", fontSize: 12 }}>{row.project_code || "Unverified project"} · {row.phone_number || "No phone"}</div>
+                <div style={{ marginTop: 5, color: "var(--lv-text-muted)", fontSize: 12 }}>{row.project_code || "Unverified project"} · {row.phone_number || "No phone"}</div>
                 <div style={{ marginTop: 4, color: row.human_handoff ? "#92400e" : row.verified_at ? "#166534" : "#64748b", fontSize: 11, fontWeight: 700 }}>{row.human_handoff ? "HUMAN HANDOFF" : row.verified_at ? "VERIFIED" : "UNVERIFIED"}</div>
-                <div style={{ marginTop: 4, color: "#94a3b8", fontSize: 11 }}>{when(row.last_message_at)}</div>
+                <div style={{ marginTop: 4, color: "var(--lv-text-muted)", fontSize: 11 }}>{when(row.last_message_at)}</div>
               </button>
             ))}
           </aside>
 
-          <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <div className="lv-wa-chat" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
             {!selected ? (
-              <div style={{ padding: 28, color: "#64748b" }}>Select a conversation.</div>
+              <div style={{ padding: 28, color: "var(--lv-text-muted)" }}>Select a conversation.</div>
             ) : (
               <>
-                <div style={{ padding: "14px 18px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--lv-border-default)", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
                   <div>
                     <strong>{selected.client_name || selected.phone_number || "Client"}</strong>
-                    <div style={{ marginTop: 3, fontSize: 12, color: "#64748b" }}>{selected.project_code || "Project not verified"} · {selected.phone_number}</div>
+                    <div style={{ marginTop: 3, fontSize: 12, color: "var(--lv-text-muted)" }}>{selected.project_code || "Project not verified"} · {selected.phone_number}</div>
                   </div>
-                  <button onClick={() => setHandoff(!selected.human_handoff)} style={{ border: "1px solid #cbd5e1", background: selected.human_handoff ? "#fef3c7" : "#fff", borderRadius: 9, padding: "8px 11px", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
+                  <button className="lv-wa-btn" data-lv-button="secondary" type="button" onClick={() => setHandoff(!selected.human_handoff)} style={{ border: "1px solid #cbd5e1", background: selected.human_handoff ? "#fef3c7" : "#fff", borderRadius: 9, padding: "8px 11px", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
                     {selected.human_handoff ? "Return to Bot" : "Take Over Conversation"}
                   </button>
                 </div>
 
-                <div style={{ flex: 1, padding: 18, background: "#f8fafc", overflowY: "auto", maxHeight: 500 }}>
-                  {!messages.length ? <div style={{ color: "#64748b" }}>No messages yet.</div> : messages.map((message) => (
+                <div className="lv-wa-messages" style={{ flex: 1, padding: 18, background: "var(--lv-surface-muted)", overflowY: "auto", maxHeight: 500 }}>
+                  {!messages.length ? <div style={{ color: "var(--lv-text-muted)" }}>No messages yet.</div> : messages.map((message) => (
                     <div key={message.id} style={{ display: "flex", justifyContent: message.direction === "outbound" ? "flex-end" : "flex-start", marginBottom: 10 }}>
-                      <div style={{ maxWidth: "78%", borderRadius: 13, padding: "10px 12px", background: message.direction === "outbound" ? "#dcfce7" : "#fff", border: "1px solid #e2e8f0", color: "#0f172a", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                      <div className={`lv-wa-bubble ${message.direction === "outbound" ? "is-outbound" : "is-inbound"}`} style={{ maxWidth: "78%", borderRadius: 13, padding: "10px 12px", background: message.direction === "outbound" ? "#dcfce7" : "#fff", border: "1px solid var(--lv-border-default)", color: "var(--lv-text-strong)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                         <div>{message.body || `[${message.message_type || "message"}]`}</div>
-                        <div style={{ marginTop: 5, fontSize: 10, color: "#64748b", textAlign: "right" }}>{when(message.sent_at)}</div>
+                        <div style={{ marginTop: 5, fontSize: 10, color: "var(--lv-text-muted)", textAlign: "right" }}>{when(message.sent_at)}</div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                <div style={{ padding: 14, borderTop: "1px solid #e2e8f0", display: "flex", gap: 10, alignItems: "flex-end" }}>
-                  <textarea value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to this client on WhatsApp…" rows={3} maxLength={4000} style={{ flex: 1, resize: "vertical", minHeight: 70, border: "1px solid #cbd5e1", borderRadius: 10, padding: 11, font: "inherit" }} />
-                  <button onClick={sendReply} disabled={sending || !reply.trim()} style={{ border: 0, background: "#0f172a", color: "#fff", borderRadius: 10, padding: "11px 16px", fontWeight: 800, cursor: "pointer", opacity: sending || !reply.trim() ? .55 : 1 }}>
+                <div className="lv-wa-composer" style={{ padding: 14, borderTop: "1px solid var(--lv-border-default)", display: "flex", gap: 10, alignItems: "flex-end" }}>
+                  <textarea className="lv-wa-field lv-wa-reply" aria-label="Reply to selected WhatsApp conversation" value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to this client on WhatsApp…" rows={3} maxLength={4000} style={{ flex: 1, resize: "vertical", minHeight: 70, border: "1px solid #cbd5e1", borderRadius: 10, padding: 11, font: "inherit" }} />
+                  <button className="lv-wa-btn lv-wa-send" data-lv-button="primary" type="button" onClick={sendReply} disabled={sending || !reply.trim()} style={{ border: 0, background: "#0f172a", color: "#fff", borderRadius: 10, padding: "11px 16px", fontWeight: 800, cursor: "pointer", opacity: sending || !reply.trim() ? .55 : 1 }}>
                     {sending ? "Sending…" : "Send"}
                   </button>
                 </div>
