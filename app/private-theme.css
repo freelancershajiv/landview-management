@@ -514,4 +514,250 @@
     color:#fff !important;
   }
 
+
+  /* WhatsApp Admin — Pairing, Client Inbox, and Operations share the private
+     palette. Presentation only; pairing sessions and message APIs are untouched. */
+  .portal-admin .lv-wa-nav-wrap,
+  .portal-admin .lv-wa-workspace { max-width: 100%; min-width: 0; }
+  .portal-admin .lv-wa-nav {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    box-shadow: 0 3px 14px rgba(15,23,42,.045) !important;
+    max-width: 100%;
+  }
+  .portal-admin .lv-wa-nav-link {
+    color: var(--lv-text-primary) !important;
+    background: transparent !important;
+    font-size: 13px !important;
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    text-decoration: none;
+    border-radius: 8px;
+  }
+  .portal-admin:has(.lv-wa-operations-page) .lv-wa-nav-operations,
+  .portal-admin:has(.lv-wa-pair-page) .lv-wa-nav-pairing {
+    background: var(--lv-brand-soft) !important;
+    color: var(--lv-brand-text) !important;
+    box-shadow: inset 0 -2px var(--lv-brand-primary);
+  }
+  .portal-admin .lv-wa-nav-link:hover {
+    background: var(--lv-surface-hover) !important;
+    color: var(--lv-brand-text) !important;
+  }
+  .portal-admin .lv-wa-page {
+    max-width: 1240px;
+    color: var(--lv-text-primary);
+    min-width: 0;
+  }
+  .portal-admin .lv-wa-page :is(h1,h2,h3) { color: var(--lv-text-strong) !important; }
+  .portal-admin .lv-wa-page p { color: var(--lv-text-secondary) !important; }
+  .portal-admin .lv-wa-card,
+  .portal-admin .lv-wa-operations-page section {
+    background: var(--lv-surface-panel) !important;
+    color: var(--lv-text-primary) !important;
+    border-color: var(--lv-border-default) !important;
+    box-shadow: 0 4px 18px rgba(15,23,42,.05) !important;
+  }
+  .portal-admin .lv-wa-card :is(h2,h3) { color: var(--lv-text-strong) !important; }
+  .portal-admin .lv-wa-page .lv-wa-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 44px;
+    padding: 9px 13px;
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+    background: var(--lv-control-bg) !important;
+    border: 1px solid var(--lv-control-border) !important;
+    border-radius: 9px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 750;
+    cursor: pointer;
+    text-decoration: none;
+  }
+  .portal-admin .lv-wa-page .lv-wa-btn:hover:not(:disabled) {
+    background: var(--lv-control-bg-hover) !important;
+    border-color: var(--lv-border-strong) !important;
+  }
+  .portal-admin .lv-wa-page .lv-wa-btn[data-lv-button="primary"] {
+    background: var(--lv-brand-primary) !important;
+    border-color: var(--lv-brand-primary) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+  .portal-admin .lv-wa-page .lv-wa-btn[data-lv-button="primary"]:hover:not(:disabled) {
+    background: var(--lv-brand-primary-hover) !important;
+    border-color: var(--lv-brand-primary-hover) !important;
+  }
+  .portal-admin .lv-wa-page .lv-wa-btn[data-lv-button="danger-solid"] {
+    background: var(--lv-danger-solid) !important;
+    border-color: var(--lv-danger-solid) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+  .portal-admin .lv-wa-page .lv-wa-btn[data-lv-button="danger"] {
+    background: var(--lv-danger-soft) !important;
+    border-color: var(--lv-danger-border) !important;
+    color: var(--lv-danger) !important;
+    -webkit-text-fill-color: var(--lv-danger) !important;
+  }
+  .portal-admin .lv-wa-page .lv-wa-btn:disabled { opacity: .55 !important; cursor: not-allowed; }
+  .portal-admin .lv-wa-page :is(.lv-wa-btn,.lv-wa-tab,.lv-wa-conversation,input,select,textarea):focus-visible,
+  .portal-admin .lv-wa-nav-link:focus-visible,
+  .portal-admin .lv-wa-table-scroll:focus-visible {
+    outline: 2px solid var(--lv-brand-primary) !important;
+    outline-offset: 3px;
+  }
+  .portal-admin .lv-wa-badge {
+    border: 1px solid var(--lv-border-default);
+    background: var(--lv-surface-subtle) !important;
+    color: var(--lv-text-primary) !important;
+    font-size: 12px !important;
+    line-height: 1.35;
+    font-weight: 800;
+  }
+  .portal-admin .lv-wa-badge:is(.is-success,.is-sent) {
+    background: var(--lv-success-soft) !important;
+    border-color: var(--lv-success-border);
+    color: var(--lv-success) !important;
+  }
+  .portal-admin .lv-wa-badge:is(.is-warning,.is-pending,.is-important) {
+    background: var(--lv-warning-soft) !important;
+    border-color: var(--lv-warning-border);
+    color: var(--lv-warning) !important;
+  }
+  .portal-admin .lv-wa-badge:is(.is-danger,.is-failed,.is-critical) {
+    background: var(--lv-danger-soft) !important;
+    border-color: var(--lv-danger-border);
+    color: var(--lv-danger) !important;
+  }
+  .portal-admin .lv-wa-badge.is-sending {
+    background: var(--lv-info-soft) !important;
+    border-color: var(--lv-info-border);
+    color: var(--lv-info) !important;
+  }
+  .portal-admin .lv-wa-alert {
+    color: var(--lv-text-secondary) !important;
+    background: var(--lv-surface-muted) !important;
+    border: 1px solid var(--lv-border-default) !important;
+    border-radius: 10px;
+  }
+  .portal-admin .lv-wa-alert.is-danger {
+    color: var(--lv-danger) !important;
+    background: var(--lv-danger-soft) !important;
+    border-color: var(--lv-danger-border) !important;
+  }
+  .portal-admin .lv-wa-alert.is-warning {
+    color: var(--lv-warning) !important;
+    background: var(--lv-warning-soft) !important;
+    border-color: var(--lv-warning-border) !important;
+  }
+  .portal-admin .lv-wa-alert.is-success {
+    color: var(--lv-success) !important;
+    background: var(--lv-success-soft) !important;
+    border-color: var(--lv-success-border) !important;
+  }
+  .portal-admin .lv-wa-qr-frame {
+    background: #fff !important;
+    border-color: var(--lv-border-default) !important;
+    max-width: 100%;
+  }
+  .portal-admin .lv-wa-qr-frame img { display: block; max-width: 100%; margin: 0 auto; }
+  .portal-admin .lv-wa-qr-help { color: var(--lv-text-primary) !important; min-width: 0; }
+  .portal-admin .lv-wa-bot-grid { min-width: 0; }
+  .portal-admin .lv-wa-inbox-card { min-width: 0; }
+  .portal-admin .lv-wa-inbox-grid { min-width: 0; }
+  .portal-admin .lv-wa-inbox-card :is(.lv-wa-conversations,.lv-wa-messages) {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+  }
+  .portal-admin .lv-wa-inbox-card :is(.lv-wa-conversation,.lv-wa-composer) {
+    border-color: var(--lv-border-default) !important;
+  }
+  .portal-admin .lv-wa-conversation {
+    color: var(--lv-text-primary) !important;
+    background: transparent !important;
+    min-height: 72px;
+  }
+  .portal-admin .lv-wa-conversation strong { color: var(--lv-text-strong) !important; }
+  .portal-admin .lv-wa-conversation:hover,
+  .portal-admin .lv-wa-conversation.is-selected {
+    background: var(--lv-surface-panel) !important;
+  }
+  .portal-admin .lv-wa-conversation.is-selected {
+    box-shadow: inset 3px 0 var(--lv-brand-primary);
+  }
+  .portal-admin .lv-wa-bubble {
+    color: var(--lv-text-primary) !important;
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+  }
+  .portal-admin .lv-wa-bubble.is-outbound {
+    color: var(--lv-success) !important;
+    background: var(--lv-success-soft) !important;
+    border-color: var(--lv-success-border) !important;
+  }
+  .portal-admin .lv-wa-page :is(.lv-wa-field,select,input:not([type="checkbox"]),textarea) {
+    color: var(--lv-text-primary) !important;
+    background: var(--lv-control-bg) !important;
+    border: 1px solid var(--lv-control-border) !important;
+    font-size: 14px !important;
+  }
+  .portal-admin .lv-wa-page :is(.lv-wa-field,select,input:not([type="checkbox"]))::placeholder {
+    color: var(--lv-control-placeholder) !important;
+  }
+  .portal-admin .lv-wa-operations-page .lv-wa-stat.is-danger {
+    border-color: var(--lv-danger-border) !important;
+  }
+  .portal-admin .lv-wa-operations-page .lv-wa-table-scroll { overflow-x: auto; }
+  .portal-admin .lv-wa-operations-page .lv-wa-table { color: var(--lv-text-primary); }
+  .portal-admin .lv-wa-operations-page .lv-wa-table thead tr {
+    background: var(--lv-surface-muted) !important;
+    color: var(--lv-text-muted) !important;
+  }
+  .portal-admin .lv-wa-operations-page .lv-wa-table tbody tr {
+    border-color: var(--lv-border-soft) !important;
+  }
+  .portal-admin .lv-wa-operations-page .lv-wa-table :is(th,td) {
+    font-size: 12px;
+    color: var(--lv-text-primary);
+  }
+  .portal-admin .lv-wa-page :is(input,select,textarea) { max-width: 100%; box-sizing: border-box; }
+  .portal-admin .lv-wa-page .lv-wa-tab {
+    flex: 0 0 auto;
+    min-height: 44px;
+    background: var(--lv-control-bg) !important;
+    color: var(--lv-text-primary) !important;
+    border: 1px solid var(--lv-control-border) !important;
+    cursor: pointer;
+  }
+  .portal-admin .lv-wa-page .lv-wa-tab.is-active {
+    color: var(--lv-brand-text) !important;
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-brand-border) !important;
+  }
+  @media (max-width: 760px) {
+    .portal-admin .lv-wa-nav-wrap { padding: 12px 12px 0 !important; }
+    .portal-admin .lv-wa-nav { width: 100% !important; justify-content: stretch; }
+    .portal-admin .lv-wa-nav-link { flex: 1 1 0; justify-content: center; text-align: center; padding: 8px !important; }
+    .portal-admin .lv-wa-page { padding: 20px 12px 40px !important; }
+    .portal-admin .lv-wa-bot-grid { grid-template-columns: minmax(0,1fr) !important; }
+    .portal-admin .lv-wa-qr-row { grid-template-columns: minmax(0,1fr) !important; gap: 14px !important; }
+    .portal-admin .lv-wa-inbox-grid { grid-template-columns: minmax(0,1fr) !important; min-height: 0 !important; }
+    .portal-admin .lv-wa-conversations { max-height: 245px !important; border-right: none !important; border-bottom: 1px solid var(--lv-border-default); }
+    .portal-admin .lv-wa-chat { min-height: 260px; }
+    .portal-admin .lv-wa-composer { flex-wrap: wrap; }
+    .portal-admin .lv-wa-reply { flex: 1 1 100% !important; min-width: 100%; }
+    .portal-admin .lv-wa-send { width: 100%; }
+    .portal-admin .lv-wa-operations-page > div:first-child { flex-direction: column; }
+    .portal-admin .lv-wa-operations-page > div:first-child > div:last-child { flex-wrap: wrap; }
+    .portal-admin .lv-wa-operations-page .lv-wa-tab { white-space: nowrap; }
+  }
+  @media (max-width: 380px) {
+    .portal-admin .lv-wa-nav { flex-direction: column; }
+    .portal-admin .lv-wa-page { padding-inline: 10px !important; }
+  }
+
 }
