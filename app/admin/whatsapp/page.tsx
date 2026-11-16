@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
 import EmployeeWhatsAppConnect from "@/components/employee-whatsapp-connect";
 
 type PairState = {
@@ -33,8 +34,6 @@ function statusText(state: PairState | null, loading: boolean) {
   if (state.paired) return "Connected";
   if (state.qrAvailable) return "Waiting for QR scan";
   if (state.connection === "logged_out") return "Pairing reset required";
-  if (state.connection === "service_error" || state.connection === "error") return "Service unavailable";
-  if (state.connection === "disconnected") return "Reconnecting…";
   return "Preparing connection";
 }
 function when(value?: string | null) {
@@ -101,21 +100,25 @@ function BotCard({
         <div className="lv-wa-alert is-muted" style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "var(--lv-surface-muted)", color: "var(--lv-text-secondary)" }}>Preparing a secure pairing session. This page refreshes automatically.</div>
       )}
 
-      <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--lv-border-default)" }}>
-        <button className="lv-wa-btn lv-wa-btn-danger-soft" data-lv-button="danger" type="button" onClick={onReset} disabled={resetting} style={{ border: "1px solid #fecaca", color: "var(--lv-danger)", background: "var(--lv-surface-panel)", borderRadius: 9, padding: "9px 12px", cursor: "pointer", fontWeight: 700 }}>
-          {resetting ? "Resetting…" : "Reset Pairing"}
+      <details className="lv-wa-v2-repair">
+        <summary>Advanced connection troubleshooting</summary>
+        <p>Only reset the linked device when connecting normally has failed. You will need to scan a new QR code.</p>
+        <button className="lv-wa-btn lv-wa-btn-danger-soft" data-lv-button="danger" type="button" onClick={onReset} disabled={resetting}>
+          {resetting ? "Resetting…" : "Reset pairing"}
         </button>
-      </div>
+      </details>
     </section>
   );
 }
 
 export default function WhatsAppPage() {
   const [siteState, setSiteState] = useState<PairState | null>(null);
+  const [clientState, setClientState] = useState<PairState | null>(null);
   const [accountRole, setAccountRole] = useState("");
   const [loading, setLoading] = useState(true);
   const [siteError, setSiteError] = useState("");
-  const [resetting, setResetting] = useState(false);
+  const [clientError, setClientError] = useState("");
+  const [resetting, setResetting] = useState<"site" | "client" | "">("");
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -123,15 +126,40 @@ export default function WhatsAppPage() {
   const [sending, setSending] = useState(false);
   const [inboxError, setInboxError] = useState("");
   const statusRequestInFlight = useRef(false);
+  const activeConversationRef = useRef("");
+  const [view, setView] = useState<"inbox" | "connection">("inbox");
+  const [conversationQuery, setConversationQuery] = useState("");
+  const [conversationFilter, setConversationFilter] = useState<"all" | "unread" | "handoff">("all");
+  const [deliveryStats, setDeliveryStats] = useState<{ sentToday: number; queued: number; failed: number } | null>(null);
 
   const selected = useMemo(() => conversations.find((row) => row.id === selectedId) || null, [conversations, selectedId]);
   const unreadTotal = useMemo(() => conversations.reduce((sum, row) => sum + Number(row.unread_count || 0), 0), [conversations]);
+  const visibleConversations = useMemo(() => conversations.filter((row) => {
+    if (conversationFilter === "unread" && !Number(row.unread_count || 0)) return false;
+    if (conversationFilter === "handoff" && !row.human_handoff) return false;
+    const query = conversationQuery.trim().toLowerCase();
+    return !query || [row.client_name, row.phone_number, row.project_code]
+      .some((value) => String(value || "").toLowerCase().includes(query));
+  }), [conversations, conversationFilter, conversationQuery]);
+
+  async function loadDeliveryStats() {
+    try {
+      const response = await fetch("/api/admin/whatsapp?mode=ops", { cache: "no-store", credentials: "same-origin" });
+      const json = await response.json().catch(() => null);
+      if (!response.ok || !json?.success || !json.data?.stats) throw new Error("Delivery summary unavailable");
+      const stats = json.data.stats;
+      setDeliveryStats({ sentToday: Number(stats.sentToday || 0), queued: Number(stats.queued || 0), failed: Number(stats.failed || 0) });
+    } catch {
+      setDeliveryStats(null);
+    }
+  }
 
   async function loadStatus() {
     // The status endpoint may need to wake a sleeping Render instance. Never
     // start another poll while the previous request is still in flight.
     if (statusRequestInFlight.current) return;
     statusRequestInFlight.current = true;
+    if (!siteState && !clientState) setLoading(true);
 
     const requestStatus = async (url: string, label: string, setState: (value: PairState) => void, setError: (value: string) => void) => {
       try {
@@ -150,8 +178,10 @@ export default function WhatsAppPage() {
     };
 
     try {
-      // All client, finance and Site Visit messaging uses one central Admin session.
-      await requestStatus("/api/admin/whatsapp", "Admin bot", setSiteState, setSiteError);
+      await Promise.all([
+        requestStatus("/api/admin/whatsapp", "Site Visit bot", setSiteState, setSiteError),
+        requestStatus("/api/admin/whatsapp/client?mode=status", "client bot", setClientState, setClientError),
+      ]);
     } finally {
       setLoading(false);
       statusRequestInFlight.current = false;
@@ -166,7 +196,7 @@ export default function WhatsAppPage() {
       const rows = Array.isArray(json.data) ? json.data : [];
       setConversations(rows);
       setInboxError("");
-      if (!selectedId && rows[0]?.id) setSelectedId(rows[0].id);
+      setSelectedId((current) => current || rows[0]?.id || "");
     } catch (err: any) {
       setInboxError(String(err?.message || "Could not load client conversations."));
     }
@@ -178,26 +208,29 @@ export default function WhatsAppPage() {
       const response = await fetch(`/api/admin/whatsapp/client?mode=messages&conversationId=${encodeURIComponent(id)}`, { cache: "no-store" });
       const json = await response.json().catch(() => null);
       if (!response.ok || !json?.success) throw new Error(json?.error || "Could not load messages.");
+      if (activeConversationRef.current !== id) return;
       setMessages(Array.isArray(json.data) ? json.data : []);
       setInboxError("");
       setConversations((rows) => rows.map((row) => row.id === id ? { ...row, unread_count: 0 } : row));
     } catch (err: any) {
-      setInboxError(String(err?.message || "Could not load messages."));
+      if (activeConversationRef.current === id) setInboxError(String(err?.message || "Could not load messages."));
     }
   }
 
-  async function resetPairing() {
-    if (!confirm("Reset the central Admin WhatsApp linked device? This also disconnects client replies, finance, and Site Visit notifications until it reconnects.")) return;
-    setResetting(true);
+  async function resetPairing(which: "site" | "client") {
+    const name = which === "site" ? "central Admin bot" : "central Admin bot";
+    if (!confirm(`Reset the ${name} linked-device session and generate a new QR code?`)) return;
+    setResetting(which);
     try {
-      const response = await fetch("/api/admin/whatsapp", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reset" }) });
+      const url = which === "site" ? "/api/admin/whatsapp" : "/api/admin/whatsapp/client";
+      const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "reset" }) });
       const json = await response.json().catch(() => null);
-      if (!response.ok || !json?.success) throw Error(json?.error || "Could not reset pairing.");
+      if (!response.ok || !json?.success) throw new Error(json?.error || "Could not reset pairing.");
       await new Promise((resolve) => setTimeout(resolve, 900));
       await loadStatus();
     } catch (err: any) {
-      setSiteError(String(err?.message || err));
-    } finally { setResetting(false); }
+      if (which === "site") setSiteError(String(err?.message || err)); else setClientError(String(err?.message || err));
+    } finally { setResetting(""); }
   }
 
   async function sendReply() {
@@ -237,111 +270,151 @@ export default function WhatsAppPage() {
       .then((response) => response.json())
       .then((json) => setAccountRole(String(json?.data?.role || "").trim().toLowerCase()))
       .catch(() => setAccountRole(""));
-    loadStatus(); loadConversations();
+    loadStatus(); loadConversations(); loadDeliveryStats();
     const statusTimer = window.setInterval(loadStatus, 15000);
-    const inboxTimer = window.setInterval(loadConversations, 12000);
-    return () => { window.clearInterval(statusTimer); window.clearInterval(inboxTimer); };
+    const inboxTimer = window.setInterval(loadConversations, 15000);
+    const deliveryTimer = window.setInterval(loadDeliveryStats, 60000);
+    return () => { window.clearInterval(statusTimer); window.clearInterval(inboxTimer); window.clearInterval(deliveryTimer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
+    activeConversationRef.current = selectedId;
+    setMessages([]);
     if (!selectedId) return;
     loadMessages(selectedId);
-    const timer = window.setInterval(() => loadMessages(selectedId), 12000);
+    const timer = window.setInterval(() => loadMessages(selectedId), 6000);
     return () => window.clearInterval(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
   return (
-    <main className="lv-wa-page lv-wa-pair-page" style={{ maxWidth: 1240, margin: "0 auto", padding: "32px 20px 60px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start", flexWrap: "wrap" }}>
+    <main className="lv-wa-page lv-wa-pair-page lv-wa-v2-home">
+      <header className="lv-wa-v2-hero">
         <div>
-          <div style={{ fontSize: 12, fontWeight: 800, letterSpacing: ".12em", textTransform: "uppercase", color: "var(--lv-text-muted)" }}>LAND VIEW</div>
-          <h1 style={{ margin: "6px 0 8px", fontSize: 30 }}>WhatsApp Center</h1>
-          <p style={{ margin: 0, color: "var(--lv-text-muted)", lineHeight: 1.6 }}>{accountRole === "manager" ? "Connect the WhatsApp linked to your Management employee profile for Site Visit group messages. The central EMP-0002 session remains available below for client-facing operations." : "One centralized Admin WhatsApp session powers Admin, EMP-0002, client updates/replies, project finance and Site Visit messaging. Other employees keep their own WhatsApp sessions."}</p>
+          <span className="lv-wa-v2-eyebrow">LAND VIEW / COMMUNICATIONS</span>
+          <h1>WhatsApp workspace</h1>
+          <p>Read client messages, check the phone connection, and resolve delivery issues from one place.</p>
         </div>
-        <button className="lv-wa-btn" data-lv-button="secondary" type="button" onClick={() => { loadStatus(); loadConversations(); }} disabled={loading} style={{ border: "1px solid #cbd5e1", background: "var(--lv-surface-panel)", borderRadius: 10, padding: "10px 14px", cursor: "pointer", fontWeight: 700 }}>
-          {loading ? "Checking…" : "Refresh"}
+        <div className="lv-wa-v2-actions">
+          <button className="lv-wa-btn" type="button" data-lv-button="secondary" disabled={loading}
+            onClick={() => { void loadStatus(); void loadConversations(); void loadDeliveryStats(); }}>
+            {loading ? "Checking…" : "Refresh status"}
+          </button>
+          <Link className="lv-wa-v2-action-link" href="/admin/whatsapp/operations">Delivery center <span aria-hidden="true">↗</span></Link>
+        </div>
+      </header>
+
+      <section className="lv-wa-v2-summary" aria-label="WhatsApp at a glance">
+        <button type="button" className={"lv-wa-v2-metric" + (siteError ? " is-danger" : siteState?.paired ? " is-success" : " is-warning")} onClick={() => setView("connection")}>
+          <span>Phone connection</span>
+          <strong>{siteError ? "Check needed" : statusText(siteState, loading)}</strong>
+          <small>{siteError ? "Open to inspect the error" : siteState?.paired ? "WhatsApp connected" : "Open to connect or troubleshoot"}</small>
+        </button>
+        <button type="button" className={"lv-wa-v2-metric" + (unreadTotal ? " is-attention" : "")} onClick={() => { setConversationFilter("unread"); setView("inbox"); }}>
+          <span>Unread conversations</span>
+          <strong>{inboxError ? "—" : unreadTotal}</strong>
+          <small>{inboxError ? "Inbox connection needs attention" : unreadTotal ? "Open unread clients" : "No unread messages"}</small>
+        </button>
+        <Link className={"lv-wa-v2-metric" + (deliveryStats?.failed ? " is-danger" : "")} href="/admin/whatsapp/operations?tab=failed">
+          <span>Failed deliveries</span>
+          <strong>{deliveryStats ? deliveryStats.failed : "—"}</strong>
+          <small>{deliveryStats ? deliveryStats.failed ? "Review failed messages" : "No failures reported" : "Delivery data unavailable"}</small>
+        </Link>
+        <Link className="lv-wa-v2-metric" href="/admin/whatsapp/operations?tab=log">
+          <span>Queued messages</span>
+          <strong>{deliveryStats ? deliveryStats.queued : "—"}</strong>
+          <small>{deliveryStats ? deliveryStats.sentToday + " sent today" : "Open delivery history"}</small>
+        </Link>
+      </section>
+
+      <div className="lv-wa-v2-section-tabs" role="group" aria-label="Workspace views">
+        <button type="button" aria-pressed={view === "inbox"} className={view === "inbox" ? "is-active" : ""} onClick={() => setView("inbox")}>
+          <span aria-hidden="true">✉</span> Client inbox {unreadTotal > 0 && <b>{unreadTotal}</b>}
+        </button>
+        <button type="button" aria-pressed={view === "connection"} className={view === "connection" ? "is-active" : ""} onClick={() => setView("connection")}>
+          <span aria-hidden="true">▣</span> Phone & pairing {siteError && <b>!</b>}
         </button>
       </div>
 
-      {accountRole === "manager" ? (
-        <section style={{ marginTop: 24 }}>
-          <div style={{ marginBottom: 10 }}>
-            <h2 style={{ margin: 0, fontSize: 20 }}>Management WhatsApp Connection</h2>
-            <p style={{ margin: "6px 0 0", color: "var(--lv-text-muted)", lineHeight: 1.55 }}>This connection uses the employee ID linked to the Management account, so Site Visit group messages are sent from the Manager&apos;s own WhatsApp session.</p>
+      {view === "inbox" ? (
+        <section className="lv-wa-card lv-wa-inbox-card lv-wa-v2-inbox" aria-label="Client inbox">
+          <div className="lv-wa-v2-panel-header">
+            <div><h2>Client conversations</h2><p>{conversations.length} conversations · {unreadTotal} unread · replies use the existing linked phone</p></div>
+            <span className="lv-wa-v2-auto-refresh">Auto-refreshing</span>
           </div>
-          <EmployeeWhatsAppConnect />
-        </section>
-      ) : null}
-
-      <div className="lv-wa-bot-grid" style={{ marginTop: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(360px,1fr))", gap: 18 }}>
-        <BotCard title="Admin Bot · EMP-0002" description="Your WhatsApp number. This single session sends Admin and EMP-0002 messages, client project updates/replies, project finance updates and Site Visit announcements." state={siteState} loading={loading} error={siteError} onReset={resetPairing} resetting={resetting} />
-      </div>
-
-      <section className="lv-wa-card lv-wa-inbox-card" style={{ marginTop: 22, border: "1px solid var(--lv-border-default)", borderRadius: 16, background: "var(--lv-surface-panel)", overflow: "hidden", boxShadow: "0 8px 30px rgba(15,23,42,.05)" }}>
-        <div style={{ padding: "18px 20px", borderBottom: "1px solid var(--lv-border-default)", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 20 }}>Client Inbox</h2>
-            <div style={{ marginTop: 4, color: "var(--lv-text-muted)", fontSize: 13 }}>{unreadTotal ? `${unreadTotal} unread message${unreadTotal === 1 ? "" : "s"}` : "No unread messages"}</div>
-          </div>
-          <div style={{ fontSize: 12, color: "var(--lv-text-muted)" }}>Auto-refreshes</div>
-        </div>
-
-        {inboxError ? <div className="lv-wa-alert is-danger" role="alert" style={{ margin: 16, padding: 12, borderRadius: 10, background: "#fef2f2", color: "var(--lv-danger)" }}>{inboxError}</div> : null}
-
-        <div className="lv-wa-inbox-grid" style={{ display: "grid", gridTemplateColumns: "minmax(260px,340px) minmax(0,1fr)", minHeight: 520 }}>
-          <aside className="lv-wa-conversations" aria-label="Client conversations" style={{ borderRight: "1px solid var(--lv-border-default)", background: "var(--lv-surface-muted)", overflowY: "auto", maxHeight: 680 }}>
-            {!conversations.length ? <div style={{ padding: 22, color: "var(--lv-text-muted)", lineHeight: 1.6 }}>No client conversations yet. Once the central Admin number is paired, incoming client messages will appear here.</div> : conversations.map((row) => (
-              <button className={`lv-wa-conversation ${row.id === selectedId ? "is-selected" : ""}`} type="button" aria-pressed={row.id === selectedId} key={row.id} onClick={() => setSelectedId(row.id)} style={{ width: "100%", textAlign: "left", border: 0, borderBottom: "1px solid var(--lv-border-default)", padding: "14px 16px", cursor: "pointer", background: row.id === selectedId ? "#fff" : "transparent" }}>
-                <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center" }}>
-                  <strong style={{ color: "var(--lv-text-strong)" }}>{row.client_name || row.phone_number || "Unknown client"}</strong>
-                  {Number(row.unread_count || 0) > 0 ? <span style={{ minWidth: 22, height: 22, borderRadius: 999, background: "#0f172a", color: "#fff", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800 }}>{row.unread_count}</span> : null}
-                </div>
-                <div style={{ marginTop: 5, color: "var(--lv-text-muted)", fontSize: 12 }}>{row.project_code || "Unverified project"} · {row.phone_number || "No phone"}</div>
-                <div style={{ marginTop: 4, color: row.human_handoff ? "#92400e" : row.verified_at ? "#166534" : "#64748b", fontSize: 11, fontWeight: 700 }}>{row.human_handoff ? "HUMAN HANDOFF" : row.verified_at ? "VERIFIED" : "UNVERIFIED"}</div>
-                <div style={{ marginTop: 4, color: "var(--lv-text-muted)", fontSize: 11 }}>{when(row.last_message_at)}</div>
-              </button>
-            ))}
-          </aside>
-
-          <div className="lv-wa-chat" style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-            {!selected ? (
-              <div style={{ padding: 28, color: "var(--lv-text-muted)" }}>Select a conversation.</div>
-            ) : (
-              <>
-                <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--lv-border-default)", display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                  <div>
-                    <strong>{selected.client_name || selected.phone_number || "Client"}</strong>
-                    <div style={{ marginTop: 3, fontSize: 12, color: "var(--lv-text-muted)" }}>{selected.project_code || "Project not verified"} · {selected.phone_number}</div>
-                  </div>
-                  <button className="lv-wa-btn" data-lv-button="secondary" type="button" onClick={() => setHandoff(!selected.human_handoff)} style={{ border: "1px solid #cbd5e1", background: selected.human_handoff ? "#fef3c7" : "#fff", borderRadius: 9, padding: "8px 11px", cursor: "pointer", fontWeight: 700, fontSize: 12 }}>
-                    {selected.human_handoff ? "Return to Bot" : "Take Over Conversation"}
-                  </button>
-                </div>
-
-                <div className="lv-wa-messages" style={{ flex: 1, padding: 18, background: "var(--lv-surface-muted)", overflowY: "auto", maxHeight: 500 }}>
-                  {!messages.length ? <div style={{ color: "var(--lv-text-muted)" }}>No messages yet.</div> : messages.map((message) => (
-                    <div key={message.id} style={{ display: "flex", justifyContent: message.direction === "outbound" ? "flex-end" : "flex-start", marginBottom: 10 }}>
-                      <div className={`lv-wa-bubble ${message.direction === "outbound" ? "is-outbound" : "is-inbound"}`} style={{ maxWidth: "78%", borderRadius: 13, padding: "10px 12px", background: message.direction === "outbound" ? "#dcfce7" : "#fff", border: "1px solid var(--lv-border-default)", color: "var(--lv-text-strong)", whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-                        <div>{message.body || `[${message.message_type || "message"}]`}</div>
-                        <div style={{ marginTop: 5, fontSize: 10, color: "var(--lv-text-muted)", textAlign: "right" }}>{when(message.sent_at)}</div>
-                      </div>
-                    </div>
+          {inboxError && <div className="lv-wa-alert is-danger" role="alert">{inboxError}</div>}
+          <div className="lv-wa-inbox-grid lv-wa-v2-inbox-grid">
+            <aside className="lv-wa-conversations lv-wa-v2-contact-list" aria-label="Client conversations">
+              <div className="lv-wa-v2-contact-tools">
+                <input type="search" className="lv-wa-v2-search" aria-label="Search client conversations" placeholder="Search client, file ID or number" value={conversationQuery} onChange={(event) => setConversationQuery(event.target.value)} />
+                <div className="lv-wa-v2-contact-filters" aria-label="Conversation filters">
+                  {(["all", "unread", "handoff"] as const).map((filter) => (
+                    <button type="button" key={filter} aria-pressed={conversationFilter === filter} className={conversationFilter === filter ? "is-active" : ""} onClick={() => setConversationFilter(filter)}>
+                      {filter === "all" ? "All" : filter === "unread" ? "Unread" : "Human replies"}
+                    </button>
                   ))}
                 </div>
-
-                <div className="lv-wa-composer" style={{ padding: 14, borderTop: "1px solid var(--lv-border-default)", display: "flex", gap: 10, alignItems: "flex-end" }}>
-                  <textarea className="lv-wa-field lv-wa-reply" aria-label="Reply to selected WhatsApp conversation" value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Reply to this client on WhatsApp…" rows={3} maxLength={4000} style={{ flex: 1, resize: "vertical", minHeight: 70, border: "1px solid #cbd5e1", borderRadius: 10, padding: 11, font: "inherit" }} />
-                  <button className="lv-wa-btn lv-wa-send" data-lv-button="primary" type="button" onClick={sendReply} disabled={sending || !reply.trim()} style={{ border: 0, background: "#0f172a", color: "#fff", borderRadius: 10, padding: "11px 16px", fontWeight: 800, cursor: "pointer", opacity: sending || !reply.trim() ? .55 : 1 }}>
-                    {sending ? "Sending…" : "Send"}
-                  </button>
+              </div>
+              {!visibleConversations.length ? (
+                <div className="lv-wa-v2-empty">
+                  {conversations.length ? "No conversations match this filter." : "No conversations yet. New client messages will appear here after WhatsApp is connected."}
+                  {!!conversations.length && <button className="lv-wa-v2-clear" type="button" onClick={() => { setConversationFilter("all"); setConversationQuery(""); }}>Clear filters</button>}
                 </div>
-              </>
-            )}
+              ) : visibleConversations.map((row) => (
+                <button className={"lv-wa-conversation lv-wa-v2-contact" + (row.id === selectedId ? " is-selected" : "")} key={row.id} type="button" aria-pressed={row.id === selectedId} onClick={() => setSelectedId(row.id)}>
+                  <span className="lv-wa-v2-avatar" aria-hidden="true">{String(row.client_name || row.phone_number || "?").trim().slice(0,1).toUpperCase()}</span>
+                  <span className="lv-wa-v2-contact-text">
+                    <span className="lv-wa-v2-contact-title"><strong>{row.client_name || row.phone_number || "Unknown client"}</strong>{Number(row.unread_count || 0) > 0 && <b className="lv-wa-v2-unread">{row.unread_count}</b>}</span>
+                    <small>{row.project_code || "Unverified project"} · {row.phone_number || "No phone"}</small>
+                    <span className={row.human_handoff ? "lv-wa-v2-contact-state is-handoff" : row.verified_at ? "lv-wa-v2-contact-state is-verified" : "lv-wa-v2-contact-state"}>
+                      {row.human_handoff ? "Human reply active" : row.verified_at ? "Verified client" : "Not verified"}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </aside>
+            <div className="lv-wa-chat lv-wa-v2-chat">
+              {!selected ? (
+                <div className="lv-wa-v2-empty lv-wa-v2-chat-placeholder"><strong>Choose a conversation</strong><span>Client messages and reply controls will appear here.</span></div>
+              ) : (
+                <>
+                  <div className="lv-wa-v2-chat-header">
+                    <div><strong>{selected.client_name || selected.phone_number || "Client"}</strong><small>{selected.project_code || "Project not verified"} · {selected.phone_number}</small></div>
+                    <button className="lv-wa-btn" data-lv-button="secondary" type="button" onClick={() => void setHandoff(!selected.human_handoff)}>
+                      {selected.human_handoff ? "Return to bot" : "Take over reply"}
+                    </button>
+                  </div>
+                  <div className="lv-wa-messages lv-wa-v2-message-list" role="log" aria-label="Conversation messages">
+                    {!messages.length ? <div className="lv-wa-v2-empty">No messages here yet.</div> : messages.map((message) => (
+                      <div key={message.id} className={"lv-wa-v2-message-row" + (message.direction === "outbound" ? " is-outbound" : "")}>
+                        <div className={"lv-wa-bubble lv-wa-v2-message" + (message.direction === "outbound" ? " is-outbound" : " is-inbound")}>
+                          <span>{message.body || "[" + (message.message_type || "message") + "]"}</span><small>{when(message.sent_at)}</small>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <form className="lv-wa-composer lv-wa-v2-composer" onSubmit={(event) => { event.preventDefault(); void sendReply(); }}>
+                    <label htmlFor="lv-wa-v2-reply">Reply to {selected.client_name || selected.phone_number || "client"}</label>
+                    <textarea id="lv-wa-v2-reply" className="lv-wa-field lv-wa-reply" value={reply} onChange={(event) => setReply(event.target.value)} placeholder="Write a WhatsApp reply…" rows={3} maxLength={4000} />
+                    <button className="lv-wa-btn lv-wa-send" type="submit" data-lv-button="primary" disabled={sending || !reply.trim()}>{sending ? "Sending…" : "Send reply"}</button>
+                  </form>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      ) : (
+        <section className="lv-wa-v2-connection" aria-label="Phone connection settings">
+          <div className="lv-wa-v2-panel-header">
+            <div><h2>Phone & pairing</h2><p>Use the existing WhatsApp number. A QR scan is only needed when connecting or repairing the session.</p></div>
+            <Link className="lv-wa-v2-action-link" href="/admin/whatsapp/operations">View delivery health</Link>
+          </div>
+          {accountRole === "manager" && <div className="lv-wa-v2-manager-connect"><h3>Management personal connection</h3><p>Site Visit group messages use the Management account's linked WhatsApp session.</p><EmployeeWhatsAppConnect /></div>}
+          <BotCard title="Admin / EMP-0002 WhatsApp" description="The current central connection sends client updates and replies, project finance notifications, and Site Visit announcements." state={siteState} loading={loading} error={siteError || clientError} onReset={() => resetPairing("site")} resetting={resetting === "site"} />
+          <div className="lv-wa-v2-guidance"><strong>Reset only when needed</strong><p>Resetting signs out the linked device and requires another QR scan. Your finance records and message history are not changed by this screen.</p></div>
+        </section>
+      )}
     </main>
   );
 }
