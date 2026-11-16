@@ -194,3 +194,64 @@
     border-right: 0 !important;
   }
 }
+
+/* Print isolation: render only the billing sheets, not the hidden admin shell.
+   A 1mm buffer avoids Chromium's A4 rounding creating a phantom final page. */
+@media print {
+  html:has([data-lv-billing-print]),
+  body:has([data-lv-billing-print]) {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Hide non-invoice siblings with display:none (visibility:hidden still
+     participates in pagination and can create an empty trailing sheet). */
+  body:has([data-lv-billing-print]) *:not(:has([data-lv-billing-print])):not([data-lv-billing-print]):not([data-lv-billing-print] *) {
+    display: none !important;
+  }
+
+  /* Strip the dashboard's dimensions, padding, sticky positioning and
+     transforms from ancestors of the printable invoice document. */
+  body:has([data-lv-billing-print]) *:has([data-lv-billing-print]) {
+    display: block !important;
+    position: static !important;
+    transform: none !important;
+    float: none !important;
+    width: auto !important;
+    max-width: none !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body:has([data-lv-billing-print]) [data-lv-billing-print] {
+    position: static !important;
+    width: 210mm !important;
+    height: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  body:has([data-lv-billing-print]) [data-lv-billing-print] > article {
+    box-sizing: border-box !important;
+    width: 210mm !important;
+    height: 296mm !important;
+    min-height: 296mm !important;
+    max-height: 296mm !important;
+    break-after: page !important;
+    page-break-after: always !important;
+  }
+
+  body:has([data-lv-billing-print]) [data-lv-billing-print] > article:last-child {
+    break-after: auto !important;
+    page-break-after: auto !important;
+  }
+}

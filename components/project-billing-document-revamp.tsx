@@ -197,7 +197,7 @@ export default function ProjectBillingDocumentRevamp({
         />
       </div>
 
-      <section className={`${styles.printSheets} lvInvoiceRevampPrint`} aria-hidden="true">
+      <section className={`${styles.printSheets} lvInvoiceRevampPrint`} data-lv-billing-print="true" aria-hidden="true">
         {printCategories.map((category, index) => {
           const gross = Number(category.gross || 0);
           const discount = Number(category.discount || 0);

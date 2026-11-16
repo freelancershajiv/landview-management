@@ -283,7 +283,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
       <section className={styles.verificationBlock}><div><span className={styles.verificationLabel}>PROJECT QR</span><strong>{qr.error || verificationError ? "QR unavailable" : verificationUrl ? "Live billing verification" : "Preparing project QR…"}</strong><p>{qr.error || verificationError || (verificationUrl ? "Scan this QR to view the project’s current billing and payment verification." : "A secure project verification link is being generated.")}</p>{verificationUrl&&<a href={verificationUrl} target="_blank" rel="noreferrer">Open billing verification ↗</a>}</div>{qrUrl&&<img data-billing-qr="true" className={styles.qrCode} src={qrUrl} loading="eager" alt={`Billing QR for ${result.id}`} width={132} height={132}/>}</section>
     </main>
 
-    <section className={styles.printSheets}>
+    <section className={styles.printSheets} data-lv-billing-print="true">
       {printCategories.map((category, index) => {
         const last = index === printCategories.length - 1;
         return <article className={styles.printPage} key={`${category.name}-${index}`}>
