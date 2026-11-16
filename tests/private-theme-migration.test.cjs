@@ -59,7 +59,9 @@ test("WhatsApp pages inherit the central private theme without changing delivery
     assert.match(screen, /data-lv-button=/);
     assert.doesNotMatch(screen, /<style\b|@media print/);
   }
-  assert.match(pairing, /\/api\/admin\/whatsapp\/client\?mode=status/);
+  assert.match(pairing, /requestStatus\("\/api\/admin\/whatsapp", "Admin WhatsApp"/);
+  assert.doesNotMatch(pairing, /requestStatus\("\/api\/admin\/whatsapp\/client\?mode=status"/);
+  assert.match(pairing, /\/api\/admin\/whatsapp\/client\?mode=conversations/);
   assert.match(pairing, /\/api\/admin\/whatsapp/);
   assert.match(operations, /\/api\/admin\/whatsapp\?mode=ops/);
   assert.match(operations, /post\("retry_all_failed"/);

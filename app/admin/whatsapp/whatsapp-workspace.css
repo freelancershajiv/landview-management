@@ -1,0 +1,395 @@
+/* LAND VIEW WhatsApp Workspace V2
+   Screen geometry and component arrangement only. The shared palettes, button
+   foreground/background contract and dark-mode semantics live in private-theme.css.
+   Never style invoice print output or messaging/finance state here. */
+@media screen {
+  .portal-admin .lv-wa-nav-wrap { max-width: 1280px !important; padding: 18px 20px 0 !important; margin-inline: auto; }
+  .portal-admin .lv-wa-nav {
+    width: 100% !important; display: flex; gap: 8px; padding: 7px !important;
+    background: var(--lv-surface-panel) !important; border: 1px solid var(--lv-border-default) !important;
+    border-radius: 14px !important; box-shadow: none !important;
+  }
+  .portal-admin .lv-wa-nav-link {
+    display: inline-flex; align-items: center; justify-content: center; gap: 9px;
+    font-size: 13px !important; min-height: 44px; font-weight: 750;
+    padding: 10px 16px !important; flex: 1 1 0; text-align: center;
+  }
+  .portal-admin .lv-wa-v2-home,
+  .portal-admin .lv-wa-v2-ops {
+    max-width: 1280px !important; padding: 24px 20px 55px !important;
+    margin: 0 auto; width: 100%; min-width: 0; color: var(--lv-text-primary);
+  }
+  .portal-admin .lv-wa-v2-hero {
+    display: flex; align-items: end; justify-content: space-between;
+    gap: 18px; flex-wrap: wrap; min-width: 0; margin-bottom: 20px;
+  }
+  .portal-admin .lv-wa-v2-hero > div:first-child { max-width: 760px; min-width: 0; }
+  .portal-admin .lv-wa-v2-eyebrow {
+    display: block; margin-bottom: 8px; color: var(--lv-brand-text);
+    font-weight: 850; letter-spacing: .12em; font-size: 11px;
+  }
+  .portal-admin .lv-wa-v2-hero h1 {
+    margin: 0 0 8px !important; font-size: clamp(25px, 3vw, 34px) !important;
+    font-weight: 850; letter-spacing: -.035em; line-height: 1.15;
+    color: var(--lv-text-strong);
+  }
+  .portal-admin .lv-wa-v2-hero p {
+    margin: 0 !important; max-width: 675px; font-size: 14px !important;
+    line-height: 1.6; color: var(--lv-text-secondary) !important;
+  }
+  .portal-admin .lv-wa-v2-actions { display:flex; gap: 9px; align-items:center; flex-wrap:wrap; }
+  .portal-admin .lv-wa-v2-action-link {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    padding: 10px 16px; min-height: 44px; border-radius: 9px;
+    border: 1px solid var(--lv-brand-primary) !important;
+    background: var(--lv-brand-primary) !important; color: #fff !important;
+    font-size: 13px; font-weight: 800; text-decoration: none;
+  }
+  .portal-admin .lv-wa-v2-action-link:hover { background:var(--lv-brand-primary-hover) !important; }
+  .portal-admin .lv-wa-v2-action-link:focus-visible,
+  .portal-admin .lv-wa-v2-metric:focus-visible,
+  .portal-admin .lv-wa-v2-section-tabs button:focus-visible,
+  .portal-admin .lv-wa-v2-contact-filters button:focus-visible,
+  .portal-admin .lv-wa-v2-log-tools button:focus-visible {
+    outline: 2px solid var(--lv-brand-text) !important; outline-offset: 3px;
+  }
+  .portal-admin .lv-wa-v2-summary {
+    display: grid; grid-template-columns: repeat(4,minmax(0,1fr));
+    gap: 12px; margin: 0 0 22px;
+  }
+  .portal-admin .lv-wa-v2-metric {
+    position: relative; min-width: 0; min-height: 120px;
+    display: flex; flex-direction: column; gap: 7px; align-items: flex-start;
+    text-align: left; padding: 18px; border: 1px solid var(--lv-border-default) !important;
+    background: var(--lv-surface-panel) !important; color: var(--lv-text-primary) !important;
+    border-radius: 13px; text-decoration: none; cursor: pointer; font: inherit;
+    overflow: hidden;
+  }
+  .portal-admin .lv-wa-v2-metric::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--lv-border-strong);
+  }
+  .portal-admin .lv-wa-v2-metric.is-success::before { background: var(--lv-success); }
+  .portal-admin .lv-wa-v2-metric.is-danger::before { background: var(--lv-danger); }
+  .portal-admin .lv-wa-v2-metric.is-warning::before { background: var(--lv-warning); }
+  .portal-admin .lv-wa-v2-metric.is-attention::before { background: var(--lv-brand-primary); }
+  .portal-admin .lv-wa-v2-metric:hover {
+    background: var(--lv-surface-hover) !important; border-color: var(--lv-border-strong) !important;
+  }
+  .portal-admin .lv-wa-v2-metric > span {
+    font-size: 12px; font-weight: 800; color: var(--lv-text-secondary);
+  }
+  .portal-admin .lv-wa-v2-metric strong {
+    color: var(--lv-text-strong) !important; font-size: clamp(20px, 1.8vw, 25px);
+    line-height: 1.2; font-weight: 850; overflow-wrap: anywhere;
+  }
+  .portal-admin .lv-wa-v2-metric.is-danger strong { color: var(--lv-danger) !important; }
+  .portal-admin .lv-wa-v2-metric small {
+    font-size: 12px !important; line-height: 1.45; color: var(--lv-text-muted) !important;
+    font-weight: 500;
+  }
+  .portal-admin .lv-wa-v2-section-tabs {
+    display: flex; gap: 6px; align-items:center; padding: 5px;
+    background: var(--lv-surface-subtle); border-radius: 12px;
+    margin: 0 0 13px; width: fit-content; max-width:100%;
+  }
+  .portal-admin .lv-wa-v2-section-tabs button {
+    display: inline-flex; align-items: center; gap: 8px; justify-content:center;
+    padding: 11px 17px; min-height: 44px; border: 1px solid transparent;
+    background: transparent; color: var(--lv-text-secondary); border-radius: 9px;
+    font: inherit; font-size: 14px; font-weight: 780; cursor:pointer;
+  }
+  .portal-admin .lv-wa-v2-section-tabs button.is-active {
+    background: var(--lv-surface-elevated); color: var(--lv-text-strong);
+    border-color: var(--lv-border-default); box-shadow: 0 2px 6px rgba(0,0,0,.04);
+  }
+  .portal-admin .lv-wa-v2-section-tabs b {
+    display: inline-flex; min-width: 20px; justify-content:center;
+    border-radius: 20px; padding: 2px 5px; font-size: 11px;
+    background: var(--lv-brand-soft); color: var(--lv-brand-text);
+  }
+  .portal-admin .lv-wa-v2-inbox {
+    min-width: 0; overflow: hidden; border-radius: 14px !important;
+    background: var(--lv-surface-panel) !important;
+    border: 1px solid var(--lv-border-default) !important;
+  }
+  .portal-admin .lv-wa-v2-panel-header {
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+    gap: 10px; padding: 19px 20px; min-width:0;
+    border-bottom: 1px solid var(--lv-border-default);
+  }
+  .portal-admin .lv-wa-v2-panel-header h2 {
+    font-size: 18px !important; font-weight: 800; margin: 0 !important;
+  }
+  .portal-admin .lv-wa-v2-panel-header p {
+    margin: 5px 0 0 !important; font-size: 13px !important;
+    color: var(--lv-text-secondary) !important; line-height:1.5;
+  }
+  .portal-admin .lv-wa-v2-panel-header > span,
+  .portal-admin .lv-wa-v2-auto-refresh {
+    display: inline-flex; align-items:center; gap: 6px;
+    border: 1px solid var(--lv-border-default); border-radius: 25px;
+    padding: 6px 9px; font-size: 11px; font-weight:700;
+    background: var(--lv-surface-muted); color: var(--lv-text-muted);
+    white-space:nowrap;
+  }
+  .portal-admin .lv-wa-v2-inbox-grid {
+    display: grid; grid-template-columns: minmax(295px,345px) minmax(0,1fr) !important;
+    min-width: 0; min-height: min(625px,80vh);
+  }
+  .portal-admin .lv-wa-v2-contact-list {
+    display: flex; flex-direction:column; min-height:0;
+    max-height: 690px !important; min-width:0;
+    background: var(--lv-surface-muted) !important; border-right: 1px solid var(--lv-border-default);
+    overflow-y: auto;
+  }
+  .portal-admin .lv-wa-v2-contact-tools {
+    position:sticky; top:0; z-index:2; padding:14px 12px 12px;
+    background: var(--lv-surface-muted); border-bottom:1px solid var(--lv-border-default);
+  }
+  .portal-admin .lv-wa-v2-search,
+  .portal-admin .lv-wa-v2-log-tools :is(input,select) {
+    display: block; width:100%; min-width:0; min-height:43px;
+    border: 1px solid var(--lv-control-border) !important;
+    background: var(--lv-control-bg) !important; color:var(--lv-text-primary) !important;
+    border-radius: 9px; padding: 10px 12px; font: inherit; font-size: 14px !important;
+  }
+  .portal-admin .lv-wa-v2-contact-filters { display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+  .portal-admin .lv-wa-v2-contact-filters button {
+    min-height: 34px; display:inline-flex; align-items:center; justify-content:center;
+    padding:6px 10px; border:1px solid var(--lv-border-default);
+    background:var(--lv-surface-panel); color:var(--lv-text-secondary);
+    border-radius:20px; font-size:12px; font-weight:750; cursor:pointer;
+  }
+  .portal-admin .lv-wa-v2-contact-filters button.is-active {
+    background:var(--lv-brand-soft); border-color:var(--lv-brand-border);
+    color:var(--lv-brand-text);
+  }
+  .portal-admin .lv-wa-v2-contact {
+    display:flex; gap:11px; align-items:center; padding:14px 12px;
+    text-align:left; border:0 !important; border-bottom:1px solid var(--lv-border-soft) !important;
+    width:100%; min-height:86px; min-width:0; font: inherit; cursor:pointer;
+    background:transparent !important; color:var(--lv-text-primary);
+  }
+  .portal-admin .lv-wa-v2-contact:hover,
+  .portal-admin .lv-wa-v2-contact.is-selected { background:var(--lv-surface-panel) !important; }
+  .portal-admin .lv-wa-v2-contact.is-selected { box-shadow: inset 3px 0 var(--lv-brand-primary); }
+  .portal-admin .lv-wa-v2-avatar {
+    flex:0 0 38px; display:grid; place-items:center; height:38px;
+    border-radius:50%; background:var(--lv-brand-soft); color:var(--lv-brand-text);
+    font-size:15px; font-weight:850;
+  }
+  .portal-admin .lv-wa-v2-contact-text { flex:1; display:grid; gap:4px; min-width:0; }
+  .portal-admin .lv-wa-v2-contact-title { display:flex; justify-content:space-between; gap:8px; min-width:0; }
+  .portal-admin .lv-wa-v2-contact-title strong {
+    font-size:13px; color:var(--lv-text-strong); font-weight:800;
+    overflow:hidden; white-space:nowrap; text-overflow:ellipsis; min-width:0;
+  }
+  .portal-admin .lv-wa-v2-contact-text small {
+    font-size:11px; color:var(--lv-text-secondary); overflow-wrap:anywhere;
+  }
+  .portal-admin .lv-wa-v2-unread {
+    display:inline-grid; place-items:center; flex:0 0 auto; min-width:22px; height:22px;
+    border-radius:22px; padding:1px 5px; font-size:11px;
+    color:#fff; background:var(--lv-brand-primary);
+  }
+  .portal-admin .lv-wa-v2-contact-state { font-size:11px; color:var(--lv-text-muted); }
+  .portal-admin .lv-wa-v2-contact-state.is-verified { color:var(--lv-success); }
+  .portal-admin .lv-wa-v2-contact-state.is-handoff { color:var(--lv-warning); }
+  .portal-admin .lv-wa-v2-chat { min-width:0; min-height:420px; display:flex; flex-direction:column; }
+  .portal-admin .lv-wa-v2-chat-header {
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap;
+    gap:10px; padding:14px 18px; border-bottom:1px solid var(--lv-border-default);
+  }
+  .portal-admin .lv-wa-v2-chat-header > div { display:grid; gap:4px; min-width:0; }
+  .portal-admin .lv-wa-v2-chat-header strong { font-size:15px; color:var(--lv-text-strong); }
+  .portal-admin .lv-wa-v2-chat-header small { font-size:12px; color:var(--lv-text-muted); overflow-wrap:anywhere; }
+  .portal-admin .lv-wa-v2-message-list {
+    flex:1; min-height:250px; overflow-y:auto; padding:20px !important;
+    max-height:520px; background:var(--lv-surface-muted) !important;
+  }
+  .portal-admin .lv-wa-v2-message-row { display:flex; justify-content:flex-start; margin-bottom:13px; }
+  .portal-admin .lv-wa-v2-message-row.is-outbound { justify-content:flex-end; }
+  .portal-admin .lv-wa-v2-message {
+    display:grid; gap:6px; width:fit-content; max-width:min(77%,530px);
+    border:1px solid var(--lv-border-default); border-radius:13px;
+    padding:12px 14px; background:var(--lv-surface-panel);
+    color:var(--lv-text-primary); font-size:13px; line-height:1.55; white-space:pre-wrap; overflow-wrap:anywhere;
+  }
+  .portal-admin .lv-wa-v2-message.is-outbound {
+    color:var(--lv-text-primary) !important; background:var(--lv-success-soft) !important;
+    border-color:var(--lv-success-border) !important;
+  }
+  .portal-admin .lv-wa-v2-message small { display:block; font-size:10px; text-align:right; color:var(--lv-text-muted); }
+  .portal-admin .lv-wa-v2-composer {
+    display:grid !important; grid-template-columns:minmax(0,1fr) auto;
+    gap:8px 12px; align-items:end; padding:14px 18px !important;
+    border-top:1px solid var(--lv-border-default);
+    background:var(--lv-surface-panel);
+  }
+  .portal-admin .lv-wa-v2-composer label {
+    grid-column:1/-1; font-size:12px; font-weight:800; color:var(--lv-text-secondary);
+  }
+  .portal-admin .lv-wa-v2-composer textarea {
+    flex:auto; width:100%; min-width:0; min-height:75px; max-height:180px;
+    padding:12px !important; border:1px solid var(--lv-control-border) !important;
+    border-radius:10px; background:var(--lv-control-bg) !important;
+    color:var(--lv-text-primary) !important; font-size:14px !important; font:inherit;
+    resize:vertical;
+  }
+  .portal-admin .lv-wa-v2-composer button { min-height:48px; white-space:nowrap; }
+  .portal-admin .lv-wa-v2-empty { display:grid; gap:8px; padding:27px 18px; color:var(--lv-text-muted); font-size:13px; line-height:1.5; }
+  .portal-admin .lv-wa-v2-empty strong { font-size:16px; color:var(--lv-text-strong); }
+  .portal-admin .lv-wa-v2-chat-placeholder { min-height:300px; place-content:center; text-align:center; }
+  .portal-admin .lv-wa-v2-clear {
+    width:fit-content; padding:6px 0; border:0; background:transparent;
+    color:var(--lv-brand-text); font-weight:800; cursor:pointer; font-size:12px;
+  }
+  .portal-admin .lv-wa-v2-connection { display:grid; gap:16px; min-width:0; }
+  .portal-admin .lv-wa-v2-connection > .lv-wa-v2-panel-header,
+  .portal-admin .lv-wa-v2-connection > .lv-wa-bot-card,
+  .portal-admin .lv-wa-v2-manager-connect {
+    border:1px solid var(--lv-border-default); border-radius:14px;
+    background:var(--lv-surface-panel); padding:20px;
+  }
+  .portal-admin .lv-wa-v2-connection > .lv-wa-v2-panel-header { display:flex; }
+  .portal-admin .lv-wa-v2-connection .lv-wa-bot-card { max-width:900px; }
+  .portal-admin .lv-wa-v2-connection .lv-wa-qr-row { grid-template-columns:minmax(180px,260px) minmax(0,1fr) !important; }
+  .portal-admin .lv-wa-v2-manager-connect h3 { margin:0 0 7px; font-size:17px; }
+  .portal-admin .lv-wa-v2-manager-connect p { margin:0 0 14px; font-size:13px; }
+  .portal-admin .lv-wa-v2-guidance {
+    padding:16px 18px; border-radius:12px; border:1px solid var(--lv-warning-border);
+    background:var(--lv-warning-soft); color:var(--lv-warning); font-size:13px; line-height:1.55;
+  }
+  .portal-admin .lv-wa-v2-guidance strong { color:var(--lv-warning); font-size:13px; }
+  .portal-admin .lv-wa-v2-guidance p { margin:6px 0 0; color:var(--lv-warning) !important; }
+
+  .portal-admin .lv-wa-v2-repair {
+    margin-top:18px; padding:12px 16px 16px; border:1px solid var(--lv-border-default);
+    border-radius:11px; background:var(--lv-surface-muted); color:var(--lv-text-primary);
+  }
+  .portal-admin .lv-wa-v2-repair summary {
+    cursor:pointer; font-size:13px; font-weight:750; color:var(--lv-text-secondary);
+    padding:2px 0; min-height:27px;
+  }
+  .portal-admin .lv-wa-v2-repair p {
+    color:var(--lv-text-secondary) !important; font-size:13px !important;
+    max-width:630px; line-height:1.5;
+  }
+  .portal-admin .lv-wa-v2-repair button { margin-top:8px; }
+  .portal-admin .lv-wa-v2-ops .lv-wa-v2-triage.is-unknown {
+    border-color:var(--lv-border-default) !important;
+    background:var(--lv-surface-muted) !important;
+  }
+  .portal-admin .lv-wa-v2-triage.is-unknown .lv-wa-v2-triage-icon {
+    color:var(--lv-text-muted);
+  }
+
+  /* Delivery view: triage first, settings second. */
+  .portal-admin .lv-wa-v2-ops .lv-wa-v2-triage {
+    display:flex; align-items:center; justify-content:space-between;
+    gap:14px; flex-wrap:wrap; padding:18px 20px; border:1px solid var(--lv-success-border) !important;
+    border-radius:13px; background:var(--lv-success-soft) !important; box-shadow:none !important;
+  }
+  .portal-admin .lv-wa-v2-ops .lv-wa-v2-triage.is-danger {
+    background:var(--lv-danger-soft) !important; border-color:var(--lv-danger-border) !important;
+  }
+  .portal-admin .lv-wa-v2-triage-icon {
+    flex:0 0 36px; height:36px; display:grid; place-items:center;
+    border-radius:50%; font-size:20px; font-weight:850;
+    background:var(--lv-surface-panel); color:var(--lv-success);
+  }
+  .portal-admin .lv-wa-v2-triage.is-danger .lv-wa-v2-triage-icon { color:var(--lv-danger); }
+  .portal-admin .lv-wa-v2-triage > div:nth-child(2) { flex:1 1 260px; }
+  .portal-admin .lv-wa-v2-triage strong { color:var(--lv-text-strong); font-size:16px; font-weight:850; }
+  .portal-admin .lv-wa-v2-triage p { margin:4px 0 0 !important; color:var(--lv-text-secondary); font-size:13px !important; }
+  .portal-admin .lv-wa-v2-ops-nav {
+    display:grid; grid-template-columns:1fr auto; gap:18px;
+    border-bottom:1px solid var(--lv-border-default); padding:20px 0 14px;
+    margin-bottom:18px;
+  }
+  .portal-admin .lv-wa-v2-nav-group { display:grid; gap:9px; min-width:0; }
+  .portal-admin .lv-wa-v2-nav-group > span {
+    font-size:11px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--lv-text-muted); font-weight:850;
+  }
+  .portal-admin .lv-wa-v2-nav-group > div { display:flex; flex-wrap:wrap; gap:6px; }
+  .portal-admin .lv-wa-v2-ops .lv-wa-tab {
+    border:1px solid var(--lv-control-border); border-radius:9px; font-size:13px;
+    min-height:42px; padding:9px 13px; font-weight:750; cursor:pointer;
+    background:var(--lv-control-bg) !important; color:var(--lv-text-primary) !important;
+  }
+  .portal-admin .lv-wa-v2-ops .lv-wa-tab.is-active {
+    background:var(--lv-brand-soft) !important; color:var(--lv-brand-text) !important;
+    border-color:var(--lv-brand-border) !important;
+  }
+  .portal-admin .lv-wa-v2-ops-kpis { grid-template-columns: repeat(4,minmax(0,1fr)) !important; gap:12px; }
+  .portal-admin .lv-wa-v2-ops-kpis > .lv-wa-stat { min-width:0; min-height:126px; }
+  .portal-admin .lv-wa-v2-education {
+    margin-top:14px; padding:0 18px 16px; border:1px solid var(--lv-border-default);
+    border-radius:12px; background:var(--lv-surface-panel); color:var(--lv-text-primary);
+  }
+  .portal-admin .lv-wa-v2-education summary {
+    cursor:pointer; padding:16px 0; font-size:14px; font-weight:750;
+  }
+  .portal-admin .lv-wa-v2-education > div { display:grid; gap:10px; }
+  .portal-admin .lv-wa-v2-log-panel { min-width:0; overflow:hidden; }
+  .portal-admin .lv-wa-v2-log-tools {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+    padding:14px 18px; background:var(--lv-surface-muted);
+    border-bottom:1px solid var(--lv-border-default);
+  }
+  .portal-admin .lv-wa-v2-log-tools input { flex:1 1 250px; max-width:560px; }
+  .portal-admin .lv-wa-v2-log-tools select { flex:0 1 170px; }
+  .portal-admin .lv-wa-v2-log-panel .lv-wa-table-scroll { max-width:100%; }
+  .portal-admin .lv-wa-v2-log-panel .lv-wa-table { min-width:900px; }
+  .portal-admin .lv-wa-v2-rule-row,
+  .portal-admin .lv-wa-v2-group-row { min-width:0; }
+  .portal-admin .lv-wa-v2-rule-row :is(input,select),
+  .portal-admin .lv-wa-v2-group-row :is(input,select) {
+    min-height:42px; min-width:0; max-width:100%; border-radius:9px;
+  }
+  .portal-admin .lv-wa-v2-ops textarea { font-size:14px !important; background:var(--lv-control-bg) !important; color:var(--lv-text-primary) !important; }
+  .portal-admin .lv-wa-v2-ops :is(button,input,select,textarea,summary):focus-visible {
+    outline:2px solid var(--lv-brand-text) !important; outline-offset:3px;
+  }
+  @media(max-width:1060px){
+    .portal-admin .lv-wa-v2-summary { grid-template-columns:repeat(2,minmax(0,1fr)); }
+    .portal-admin .lv-wa-v2-ops-nav { grid-template-columns:1fr; }
+    .portal-admin .lv-wa-v2-ops-kpis { grid-template-columns:repeat(2,minmax(0,1fr)) !important; }
+  }
+  @media(max-width:760px){
+    .portal-admin .lv-wa-nav-wrap { padding:12px 12px 0 !important; }
+    .portal-admin .lv-wa-v2-home,
+    .portal-admin .lv-wa-v2-ops { padding:18px 12px 44px !important; }
+    .portal-admin .lv-wa-v2-hero { align-items:stretch; gap:14px; }
+    .portal-admin .lv-wa-v2-actions { width:100%; }
+    .portal-admin .lv-wa-v2-actions :is(button,a) { flex:1 1 140px; }
+    .portal-admin .lv-wa-v2-inbox-grid { grid-template-columns:minmax(0,1fr) !important; min-height:0 !important; }
+    .portal-admin .lv-wa-v2-contact-list {
+      max-height:300px !important; border-right:0 !important;
+      border-bottom:1px solid var(--lv-border-default); min-height:0;
+    }
+    .portal-admin .lv-wa-v2-contact { min-height:76px; }
+    .portal-admin .lv-wa-v2-chat { min-height:350px; }
+    .portal-admin .lv-wa-v2-message-list { min-height:220px; padding:14px !important; }
+    .portal-admin .lv-wa-v2-panel-header { padding:16px; }
+    .portal-admin .lv-wa-v2-connection .lv-wa-qr-row { grid-template-columns:minmax(0,1fr) !important; }
+    .portal-admin .lv-wa-v2-rule-row,
+    .portal-admin .lv-wa-v2-group-row { grid-template-columns:minmax(0,1fr) !important; gap:10px !important; }
+    .portal-admin .lv-wa-v2-log-tools select { flex:1 1 100%; }
+    .portal-admin .lv-wa-v2-composer { grid-template-columns:minmax(0,1fr) !important; }
+    .portal-admin .lv-wa-v2-composer button { width:100%; }
+  }
+  @media(max-width:480px){
+    .portal-admin .lv-wa-v2-summary { grid-template-columns:minmax(0,1fr); gap:8px; }
+    .portal-admin .lv-wa-v2-metric { min-height:90px; padding:13px 16px; }
+    .portal-admin .lv-wa-v2-metric strong { font-size:21px; }
+    .portal-admin .lv-wa-v2-section-tabs { width:100%; }
+    .portal-admin .lv-wa-v2-section-tabs button { flex:1 1 0; padding:10px 8px; font-size:12px; }
+    .portal-admin .lv-wa-v2-ops-kpis { grid-template-columns:minmax(0,1fr) !important; }
+    .portal-admin .lv-wa-v2-chat-header { align-items:stretch; }
+    .portal-admin .lv-wa-v2-chat-header button { width:100%; }
+    .portal-admin .lv-wa-v2-message { max-width:94%; }
+  }
+}

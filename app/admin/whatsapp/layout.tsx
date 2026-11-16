@@ -1,12 +1,18 @@
 import Link from "next/link";
+import "./whatsapp-workspace.css";
 
+/** Shared WhatsApp navigation; parent Admin layout supplies private-theme.css. */
 export default function WhatsAppLayout({ children }: { children: React.ReactNode }) {
   return (
     <>
-      <div className="lv-wa-nav-wrap" style={{ maxWidth: 1240, margin: "0 auto", padding: "18px 20px 0" }}>
-        <nav className="lv-wa-nav" aria-label="WhatsApp management" style={{ display: "flex", flexWrap: "wrap", gap: 8, padding: 6, width: "fit-content", border: "1px solid #e2e8f0", borderRadius: 12, background: "#fff", boxShadow: "0 4px 18px rgba(15,23,42,.04)" }}>
-          <Link className="lv-wa-nav-link lv-wa-nav-operations" href="/admin/whatsapp/operations" style={{ textDecoration: "none", color: "#991b1b", background: "#fef2f2", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontWeight: 800 }}>Operations</Link>
-          <Link className="lv-wa-nav-link lv-wa-nav-pairing" href="/admin/whatsapp" style={{ textDecoration: "none", color: "#334155", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontWeight: 800 }}>Pairing & Client Inbox</Link>
+      <div className="lv-wa-nav-wrap">
+        <nav className="lv-wa-nav" aria-label="WhatsApp management">
+          <Link className="lv-wa-nav-link lv-wa-nav-pairing" href="/admin/whatsapp">
+            <span aria-hidden="true">✉</span> Inbox & connection
+          </Link>
+          <Link className="lv-wa-nav-link lv-wa-nav-operations" href="/admin/whatsapp/operations">
+            <span aria-hidden="true">▤</span> Delivery & rules
+          </Link>
         </nav>
       </div>
       <div className="lv-wa-workspace">{children}</div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import Link from "next/link";
 
 type Tab = "overview" | "log" | "failed" | "rules" | "templates" | "groups";
 type MessageRow = {
@@ -110,6 +111,8 @@ export default function WhatsAppOperationsPage() {
   const [working, setWorking] = useState("");
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({});
   const [groupDrafts, setGroupDrafts] = useState<Record<string, string>>({});
+  const [messageQuery, setMessageQuery] = useState("");
+  const [queueFilter, setQueueFilter] = useState<"all" | "finance" | "site" | "client">("all");
 
   async function loadOps(silent = false) {
     if (!silent) setLoading(true);
@@ -165,17 +168,45 @@ export default function WhatsAppOperationsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    if (requested && (["overview", "log", "failed", "rules", "templates", "groups"] as string[]).includes(requested)) {
+      setTab(requested as Tab);
+    }
+  }, []);
+
   const failed = useMemo(() => (ops?.messages || []).filter((row) => row.status === "failed"), [ops]);
   const recent = useMemo(() => (ops?.messages || []).slice(0, 10), [ops]);
+  const filteredMessages = useMemo(() => (tab === "failed" ? failed : (ops?.messages || [])).filter((row) => {
+    if (queueFilter !== "all" && row.queue !== queueFilter) return false;
+    const query = messageQuery.trim().toLowerCase();
+    return !query || [row.module, row.eventKey, row.projectCode, row.clientName, row.message, row.status]
+      .some((value) => String(value || "").toLowerCase().includes(query));
+  }), [tab, failed, ops, queueFilter, messageQuery]);
 
   const tabs: Array<{ key: Tab; label: string; count?: number }> = [
     { key: "overview", label: "Overview" },
-    { key: "log", label: "Message Log" },
+    { key: "log", label: "Message history" },
     { key: "failed", label: "Failed", count: ops?.stats.failed || 0 },
-    { key: "rules", label: "Notification Rules" },
+    { key: "rules", label: "Rules" },
     { key: "templates", label: "Templates" },
-    { key: "groups", label: "Recipient Groups" },
+    { key: "groups", label: "Groups" },
   ];
+
+  function messageFilters() {
+    return (
+      <div className="lv-wa-v2-log-tools">
+        <input type="search" aria-label="Search message history" placeholder="Search project, module, message or status" value={messageQuery} onChange={(event) => setMessageQuery(event.target.value)} />
+        <select aria-label="Filter delivery queue" value={queueFilter} onChange={(event) => setQueueFilter(event.target.value as "all" | "finance" | "site" | "client")}>
+          <option value="all">All queues</option>
+          <option value="finance">Finance</option>
+          <option value="site">Site Visit</option>
+          <option value="client">Client</option>
+        </select>
+        {(messageQuery || queueFilter !== "all") && <button type="button" className="lv-wa-v2-clear" onClick={() => { setMessageQuery(""); setQueueFilter("all"); }}>Clear</button>}
+      </div>
+    );
+  }
 
   function messageTable(rows: MessageRow[]) {
     return (
@@ -226,36 +257,53 @@ export default function WhatsAppOperationsPage() {
   }
 
   return (
-    <main className="lv-wa-page lv-wa-operations-page" style={{ maxWidth: 1240, margin: "0 auto", padding: "24px 20px 60px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 16, flexWrap: "wrap", alignItems: "flex-start" }}>
+    <main className="lv-wa-page lv-wa-operations-page lv-wa-v2-ops" style={{ maxWidth: 1240, margin: "0 auto", padding: "24px 20px 60px" }}>
+      <header className="lv-wa-v2-hero lv-wa-v2-ops-hero">
         <div>
-          <div style={{ fontSize: 12, fontWeight: 900, color: "var(--lv-danger)", letterSpacing: ".12em", textTransform: "uppercase" }}>LAND VIEW · WHATSAPP</div>
-          <h1 style={{ margin: "5px 0 7px", fontSize: 30, color: "var(--lv-text-strong)" }}>Operations Center</h1>
-          <p style={{ margin: 0, color: "var(--lv-text-muted)", lineHeight: 1.6, maxWidth: 760 }}>One control layer for Project Management, Finance, Billing, Site Visit and client WhatsApp delivery. Queue failures no longer need to be hunted down in separate modules.</p>
+          <span className="lv-wa-v2-eyebrow">LAND VIEW / COMMUNICATIONS</span>
+          <h1>Delivery center</h1>
+          <p style={{ margin: 0, color: "var(--lv-text-muted)", lineHeight: 1.6, maxWidth: 760 }}>Check which messages were sent, find failed deliveries, and control notification settings.</p>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
+        <div className="lv-wa-v2-actions">
+          <Link className="lv-wa-v2-action-link" href="/admin/whatsapp">Open client inbox</Link>
           {ops?.stats.failed ? <button className="lv-wa-btn lv-wa-btn-danger" data-lv-button="danger-solid" type="button" style={redButton} disabled={working === "retry-all"} onClick={() => post("retry_all_failed", {}, "retry-all")}>{working === "retry-all" ? "Retrying…" : `Retry ${ops.stats.failed} Failed`}</button> : null}
           <button className="lv-wa-btn" data-lv-button="secondary" type="button" style={button} disabled={loading} onClick={() => loadOps()}>{loading ? "Refreshing…" : "Refresh"}</button>
         </div>
-      </div>
+      </header>
 
-      {error ? <div style={{ marginTop: 18, border: "1px solid #fecaca", borderRadius: 12, background: "#fef2f2", color: "var(--lv-danger)", padding: 13 }}>{error}</div> : null}
+      {error ? <div role="alert" className="lv-wa-alert is-danger" style={{ marginTop: 18, border: "1px solid #fecaca", borderRadius: 12, background: "#fef2f2", color: "var(--lv-danger)", padding: 13 }}>{error}</div> : null}
 
-      <div style={{ marginTop: 22, display: "flex", gap: 8, overflowX: "auto", paddingBottom: 3 }}>
-        {tabs.map((item) => (
-          <button className={`lv-wa-tab ${tab === item.key ? "is-active" : ""}`} type="button" aria-pressed={tab === item.key} key={item.key} onClick={() => setTab(item.key)} style={{ border: tab === item.key ? "1px solid #b91c1c" : "1px solid #e2e8f0", background: tab === item.key ? "#fef2f2" : "#fff", color: tab === item.key ? "#991b1b" : "#475569", borderRadius: 999, padding: "8px 12px", fontWeight: 800, fontSize: 12, whiteSpace: "nowrap", cursor: "pointer" }}>
-            {item.label}{item.count ? ` · ${item.count}` : ""}
-          </button>
-        ))}
-      </div>
+      <section className={"lv-wa-v2-triage" + (!ops ? " is-unknown" : ops.stats.failed ? " is-danger" : "")} aria-label="Delivery health">
+        <div className="lv-wa-v2-triage-icon" aria-hidden="true">{!ops ? "…" : ops.stats.failed ? "!" : "✓"}</div>
+        <div><strong>{!ops ? loading ? "Checking delivery status…" : "Delivery status unavailable" : ops.stats.failed ? ops.stats.failed + " messages need attention" : "No failed deliveries reported"}</strong>
+          <p>{!ops ? "Use Refresh to try again. Delivery statistics are not available yet." : ops.stats.failed ? "Review the failure reason before retrying. The original recipient stays linked." : "Finance, Site Visit and client updates are monitored in one queue."}</p></div>
+        <button className="lv-wa-btn" data-lv-button={ops?.stats.failed ? "danger" : "secondary"} type="button" onClick={() => setTab(ops?.stats.failed ? "failed" : "log")}>
+          {ops?.stats.failed ? "Review failures" : "View message history"}
+        </button>
+      </section>
+
+      <nav className="lv-wa-v2-ops-nav" aria-label="Delivery workspace sections">
+        <div className="lv-wa-v2-nav-group"><span>Daily work</span><div>
+          {tabs.slice(0, 3).map((item) => (
+            <button key={item.key} type="button" className={"lv-wa-tab" + (tab === item.key ? " is-active" : "")} aria-pressed={tab === item.key} onClick={() => setTab(item.key)}>
+              {item.label}{item.count ? " · " + item.count : ""}
+            </button>
+          ))}
+        </div></div>
+        <div className="lv-wa-v2-nav-group"><span>Automation settings</span><div>
+          {tabs.slice(3).map((item) => (
+            <button key={item.key} type="button" className={"lv-wa-tab" + (tab === item.key ? " is-active" : "")} aria-pressed={tab === item.key} onClick={() => setTab(item.key)}>{item.label}</button>
+          ))}
+        </div></div>
+      </nav>
 
       {tab === "overview" ? (
         <>
-          <div style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12 }}>
-            <StatCard label="Sent Today" value={ops?.stats.sentToday || 0} detail="Delivered across all queues" />
-            <StatCard label="In Queue" value={ops?.stats.queued || 0} detail={`${ops?.stats.retrying || 0} currently retrying`} />
-            <StatCard label="Failed" value={ops?.stats.failed || 0} detail="Needs admin attention" danger={Boolean(ops?.stats.failed)} />
-            <StatCard label="Suppressed" value={ops?.stats.suppressed || 0} detail="Blocked by notification rules" />
+          <div className="lv-wa-v2-ops-kpis" style={{ marginTop: 18, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 12 }}>
+            <StatCard label="Sent Today" value={ops ? ops.stats.sentToday : "—"} detail="Delivered across all queues" />
+            <StatCard label="In Queue" value={ops ? ops.stats.queued : "—"} detail={ops ? `${ops.stats.retrying || 0} currently retrying` : "Awaiting delivery data"} />
+            <StatCard label="Failed" value={ops ? ops.stats.failed : "—"} detail="Needs admin attention" danger={Boolean(ops?.stats.failed)} />
+            <StatCard label="Suppressed" value={ops ? ops.stats.suppressed : "—"} detail="Blocked by notification rules" />
           </div>
 
           <section style={{ ...card, marginTop: 18, overflow: "hidden" }}>
@@ -266,8 +314,8 @@ export default function WhatsAppOperationsPage() {
             {messageTable(recent)}
           </section>
 
-          <section style={{ ...card, marginTop: 18, padding: 18 }}>
-            <h2 style={{ margin: 0, fontSize: 18 }}>How delivery works now</h2>
+          <details className="lv-wa-v2-education">
+            <summary>How WhatsApp delivery works</summary>
             <div style={{ marginTop: 12, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))", gap: 10 }}>
               {["Event created", "Rule + duplicate check", "Queue", "WhatsApp sender", "Sent / retry / failed", "Activity log"].map((label, index) => (
                 <div key={label} style={{ border: "1px solid var(--lv-border-default)", borderRadius: 11, background: "var(--lv-surface-muted)", padding: 12 }}>
@@ -276,19 +324,24 @@ export default function WhatsAppOperationsPage() {
                 </div>
               ))}
             </div>
-          </section>
+          </details>
         </>
       ) : null}
 
-      {tab === "log" ? <section style={{ ...card, marginTop: 18, overflow: "hidden" }}>{messageTable(ops?.messages || [])}</section> : null}
+      {tab === "log" ? (
+        <section className="lv-wa-v2-log-panel" style={{ ...card, marginTop: 18, overflow: "hidden" }}>
+          <div className="lv-wa-v2-panel-header"><div><h2>Message history</h2><p>Find activity by project, queue, event, or delivery status.</p></div><span>{filteredMessages.length} messages</span></div>
+          {messageFilters()}
+          {messageTable(filteredMessages)}
+        </section>
+      ) : null}
 
       {tab === "failed" ? (
-        <section style={{ ...card, marginTop: 18, overflow: "hidden" }}>
-          <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--lv-border-default)" }}>
-            <h2 style={{ margin: 0, fontSize: 18 }}>Failed Messages</h2>
-            <p style={{ margin: "5px 0 0", color: "var(--lv-text-muted)", fontSize: 12 }}>Automatic retries use exponential backoff. Items shown here exhausted the normal retry policy and can be requeued manually.</p>
-          </div>
-          {messageTable(failed)}
+        <section className="lv-wa-v2-log-panel" style={{ ...card, marginTop: 18, overflow: "hidden" }}>
+          <div className="lv-wa-v2-panel-header"><div><h2>Failed deliveries</h2>
+            <p>Items shown here exhausted normal retries. Review the reason before requeueing.</p></div></div>
+          {messageFilters()}
+          {messageTable(filteredMessages)}
         </section>
       ) : null}
 
@@ -297,7 +350,7 @@ export default function WhatsAppOperationsPage() {
           <div style={{ padding: "16px 18px", borderBottom: "1px solid var(--lv-border-default)" }}><h2 style={{ margin: 0, fontSize: 18 }}>Notification Rules</h2><p style={{ margin: "5px 0 0", color: "var(--lv-text-muted)", fontSize: 12 }}>Turn event types on/off and set delivery priority. Disabled events are recorded as suppressed and are never handed to WhatsApp.</p></div>
           <div>
             {(ops?.rules || []).map((row) => (
-              <div key={row.event_key} style={{ padding: "14px 18px", borderTop: "1px solid var(--lv-border-default)", display: "grid", gridTemplateColumns: "minmax(220px,1fr) 160px 160px", gap: 14, alignItems: "center" }}>
+              <div key={row.event_key} className="lv-wa-v2-rule-row" style={{ padding: "14px 18px", borderTop: "1px solid var(--lv-border-default)", display: "grid", gridTemplateColumns: "minmax(220px,1fr) 160px 160px", gap: 14, alignItems: "center" }}>
                 <div><div style={{ fontWeight: 900, color: "var(--lv-text-strong)" }}>{row.label}</div><div style={{ marginTop: 4, color: "var(--lv-text-muted)", fontSize: 11 }}>{row.module} · {row.event_key} · {row.recipient_group_slug || "default recipient"}</div></div>
                 <select value={row.priority} disabled={working === `rule:${row.event_key}`} onChange={(event) => post("update_rule", { eventKey: row.event_key, priority: event.target.value }, `rule:${row.event_key}`)} style={{ border: "1px solid #cbd5e1", borderRadius: 9, padding: 9, background: "var(--lv-surface-panel)" }}>
                   <option value="critical">Critical</option><option value="important">Important</option><option value="routine">Routine</option>
@@ -341,7 +394,7 @@ export default function WhatsAppOperationsPage() {
           {(ops?.groups || []).map((row) => {
             const editable = row.destination_kind === "group";
             return (
-              <div key={row.slug} style={{ padding: "14px 18px", borderTop: "1px solid var(--lv-border-default)", display: "grid", gridTemplateColumns: "minmax(220px,.8fr) minmax(260px,1.3fr) 120px", gap: 14, alignItems: "center" }}>
+              <div key={row.slug} className="lv-wa-v2-group-row" style={{ padding: "14px 18px", borderTop: "1px solid var(--lv-border-default)", display: "grid", gridTemplateColumns: "minmax(220px,.8fr) minmax(260px,1.3fr) 120px", gap: 14, alignItems: "center" }}>
                 <div><div style={{ fontWeight: 900 }}>{row.name}</div><div style={{ marginTop: 4, color: "var(--lv-text-muted)", fontSize: 11 }}>{row.slug} · {row.destination_kind} · sender {row.sender_employee_id || "default"}</div></div>
                 <input value={editable ? (groupDrafts[row.slug] ?? row.target ?? "") : "Resolved from project/client"} disabled={!editable} onChange={(event) => setGroupDrafts((prev) => ({ ...prev, [row.slug]: event.target.value }))} style={{ border: "1px solid #cbd5e1", borderRadius: 9, padding: 9, background: editable ? "#fff" : "#f8fafc", color: editable ? "#0f172a" : "#94a3b8" }} />
                 {editable ? <button className="lv-wa-btn" data-lv-button="secondary" type="button" style={button} disabled={working === `group:${row.slug}`} onClick={() => post("update_group", { slug: row.slug, target: groupDrafts[row.slug] ?? row.target ?? "" }, `group:${row.slug}`)}>{working === `group:${row.slug}` ? "Saving…" : "Save"}</button> : <span style={{ color: "var(--lv-success)", fontWeight: 800, fontSize: 11, textAlign: "right" }}>DYNAMIC</span>}
