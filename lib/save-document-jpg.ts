@@ -88,7 +88,7 @@ function collectPrintRules(rules: CSSRuleList, hostSelector: string, inPrint = f
   return output;
 }
 
-function getScopedPrintCss(hostSelector: string) {
+export function getScopedPrintCss(hostSelector: string) {
   let output = "";
   for (const sheet of Array.from(document.styleSheets)) {
     try {
@@ -104,7 +104,7 @@ function waitForFrame() {
   return new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }
 
-async function waitForImages(root: HTMLElement) {
+export async function waitForImages(root: HTMLElement) {
   const images = Array.from(root.querySelectorAll<HTMLImageElement>("img"));
   await Promise.all(images.map(async (image) => {
     if (!image.complete) {
@@ -247,7 +247,7 @@ function canvasToJpeg(canvas: HTMLCanvasElement) {
   });
 }
 
-async function renderPageToJpeg(page: HTMLElement) {
+export async function renderPageToJpeg(page: HTMLElement) {
   const rect = page.getBoundingClientRect();
   const width = Math.max(1, Math.round(rect.width));
   const height = Math.max(1, Math.round(rect.height));
@@ -280,7 +280,7 @@ async function renderPageToJpeg(page: HTMLElement) {
   return canvasToJpeg(canvas);
 }
 
-function downloadBlob(blob: Blob, filename: string) {
+export function downloadBlob(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
