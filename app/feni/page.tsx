@@ -94,7 +94,7 @@ export default function FeniOfficePage() {
         <li>Discuss architectural planning, structural design, soil investigation and approval-document needs before agreeing on the service scope.</li>
         <li>Review consultancy deliverables and any site-visit requirements with the team before work begins.</li>
       </ol>
-      <div className="feni-next-links"><Link href="/case-studies">Explore published LAND VIEW case studies</Link><Link href="/contact">Arrange a project discussion</Link></div>
+      <div className="feni-next-links"><Link href="/guides/building-design-feni">Read the building design planning checklist</Link><Link href="/case-studies">Explore published LAND VIEW case studies</Link><Link href="/contact">Arrange a project discussion</Link></div>
     </div></section>
     <section className="feni-section"><div className="feni-wrap">
       <h2>Frequently asked questions from Feni clients</h2>
