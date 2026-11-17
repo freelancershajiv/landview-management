@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
-import PublicHome from "@/components/public-home";
+import PublicHome from "@/components/public-home-v3";
 import { getPublicHomeInitialData } from "@/lib/public-home-initial";
 import { siteUrl } from "@/lib/site-info";
-import "./public-home-v2.css";
+import "./public-home-v3.css";
 
 export const metadata: Metadata = {
   title: { absolute: "Architects & Structural Engineers in Feni | LAND VIEW" },
