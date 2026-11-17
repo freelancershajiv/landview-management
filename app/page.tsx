@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import PublicHome from "@/components/public-home";
+import { getPublicHomeInitialData } from "@/lib/public-home-initial";
 import { siteUrl } from "@/lib/site-info";
 import "./public-home-v2.css";
 
@@ -31,6 +32,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default function HomePage() {
-  return <PublicHome />;
+// Keep initial data server-side and refresh its public-only cache each minute.
+export const dynamic = "force-dynamic";
+export default async function HomePage() {
+  const snapshot = await getPublicHomeInitialData();
+  return <PublicHome {...(snapshot || {})} />;
 }
