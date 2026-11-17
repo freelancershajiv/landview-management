@@ -90,51 +90,60 @@ async function wakeQueue(queue: string) {
 
 async function pairingState() {
   const { base, token } = botConfig();
-  let lastMessage = "WhatsApp service is reconnecting.";
+  let lastMessage = "WhatsApp server is starting or temporarily unreachable.";
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  // Keep status checks within Vercel's request timeout, even during a Render cold start.
+  // A failed health check is NOT evidence that stored WhatsApp pairing is lost.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       const response = await fetch(`${base}/health`, {
         method: "GET",
         headers: { "x-land-view-bot-token": token },
         cache: "no-store",
-        signal: AbortSignal.timeout(10_000),
+        signal: AbortSignal.timeout(9_000),
       });
       const json = await response.json().catch(() => null) as any;
-      if (!response.ok || !json?.ok) {
-        lastMessage = String(json?.error || `WhatsApp bot returned HTTP ${response.status}.`);
-        if (retriableBotStatus(response.status) && attempt < 3) {
-          await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt)));
-          continue;
-        }
-        throw new Error(lastMessage);
+      if (response.ok && json?.ok) {
+        const connection = String(json.connection || "connecting").toLowerCase();
+        return {
+          connection,
+          paired: Boolean(json.paired),
+          qrAvailable: Boolean(json.qrAvailable),
+          qrDataUrl: json.qrDataUrl || null,
+          phoneNumber: json.phoneNumber || null,
+          lastError: json.lastError || null,
+          retryAfterMs: Number(json.retryAfterMs) || 0,
+          temporary: ["starting", "connecting", "disconnected", "resetting", "conflict_backoff", "error"].includes(connection),
+        };
       }
-      return {
-        connection: json.connection || "connecting",
-        paired: Boolean(json.paired),
-        qrAvailable: Boolean(json.qrAvailable),
-        qrDataUrl: json.qrDataUrl || null,
-        phoneNumber: json.phoneNumber || null,
-        lastError: json.lastError || null,
-        temporary: ["starting", "connecting", "disconnected", "resetting"].includes(String(json.connection || "").toLowerCase()),
-      };
+
+      lastMessage = String(json?.error || `WhatsApp bot returned HTTP ${response.status}.`);
+      // Bad configuration is not a sleeping Render instance. Do not hide it behind endless retries.
+      if (response.status === 401 || response.status === 403) {
+        return { connection: "service_error", paired: false, qrAvailable: false, qrDataUrl: null,
+          temporary: false, lastError: "WhatsApp service authorization failed. Check the bot token configuration." };
+      }
+      if (!retriableBotStatus(response.status)) {
+        return { connection: "service_error", paired: false, qrAvailable: false, qrDataUrl: null,
+          temporary: false, lastError: lastMessage };
+      }
     } catch (error: any) {
-      lastMessage = String(error?.message || "WhatsApp service is reconnecting.");
-      if (attempt < 3) {
-        await new Promise((resolve) => setTimeout(resolve, retryDelay(attempt)));
-        continue;
-      }
-      return {
-        connection: "service_error",
-        paired: false,
-        qrAvailable: false,
-        qrDataUrl: null,
-        temporary: true,
-        lastError: lastMessage,
-      };
+      lastMessage = String(error?.message || "WhatsApp service cannot be reached.");
+    }
+    if (attempt < 2) {
+      await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
     }
   }
-  return { connection: "service_error", paired: false, qrAvailable: false, qrDataUrl: null, temporary: true, lastError: lastMessage };
+
+  return {
+    connection: "service_waking",
+    paired: false,
+    qrAvailable: false,
+    qrDataUrl: null,
+    temporary: true,
+    retryAfterMs: 15_000,
+    lastError: `WhatsApp server may be waking up or temporarily unreachable. ${lastMessage.slice(0, 200)}`,
+  };
 }
 
 async function groupsState() {

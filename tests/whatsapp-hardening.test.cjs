@@ -30,3 +30,27 @@ test('admin UI polls only the shared Admin session', () => {
   assert.doesNotMatch(page, /requestStatus\("\/api\/admin\/whatsapp\/client\?mode=status"/);
   assert.match(page, /setInterval\(loadStatus, 15000\)/);
 });
+
+test('WhatsApp V4.1 retry handling backs off competing connections without deleting pairing', () => {
+  for (const name of ['whatsapp-service/server.mjs', 'whatsapp-service/gateway.mjs']) {
+    const code = source(name);
+    assert.match(code, /const conflict = code === 440/);
+    assert.match(code, /state\.connection = conflict \? 'conflict_backoff' : 'disconnected'/);
+    assert.match(code, /state\.backoffUntil > Date\.now\(\)/);
+    assert.match(code, /state\.backoffUntil = Date\.now\(\) \+ delay/);
+    assert.match(code, /state\.connection = 'error'/);
+    assert.match(code, /scheduleReconnect\(10000\)/);
+    assert.match(code, /protocolLogger\.level = 'warn'/);
+  }
+});
+
+test('WhatsApp V4.1 exposes temporary hosting outages without suggesting a credential reset', () => {
+  const api = source('app/api/admin/whatsapp/route.ts');
+  const page = source('app/admin/whatsapp/page.tsx');
+  const server = source('whatsapp-service/server.mjs');
+  assert.match(api, /connection: "service_waking"/);
+  assert.match(api, /response\.status === 401 \|\| response\.status === 403/);
+  assert.match(page, /const canReset = Boolean\(state\?\.paired \|\| state\?\.qrAvailable \|\| state\?\.connection === "logged_out"\)/);
+  assert.match(page, /"Server waking \/ temporarily unreachable"/);
+  assert.match(server, /state\.qrDataUrl = ''\s*if \(code === DisconnectReason\.loggedOut\)/);
+});

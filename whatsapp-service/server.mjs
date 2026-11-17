@@ -18,6 +18,9 @@ const BOT_TOKEN = String(process.env.BOT_API_TOKEN || '').trim()
 const DEFAULT_INVITE = String(process.env.WHATSAPP_GROUP_INVITE_CODE || 'IyK3AgVZUwB4g3XJ0qokmT').trim()
 const CLIENT_PORTAL_URL = String(process.env.LAND_VIEW_CLIENT_PORTAL_URL || 'https://app.landview.com.bd/client').trim()
 const logger = P({ level: process.env.LOG_LEVEL || 'info' })
+// Protocol debug logs can include Signal key material. Application events still use logger.
+const protocolLogger = logger.child({ component: 'baileys' })
+protocolLogger.level = 'warn'
 
 if (!BOT_TOKEN) throw new Error('BOT_API_TOKEN is required.')
 
@@ -142,6 +145,8 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
     reconnectTimer: null,
     connectingPromise: null,
     openedAt: 0,
+    reconnectAttempts: 0,
+    backoffUntil: 0,
   }
 
   function status() {
@@ -155,33 +160,37 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
       qrDataUrl: state.qrDataUrl || null,
       phoneNumber: phoneFromPnJid(state.sock?.user?.id) || null,
       lastError: state.lastError || null,
+      retryAfterMs: Math.max(0, state.backoffUntil - Date.now()),
     }
   }
 
   function scheduleReconnect(delay = 5000) {
     if (state.reconnectTimer) clearTimeout(state.reconnectTimer)
+    state.backoffUntil = Date.now() + delay
     state.reconnectTimer = setTimeout(() => {
       state.reconnectTimer = null
-      connect().catch((error) => {
-        state.lastError = String(error?.message || error)
-        logger.error({ sessionId, err: state.lastError }, `${label} reconnect failed`)
-        scheduleReconnect(10000)
+      state.backoffUntil = 0
+      if (!state.sock) connect().catch((error) => {
+        logger.error({ sessionId, err: String(error?.message || error) }, `${label} reconnect failed`)
       })
     }, delay)
+    state.reconnectTimer.unref?.()
   }
 
   async function connect() {
+    if (state.backoffUntil > Date.now()) return
     if (state.sock && ['connecting', 'pairing', 'open'].includes(state.connection)) return
     if (state.connectingPromise) return state.connectingPromise
     state.connectingPromise = (async () => {
       state.connection = 'connecting'
+      state.lastError = ''
       const { state: authState, saveCreds } = await useSupabaseAuthState(sessionId)
       const wa = makeWASocket({
         auth: {
           creds: authState.creds,
-          keys: makeCacheableSignalKeyStore(authState.keys, logger),
+          keys: makeCacheableSignalKeyStore(authState.keys, protocolLogger),
         },
-        logger,
+        logger: protocolLogger,
         browser: Browsers.ubuntu(label),
         markOnlineOnConnect: false,
         syncFullHistory: false,
@@ -221,6 +230,8 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
           if (state.reconnectTimer) clearTimeout(state.reconnectTimer)
           state.reconnectTimer = null
           state.connection = 'open'
+          state.reconnectAttempts = 0
+          state.backoffUntil = 0
           state.openedAt = Date.now()
           state.qrDataUrl = ''
           state.lastError = ''
@@ -242,13 +253,20 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
           state.sock = null
           const code = disconnectCode(lastDisconnect?.error)
           state.lastError = String(lastDisconnect?.error?.message || `Disconnected (${code || 'unknown'})`)
+          state.qrDataUrl = ''
           if (code === DisconnectReason.loggedOut) {
             state.connection = 'logged_out'
-            state.qrDataUrl = ''
+            state.backoffUntil = 0
             logger.warn({ sessionId }, `${label} was logged out`)
           } else {
-            state.connection = 'disconnected'
-            scheduleReconnect(code === DisconnectReason.restartRequired ? 1000 : code === 429 ? 60000 : 5000)
+            state.reconnectAttempts += 1
+            const conflict = code === 440 // WhatsApp connectionReplaced
+            const delay = conflict
+              ? Math.min(180000, 30000 * 2 ** Math.min(3, state.reconnectAttempts - 1))
+              : code === DisconnectReason.restartRequired ? 1000 : code === 429 ? 60000 : 5000
+            state.connection = conflict ? 'conflict_backoff' : 'disconnected'
+            if (conflict) logger.warn({ sessionId, delayMs: delay }, 'WhatsApp session conflict; backing off without resetting saved credentials')
+            scheduleReconnect(delay)
           }
         }
       })
@@ -256,6 +274,13 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
 
     try {
       await state.connectingPromise
+    } catch (error) {
+      if (!state.sock && state.connection !== 'logged_out') {
+        state.connection = 'error'
+        state.lastError = String(error?.message || error)
+        scheduleReconnect(10000)
+      }
+      throw error
     } finally {
       state.connectingPromise = null
     }
@@ -268,6 +293,8 @@ function createManagedSession({ sessionId, label, onOpen, onMessages }) {
     const previousSocket = state.sock
     state.sock = null
     state.connection = 'resetting'
+    state.reconnectAttempts = 0
+    state.backoffUntil = 0
     state.qrDataUrl = ''
     state.lastError = ''
     try { await previousSocket?.logout() } catch {}

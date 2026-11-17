@@ -8,6 +8,8 @@ type PairState = {
   paired: boolean;
   qrAvailable: boolean;
   qrDataUrl?: string | null;
+  lastError?: string | null;
+  retryAfterMs?: number;
 };
 type Conversation = {
   id: string;
@@ -33,7 +35,11 @@ function statusText(state: PairState | null, loading: boolean) {
   if (state.paired) return "Connected";
   if (state.qrAvailable) return "Waiting for QR scan";
   if (state.connection === "logged_out") return "Pairing reset required";
-  if (state.connection === "service_error" || state.connection === "error") return "Service unavailable";
+  if (state.connection === "service_waking") return "Server waking / temporarily unreachable";
+  if (state.connection === "status_unavailable") return "Could not check connection";
+  if (state.connection === "service_error") return "Service unavailable";
+  if (state.connection === "error") return "Connection failed — retrying";
+  if (state.connection === "conflict_backoff") return "Connection overlap — reconnecting safely";
   if (state.connection === "disconnected") return "Reconnecting…";
   return "Preparing connection";
 }
@@ -64,6 +70,15 @@ function BotCard({
   dedicated?: boolean;
 }) {
   const label = statusText(state, loading);
+  const offlineStates = ["service_error", "status_unavailable", "error"];
+  const badgeLabel = state?.paired ? "READY"
+    : state?.qrAvailable ? "PAIR NOW"
+    : state?.connection === "service_waking" ? "WAKING"
+    : state?.connection === "conflict_backoff" ? "WAITING"
+    : state?.connection === "logged_out" ? "PAIRING"
+    : offlineStates.includes(state?.connection || "") ? "OFFLINE" : "STARTING";
+  const details = error || (!state?.paired && offlineStates.includes(state?.connection || "") ? String(state?.lastError || "").slice(0, 300) : "");
+  const canReset = Boolean(state?.paired || state?.qrAvailable || state?.connection === "logged_out");
   return (
     <section className="lv-wa-card lv-wa-bot-card" style={{ border: "1px solid var(--lv-border-default)", borderRadius: 16, background: "var(--lv-surface-panel)", padding: 22, boxShadow: "0 8px 30px rgba(15,23,42,.05)" }}>
       <div style={{ display: "flex", justifyContent: "space-between", gap: 16, alignItems: "flex-start" }}>
@@ -72,14 +87,14 @@ function BotCard({
           <p style={{ margin: "7px 0 0", color: "var(--lv-text-muted)", lineHeight: 1.55 }}>{description}</p>
         </div>
         <span className={`lv-wa-badge ${state?.paired ? "is-success" : state?.qrAvailable ? "is-warning" : "is-muted"}`} style={{ padding: "7px 11px", borderRadius: 999, fontSize: 12, fontWeight: 800, whiteSpace: "nowrap", background: state?.paired ? "#dcfce7" : state?.qrAvailable ? "#fef3c7" : "#e2e8f0", color: state?.paired ? "#166534" : state?.qrAvailable ? "#92400e" : "#334155" }}>
-          {state?.paired ? "READY" : state?.qrAvailable ? "PAIR NOW" : "STARTING"}
+          {badgeLabel}
         </span>
       </div>
 
       <div style={{ marginTop: 18, fontSize: 13, color: "var(--lv-text-muted)" }}>Connection Status</div>
       <div style={{ marginTop: 3, fontSize: 20, fontWeight: 800 }}>{label}</div>
 
-      {error ? <div className="lv-wa-alert is-danger" role="alert" style={{ marginTop: 15, padding: 12, borderRadius: 10, background: "#fef2f2", color: "var(--lv-danger)" }}>{error}</div> : null}
+      {details ? <div className="lv-wa-alert is-danger" role="alert" style={{ marginTop: 15, padding: 12, borderRadius: 10, background: "#fef2f2", color: "var(--lv-danger)" }}>{details}</div> : null}
 
       {state?.paired ? (
         <div className="lv-wa-alert is-success" style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "#f0fdf4", border: "1px solid #bbf7d0", color: "var(--lv-success)", lineHeight: 1.55 }}>
@@ -98,11 +113,21 @@ function BotCard({
           </div>
         </div>
       ) : (
-        <div className="lv-wa-alert is-muted" style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "var(--lv-surface-muted)", color: "var(--lv-text-secondary)" }}>Preparing a secure pairing session. This page refreshes automatically.</div>
+        <div className="lv-wa-alert is-muted" style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "var(--lv-surface-muted)", color: "var(--lv-text-secondary)" }}>
+          {state?.connection === "service_waking"
+            ? "The WhatsApp server is starting or briefly unreachable. Status refreshes automatically; do not reset pairing."
+            : state?.connection === "conflict_backoff"
+              ? "Another WhatsApp connection was detected. Retrying with a delay to avoid repeatedly disconnecting your account. Your pairing remains saved."
+              : state?.connection === "logged_out"
+                ? "The linked device was logged out. Re-pair only after confirming the device is no longer linked in WhatsApp."
+                : state?.connection === "status_unavailable"
+                  ? "Could not retrieve the server status. Try Refresh. Your saved pairing has not been changed."
+                  : "Preparing a secure WhatsApp session. Status updates automatically."}
+        </div>
       )}
 
       <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--lv-border-default)" }}>
-        <button className="lv-wa-btn lv-wa-btn-danger-soft" data-lv-button="danger" type="button" onClick={onReset} disabled={resetting} style={{ border: "1px solid #fecaca", color: "var(--lv-danger)", background: "var(--lv-surface-panel)", borderRadius: 9, padding: "9px 12px", cursor: "pointer", fontWeight: 700 }}>
+        <button className="lv-wa-btn lv-wa-btn-danger-soft" data-lv-button="danger" type="button" onClick={onReset} disabled={resetting || !canReset} title={!canReset ? "Reset is unavailable until the linked-device state is confirmed." : "Reset the linked WhatsApp device"} style={{ border: "1px solid #fecaca", color: "var(--lv-danger)", background: "var(--lv-surface-panel)", borderRadius: 9, padding: "9px 12px", cursor: "pointer", fontWeight: 700 }}>
           {resetting ? "Resetting…" : "Reset Pairing"}
         </button>
       </div>
@@ -145,7 +170,9 @@ export default function WhatsAppPage() {
         setState(json.data);
         setError("");
       } catch (err: any) {
-        setError(String(err?.message || `Could not load ${label}.`));
+        const message = String(err?.message || `Could not load ${label}.`);
+        setState({ connection: "status_unavailable", paired: false, qrAvailable: false, lastError: message });
+        setError(message);
       }
     };
 
