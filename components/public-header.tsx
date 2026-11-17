@@ -331,7 +331,7 @@ export default function PublicHeader() {
               <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
               <div className="public-brand-copy"><strong>LAND <em>VIEW</em></strong><span>ENGINEERS &amp; ARCHITECTS</span></div>
             </Link>
-            <nav id="public-navigation" className={`public-nav ${open ? "open" : ""}`}>
+            <nav aria-label="Primary navigation" id="public-navigation" className={`public-nav ${open ? "open" : ""}`}>
               {nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>)}
             </nav>
             <div className="public-header-actions">
