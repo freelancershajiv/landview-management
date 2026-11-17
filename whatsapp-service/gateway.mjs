@@ -20,6 +20,9 @@ const FINANCE_EMPLOYEE_ID = String(process.env.WHATSAPP_FINANCE_EMPLOYEE_ID || A
 const BOT_TOKEN = String(process.env.BOT_API_TOKEN || '').trim()
 const DEFAULT_INVITE = String(process.env.WHATSAPP_GROUP_INVITE_CODE || 'IyK3AgVZUwB4g3XJ0qokmT').trim()
 const logger = P({ level: process.env.LOG_LEVEL || 'info' })
+// Keep verbose protocol logs out of production: some Baileys diagnostics contain Signal key material.
+const protocolLogger = logger.child({ component: 'baileys' })
+protocolLogger.level = 'warn'
 
 if (!BOT_TOKEN) throw new Error('BOT_API_TOKEN is required.')
 
@@ -177,6 +180,8 @@ function createEmployeeSession(employeeId) {
     lastError: '',
     reconnectTimer: null,
     connectingPromise: null,
+    reconnectAttempts: 0,
+    backoffUntil: 0,
   }
 
   function status() {
@@ -190,22 +195,25 @@ function createEmployeeSession(employeeId) {
       qrDataUrl: state.qrDataUrl || null,
       phoneNumber: phoneFromUserId(state.sock?.user?.id) || null,
       lastError: state.lastError || null,
+      retryAfterMs: Math.max(0, state.backoffUntil - Date.now()),
     }
   }
 
   function scheduleReconnect(delay = 5000) {
     if (state.reconnectTimer) clearTimeout(state.reconnectTimer)
+    state.backoffUntil = Date.now() + delay
     state.reconnectTimer = setTimeout(() => {
       state.reconnectTimer = null
+      state.backoffUntil = 0
       if (!state.sock) connect().catch((error) => {
-        state.lastError = String(error?.message || error)
-        logger.error({ employeeId, err: state.lastError }, 'Employee WhatsApp reconnect failed')
-        scheduleReconnect(10000)
+        logger.error({ employeeId, err: String(error?.message || error) }, 'Employee WhatsApp reconnect failed')
       })
     }, delay)
+    state.reconnectTimer.unref?.()
   }
 
   async function connect() {
+    if (state.backoffUntil > Date.now()) return
     if (state.sock && ['connecting', 'pairing', 'open'].includes(state.connection)) return
     if (state.connectingPromise) return state.connectingPromise
     state.connectingPromise = (async () => {
@@ -215,9 +223,9 @@ function createEmployeeSession(employeeId) {
       const wa = makeWASocket({
         auth: {
           creds: authState.creds,
-          keys: makeCacheableSignalKeyStore(authState.keys, logger),
+          keys: makeCacheableSignalKeyStore(authState.keys, protocolLogger),
         },
-        logger,
+        logger: protocolLogger,
         browser: Browsers.ubuntu(`LAND VIEW ${employeeId}`),
         markOnlineOnConnect: false,
         syncFullHistory: false,
@@ -244,6 +252,8 @@ function createEmployeeSession(employeeId) {
           if (state.reconnectTimer) clearTimeout(state.reconnectTimer)
           state.reconnectTimer = null
           state.connection = 'open'
+          state.reconnectAttempts = 0
+          state.backoffUntil = 0
           state.qrDataUrl = ''
           state.lastError = ''
           employeeGroupCache.delete(employeeId)
@@ -261,9 +271,16 @@ function createEmployeeSession(employeeId) {
           state.qrDataUrl = ''
           if (code === DisconnectReason.loggedOut) {
             state.connection = 'logged_out'
+            state.backoffUntil = 0
           } else {
-            state.connection = 'disconnected'
-            scheduleReconnect(code === DisconnectReason.restartRequired ? 1000 : code === 429 ? 60000 : 5000)
+            state.reconnectAttempts += 1
+            const conflict = code === 440 // WhatsApp connectionReplaced: another socket has the session.
+            const delay = conflict
+              ? Math.min(180000, 30000 * 2 ** Math.min(3, state.reconnectAttempts - 1))
+              : code === DisconnectReason.restartRequired ? 1000 : code === 429 ? 60000 : 5000
+            state.connection = conflict ? 'conflict_backoff' : 'disconnected'
+            if (conflict) logger.warn({ employeeId, delayMs: delay }, 'WhatsApp session conflict; backing off without resetting saved credentials')
+            scheduleReconnect(delay)
           }
         }
       })
@@ -271,6 +288,13 @@ function createEmployeeSession(employeeId) {
 
     try {
       await state.connectingPromise
+    } catch (error) {
+      if (!state.sock && state.connection !== 'logged_out') {
+        state.connection = 'error'
+        state.lastError = String(error?.message || error)
+        scheduleReconnect(10000)
+      }
+      throw error
     } finally {
       state.connectingPromise = null
     }
@@ -285,6 +309,8 @@ function createEmployeeSession(employeeId) {
     state.qrDataUrl = ''
     state.lastError = ''
     state.connection = 'resetting'
+    state.reconnectAttempts = 0
+    state.backoffUntil = 0
     employeeGroupCache.delete(employeeId)
     try { await previousSocket?.logout() } catch {}
     await store('authReset', { sessionId })
