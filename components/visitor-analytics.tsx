@@ -294,6 +294,23 @@ export default function VisitorAnalytics() {
 
   useEffect(() => () => stopLiveLocation(), [stopLiveLocation]);
 
+  // Consent is non-modal: Escape dismisses only while focus is inside the card.
+  useEffect(() => {
+    if (!showLocationPrompt || requestingLocation) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const panel = document.getElementById("lv-location-prompt");
+      if (!panel?.contains(document.activeElement)) return;
+      event.preventDefault();
+      window.localStorage.setItem(LOCATION_STATE_KEY, "dismissed");
+      window.localStorage.setItem(LOCATION_PROMPTED_AT_KEY, String(Date.now()));
+      setShowLocationPrompt(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showLocationPrompt, requestingLocation]);
+
+
   function dismissLocationPrompt() {
     window.localStorage.setItem(LOCATION_STATE_KEY, "dismissed");
     window.localStorage.setItem(LOCATION_PROMPTED_AT_KEY, String(Date.now()));
@@ -348,7 +365,7 @@ export default function VisitorAnalytics() {
     <>
       <style>{publicMobileFixes}</style>
       {showLocationPrompt ? (
-        <aside className={styles.prompt} role="dialog" aria-labelledby="lv-location-title" aria-describedby="lv-location-copy">
+        <aside id="lv-location-prompt" className={styles.prompt} role="region" aria-labelledby="lv-location-title" aria-describedby="lv-location-copy">
           <p className={styles.eyebrow}>LAND VIEW location</p>
           <h2 id="lv-location-title" className={styles.title}>Share your live location?</h2>
           <p id="lv-location-copy" className={styles.copy}>
@@ -356,7 +373,7 @@ export default function VisitorAnalytics() {
           </p>
           <div className={styles.actions}>
             <button className={styles.button} type="button" onClick={requestLocation} disabled={requestingLocation}>
-              {requestingLocation ? "Requesting…" : "Allow live location"}
+              <span aria-live="polite">{requestingLocation ? "Requesting…" : "Allow live location"}</span>
             </button>
             <button className={styles.secondaryButton} type="button" onClick={dismissLocationPrompt} disabled={requestingLocation}>Not now</button>
           </div>
