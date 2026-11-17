@@ -37,6 +37,26 @@ const privateRobotsHeaders = [
   { key: "X-Robots-Tag", value: "noindex, nofollow, noarchive" },
 ];
 
+const privateNoStoreHeaders = [
+  { key: "Cache-Control", value: "private, no-store, max-age=0" },
+];
+
+// Avoid caching authenticated page/API responses at shared proxies or in browsers.
+// Leave /api/public and Next.js immutable /_next/static assets cacheable.
+const sensitiveApiRoutePatterns = [
+  "/api/admin/:path*",
+  "/api/site-visits/:path*",
+  "/api/project-management/:path*",
+  "/api/session-refresh",
+  "/api/whatsapp/:path*",
+];
+
+const siteVisitCameraHeaders = [
+  // Mobile site visits require the browser camera, but all access still needs
+  // user permission and existing server-side role/session authorization.
+  { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self), payment=(), usb=()" },
+];
+
 const privateRoutePatterns = [
   "/account/:path*",
   "/admin/:path*",
@@ -78,7 +98,15 @@ const nextConfig: NextConfig = {
         has: [{ type: "host", value: "app.landview.com.bd" }],
         headers: privateRobotsHeaders,
       },
-      ...privateRoutePatterns.map((source) => ({ source, headers: privateRobotsHeaders })),
+      ...privateRoutePatterns.map((source) => ({
+        source,
+        headers: source.startsWith("/api/") ? privateRobotsHeaders : [...privateRobotsHeaders, ...privateNoStoreHeaders],
+      })),
+      ...sensitiveApiRoutePatterns.map((source) => ({ source, headers: privateNoStoreHeaders })),
+      // Specific rules follow the global camera=() policy so only fieldwork
+      // pages can request the camera.
+      { source: "/admin/site-visits/:path*", headers: siteVisitCameraHeaders },
+      { source: "/employee/:path*", headers: siteVisitCameraHeaders },
     ];
   },
 };
