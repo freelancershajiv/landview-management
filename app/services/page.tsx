@@ -105,7 +105,7 @@ export default function ServicesPage() {
       </section>
 
       <section className="sv2-cta-band">
-        <div className="sv2-wrap sv2-cta-grid"><div><span className="sv2-kicker">PLANNING A BUILDING?</span><h2>Send your project details directly to LAND VIEW.</h2><p>Include the project location, land or site information, intended use, proposed floors and the services you are considering. WhatsApp enquiries go to 01902 500 400.</p></div><div className="sv2-actions"><a className="sv2-btn sv2-btn-whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp 01902 500 400</a><Link className="sv2-btn sv2-btn-outline" href="/contact">Full Contact Details</Link></div></div>
+        <div className="sv2-wrap sv2-cta-grid"><div><span className="sv2-kicker">PLANNING A BUILDING?</span><h2>Send your project details directly to LAND VIEW.</h2><p>Include the project location, land or site information, intended use, proposed floors and the services you are considering. WhatsApp enquiries go to 01902 500 400.</p></div><div className="sv2-actions"><a className="sv2-btn sv2-btn-whatsapp" href={whatsappUrl} target="_blank" rel="noopener noreferrer">WhatsApp 01902 500 400</a><Link className="sv2-btn sv2-btn-outline" href="/contact">Full Contact Details</Link><Link className="sv2-btn sv2-btn-outline" href="/guides/building-design-feni">Building planning checklist</Link></div></div>
       </section>
     </main>
   );

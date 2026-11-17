@@ -15,6 +15,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: baseUrl, changeFrequency: "weekly", priority: 1 },
     { url: `${baseUrl}/bn`, changeFrequency: "monthly", priority: 0.9 },
     { url: `${baseUrl}/feni`, changeFrequency: "monthly", priority: 0.95 },
+    { url: `${baseUrl}/guides/building-design-feni`, changeFrequency: "monthly", priority: 0.75 },
     { url: `${baseUrl}/services`, changeFrequency: "monthly", priority: 0.9 },
     ...serviceEntries,
     { url: `${baseUrl}/contact`, changeFrequency: "monthly", priority: 0.8 },
