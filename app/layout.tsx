@@ -5,16 +5,11 @@ import "./theme-controls.css";
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import ContactMapEnhancer from "@/components/contact-map-enhancer";
 import BrandLoader from "@/components/brand-loader";
 import GlobalActionFeedback from "@/components/global-action-feedback";
 import SessionExpiryGuard from "@/components/session-expiry-guard";
-import VisitorAnalytics from "@/components/visitor-analytics";
-import ConversionAnalytics from "@/components/conversion-analytics";
-import WebsiteLeadNotifier from "@/components/website-lead-notifier";
-import PublicLeadActions from "@/components/public-lead-actions";
-import PublicHomeProjectEnhancer from "@/components/public-home-project-enhancer";
 import MobileInteractionGuard from "@/components/mobile-interaction-guard";
+import RouteExperienceLoader from "@/components/route-experience-loader";
 import "./globals.css";
 import "./brand-loader.css";
 import "./premium-theme.css";
@@ -117,17 +112,12 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <ThemeSwitch />
         <BrandLoader />
         {children}
-        <PublicLeadActions />
-        <PublicHomeProjectEnhancer />
-        <VisitorAnalytics />
-        <ConversionAnalytics />
-        <WebsiteLeadNotifier />
         <SessionExpiryGuard />
         <MobileInteractionGuard />
+        <RouteExperienceLoader />
         <Analytics />
         <SpeedInsights />
         <GlobalActionFeedback />
-        <ContactMapEnhancer />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: jsonLd({ "@context": "https://schema.org", "@graph": [businessSchema, { "@type": "WebSite", "@id": `${siteUrl}/#website`, url: siteUrl, name: "LAND VIEW Engineers & Architects", publisher: { "@id": `${siteUrl}/#organization` } }] }) }}
