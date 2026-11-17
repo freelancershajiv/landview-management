@@ -45,6 +45,7 @@
 .ph-hero-note span { display:flex; align-items:center; gap:7px; }
 .ph-hero-note span::before { content:""; width:5px; height:5px; border-radius:50%; background:var(--ph-accent); }
 .ph-hero-visual { position:relative; min-height:600px; overflow:hidden; background:linear-gradient(145deg,#152531,#0b141d); background-size:cover; background-position:center; }
+.ph-hero-image { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center; }
 .ph-hero-visual::after { content:""; position:absolute; inset:0; background:linear-gradient(90deg,#07101a 0%,rgba(7,16,26,.48) 14%,transparent 40%),linear-gradient(0deg,rgba(3,8,12,.75),transparent 48%); }
 .ph-building-placeholder { position:absolute; inset:13% 8% 5% 16%; border:1px solid rgba(255,255,255,.18); background:linear-gradient(135deg,#1a2a36,#0c151d); transform:perspective(800px) rotateY(-7deg); box-shadow:0 30px 60px rgba(0,0,0,.35); }
 .ph-building-placeholder::before { content:""; position:absolute; inset:8%; background:repeating-linear-gradient(90deg,rgba(255,255,255,.07) 0 2px,transparent 2px 14%),repeating-linear-gradient(0deg,rgba(255,255,255,.06) 0 2px,transparent 2px 21%); }
@@ -84,6 +85,7 @@
 /* Projects */
 .ph-project-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
 .ph-project-card { position:relative; min-height:390px; overflow:hidden; border:1px solid var(--ph-line); background:#101d28; background-size:cover; background-position:center; }
+.ph-project-cover { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center; }
 .ph-project-card::before { content:""; position:absolute; inset:0; background:linear-gradient(0deg,rgba(4,10,15,.96) 0%,rgba(4,10,15,.76) 30%,rgba(4,10,15,.1) 72%),linear-gradient(90deg,rgba(4,10,15,.34),transparent); }
 .ph-project-card.no-image::after { content:""; position:absolute; inset:12%; border:1px solid rgba(255,255,255,.08); background-image:linear-gradient(rgba(255,255,255,.035) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.035) 1px,transparent 1px); background-size:36px 36px; }
 .ph-project-content { position:absolute; z-index:2; inset:auto 25px 24px; }

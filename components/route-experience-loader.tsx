@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 // Keep public marketing / tracking bundles out of authenticated portal routes.
 // Each existing feature retains its own route/hostname checks and behavior.
 const PublicLeadActions = dynamic(() => import("@/components/public-lead-actions"));
-const PublicHomeProjectEnhancer = dynamic(() => import("@/components/public-home-project-enhancer"));
+const BrandLoader = dynamic(() => import("@/components/brand-loader"));
 const VisitorAnalytics = dynamic(() => import("@/components/visitor-analytics"));
 const ConversionAnalytics = dynamic(() => import("@/components/conversion-analytics"));
 const ContactMapEnhancer = dynamic(() => import("@/components/contact-map-enhancer"));
@@ -24,13 +24,14 @@ export default function RouteExperienceLoader() {
   const pathname = usePathname() || "/";
   const isPublic = isPublicMarketingPath(pathname);
   const isAdmin = pathname === "/admin" || pathname.startsWith("/admin/");
+  const showPrivateLoader = !isPublic;
 
   return (
     <>
+      {showPrivateLoader ? <BrandLoader /> : null}
       {isPublic ? (
         <>
           <PublicLeadActions />
-          <PublicHomeProjectEnhancer />
           <VisitorAnalytics />
           <ConversionAnalytics />
           <ContactMapEnhancer />

@@ -5,7 +5,6 @@ import "./theme-controls.css";
 import type { Metadata } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import BrandLoader from "@/components/brand-loader";
 import GlobalActionFeedback from "@/components/global-action-feedback";
 import SessionExpiryGuard from "@/components/session-expiry-guard";
 import MobileInteractionGuard from "@/components/mobile-interaction-guard";
@@ -110,7 +109,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <head><script dangerouslySetInnerHTML={{ __html: `(function(){try{document.documentElement.dataset.theme=localStorage.getItem("landview-theme")==="dark"?"dark":"light"}catch(e){document.documentElement.dataset.theme="light"}})();` }} /></head>
       <body>
         <ThemeSwitch />
-        <BrandLoader />
         {children}
         <SessionExpiryGuard />
         <MobileInteractionGuard />
