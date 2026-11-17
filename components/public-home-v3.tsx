@@ -299,7 +299,7 @@ export default function PublicHomeV3({ initialProjects, initialTeam, initialCont
               {team.length ? <div className="lvw-team-grid">{team.slice(0,4).map((member,index) => {
                 const role = member.position || member.designation || member.title || member.department || "LAND VIEW Team";
                 const photo = displayImage(member.photoUrl, "w600");
-                return <article className="lvw-team-member" key=(member.name || "member") + index}>
+                return <article className="lvw-team-member" key={(member.name || "member") + index}>
                   <div className="lvw-team-image">{photo ? <img src={photo} width={420} height={500} loading="lazy" decoding="async" alt={member.name || "LAND VIEW team member"} /> : <span aria-hidden="true">LV</span>}</div>
                   <div><h3>{member.name || "LAND VIEW Team"}</h3><p>{role}</p></div>
                 </article>;
