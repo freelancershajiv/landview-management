@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
+import { estimatedMinutes } from "@/lib/work-day-policy";
 import { workScope } from "@/lib/work-task-links";
 import { applyTodoReview } from "@/lib/todo-review-server";
 import { assertReviewCompletion, type ReviewAction } from "@/lib/todo-review-policy";
@@ -158,6 +159,19 @@ export async function POST(request: NextRequest) {
     if (action === "create") {
       const createdBy = String((user as Row).name || (user as Row).Name || userIdOf(user) || "LAND VIEW").trim();
       return ok(await createTodoItem((input.item || {}) as Row, createdBy));
+    }
+    if (action === "setestimate") {
+      const code = text(input.todoCode,80);
+      const rows = await selectRows("todo_items",{filters:{todo_code:code},limit:1});
+      const todo = rows[0];
+      if (!todo) throw new Error("Task not found.");
+      if (todo.status === "Done") throw new Error("Completed task estimates are locked.");
+      if (!todo.updated_at || text(input.expectedUpdatedAt,110) !== todo.updated_at) throw new Error("Task changed. Refresh before editing the estimate.");
+      const minutes = estimatedMinutes(input.estimatedMinutes);
+      const saved = await updateRows("todo_items",{id:todo.id,updated_at:todo.updated_at},{estimated_minutes:minutes,updated_at:new Date().toISOString()});
+      if (saved.length !== 1) throw new Error("Task changed. Refresh before editing the estimate.");
+      await recordAuditEvent({user,request,action:"todo_estimate_updated",entityType:"todo",entityId:code,before:{minutes:todo.estimated_minutes},after:{minutes},source:"todo-estimate"});
+      return ok(saved[0]);
     }
     if (["enable", "disable", "approve", "revise"].includes(action)) {
       const todoCode = text(input.todoCode, 80);

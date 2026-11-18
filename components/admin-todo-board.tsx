@@ -34,6 +34,7 @@ type TodoItem = {
   review_note?: string | null;
   review_actor?: string | null;
   review_changed_at?: string | null;
+  estimated_minutes?: number | null;
   completed_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -484,6 +485,16 @@ export default function AdminTodoBoard() {
     }
   }
 
+  async function setEstimate(item: TodoItem) {
+    if (busy || bulkBusy) return;
+    const raw = window.prompt("Estimated hours (increments of 0.25). Leave blank to clear.",item.estimated_minutes ? String(item.estimated_minutes/60) : "");
+    if (raw === null) return;
+    const minutes = raw.trim() ? Number(raw)*60 : null;
+    if (minutes !== null && (!Number.isInteger(minutes) || minutes < 15 || minutes > 60000 || minutes % 15 !== 0)) { setError("Enter a valid estimate in 0.25-hour increments."); return; }
+    setBusy(true);setError("");setNotice("");
+    try {await request<TodoItem>("POST",{action:"setEstimate",todoCode:item.todo_code,expectedUpdatedAt:item.updated_at,estimatedMinutes:minutes});setNotice("Estimate updated.");await load();}catch(err){setError(err instanceof Error?err.message:"Could not save estimate.");}finally{setBusy(false);}
+  }
+
   async function reviewTask(item: TodoItem, action: "enable" | "disable" | "approve" | "revise") {
     if (busy || bulkBusy) return;
     let note = "";
@@ -821,6 +832,7 @@ export default function AdminTodoBoard() {
                           <option>To Do</option><option>In Progress</option><option disabled={item.status !== "Done" && item.review_required && item.review_state !== "approved"}>Done</option>
                         </select>
                         <button type="button" onClick={() => startEdit(item)} disabled={busy || bulkBusy}>Edit</button>
+                        {item.status !== "Done" && <button type="button" disabled={busy || bulkBusy} onClick={() => void setEstimate(item)}>{item.estimated_minutes ? "Estimate: "+item.estimated_minutes/60+"h" : "Set estimate"}</button>}
                         <button className={styles.dangerButton} type="button" onClick={() => void remove(item)} disabled={busy || bulkBusy}>Delete</button>
                       </div>
                       {item.status !== "Done" && !item.is_delivery_step && <div className={styles.workflowActions}>

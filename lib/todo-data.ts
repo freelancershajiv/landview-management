@@ -38,6 +38,8 @@ export type TodoItem = {
   review_note?: string | null;
   review_actor?: string | null;
   review_changed_at?: string | null;
+  estimated_minutes?: number | null;
+  planned_date?: string | null;
   completed_at?: string | null;
   created_at?: string;
   updated_at?: string;

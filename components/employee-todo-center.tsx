@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { dhakaDay, taskDeadline, needsManagement, myDay, estimateSummary } from "@/lib/work-day-policy";
 
 type TodoStatus = "To Do" | "In Progress" | "Done";
-type View = "My To Dos" | "Today" | "Upcoming" | "Overdue" | "Completed";
+type View = "My Day" | "My Tasks" | "Upcoming" | "Overdue" | "Review" | "Revisions" | "Blocked" | "Completed";
 type TodoItem = {
   todo_code: string;
   title: string;
@@ -27,6 +28,10 @@ type TodoItem = {
   workflow_service?: string;
   workflow_status?: string;
   updated_at?: string;
+  estimated_minutes?: number | null;
+  planned_date?: string | null;
+  dependency_blocked?: boolean;
+  is_delivery_step?: boolean;
   review_required?: boolean;
   review_state?: "not_submitted" | "submitted" | "revision_requested" | "approved";
   review_note?: string | null;
@@ -35,159 +40,126 @@ type TodoItem = {
 };
 type EmployeeTodoData = { employee: { id: string; employeeCode: string; name: string; designation?: string }; items: TodoItem[] };
 
-const DHAKA_OFFSET_MS = 6 * 60 * 60 * 1000;
-const STATUSES: TodoStatus[] = ["To Do", "In Progress", "Done"];
-const VIEWS: View[] = ["My To Dos", "Today", "Upcoming", "Overdue", "Completed"];
 
-function clean(value: unknown) { return String(value ?? "").trim(); }
-function text(value: unknown, fallback = "—") { return clean(value) || fallback; }
-function dhakaToday() {
-  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
-  const p = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-  return `${p.year}-${p.month}-${p.day}`;
+const VIEWS: View[] = ["My Day","My Tasks","Upcoming","Overdue","Review","Revisions","Blocked","Completed"];
+function referenceText(t:TodoItem) {
+  return [t.project_code || t.proposal_code,t.project_name || t.proposal_title,t.workflow_service].filter(Boolean).join(" · ") || "Office task";
 }
-function deadlineMs(item: TodoItem) {
-  const d = clean(item.due_date).match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  const t = clean(item.due_time).match(/^([01]\d|2[0-3]):([0-5]\d)(?::([0-5]\d))?$/);
-  if (!d) return NaN;
-  if (!t) return Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), 23, 59, 59) - DHAKA_OFFSET_MS;
-  return Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Number(t[1]), Number(t[2]), Number(t[3] || 0)) - DHAKA_OFFSET_MS;
+function deadlineText(t:TodoItem) {
+  const ms=taskDeadline(t);
+  return Number.isFinite(ms)?new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Dhaka",day:"numeric",month:"short",...(t.due_time?{hour:"numeric",minute:"2-digit",hour12:true}:{})}).format(ms):"No deadline";
 }
-function isOverdue(item: TodoItem) { return item.status !== "Done" && Boolean(item.due_date) && deadlineMs(item) < Date.now(); }
-function deadlineText(item: TodoItem) {
-  if (!item.due_date) return "No deadline";
-  const ms = deadlineMs(item);
-  if (!Number.isFinite(ms)) return clean(item.due_date);
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Dhaka", day: "2-digit", month: "short", year: "numeric",
-    ...(item.due_time ? { hour: "2-digit", minute: "2-digit", hour12: true } : {}),
-  }).format(new Date(ms));
+function hours(minutes:number) {return Number((minutes/60).toFixed(2))+"h";}
+function statusLabel(t:TodoItem) {
+  if(t.status==="Done")return "Completed";
+  if(t.review_state==="submitted")return "Awaiting review";
+  if(t.review_state==="approved")return "Approved · awaiting closure";
+  if(t.dependency_blocked)return "Blocked by preceding work";
+  if(t.review_state==="revision_requested")return "Revision requested";
+  return t.status;
 }
-function reminderText(item: TodoItem) {
-  if (!item.reminder_enabled) return "";
-  const m = Number(item.reminder_minutes_before || 0);
-  if (m === 0) return "WhatsApp reminder at deadline";
-  if (m < 60) return `WhatsApp reminder ${m} min before`;
-  if (m % 1440 === 0) return `WhatsApp reminder ${m / 1440} day${m === 1440 ? "" : "s"} before`;
-  if (m % 60 === 0) return `WhatsApp reminder ${m / 60} hour${m === 60 ? "" : "s"} before`;
-  return `WhatsApp reminder ${m} min before`;
-}
-function referenceText(item: TodoItem) {
-  if (item.reference_type === "Project" || item.project_code) return [item.project_code, item.project_client, item.project_name].filter(Boolean).join(" · ");
-  if (item.reference_type === "Proposal" || item.proposal_code) return [item.proposal_code, item.proposal_client, item.proposal_title].filter(Boolean).join(" · ");
-  return "General task";
-}
-
-async function api(method: "GET" | "POST" = "GET", body?: Record<string, unknown>) {
-  const response = await fetch("/api/employee/todo", { method, credentials: "same-origin", cache: "no-store", headers: body ? { "Content-Type": "application/json" } : undefined, body: body ? JSON.stringify(body) : undefined });
-  const json = await response.json().catch(() => null);
-  if (!response.ok || !json?.success) throw new Error(String(json?.error || "Employee To Do request failed."));
-  return json.data;
+async function api(method:"GET"|"POST"="GET",body?:Record<string,unknown>,signal?:AbortSignal) {
+  const r=await fetch("/api/employee/todo",{method,credentials:"same-origin",cache:"no-store",headers:body?{"Content-Type":"application/json"}:undefined,body:body?JSON.stringify(body):undefined,signal});
+  const j=await r.json().catch(()=>null);
+  if(!r.ok||!j?.success)throw new Error(j?.error||"Could not load or update work.");
+  return j.data;
 }
 
 export default function EmployeeTodoCenter() {
-  const [data, setData] = useState<EmployeeTodoData | null>(null);
-  const [view, setView] = useState<View>("My To Dos");
-  const [query, setQuery] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-
-  async function load(silent = false) {
-    if (!silent) setLoading(true);
-    setError("");
-    try { setData(await api()); }
-    catch (e) { setError(e instanceof Error ? e.message : "Could not load My To Dos."); }
-    finally { if (!silent) setLoading(false); }
-  }
-  useEffect(() => { void load(); }, []);
-
-  const today = dhakaToday();
-  const items = data?.items || [];
-  const metrics = useMemo(() => {
-    const open = items.filter((item) => item.status !== "Done");
-    return {
-      open: open.length,
-      today: open.filter((item) => item.due_date === today).length,
-      upcoming: open.filter((item) => Boolean(item.due_date && item.due_date > today)).length,
-      overdue: open.filter(isOverdue).length,
-      completed: items.filter((item) => item.status === "Done").length,
-    };
-  }, [items, today]);
-
-  const visible = useMemo(() => {
-    let rows = items.filter((item) => {
-      if (view === "Completed") return item.status === "Done";
-      if (item.status === "Done") return false;
-      if (view === "Today") return item.due_date === today;
-      if (view === "Upcoming") return Boolean(item.due_date && item.due_date > today);
-      if (view === "Overdue") return isOverdue(item);
+  const [data,setData]=useState<EmployeeTodoData|null>(null);
+  const [view,setView]=useState<View>("My Day");
+  const [query,setQuery]=useState("");
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState("");
+  const [error,setError]=useState("");
+  const [notice,setNotice]=useState("");
+  const [now,setNow]=useState(()=>Date.now());
+  const [submitCode,setSubmitCode]=useState("");
+  const [note,setNote]=useState("");
+  const [planCode,setPlanCode]=useState("");
+  const [planDate,setPlanDate]=useState("");
+  const [refresh,setRefresh]=useState(0);
+  useEffect(()=>{
+    let active=true;const controller=new AbortController();
+    setLoading(true);setError("");
+    api("GET",undefined,controller.signal).then(result=>{if(active)setData(result);}).catch(err=>{if(active)setError(err instanceof Error?err.message:"Unable to load tasks.");}).finally(()=>{if(active)setLoading(false);});
+    return()=>{active=false;controller.abort();};
+  },[refresh]);
+  useEffect(()=>{
+    const tick=()=>setNow(Date.now());
+    const timer=window.setInterval(tick,60000);
+    window.addEventListener("focus",tick);
+    return()=>{window.clearInterval(timer);window.removeEventListener("focus",tick);};
+  },[]);
+  const today=dhakaDay(now);
+  const items=data?.items||[];
+  const open=items.filter(t=>t.status!=="Done");
+  const day=open.filter(t=>myDay(t,today));
+  const overdue=(t:TodoItem)=>t.status!=="Done"&&taskDeadline(t)<now;
+  const review=open.filter(needsManagement);
+  const revisions=open.filter(t=>t.review_state==="revision_requested");
+  const blocked=open.filter(t=>t.dependency_blocked);
+  const effort=estimateSummary(day);
+  const counts:Record<View,number>={"My Day":day.length,"My Tasks":open.length,"Upcoming":open.filter(t=>Boolean((t.due_date&&t.due_date>today)||(t.planned_date&&t.planned_date>today))).length,"Overdue":open.filter(overdue).length,"Review":review.length,"Revisions":revisions.length,"Blocked":blocked.length,"Completed":items.length-open.length};
+  const visible=useMemo(()=>{
+    const needle=query.toLowerCase().trim();
+    const priorities:Record<string,number>={Urgent:0,High:1,Normal:2,Low:3};
+    return items.filter(t=>{
+      if(view==="Completed")return t.status==="Done";
+      if(t.status==="Done")return false;
+      switch(view){
+        case "My Day":return myDay(t,today);
+        case "Upcoming":return Boolean((t.due_date&&t.due_date>today)||(t.planned_date&&t.planned_date>today));
+        case "Overdue":return taskDeadline(t)<now;
+        case "Review":return needsManagement(t);
+        case "Revisions":return t.review_state==="revision_requested";
+        case "Blocked":return Boolean(t.dependency_blocked);
+        default:return true;
+      }
+    }).filter(t=>!needle||[t.todo_code,t.title,t.description,referenceText(t),statusLabel(t)].some(v=>String(v||"").toLowerCase().includes(needle)))
+      .sort((a,b)=>Number(b.review_state==="revision_requested")-Number(a.review_state==="revision_requested")||Number(taskDeadline(b)<now)-Number(taskDeadline(a)<now)||(priorities[a.priority]??2)-(priorities[b.priority]??2)||taskDeadline(a)-taskDeadline(b)||a.title.localeCompare(b.title));
+  },[items,query,view,today,now]);
+  async function act(t:TodoItem,action:string,fields:Record<string,unknown>,message:string){
+    if(busy)return false;
+    setBusy(t.todo_code);setError("");setNotice("");
+    try{
+      await api("POST",{action,todoCode:t.todo_code,expectedUpdatedAt:t.updated_at,...fields});
+      setNotice(message);
+      try{setData(await api());}catch(err){setError("Task saved, but refresh failed. Use Refresh to reload your assignments.");}
       return true;
-    });
-    const needle = query.trim().toLowerCase();
-    if (needle) rows = rows.filter((item) => [item.title,item.description,item.project_code,item.project_name,item.project_client,item.proposal_code,item.proposal_title,item.proposal_client,item.workflow_service,item.workflow_status,item.priority,item.status].some((value) => clean(value).toLowerCase().includes(needle)));
-    return rows.sort((a, b) => {
-      const ao = isOverdue(a), bo = isOverdue(b);
-      if (ao !== bo) return Number(bo) - Number(ao);
-      const am = deadlineMs(a), bm = deadlineMs(b);
-      if (Number.isFinite(am) && Number.isFinite(bm)) return am - bm;
-      if (Number.isFinite(am)) return -1;
-      if (Number.isFinite(bm)) return 1;
-      return a.title.localeCompare(b.title);
-    });
-  }, [items, query, today, view]);
-
-  async function updateStatus(item: TodoItem, status: TodoStatus) {
-    if (busy || item.status === status) return;
-    setBusy(item.todo_code); setError(""); setNotice("");
-    try {
-      await api("POST", { action: "updateStatus", todoCode: item.todo_code, status });
-      setNotice(status === "Done" && item.workflow_id ? `${item.title} completed. Linked Workflow was left unchanged.` : `${item.title} updated to ${status}.`);
-      await load(true);
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not update To Do status."); }
-    finally { setBusy(""); }
+    }catch(err){setError(err instanceof Error?err.message:"Could not update task.");return false;}
+    finally{setBusy("");}
+  }
+  function updateStatus(t:TodoItem,status:TodoStatus){void act(t,"updateStatus",{status},status==="Done"?"Task completed. Official workflow remains unchanged.":"Work started.");}
+  async function submit(t:TodoItem){
+    if(await act(t,"submitReview",{note},"Submitted for management review.")){setSubmitCode("");setNote("");}
+  }
+  async function schedule(t:TodoItem,date:string|null){
+    if(await act(t,"planDay",{plannedDate:date},date?"Personal work date saved. Official deadline unchanged.":"Personal work date cleared.")){setPlanCode("");setPlanDate("");}
   }
 
-  async function submitReview(item: TodoItem) {
-    if (busy) return;
-    const note = window.prompt("Optional submission note (e.g. drawing reference):", "");
-    if (note === null) return;
-    setBusy(item.todo_code); setError(""); setNotice("");
-    try {
-      await api("POST", { action: "submitReview", todoCode: item.todo_code, expectedUpdatedAt: item.updated_at, note });
-      setNotice("Submitted for management review.");
-      await load(true);
-    } catch (e) { setError(e instanceof Error ? e.message : "Could not submit work."); }
-    finally { setBusy(""); }
-  }
-
-  if (loading) return <section className="etodo-shell"><div className="etodo-empty">Loading My To Dos…</div></section>;
-  if (!data) return <section className="etodo-shell"><div className="etodo-error">{error || "My To Dos are unavailable."}</div></section>;
-
-  return <section className="etodo-shell">
-    <style>{`
-      .etodo-shell{margin:0 0 16px;border:1px solid var(--lv-border-default);border-radius:15px;background:var(--lv-surface-panel);overflow:hidden;box-shadow:var(--lv-shadow-sm);color:var(--lv-text-primary)}.etodo-shell *{box-sizing:border-box}.etodo-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:17px 18px;border-bottom:1px solid var(--lv-border-default);background:var(--lv-surface-muted)}.etodo-head h2{margin:0;font-size:18px;color:var(--lv-text-strong)}.etodo-head p{margin:5px 0 0;font-size:12px;color:var(--lv-text-secondary)}.etodo-person{padding:7px 10px;border-radius:999px;background:var(--lv-surface-input);color:var(--lv-brand-text);font-size:10px;font-weight:900;white-space:nowrap}.etodo-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:9px;padding:14px 16px 10px}.etodo-metric{border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-muted);padding:11px 12px;text-align:left;cursor:pointer;color:var(--lv-text-primary)}.etodo-metric span{display:block;color:var(--lv-text-muted);font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:.06em}.etodo-metric strong{display:block;margin-top:5px;color:var(--lv-text-strong);font-size:21px}.etodo-metric.bad strong{color:var(--lv-danger)}.etodo-metric.warn strong{color:var(--lv-warning)}.etodo-tools{display:flex;align-items:center;gap:8px;padding:0 16px 13px}.etodo-tabs{display:flex;gap:6px;overflow:auto;scrollbar-width:none}.etodo-tabs::-webkit-scrollbar{display:none}.etodo-tabs button{min-height:34px;padding:0 11px;border:1px solid var(--lv-border-default);border-radius:8px;background:var(--lv-surface-input);color:var(--lv-text-secondary);font-size:10px;font-weight:900;cursor:pointer;white-space:nowrap}.etodo-tabs button.active{background:var(--lv-brand-primary);border-color:var(--lv-brand-border);color:var(--lv-text-inverse)}.etodo-search{margin-left:auto;min-width:220px;max-width:340px;flex:1}.etodo-search input{width:100%;min-height:36px;border:1px solid var(--lv-border-default);border-radius:8px;background:var(--lv-surface-input);color:var(--lv-text-primary);padding:0 11px;outline:0}.etodo-msg{margin:0 16px 12px;padding:9px 10px;border-radius:8px;font-size:10px}.etodo-msg.good{background:var(--lv-success-soft);color:var(--lv-success)}.etodo-msg.bad{background:var(--lv-danger-soft);color:var(--lv-danger)}.etodo-list{display:grid;border-top:1px solid var(--lv-border-default)}.etodo-row{display:grid;grid-template-columns:minmax(0,1.5fr) 190px 190px 145px;gap:12px;align-items:center;padding:14px 16px;border-bottom:1px solid var(--lv-border-subtle)}.etodo-row.overdue{background:color-mix(in srgb,var(--lv-danger-soft) 35%,var(--lv-surface-panel))}.etodo-title strong{display:block;color:var(--lv-text-strong);font-size:13px;line-height:1.4}.etodo-title p{margin:5px 0 0!important;color:var(--lv-text-secondary);font-size:11px!important;line-height:1.45!important}.etodo-ref{display:block;margin-top:6px;color:var(--lv-text-muted);font-size:10px;line-height:1.45}.etodo-workflow,.etodo-reminder{display:inline-flex;margin:7px 6px 0 0;padding:4px 7px;border-radius:999px;background:var(--lv-brand-soft);color:var(--lv-brand-text);font-size:9px;font-weight:900}.etodo-reminder{background:var(--lv-success-soft);color:var(--lv-success)}.etodo-meta{font-size:10px;color:var(--lv-text-secondary);line-height:1.5}.etodo-meta b{display:block;margin-bottom:3px;color:var(--lv-text-primary);font-size:9px;text-transform:uppercase;letter-spacing:.05em}.etodo-badge{display:inline-flex;margin-top:5px;padding:4px 7px;border-radius:999px;background:var(--lv-surface-muted);font-size:9px;font-weight:900;color:var(--lv-text-secondary)}.etodo-badge.bad{background:var(--lv-danger-soft);color:var(--lv-danger)}.etodo-badge.warn{background:var(--lv-warning-soft);color:var(--lv-warning)}.etodo-badge.good{background:var(--lv-success-soft);color:var(--lv-success)}.etodo-row select{width:100%;min-height:38px;border:1px solid var(--lv-border-default);border-radius:8px;background:var(--lv-surface-input);color:var(--lv-text-primary);padding:0 9px;outline:0}.etodo-row select:disabled{opacity:.55}.etodo-review{width:100%;margin-top:8px;min-height:38px;border:1px solid var(--lv-brand-border);background:var(--lv-brand-primary);color:var(--lv-text-inverse);border-radius:8px;padding:7px;font-weight:700;cursor:pointer}.etodo-review:disabled{opacity:.6;cursor:default}.etodo-empty{padding:28px;text-align:center;color:var(--lv-text-muted);font-size:11px}.etodo-error{padding:14px;color:var(--lv-danger);font-size:11px}@media(max-width:1050px){.etodo-metrics{grid-template-columns:repeat(3,1fr)}.etodo-row{grid-template-columns:1fr 1fr}.etodo-title{grid-column:1/-1}.etodo-tools{align-items:stretch;flex-direction:column}.etodo-search{margin-left:0;min-width:0;max-width:none;width:100%}}@media(max-width:600px){.etodo-head{flex-direction:column}.etodo-person{white-space:normal}.etodo-metrics{grid-template-columns:repeat(2,1fr)}.etodo-row{grid-template-columns:1fr}.etodo-title{grid-column:auto}.etodo-tabs{width:100%}}
-    `}</style>
-    <div className="etodo-head"><div><h2>My To Dos</h2><p>Deadlines use Bangladesh time. WhatsApp reminders appear only when management enables them.</p></div><span className="etodo-person">{text(data.employee.employeeCode)} · {text(data.employee.name)}</span></div>
-    <div className="etodo-metrics">
-      <button className="etodo-metric" onClick={() => setView("My To Dos")}><span>Open</span><strong>{metrics.open}</strong></button>
-      <button className="etodo-metric warn" onClick={() => setView("Today")}><span>Today</span><strong>{metrics.today}</strong></button>
-      <button className="etodo-metric" onClick={() => setView("Upcoming")}><span>Upcoming</span><strong>{metrics.upcoming}</strong></button>
-      <button className="etodo-metric bad" onClick={() => setView("Overdue")}><span>Overdue</span><strong>{metrics.overdue}</strong></button>
-      <button className="etodo-metric" onClick={() => setView("Completed")}><span>Completed</span><strong>{metrics.completed}</strong></button>
-    </div>
-    <div className="etodo-tools"><div className="etodo-tabs">{VIEWS.map((name) => <button key={name} className={view === name ? "active" : ""} onClick={() => setView(name)}>{name}</button>)}</div><label className="etodo-search"><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search task, project, proposal, workflow…" /></label></div>
-    {error ? <div className="etodo-msg bad">{error}</div> : null}{notice ? <div className="etodo-msg good">{notice}</div> : null}
-    <div className="etodo-list">{visible.map((item) => {
-      const overdue = isOverdue(item); const dueToday = item.status !== "Done" && item.due_date === today;
-      return <article className={`etodo-row${overdue ? " overdue" : ""}`} key={item.todo_code}>
-        <div className="etodo-title"><strong>{item.title}</strong>{item.description ? <p>{item.description}</p> : null}<span className="etodo-ref">{referenceText(item)}</span>{item.workflow_service ? <span className="etodo-workflow">{item.workflow_service} · {item.workflow_status || "Workflow"}</span> : null}{item.reminder_enabled ? <span className="etodo-reminder">{reminderText(item)}</span> : null}{item.review_required && <p><strong>{item.review_state === "submitted" ? "Awaiting review" : item.review_state === "revision_requested" ? "Revision requested" : item.review_state === "approved" ? "Approved — awaiting completion" : "Management review required"}</strong>{item.review_note && <span>{item.review_note}</span>}</p>}</div>
-        <div className="etodo-meta"><b>Deadline</b>{deadlineText(item)}<br/><span className={`etodo-badge ${overdue ? "bad" : dueToday ? "warn" : item.status === "Done" ? "good" : ""}`}>{overdue ? "Overdue" : dueToday ? "Due today" : item.status === "Done" ? "Completed" : item.priority}</span></div>
-        <div className="etodo-meta"><b>Notification</b>{item.overdue_notified_at ? "Overdue alert queued" : item.reminder_sent_at ? "Reminder queued" : item.reminder_enabled ? "Reminder scheduled" : "No reminder"}</div>
-        <div><select aria-label={"Status for " + item.title} disabled={Boolean(busy) || (item.review_required && (item.status === "Done" || item.review_state === "submitted" || item.review_state === "approved"))} value={item.status} onChange={(e) => void updateStatus(item, e.target.value as TodoStatus)}>{STATUSES.map((status) => <option key={status} disabled={status === "Done" && item.review_required && item.status !== "Done"}>{status}</option>)}</select>
-          {item.review_required && item.status === "In Progress" && (!item.review_state || item.review_state === "not_submitted" || item.review_state === "revision_requested") && <button className="etodo-review" type="button" disabled={Boolean(busy)} onClick={() => void submitReview(item)}>{item.review_state === "revision_requested" ? "Resubmit" : "Submit for review"}</button>}</div>
-      </article>;
-    })}{!visible.length ? <div className="etodo-empty">No To Dos in this view.</div> : null}</div>
+  return <section className="ewm" aria-label="Employee work management">
+    <style>{CSS}</style>
+    <div className="ewm-head"><div><span className="ewm-eyebrow">LAND VIEW · PERSONAL WORKSPACE</span><h2>My Work</h2><p>{new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Dhaka",weekday:"long",day:"numeric",month:"long",year:"numeric"}).format(now)} · Bangladesh time</p>{data&&<p>{data.employee.employeeCode} · {data.employee.name}</p>}</div><button type="button" disabled={loading||Boolean(busy)} onClick={()=>setRefresh(n=>n+1)}>Refresh</button></div>
+    {error&&<p className="ewm-alert" role="alert">{error}</p>}{notice&&<p className="ewm-notice" role="status">{notice}</p>}
+    {!data&&loading?<p className="ewm-empty">Loading your assignments…</p>:!data?<p className="ewm-empty">Work unavailable. Refresh to retry.</p>:<>
+      <div className="ewm-summary"><div><span>My Day · planned effort</span><strong>{hours(effort.minutes)}</strong><p>{effort.estimated} estimated · {effort.unestimated} without estimates. Not actual hours worked.</p></div><div><span>Focus priorities</span><strong>{day.length} tasks</strong><p>Urgent, overdue, in progress, revisions and personally planned work.</p></div></div>
+      <nav className="ewm-tabs" aria-label="Work views">{VIEWS.map(v=><button key={v} type="button" aria-pressed={view===v} onClick={()=>setView(v)}>{v}<span>{counts[v]}</span></button>)}</nav>
+      <div className="ewm-search"><h3>{view}</h3><input aria-label="Search tasks" value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search assignments…"/></div>
+      <div className="ewm-list">{visible.map(t=>{
+        const done=t.status==="Done", waiting=needsManagement(t), canWork=!done&&!waiting&&!t.dependency_blocked, canSubmit=canWork&&t.review_required&&t.status==="In Progress", due=overdue(t);
+        return <article key={t.todo_code} className="ewm-task"><div className="ewm-task-main"><div className="ewm-tags"><span className={due?"ewm-danger":""}>{due?"Overdue":t.priority}</span><span>{statusLabel(t)}</span></div><h4>{t.title}</h4><p>{referenceText(t)} · {t.todo_code}</p>{t.description&&<details><summary>Instructions</summary><p className="ewm-body">{t.description}</p></details>}{t.review_note&&<p className="ewm-note"><strong>{t.review_state==="revision_requested"?"Revision instructions":"Review note"}:</strong> {t.review_note}</p>}{t.dependency_blocked&&<p className="ewm-note">A predecessor task must be completed before this assignment can be finished.</p>}{t.is_delivery_step&&<p className="ewm-note">Final delivery requires verified payment and existing delivery checks.</p>}</div>
+          <div className="ewm-meta"><span>Official deadline <b>{deadlineText(t)}</b></span><span>Estimate <b>{t.estimated_minutes?hours(t.estimated_minutes):"Not estimated"}</b></span><span>My work date <b>{t.planned_date||"Not planned"}</b></span>{t.reminder_enabled&&<span>WhatsApp reminder enabled by management</span>}</div>
+          <div className="ewm-actions">{canWork&&t.status==="To Do"&&<button className="primary" disabled={Boolean(busy)} onClick={()=>updateStatus(t,"In Progress")}>Start work</button>}{canSubmit&&<button className="primary" disabled={Boolean(busy)} onClick={()=>{setSubmitCode(t.todo_code);setNote("");setPlanCode("");}}>{t.review_state==="revision_requested"?"Resubmit":"Submit for review"}</button>}{canWork&&!t.review_required&&t.status==="In Progress"&&!t.is_delivery_step&&<button className="primary" disabled={Boolean(busy)} onClick={()=>{if(window.confirm("Mark this assignment completed?"))updateStatus(t,"Done");}}>Complete</button>}{canWork&&t.planned_date!==today&&<button disabled={Boolean(busy)} onClick={()=>void schedule(t,today)}>Add to My Day</button>}{canWork&&<button disabled={Boolean(busy)} onClick={()=>{setSubmitCode("");setPlanCode(t.todo_code);setPlanDate(t.planned_date&&t.planned_date>=today?t.planned_date:today);}}>Plan date</button>}{canWork&&t.planned_date&&<button disabled={Boolean(busy)} onClick={()=>void schedule(t,null)}>Clear plan</button>}{waiting&&!done&&<span>Waiting for management</span>}{canWork&&t.is_delivery_step&&<span>Contact management for delivery</span>}</div>
+          {submitCode===t.todo_code&&canSubmit&&<div className="ewm-editor"><label>Submission note<textarea maxLength={2000} rows={3} value={note} onChange={e=>setNote(e.target.value)} placeholder="Drawing revision, file location or work completed (optional)"/></label><div className="ewm-actions"><button className="primary" disabled={Boolean(busy)} onClick={()=>void submit(t)}>Send for review</button><button disabled={Boolean(busy)} onClick={()=>setSubmitCode("")}>Cancel</button></div></div>}
+          {planCode===t.todo_code&&canWork&&<div className="ewm-editor"><label>Personal work date<input type="date" min={today} value={planDate} onChange={e=>setPlanDate(e.target.value)}/></label><div className="ewm-actions"><button className="primary" disabled={Boolean(busy)||!planDate||planDate<today} onClick={()=>void schedule(t,planDate)}>Save work date</button><button disabled={Boolean(busy)} onClick={()=>setPlanCode("")}>Cancel</button></div></div>}
+        </article>;
+      })}{!visible.length&&<p className="ewm-empty">{query?"No matching assignments.":"No tasks in this view. Choose My Tasks to see all open assignments."}</p>}</div>
+    </>}
   </section>;
 }
+
+const CSS = [
+".ewm{margin:0 0 16px;padding:18px;display:grid;gap:14px;min-width:0;background:var(--lv-surface-panel);color:var(--lv-text-primary);border:1px solid var(--lv-border-default);border-radius:14px}.ewm *{box-sizing:border-box}.ewm-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.ewm-head h2{font-size:26px;margin:4px 0}.ewm-head p,.ewm-summary p,.ewm-task p{font-size:13px;line-height:1.5;color:var(--lv-text-secondary);margin:4px 0}.ewm-eyebrow{font-size:10px;letter-spacing:.1em;color:var(--lv-brand-text);font-weight:800}.ewm button{border:1px solid var(--lv-border-default);background:var(--lv-surface-input);color:var(--lv-text-primary);border-radius:9px;padding:9px 12px;min-height:42px;font-size:13px;font-weight:650;cursor:pointer}.ewm button.primary,.ewm button[aria-pressed=true]{background:var(--lv-brand-primary);color:var(--lv-text-inverse);border-color:var(--lv-brand-border)}.ewm button:disabled{opacity:.55;cursor:not-allowed}.ewm-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px}.ewm-summary>div{padding:13px;border:1px solid var(--lv-border-default);border-radius:12px;background:var(--lv-surface-muted)}.ewm-summary span{font-size:12px;color:var(--lv-text-secondary)}.ewm-summary strong{display:block;font-size:25px;margin:5px 0}.ewm-tabs{display:flex;flex-wrap:wrap;gap:7px}.ewm-tabs button{display:flex;gap:8px;align-items:center}.ewm-tabs span{font-size:11px;font-weight:700}.ewm-search{display:flex;gap:10px;justify-content:space-between;align-items:center}.ewm-search h3{font-size:17px;margin:0}.ewm input,.ewm textarea{min-height:42px;padding:10px;border:1px solid var(--lv-border-default);border-radius:8px;background:var(--lv-surface-input);color:var(--lv-text-primary);font-size:14px;max-width:100%}.ewm-search input{width:260px}.ewm-list{display:grid;gap:10px}.ewm-task{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(160px,.7fr);gap:12px;padding:15px;border:1px solid var(--lv-border-default);border-radius:12px}.ewm-task-main{min-width:0;overflow-wrap:anywhere}.ewm-task h4{margin:8px 0 3px;font-size:16px;line-height:1.4}.ewm-meta{display:grid;gap:7px;align-content:start;font-size:12px;color:var(--lv-text-secondary)}.ewm-meta b{display:block;color:var(--lv-text-primary);margin-top:3px;font-size:13px}.ewm-tags{display:flex;gap:6px;flex-wrap:wrap}.ewm-tags span{padding:4px 7px;background:var(--lv-surface-muted);border-radius:6px;font-size:11px;font-weight:650}.ewm-danger,.ewm-alert{color:var(--lv-danger)}.ewm-actions{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:7px;font-size:13px;color:var(--lv-text-secondary)}.ewm-actions:empty{display:none}.ewm-editor{grid-column:1/-1;padding:12px;background:var(--lv-surface-muted);border-radius:9px}.ewm-editor label{display:grid;gap:6px;margin-bottom:9px;font-size:13px;font-weight:650}.ewm-note,.ewm-body{white-space:pre-wrap}.ewm-task details summary{font-size:13px;cursor:pointer;color:var(--lv-brand-text);padding:7px 0}.ewm-alert,.ewm-notice,.ewm-empty{padding:12px;border-radius:8px;background:var(--lv-surface-muted);margin:0;font-size:13px;line-height:1.5}.ewm-notice{color:var(--lv-success)}",
+"@media(max-width:650px){.ewm{padding:12px;gap:12px}.ewm-head h2{font-size:22px}.ewm-task{grid-template-columns:1fr;padding:12px}.ewm-meta{grid-template-columns:1fr 1fr}.ewm-tabs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.ewm-tabs button{justify-content:space-between}.ewm-search{align-items:stretch;flex-direction:column}.ewm-search input{width:100%}.ewm-actions button{flex:1 1 125px}.ewm-summary strong{font-size:21px}.ewm-summary>div{padding:10px}}"
+].join("");

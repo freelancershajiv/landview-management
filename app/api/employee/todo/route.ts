@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
+import { dhakaDay, validDay } from "@/lib/work-day-policy";
 import { applyTodoReview } from "@/lib/todo-review-server";
-import { employeeCodeOf, selectRows } from "@/lib/supabase-data";
-import { assertTodoDependencies, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
+import { employeeCodeOf, selectRows, updateRows } from "@/lib/supabase-data";
+import { assertTodoDependencies, todoDependencyBlocker, todoDependencyIndex, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,6 +18,7 @@ type EmployeeTodoItem = TodoItem & {
   proposal_client?: string;
   workflow_service?: string;
   workflow_status?: string;
+  dependency_blocked?: boolean;
 };
 
 function text(value: unknown, max = 1000) {
@@ -83,6 +85,7 @@ async function loadEmployeeTodos(employee: Row) {
   const proposalByCode = new Map(proposals.map((row) => [text(row.proposal_code, 120).toUpperCase(), row]));
   const workflowById = new Map(workflows.map((row) => [text(row.id, 80), row]));
 
+  const index = todoDependencyIndex(todos);
   const items: EmployeeTodoItem[] = todos
     .filter((todo) => text(todo.assigned_employee_id, 80) === text(employee.id, 80))
     .map((todo) => {
@@ -91,6 +94,7 @@ async function loadEmployeeTodos(employee: Row) {
       const workflow = todo.workflow_id ? workflowById.get(text(todo.workflow_id, 80)) : null;
       return {
         ...todo,
+        dependency_blocked: todo.status !== "Done" && Boolean(todoDependencyBlocker(todo, todos, index)),
         project_name: text(project?.project_name || project?.public_project_title, 220),
         project_client: text(project?.client_name_snapshot, 180),
         proposal_title: text(proposal?.project_title, 220),
@@ -131,7 +135,7 @@ export async function POST(request: NextRequest) {
     const employee = session.employee;
     input = await request.json().catch(() => ({})) as Row;
     const action = text(input.action, 80).toLowerCase();
-    if (action !== "updatestatus" && action !== "submitreview") throw new Error("Employees can only update To Do status or submit assigned work.");
+    if (action !== "updatestatus" && action !== "submitreview" && action !== "planday") throw new Error("Employees can only update To Do status or submit assigned work.");
 
     const todoCode = text(input.todoCode, 80);
     if (!todoCode) throw new Error("To Do code is required.");
@@ -143,6 +147,16 @@ export async function POST(request: NextRequest) {
     if (!todo) throw new Error("To Do item was not found.");
     if (text(todo.assigned_employee_id, 80) !== text(employee.id, 80)) throw new Error("You can only update To Dos assigned to you.");
 
+    if (action === "planday") {
+      const day = input.plannedDate;
+      if (day !== null && (!validDay(day) || day < dhakaDay())) throw new Error("Choose today or a future planning date.");
+      if (todo.status === "Done") throw new Error("Completed work cannot be scheduled.");
+      if (!todo.id || !todo.updated_at || text(input.expectedUpdatedAt,110) !== todo.updated_at) throw new Error("Task changed. Refresh before planning.");
+      const rows = await updateRows("todo_items", {id:todo.id, assigned_employee_id:employee.id, updated_at:todo.updated_at}, {planned_date:day,updated_at:new Date().toISOString()});
+      if (rows.length !== 1) throw new Error("Task changed. Refresh before planning.");
+      await recordAuditEvent({user,request,action:"todo_plan_day",entityType:"todo",entityId:todo.todo_code,before:{plannedDate:todo.planned_date},after:{plannedDate:day},source:"employee-todo"});
+      return json({success:true,data:rows[0]});
+    }
     if (action === "submitreview") {
       const updated = await applyTodoReview(todo, todos, "submit", "employee", text(input.expectedUpdatedAt, 110), input.note, text(employee.name || employee.employee_code, 160));
       await recordAuditEvent({ user, request, action: "todo_review_submit", entityType: "todo", entityId: todo.todo_code, before: { reviewState: todo.review_state }, after: { reviewState: updated.review_state }, details: { note: updated.review_note }, source: "todo-review" });
