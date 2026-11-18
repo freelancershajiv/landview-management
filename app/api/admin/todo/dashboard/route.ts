@@ -32,7 +32,7 @@ export async function GET(request: NextRequest) {
     if (!["admin","manager"].includes(roleOf(user))) return json({ success: false, error: "Access denied." }, 403);
 
     const [tasks, employees, workflows, subtasks, taskCount, subtaskCount] = await Promise.all([
-      readAll("todo_items", "id,todo_code,title,status,priority,due_date,due_time,created_at,updated_at,completed_at,assigned_employee_id,assigned_to,reference_type,project_code,proposal_code,workflow_id,dependency_todo_code,is_delivery_step,review_required,review_state", "created_at:desc"),
+      readAll("todo_items", "id,todo_code,title,status,priority,due_date,due_time,created_at,updated_at,completed_at,assigned_employee_id,assigned_to,reference_type,project_code,proposal_code,workflow_id,dependency_todo_code,is_delivery_step,review_required,review_state,review_changed_at,estimated_minutes,automation_source", "created_at:desc"),
       readAll("employees", "id,employee_code,name,designation,status", "employee_code:asc", 5000),
       readAll("project_service_workflows", "id,service_name,project_code,status", "created_at:desc", 5000),
       readAll("todo_subtasks", "id,todo_id,is_completed", "created_at:desc"),
@@ -81,11 +81,13 @@ export async function GET(request: NextRequest) {
         workflowStatus: workflow ? text(workflow.status, 100) : "",
         workflowFinal: final,
         workflowMissing: hasWorkflow && !workflow,
-        workflowMismatch: hasWorkflow && Boolean(workflow) && (isDone !== final),
+        workflowMismatch: hasWorkflow && Boolean(workflow) && text(todo.automation_source) !== "Bill Issued" && (isDone !== final),
         dependencyBlocker: isDone ? "" : todoDependencyBlocker({ todo_code: text(todo.todo_code), dependency_todo_code: text(todo.dependency_todo_code) }, dependencyItems, dependenciesByCode),
         deliveryStep: todo.is_delivery_step === true,
         reviewRequired: todo.review_required === true,
         reviewState: text(todo.review_state, 40) || "not_submitted",
+        reviewChangedAt: text(todo.review_changed_at, 80),
+        estimatedMinutes: typeof todo.estimated_minutes === "number" ? todo.estimated_minutes : null,
         checklist: checklist.get(text(todo.id)) || { total: 0, completed: 0 },
       };
     });

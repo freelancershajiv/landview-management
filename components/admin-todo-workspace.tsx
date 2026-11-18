@@ -5,7 +5,7 @@ import { workScopeFromHash } from "@/lib/work-task-links";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 type Tab = "overview" | "board" | "calendar" | "workflow" | "collaboration" | "planning" | "management" | "reports" | "analytics";
-type View = "checklist" | "files" | "templates" | "rules" | "reminders" | "workload" | "alerts";
+type View = "checklist" | "files" | "templates" | "rules" | "reminders" | "workload" | "alerts" | "intelligence";
 type Navigation = { tab: Tab; view: View | "" };
 type TabDetail = { id: Tab; label: string; subtitle: string; description: string };
 type ViewDetail = { id: View; label: string; description: string };
@@ -39,6 +39,7 @@ const SUBTABS: Record<Tab, ViewDetail[]> = {
   reports: [],
   analytics: [],
   management: [
+    { id: "intelligence", label: "Management Intelligence", description: "Review bottlenecks, overdue work and estimated capacity risk." },
     { id: "workload", label: "Workload & Escalations", description: "Compare workload scores and manage overdue task escalations." },
     { id: "alerts", label: "Alerts & Limits", description: "Set workload limits and review optional management notifications." },
   ],
@@ -60,6 +61,7 @@ const Collaboration = dynamic(() => import("./todo-collaboration-center"), { loa
 const Templates = dynamic(() => import("./admin-todo-template-center"), { loading: LoadingPanel });
 const Rules = dynamic(() => import("./admin-todo-automation-center"), { loading: LoadingPanel });
 const Reminders = dynamic(() => import("./admin-todo-reminder-center"), { loading: LoadingPanel });
+const Intelligence = dynamic(() => import("./admin-work-intelligence"), { loading: LoadingPanel });
 const Workload = dynamic(() => import("./admin-todo-workload-center"), { loading: LoadingPanel });
 const Alerts = dynamic(() => import("./admin-todo-management-alerts"), { loading: LoadingPanel });
 const Reports = dynamic(() => import("./admin-todo-reports"), { loading: LoadingPanel });
@@ -366,6 +368,7 @@ export default function AdminTodoWorkspace() {
       {navigation.tab === "planning" && navigation.view === "templates" && <Templates />}
       {navigation.tab === "planning" && navigation.view === "rules" && <Rules />}
       {navigation.tab === "planning" && navigation.view === "reminders" && <Reminders />}
+      {navigation.tab === "management" && navigation.view === "intelligence" && <Intelligence />}
       {navigation.tab === "management" && navigation.view === "workload" && <Workload />}
       {navigation.tab === "management" && navigation.view === "alerts" && <Alerts />}
       {navigation.tab === "reports" && <Reports />}

@@ -167,7 +167,10 @@ export async function POST(request: NextRequest) {
       if (todo.review_state === "submitted" || todo.review_state === "approved") throw new Error("This task is awaiting management action.");
     }
     if (todo.status === "Done" && todo.review_required && nextStatus !== "Done") throw new Error("Only management can reopen reviewed work.");
-    if (nextStatus === "Done" && todo.status !== "Done") assertTodoDependencies(todo, todos);
+    if (nextStatus === "Done" && todo.status !== "Done") {
+      if (todo.is_delivery_step) throw new Error("Final delivery requires management verification.");
+      assertTodoDependencies(todo, todos);
+    }
     const updated = await updateTodoItem(todo.todo_code, todoPayload(todo, nextStatus));
     await recordAuditEvent({
       user,
