@@ -73,3 +73,30 @@ export function updateTodoItem(todoCode: string, item: Row) {
 export function deleteTodoItem(todoCode: string) {
   return todoGateway<{ deleted: boolean; todoCode: string }>("delete", { todoCode });
 }
+
+/** Completion is blocked until the entire predecessor chain exists and is complete. */
+type DependencyItem = Pick<TodoItem, "todo_code" | "dependency_todo_code" | "status">;
+const normalizeDependencyCode = (value: unknown) => String(value ?? "").trim().toUpperCase();
+export function todoDependencyIndex(todos: readonly DependencyItem[]) {
+  return new Map(todos.map(item => [normalizeDependencyCode(item.todo_code), item]));
+}
+export function todoDependencyBlocker(todo: Pick<TodoItem, "todo_code" | "dependency_todo_code">, todos: readonly DependencyItem[], index?: ReadonlyMap<string, DependencyItem>): string {
+  const normalize = normalizeDependencyCode;
+  const byCode = index || todoDependencyIndex(todos);
+  const seen = new Set([normalize(todo.todo_code)]);
+  let next = normalize(todo.dependency_todo_code);
+  while (next) {
+    if (seen.has(next)) return "Dependency cycle detected. Review the linked tasks.";
+    seen.add(next);
+    const predecessor = byCode.get(next);
+    if (!predecessor) return "Required predecessor " + next + " was not found.";
+    if (predecessor.status !== "Done") return "Complete predecessor " + next + " first.";
+    next = normalize(predecessor.dependency_todo_code);
+  }
+  return "";
+}
+
+export function assertTodoDependencies(todo: TodoItem, todos: readonly TodoItem[]) {
+  const blocker = todoDependencyBlocker(todo, todos);
+  if (blocker) throw new Error(blocker);
+}

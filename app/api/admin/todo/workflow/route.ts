@@ -3,7 +3,7 @@ import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
 import { selectRows, updateRows } from "@/lib/supabase-data";
 import { workflowStatusesForService } from "@/lib/service-workflow";
-import { listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
+import { assertTodoDependencies, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -110,7 +110,7 @@ async function linkedTodo(todoCode: string) {
   }
   const view = workflowSnapshot(todo, workflow);
   if (view.workflow.currentIndex < 0) throw new Error("The linked Workflow has an invalid current status.");
-  return { todo, workflow, view };
+  return { todo, workflow, view, todos };
 }
 
 export async function GET(request: NextRequest) {
@@ -161,6 +161,7 @@ export async function POST(request: NextRequest) {
     if (action === "advance") {
       const nextStatus = state.view.workflow.nextStatus;
       if (!nextStatus) throw new Error("Workflow is already at its final status.");
+      if (nextStatus === state.view.workflow.finalStatus) assertTodoDependencies(state.todo, state.todos);
       const previousStatus = state.view.workflow.status;
       const now = new Date().toISOString();
       const updated = await updateRows("project_service_workflows", { id: state.view.workflow.id }, { status: nextStatus, updated_by: who, updated_at: now });
@@ -179,6 +180,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === "finish") {
+      assertTodoDependencies(state.todo, state.todos);
       const finalStatus = state.view.workflow.finalStatus;
       if (!finalStatus) throw new Error("The linked Workflow has no completion status.");
       const previousWorkflowStatus = state.view.workflow.status;
@@ -236,6 +238,6 @@ export async function POST(request: NextRequest) {
         source: "todo-workflow",
       }).catch(() => undefined);
     }
-    return json({ success: false, error: message }, /authentication/i.test(message) ? 401 : /permission/i.test(message) ? 403 : /required|not found|not linked|does not belong|invalid current status|final status|completion status|financial delivery gate/i.test(message) ? 400 : 500);
+    return json({ success: false, error: message }, /authentication/i.test(message) ? 401 : /permission/i.test(message) ? 403 : /required|not found|not linked|does not belong|invalid current status|final status|completion status|financial delivery gate|predecessor|dependency/i.test(message) ? 400 : 500);
   }
 }

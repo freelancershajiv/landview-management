@@ -3,7 +3,7 @@ import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
 import { selectRows, updateRows } from "@/lib/supabase-data";
 import { workflowStatusesForService } from "@/lib/service-workflow";
-import { createTodoItem, deleteTodoItem, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
+import { assertTodoDependencies, createTodoItem, deleteTodoItem, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -150,7 +150,9 @@ export async function POST(request: NextRequest) {
       const todos = await listTodoItems();
       const current = todos.find((row) => row.todo_code === todoCode);
       if (!current) throw new Error("To Do item was not found.");
-      return ok(await updateTodoItem(todoCode, preserveSchedule((input.item || {}) as Row, current)));
+      const item = preserveSchedule((input.item || {}) as Row, current);
+      if (String(item.status || current.status).trim().toLowerCase() === "done" && current.status !== "Done") assertTodoDependencies(current, todos);
+      return ok(await updateTodoItem(todoCode, item));
     }
     if (action === "completewithworkflow") {
       const todoCode = text(input.todoCode, 80);
@@ -163,6 +165,7 @@ export async function POST(request: NextRequest) {
         throw new Error("This To Do is not linked to a Project Workflow service.");
       }
 
+      assertTodoDependencies(todo, todos);
       const workflowRows = await selectRows("project_service_workflows", { filters: { id: todo.workflow_id }, limit: 1 });
       if (!workflowRows.length) throw new Error("The linked Workflow service was not found.");
       const workflow = workflowRows[0] as Record<string, any>;
@@ -227,6 +230,6 @@ export async function POST(request: NextRequest) {
     throw new Error("Unsupported To Do action.");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion|only an active employee|reminder/i.test(message) ? 400 : 500);
+    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion|only an active employee|reminder|predecessor|dependency/i.test(message) ? 400 : 500);
   }
 }

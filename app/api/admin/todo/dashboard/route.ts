@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { selectRows, supabaseGateway } from "@/lib/supabase-data";
+import { todoDependencyBlocker, todoDependencyIndex } from "@/lib/todo-data";
 import { workflowStatusesForService } from "@/lib/service-workflow";
 
 export const runtime = "nodejs";
@@ -31,7 +32,7 @@ export async function GET(request: NextRequest) {
     if (!["admin","manager"].includes(roleOf(user))) return json({ success: false, error: "Access denied." }, 403);
 
     const [tasks, employees, workflows, subtasks, taskCount, subtaskCount] = await Promise.all([
-      readAll("todo_items", "id,todo_code,title,status,priority,due_date,due_time,created_at,updated_at,completed_at,assigned_employee_id,assigned_to,reference_type,project_code,proposal_code,workflow_id", "created_at:desc"),
+      readAll("todo_items", "id,todo_code,title,status,priority,due_date,due_time,created_at,updated_at,completed_at,assigned_employee_id,assigned_to,reference_type,project_code,proposal_code,workflow_id,dependency_todo_code,is_delivery_step", "created_at:desc"),
       readAll("employees", "id,employee_code,name,designation,status", "employee_code:asc", 5000),
       readAll("project_service_workflows", "id,service_name,project_code,status", "created_at:desc", 5000),
       readAll("todo_subtasks", "id,todo_id,is_completed", "created_at:desc"),
@@ -48,6 +49,8 @@ export async function GET(request: NextRequest) {
       if (row.is_completed === true) current.completed += 1;
       checklist.set(id, current);
     }
+    const dependencyItems = tasks.map(todo => ({ todo_code: text(todo.todo_code), dependency_todo_code: text(todo.dependency_todo_code), status: text(todo.status) as "To Do" | "In Progress" | "Done" }));
+    const dependenciesByCode = todoDependencyIndex(dependencyItems);
     const items = tasks.map((todo) => {
       const employee = employeeMap.get(text(todo.assigned_employee_id));
       const workflow = workflowMap.get(text(todo.workflow_id));
@@ -79,6 +82,8 @@ export async function GET(request: NextRequest) {
         workflowFinal: final,
         workflowMissing: hasWorkflow && !workflow,
         workflowMismatch: hasWorkflow && Boolean(workflow) && (isDone !== final),
+        dependencyBlocker: isDone ? "" : todoDependencyBlocker({ todo_code: text(todo.todo_code), dependency_todo_code: text(todo.dependency_todo_code) }, dependencyItems, dependenciesByCode),
+        deliveryStep: todo.is_delivery_step === true,
         checklist: checklist.get(text(todo.id)) || { total: 0, completed: 0 },
       };
     });

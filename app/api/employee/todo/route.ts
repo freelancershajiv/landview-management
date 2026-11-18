@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
 import { employeeCodeOf, selectRows } from "@/lib/supabase-data";
-import { listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
+import { assertTodoDependencies, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -142,6 +142,7 @@ export async function POST(request: NextRequest) {
     if (!todo) throw new Error("To Do item was not found.");
     if (text(todo.assigned_employee_id, 80) !== text(employee.id, 80)) throw new Error("You can only update To Dos assigned to you.");
 
+    if (nextStatus === "Done" && todo.status !== "Done") assertTodoDependencies(todo, todos);
     const updated = await updateTodoItem(todo.todo_code, todoPayload(todo, nextStatus));
     await recordAuditEvent({
       user,

@@ -140,6 +140,10 @@ export async function POST(request: NextRequest) {
         results.push({ todoCode: choice.todoCode, status: "skipped", message: "Deadline is already set." });
         continue;
       }
+      if (operation === "complete" && (current.is_delivery_step === true || text(current.dependency_todo_code, 80) || text(current.workflow_id, 80))) {
+        results.push({ todoCode: choice.todoCode, status: "skipped", message: "Linked, dependent or delivery tasks require individual completion so workflow and payment checks are applied." });
+        continue;
+      }
       if (phase === "preview") { results.push({ todoCode: choice.todoCode, status: "ready", message: description }); continue; }
 
       const changes: Row = { ...target, updated_at: new Date().toISOString() };

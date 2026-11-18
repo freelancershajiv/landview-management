@@ -95,13 +95,13 @@ type TodayTask = {
   todoCode: string; title: string; status: "To Do" | "In Progress" | "Done"; priority: string;
   dueDate: string; dueTime: string; employeeName: string; assignedTo: string; assignedEmployeeId: string;
   projectCode: string; proposalCode: string; workflowService: string;
-  workflowMissing: boolean; workflowMismatch: boolean;
+  workflowMissing: boolean; workflowMismatch: boolean; dependencyBlocker?: string; deliveryStep?: boolean;
 };
 type TodayPayload = { items: TodayTask[]; truncated: boolean; totalTasks: number };
-type Focus = "attention" | "overdue" | "today" | "progress" | "unassigned";
+type Focus = "attention" | "overdue" | "today" | "progress" | "unassigned" | "blocked";
 const FOCUS_LABELS: Record<Focus, string> = {
   attention: "Requires attention", overdue: "Overdue tasks", today: "Due today",
-  progress: "In progress", unassigned: "Unassigned tasks",
+  progress: "In progress", unassigned: "Unassigned tasks", blocked: "Dependency blockers",
 };
 function localDay(now: number) {
   return new Date(now + 6 * 3600000).toISOString().slice(0, 10);
@@ -160,15 +160,16 @@ function Today({ onOpen, onAll }: { onOpen: (code: string) => void; onAll: () =>
   const overdue = (t: TodayTask) => taskDeadline(t) < now;
   const dueToday = (t: TodayTask) => t.dueDate === day;
   const unassigned = (t: TodayTask) => !t.assignedEmployeeId;
-  const important = (t: TodayTask) => overdue(t) || dueToday(t) || t.priority === "Urgent" || t.priority === "High" || unassigned(t) || t.workflowMissing || t.workflowMismatch;
+  const important = (t: TodayTask) => overdue(t) || dueToday(t) || t.priority === "Urgent" || t.priority === "High" || unassigned(t) || t.workflowMissing || t.workflowMismatch || Boolean(t.dependencyBlocker);
   const predicates: Record<Focus, (task: TodayTask) => boolean> = {
-    attention: important, overdue, today: dueToday, progress: t => t.status === "In Progress", unassigned,
+    attention: important, overdue, today: dueToday, progress: t => t.status === "In Progress", unassigned, blocked: t => Boolean(t.dependencyBlocker),
   };
   const metrics: { id: Focus; label: string; value: number }[] = [
     { id: "overdue", label: "Overdue", value: open.filter(overdue).length },
     { id: "today", label: "Due today", value: open.filter(dueToday).length },
     { id: "progress", label: "In progress", value: open.filter(t => t.status === "In Progress").length },
     { id: "unassigned", label: "Unassigned", value: open.filter(unassigned).length },
+    { id: "blocked", label: "Blocked", value: open.filter(t => t.dependencyBlocker).length },
   ];
   const rank = (t: TodayTask) => t.priority === "Urgent" ? 0 : t.priority === "High" ? 1 : t.priority === "Normal" ? 2 : 3;
   const queue = open.filter(predicates[focus]).sort((a,b) => Number(overdue(b)) - Number(overdue(a)) || rank(a) - rank(b) || taskDeadline(a) - taskDeadline(b) || a.todoCode.localeCompare(b.todoCode));
@@ -177,7 +178,7 @@ function Today({ onOpen, onAll }: { onOpen: (code: string) => void; onAll: () =>
   const date = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(now);
   const taskRow = (task: TodayTask) => <button className="wm-task" key={task.todoCode} type="button" onClick={() => onOpen(task.todoCode)}>
     <span className="wm-task-main"><strong>{task.title}</strong><span>{[task.projectCode || task.proposalCode || "Office", task.workflowService, task.employeeName || task.assignedTo || "Unassigned"].filter(Boolean).join(" · ")}</span></span>
-    <span className="wm-task-meta"><strong className={overdue(task) ? "wm-danger" : ""}>{overdue(task) ? "Overdue · " : ""}{taskDueLabel(task)}</strong><span>{task.workflowMissing || task.workflowMismatch ? "Workflow needs attention" : task.priority + " · " + task.status}</span></span>
+    <span className="wm-task-meta"><strong className={overdue(task) ? "wm-danger" : ""}>{overdue(task) ? "Overdue · " : ""}{taskDueLabel(task)}</strong><span>{task.dependencyBlocker || (task.workflowMissing || task.workflowMismatch ? "Workflow needs attention" : task.deliveryStep ? "Payment verification required" : task.priority + " · " + task.status)}</span></span>
     <span aria-hidden="true">›</span>
   </button>;
   return <section className="wm-today" aria-label="Today's work">
@@ -223,7 +224,7 @@ const CSS = [
   ".tws-panel{min-width:0;outline:none}.tws-loading{display:flex;align-items:center;gap:9px;margin:18px 28px;border:1px solid var(--lv-border-subtle);border-radius:11px;background:var(--lv-surface-muted);padding:20px;color:var(--lv-text-secondary);font-size:11px}",
   ".tws-loading-dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--lv-brand-primary)}",
   ".wm-today{margin:16px 28px;color:var(--lv-text-primary);min-width:0}.wm-hero,.wm-panel-head{display:flex;justify-content:space-between;align-items:center;gap:12px}.wm-hero{margin-bottom:14px}.wm-hero h2{font-size:26px;letter-spacing:-.03em;margin:0}.wm-hero p,.wm-panel-head p{color:var(--lv-text-secondary);font-size:13px;margin:5px 0 0}.wm-secondary{min-height:38px;padding:8px 12px;border:1px solid var(--lv-border-default);border-radius:8px;background:var(--lv-surface-panel);color:var(--lv-text-primary);font-size:12px;font-weight:700;cursor:pointer}.wm-secondary:hover,.wm-secondary:focus-visible{border-color:var(--lv-brand-primary)}",
-  ".wm-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}.wm-metric{background:var(--lv-surface-panel);border:1px solid var(--lv-border-default);border-radius:12px;padding:16px;text-align:left;color:var(--lv-text-primary);cursor:pointer;min-height:94px}.wm-metric[aria-pressed=true]{border-color:var(--lv-brand-primary);box-shadow:inset 0 0 0 1px var(--lv-brand-primary)}.wm-metric span{display:block;font-size:13px;color:var(--lv-text-secondary);font-weight:650}.wm-metric strong{display:block;font-size:30px;margin-top:7px;line-height:1.1}.wm-danger{color:var(--lv-danger)!important}",
+  ".wm-metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin-bottom:16px}.wm-metric{background:var(--lv-surface-panel);border:1px solid var(--lv-border-default);border-radius:12px;padding:16px;text-align:left;color:var(--lv-text-primary);cursor:pointer;min-height:94px}.wm-metric[aria-pressed=true]{border-color:var(--lv-brand-primary);box-shadow:inset 0 0 0 1px var(--lv-brand-primary)}.wm-metric span{display:block;font-size:13px;color:var(--lv-text-secondary);font-weight:650}.wm-metric strong{display:block;font-size:30px;margin-top:7px;line-height:1.1}.wm-danger{color:var(--lv-danger)!important}",
   ".wm-columns{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:14px;align-items:start}.wm-panel{border:1px solid var(--lv-border-default);background:var(--lv-surface-panel);border-radius:12px;padding:16px;min-width:0}.wm-panel-head{margin-bottom:12px;align-items:flex-start}.wm-panel-head h3{font-size:16px;margin:0}.wm-panel-head h3 span{color:var(--lv-text-muted);font-size:13px}.wm-task{display:flex;align-items:center;gap:12px;width:100%;min-width:0;text-align:left;padding:13px 4px;border:0;border-top:1px solid var(--lv-border-subtle);background:transparent;color:var(--lv-text-primary);cursor:pointer}.wm-task:hover,.wm-task:focus-visible{background:var(--lv-surface-muted)}.wm-task-main{flex:1;min-width:0}.wm-task strong,.wm-task span span{display:block;overflow-wrap:anywhere}.wm-task strong{font-size:14px;font-weight:700}.wm-task span span{font-size:12px;color:var(--lv-text-secondary);margin-top:5px}.wm-task-meta{text-align:right;max-width:40%}.wm-task-meta strong{font-size:12px}.wm-more{margin-top:12px;margin-right:8px}.wm-empty,.wm-message{padding:14px;background:var(--lv-surface-muted);border-radius:8px;font-size:13px;color:var(--lv-text-secondary);line-height:1.5}",
   ".wm-tools{position:relative;min-width:110px;flex:0 0 auto}.wm-tools summary{list-style:none;cursor:pointer;padding:12px 14px;border:1px solid var(--lv-border-default);border-radius:9px;color:var(--lv-text-primary);font-size:13px;font-weight:700;background:var(--lv-surface-panel)}.wm-tools summary::-webkit-details-marker{display:none}.wm-tools[open] .wm-tools-menu{display:grid}.wm-tools-menu{display:none;gap:4px;padding:6px;margin-top:6px;border:1px solid var(--lv-border-default);border-radius:9px;background:var(--lv-surface-panel)}.wm-tools-menu button{text-align:left;border:0;background:transparent;color:var(--lv-text-primary);border-radius:6px;padding:9px;font-size:12px;cursor:pointer}.wm-tools-menu button:hover,.wm-tools-menu button[aria-current=true]{background:var(--lv-surface-muted);color:var(--lv-brand-primary)}.tws-main-navigation{display:flex;align-items:flex-start;gap:10px}.tws-main-navigation .tws-nav{flex:1;min-width:0}.tws-tab b{font-size:14px}.tws-tab span{font-size:11px}.tws-head p,.tws-view-head span{font-size:13px}.tws-primary{font-size:13px;min-height:42px}",
   "@media(max-width:850px){.wm-columns{grid-template-columns:1fr}.tws-main-navigation{flex-wrap:wrap}.wm-tools{width:100%}.wm-tools-menu{grid-template-columns:repeat(2,minmax(0,1fr))}}",
