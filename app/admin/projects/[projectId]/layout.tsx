@@ -1,3 +1,4 @@
+import LinkedWorkPanel from "@/components/linked-work-panel";
 import ProjectContextBar from "@/components/project-context-bar";
 import ProjectWorkspaceNav from "@/components/project-workspace-nav";
 import ProjectPublicPortfolioShortcut from "@/components/project-public-portfolio-shortcut";
@@ -9,6 +10,7 @@ export default function ProjectDetailLayout({ children }: { children: React.Reac
     <ProjectWorkspaceNav />
     <ProjectContextBar />
     <ProjectPublicPortfolioShortcut />
+    <LinkedWorkPanel type="project" />
     {children}
   </>;
 }

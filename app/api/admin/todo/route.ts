@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
+import { workScope } from "@/lib/work-task-links";
 import { applyTodoReview } from "@/lib/todo-review-server";
 import { assertReviewCompletion, type ReviewAction } from "@/lib/todo-review-policy";
 import { selectRows, updateRows } from "@/lib/supabase-data";
@@ -129,6 +130,18 @@ export async function GET(request: NextRequest) {
     await requireTodoUser(request);
     const mode = text(request.nextUrl.searchParams.get("mode"), 40).toLowerCase();
     if (mode === "options") return ok(await todoOptions());
+    if (mode === "scope") {
+      const scope = workScope(request.nextUrl.searchParams.get("scope") || "", request.nextUrl.searchParams.get("code"));
+      if (!scope) return fail(new Error("A valid project or proposal reference is required."), 400);
+      const field = scope.type === "Project" ? "project_code" : "proposal_code";
+      const codes = scope.type === "Project" ? [...new Set([scope.code, "LV-" + Number(scope.code.slice(3))])] : [scope.code];
+      return ok(await selectRows("todo_items", { inFilters: { [field]: codes }, order: "updated_at:desc", limit: 5000 }));
+    }
+    if (mode === "item") {
+      const code = text(request.nextUrl.searchParams.get("code"), 80);
+      if (!/^TODO-[A-Z0-9-]+$/i.test(code)) return fail(new Error("A valid task code is required."), 400);
+      return ok(await selectRows("todo_items", { filters: { todo_code: code.toUpperCase() }, limit: 1 }));
+    }
     return ok(await listTodoItems());
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

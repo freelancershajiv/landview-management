@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { workScopeFromHash } from "@/lib/work-task-links";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
 type Tab = "overview" | "board" | "calendar" | "workflow" | "collaboration" | "planning" | "management" | "reports" | "analytics";
@@ -263,7 +264,7 @@ export default function AdminTodoWorkspace() {
   function newTodo() {
     if (navigation.tab === "board") {
       const desired = locationHash("board", "");
-      if (window.location.hash !== desired) window.location.hash = desired;
+      if (!workScopeFromHash(window.location.hash) && window.location.hash !== desired) window.location.hash = desired;
       window.dispatchEvent(new Event("landview:todo:new"));
     } else {
       navigate("board", "");

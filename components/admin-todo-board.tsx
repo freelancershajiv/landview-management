@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { workScope, workScopeFromHash, workScopeQuery, workRecordHref, type WorkScope } from "@/lib/work-task-links";
 import styles from "@/app/admin/todo/todo.module.css";
 import AdminTodoBulkActions, { type BulkResult } from "@/components/admin-todo-bulk-actions";
 
@@ -199,6 +200,8 @@ export default function AdminTodoBoard() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<WorkScope | null>(null);
+  const openedHash = useRef("");
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editingCode, setEditingCode] = useState("");
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
@@ -209,8 +212,12 @@ export default function AdminTodoBoard() {
     setLoading(true);
     setError("");
     try {
+      const hash = window.location.hash;
+      const currentScope = workScopeFromHash(hash);
+      const directCode = new URLSearchParams(hash.replace(/^#/, "")).get("todo");
+      const query = currentScope ? "?" + workScopeQuery(currentScope) : directCode ? "?mode=item&code=" + encodeURIComponent(directCode) : "";
       const [todoItems, liveOptions] = await Promise.all([
-        request<TodoItem[]>("GET"),
+        request<TodoItem[]>("GET", undefined, query),
         request<TodoOptions>("GET", undefined, "?mode=options"),
       ]);
       setItems(todoItems);
@@ -223,10 +230,12 @@ export default function AdminTodoBoard() {
   }
 
   useEffect(() => {
-    const initial = window.setTimeout(() => void load(), 0);
+    const sync = () => { setScope(workScopeFromHash(window.location.hash)); setSelectedCodes([]); void load(); };
+    const initial = window.setTimeout(sync, 0);
+    window.addEventListener("hashchange", sync);
     const refresh = () => void load();
     window.addEventListener("landview:todo:changed", refresh);
-    return () => { window.clearTimeout(initial); window.removeEventListener("landview:todo:changed", refresh); };
+    return () => { window.clearTimeout(initial); window.removeEventListener("hashchange", sync); window.removeEventListener("landview:todo:changed", refresh); };
   }, []);
 
   const workflows = options.workflows || [];
@@ -256,6 +265,7 @@ export default function AdminTodoBoard() {
       const project = item.project_code ? projectByCode.get(normalizeProjectCode(item.project_code)) : undefined;
       const proposal = item.proposal_code ? proposalByCode.get(normalizeProposalCode(item.proposal_code)) : undefined;
       return [
+        item.todo_code,
         item.title,
         item.description,
         item.project_code,
@@ -319,7 +329,8 @@ export default function AdminTodoBoard() {
   }), [items]);
 
   function resetForm() {
-    setDraft(EMPTY_DRAFT);
+    const currentScope = workScopeFromHash(window.location.hash);
+    setDraft(currentScope ? { ...EMPTY_DRAFT, referenceType: currentScope.type, referenceCode: currentScope.code } : EMPTY_DRAFT);
     setEditingCode("");
   }
 
@@ -351,10 +362,22 @@ export default function AdminTodoBoard() {
       startEdit(item);
     };
     const fromHash = () => {
-      const matched = window.location.hash.match(/^#todo=(.+)$/);
-      if (!matched) return;
-      try { openByCode(decodeURIComponent(matched[1])); }
-      catch { openByCode(matched[1]); }
+      const hash = window.location.hash;
+      if (openedHash.current === hash) return;
+      const params = new URLSearchParams(hash.replace(/^#/, ""));
+      const direct = params.get("todo");
+      if (direct) {
+        if (!items.some(entry => entry.todo_code.toUpperCase() === direct.toUpperCase())) return;
+        openedHash.current = hash;
+        openByCode(direct);
+        return;
+      }
+      openedHash.current = hash;
+      const context = workScopeFromHash(hash);
+      setSearch("");
+      setEditingCode("");
+      setDraft(context ? { ...EMPTY_DRAFT, referenceType: context.type, referenceCode: context.code, title: params.get("new") === "1" ? (params.get("title") || "").slice(0, 240) : "", description: params.get("new") === "1" ? (params.get("description") || "").slice(0, 4000) : "" } : EMPTY_DRAFT);
+      if (params.get("new") === "1") requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     };
     const fromEvent = (event: Event) => {
       const custom = event as CustomEvent<{ todoCode?: string }>;
@@ -554,8 +577,10 @@ export default function AdminTodoBoard() {
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>LAND VIEW WORKSPACE</span>
-          <h1>To Do</h1>
-          <p>Projects, Proposals and Employees are now selected from live LAND VIEW records. Project Workflow remains optional and only changes through Complete + Workflow.</p>
+          <h1>{scope ? scope.code + " · Tasks" : "All Tasks"}</h1>
+          <p>{scope ? "Showing daily work linked to this record. The project responsibility plan remains separate." : "Create, assign and track daily work. Official project workflow changes remain explicit actions."}</p>
+          {scope && <p><a href={workRecordHref(scope)} style={{color:"var(--lv-brand-text)"}}>Open {scope.type.toLowerCase()}</a>{" · "}<a href="/admin/todo#tab=board" style={{color:"var(--lv-brand-text)"}}>Clear context</a></p>}
+          {!scope && typeof window !== "undefined" && window.location.hash.startsWith("#todo=") && <p><a href="/admin/todo#tab=board" style={{color:"var(--lv-brand-text)"}}>Show all tasks</a></p>}
         </div>
         <button className={styles.refreshButton} type="button" onClick={() => void load()} disabled={loading || busy || bulkBusy}>
           {loading ? "Loading…" : "Refresh"}
@@ -779,6 +804,7 @@ export default function AdminTodoBoard() {
                         {referenceType === "Project" ? <span>Project: {item.project_code}{linkedProject?.clientName ? ` · ${linkedProject.clientName}` : ""}</span> : null}
                         {referenceType === "Proposal" ? <span>Proposal: {item.proposal_code}{linkedProposal?.clientName ? ` · ${linkedProposal.clientName}` : ""}</span> : null}
                         {referenceType === "None" ? <span>General task</span> : null}
+                        {referenceType !== "None" && (() => { const linked = workScope(referenceType.toLowerCase(), referenceCodeOf(item)); return linked ? <a href={workRecordHref(linked)} style={{color:"var(--lv-brand-text)",fontWeight:700}}>Open linked {referenceType.toLowerCase()}</a> : null; })()}
                         {referenceType === "Project" && item.workflow_id ? (
                           <span>Workflow: {linkedWorkflow ? `${linkedWorkflow.serviceName} · ${linkedWorkflow.status}` : "Linked service unavailable"}</span>
                         ) : null}
