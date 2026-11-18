@@ -304,27 +304,215 @@
     border-radius:var(--lv-ui-radius); font-size:var(--lv-ui-label-size);
     font-weight:750; text-decoration:none;
   }
+  /* Current Admin dashboard: one semantic bridge for both themes. */
   .portal-admin .lv-clean-dashboard {
-    --red: var(--lv-brand-primary) !important;
-    --red2: var(--lv-brand-primary-hover) !important;
-    --redsoft: var(--lv-brand-soft) !important;
-    --ink: var(--lv-text-primary) !important;
-    --muted: var(--lv-text-muted) !important;
-    --line: var(--lv-border-default) !important;
-    --panel: var(--lv-surface-panel) !important;
-    --bg: var(--lv-surface-page) !important;
     background: var(--lv-surface-page) !important;
     color: var(--lv-text-primary) !important;
+    --lv-dashboard-income: var(--lv-success);
+    --lv-dashboard-expense: var(--lv-danger);
   }
-  .portal-admin .lv-clean-dashboard :is(.lv-clean-card,.lv-clean-kpi) {
-    background:var(--lv-surface-panel) !important;
-    border-color:var(--lv-border-default) !important;
-    color:var(--lv-text-primary);
+
+  .portal-admin .lv-clean-dashboard :is(
+    .lv-clean-btn:not(.primary),.lv-clean-kpi,.lv-clean-card,.lv-today-item
+  ) {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: var(--lv-shadow-sm) !important;
   }
-  .portal-admin .lv-clean-dashboard :is(.lv-clean-head p,.lv-clean-kpi span,.lv-clean-kpi small,.lv-clean-card small) {
-    color:var(--lv-text-secondary) !important;
+
+  .portal-admin .lv-clean-dashboard .lv-clean-btn:not(.primary):hover,
+  .portal-admin .lv-clean-dashboard .lv-today-item:hover {
+    background: var(--lv-surface-hover) !important;
+    border-color: var(--lv-border-strong) !important;
   }
-  .portal-admin .lv-clean-dashboard :is(.lv-clean-title i,.lv-clean-link) {color:var(--lv-brand-text) !important;}
+
+  .portal-admin .lv-clean-dashboard :is(
+    h1,h2,h3,.lv-clean-kpi strong,.lv-finance-summary strong,.lv-activity-copy strong,.lv-workflow-step strong,
+    .lv-project-copy strong,.lv-calendar-head strong,.lv-priority-copy strong
+  ) { color: var(--lv-text-strong) !important; }
+
+  .portal-admin .lv-clean-dashboard :is(
+    .lv-clean-head p,.lv-clean-kpi span,.lv-clean-kpi small,.lv-workflow-step small,
+    .lv-finance-summary span,.lv-chart-label,.lv-chart-legend,.lv-activity-copy small,
+    .lv-activity-date,.lv-project-copy small,.lv-calendar-week span,
+    .lv-calendar-day:not(.today),.lv-today-item span,.lv-priority-copy small,.lv-empty
+  ) { color: var(--lv-text-muted) !important; }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-link,.lv-priority-open) {
+    color: var(--lv-brand-text) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(
+    .lv-finance-summary > div,.lv-chart,.lv-activity-row,.lv-project-row,
+    .lv-today-summary,.lv-priority-row
+  ) { border-color: var(--lv-border-soft) !important; }
+
+  .portal-admin .lv-clean-dashboard .lv-workflow-icon {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-secondary) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-workflow-step:first-child .lv-workflow-icon,
+  .portal-admin .lv-clean-dashboard .lv-clean-btn.primary,
+  .portal-admin .lv-clean-dashboard .lv-calendar-day.today {
+    background: var(--lv-brand-primary) !important;
+    border-color: var(--lv-brand-primary) !important;
+    color: #fff !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-progress-track { background: var(--lv-surface-subtle) !important; }
+  .portal-admin .lv-clean-dashboard .lv-chart-bar { background: var(--lv-dashboard-income) !important; }
+
+  .portal-admin .lv-clean-dashboard .lv-chart-bar.expense,
+  .portal-admin .lv-clean-dashboard .lv-chart-legend i.exp {
+    background: var(--lv-dashboard-expense) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-activity-icon {
+    background: var(--lv-info-soft) !important;
+    color: var(--lv-info) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-activity-icon.red {
+    background: var(--lv-danger-soft) !important;
+    color: var(--lv-danger) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-activity-icon.green {
+    background: var(--lv-success-soft) !important;
+    color: var(--lv-success) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-project-avatar {
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-strong) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-project-status.completed,.lv-project-status.ontrack) {
+    background: var(--lv-success-soft) !important;
+    color: var(--lv-success) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-project-status.progress {
+    background: var(--lv-info-soft) !important;
+    color: var(--lv-info) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-project-status.early {
+    background: var(--lv-warning-soft) !important;
+    color: var(--lv-warning) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-quick a {
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-brand-border) !important;
+    color: var(--lv-text-strong) !important;
+    -webkit-text-fill-color: var(--lv-text-strong) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-quick a b {
+    background: var(--lv-brand-soft-strong) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-dashboard-error {
+    background: var(--lv-danger-soft) !important;
+    border-color: color-mix(in srgb, var(--lv-danger) 30%, var(--lv-border-default)) !important;
+    color: var(--lv-danger) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-dashboard-loading span {
+    background: linear-gradient(
+      90deg,
+      var(--lv-surface-muted),
+      var(--lv-surface-panel),
+      var(--lv-surface-muted)
+    ) !important;
+    background-size: 220% 100% !important;
+  }
+
+  /* Action labels on tinted backgrounds need stronger contrast than the brand accent. */
+  .portal-admin .lv-admin-shortcuts .lv-ui-shortcut[data-lv-button="soft"],
+  .portal-admin .lv-clean-dashboard .lv-clean-mobile-quick a {
+    color: var(--lv-text-strong) !important;
+    -webkit-text-fill-color: var(--lv-text-strong) !important;
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-brand-border) !important;
+  }
+  .portal-admin .lv-admin-shortcuts .lv-ui-shortcut[data-lv-button="soft"]:hover {
+    background: var(--lv-brand-soft-strong) !important;
+    color: var(--lv-text-strong) !important;
+  }
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-mobile-quick a,.lv-quick a) > span:not(.lv-mobile-action-icon) {
+    color: var(--lv-text-strong) !important;
+    -webkit-text-fill-color: var(--lv-text-strong) !important;
+  }
+
+  /* Explicit pairs for nested components: no legacy light/dark fallback. */
+  .portal-admin .lv-clean-dashboard .lv-clean-kpi-icon {
+    color: var(--lv-brand-text) !important;
+    background: var(--lv-brand-soft) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-clean-kpi small b { color: var(--lv-success) !important; -webkit-text-fill-color: currentColor !important; }
+  .portal-admin .lv-clean-dashboard .lv-clean-kpi.expense small b { color: var(--lv-danger) !important; -webkit-text-fill-color: currentColor !important; }
+  .portal-admin .lv-clean-dashboard :is(.lv-workflow-step b,.lv-today-item strong,.lv-clean-title i) {
+    color: var(--lv-brand-text) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-workflow-step:not(:last-child)::after { color: var(--lv-text-muted) !important; }
+  .portal-admin .lv-clean-dashboard .lv-chart-legend i:not(.exp) { background: var(--lv-dashboard-income) !important; }
+  .portal-admin .lv-clean-dashboard .lv-priority-dot { background: var(--lv-info) !important; }
+  .portal-admin .lv-clean-dashboard .lv-priority-dot.critical { background: var(--lv-danger) !important; }
+  .portal-admin .lv-clean-dashboard .lv-priority-dot.warning { background: var(--lv-warning) !important; }
+  .portal-admin .lv-clean-dashboard :is(.lv-project-row,.lv-workflow-step):hover { background: var(--lv-surface-hover); }
+  .portal-admin .lv-clean-dashboard :is(.lv-quick a,.lv-clean-mobile-quick a):hover {
+    color: var(--lv-text-strong) !important;
+    background: var(--lv-brand-soft-strong) !important;
+  }
+  .portal-admin .lv-clean-dashboard :is(.lv-quick a b,.lv-mobile-action-icon) { color: var(--lv-brand-text) !important; }
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-btn.primary,.lv-calendar-day.today,.lv-workflow-step:first-child .lv-workflow-icon) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-btn.primary:hover,.lv-clean-btn.primary:focus-visible) {
+    background: var(--lv-brand-primary-hover) !important;
+    border-color: var(--lv-brand-primary-hover) !important;
+  }
+  .portal-admin .lv-clean-dashboard :is(a,button):focus-visible {
+    outline: 2px solid var(--lv-brand-text);
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .portal-admin .lv-clean-dashboard .lv-dashboard-loading span { animation: none !important; }
+  }
+
+  /* Dashboard finance acknowledgement: the same theme in both modes. */
+  .portal-admin .lv-ack {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: var(--lv-shadow-sm) !important;
+  }
+  .portal-admin .lv-ack .lv-ack-head {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-strong) !important;
+  }
+  .portal-admin .lv-ack :is(h2,.lv-ack-cell strong) { color: var(--lv-text-strong) !important; }
+  .portal-admin .lv-ack :is(.lv-ack-head p,.lv-ack-cell small,.lv-ack-meta,.lv-ack-msg) { color: var(--lv-text-secondary) !important; }
+  .portal-admin .lv-ack .lv-ack-kicker { color: var(--lv-brand-text) !important; }
+  .portal-admin .lv-ack .lv-ack-row { border-color: var(--lv-border-soft) !important; }
+  .portal-admin .lv-ack .lv-ack-count {
+    background: var(--lv-brand-primary) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+  .portal-admin .lv-ack .lv-ack-error {
+    background: var(--lv-danger-soft) !important;
+    color: var(--lv-danger) !important;
+    border-color: var(--lv-danger-border) !important;
+  }
 
   /* Projects register and its nested document/workflow pages */
   .portal-admin .projects-register :is(.register-shell,.team-panel,.service-assignment) {
