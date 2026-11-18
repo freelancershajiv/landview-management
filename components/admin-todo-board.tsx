@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { workScope, workScopeFromHash, workScopeQuery, workRecordHref, type WorkScope } from "@/lib/work-task-links";
 import styles from "@/app/admin/todo/todo.module.css";
 import AdminTodoBulkActions, { type BulkResult } from "@/components/admin-todo-bulk-actions";
 
@@ -28,6 +29,12 @@ type TodoItem = {
   assigned_employee_id?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
+  review_required?: boolean;
+  review_state?: "not_submitted" | "submitted" | "revision_requested" | "approved";
+  review_note?: string | null;
+  review_actor?: string | null;
+  review_changed_at?: string | null;
+  estimated_minutes?: number | null;
   completed_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -194,6 +201,8 @@ export default function AdminTodoBoard() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
+  const [scope, setScope] = useState<WorkScope | null>(null);
+  const openedHash = useRef("");
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editingCode, setEditingCode] = useState("");
   const [selectedCodes, setSelectedCodes] = useState<string[]>([]);
@@ -204,8 +213,12 @@ export default function AdminTodoBoard() {
     setLoading(true);
     setError("");
     try {
+      const hash = window.location.hash;
+      const currentScope = workScopeFromHash(hash);
+      const directCode = new URLSearchParams(hash.replace(/^#/, "")).get("todo");
+      const query = currentScope ? "?" + workScopeQuery(currentScope) : directCode ? "?mode=item&code=" + encodeURIComponent(directCode) : "";
       const [todoItems, liveOptions] = await Promise.all([
-        request<TodoItem[]>("GET"),
+        request<TodoItem[]>("GET", undefined, query),
         request<TodoOptions>("GET", undefined, "?mode=options"),
       ]);
       setItems(todoItems);
@@ -218,10 +231,12 @@ export default function AdminTodoBoard() {
   }
 
   useEffect(() => {
-    const initial = window.setTimeout(() => void load(), 0);
+    const sync = () => { setScope(workScopeFromHash(window.location.hash)); setSelectedCodes([]); void load(); };
+    const initial = window.setTimeout(sync, 0);
+    window.addEventListener("hashchange", sync);
     const refresh = () => void load();
     window.addEventListener("landview:todo:changed", refresh);
-    return () => { window.clearTimeout(initial); window.removeEventListener("landview:todo:changed", refresh); };
+    return () => { window.clearTimeout(initial); window.removeEventListener("hashchange", sync); window.removeEventListener("landview:todo:changed", refresh); };
   }, []);
 
   const workflows = options.workflows || [];
@@ -251,6 +266,7 @@ export default function AdminTodoBoard() {
       const project = item.project_code ? projectByCode.get(normalizeProjectCode(item.project_code)) : undefined;
       const proposal = item.proposal_code ? proposalByCode.get(normalizeProposalCode(item.proposal_code)) : undefined;
       return [
+        item.todo_code,
         item.title,
         item.description,
         item.project_code,
@@ -314,7 +330,8 @@ export default function AdminTodoBoard() {
   }), [items]);
 
   function resetForm() {
-    setDraft(EMPTY_DRAFT);
+    const currentScope = workScopeFromHash(window.location.hash);
+    setDraft(currentScope ? { ...EMPTY_DRAFT, referenceType: currentScope.type, referenceCode: currentScope.code } : EMPTY_DRAFT);
     setEditingCode("");
   }
 
@@ -346,10 +363,22 @@ export default function AdminTodoBoard() {
       startEdit(item);
     };
     const fromHash = () => {
-      const matched = window.location.hash.match(/^#todo=(.+)$/);
-      if (!matched) return;
-      try { openByCode(decodeURIComponent(matched[1])); }
-      catch { openByCode(matched[1]); }
+      const hash = window.location.hash;
+      if (openedHash.current === hash) return;
+      const params = new URLSearchParams(hash.replace(/^#/, ""));
+      const direct = params.get("todo");
+      if (direct) {
+        if (!items.some(entry => entry.todo_code.toUpperCase() === direct.toUpperCase())) return;
+        openedHash.current = hash;
+        openByCode(direct);
+        return;
+      }
+      openedHash.current = hash;
+      const context = workScopeFromHash(hash);
+      setSearch("");
+      setEditingCode("");
+      setDraft(context ? { ...EMPTY_DRAFT, referenceType: context.type, referenceCode: context.code, title: params.get("new") === "1" ? (params.get("title") || "").slice(0, 240) : "", description: params.get("new") === "1" ? (params.get("description") || "").slice(0, 4000) : "" } : EMPTY_DRAFT);
+      if (params.get("new") === "1") requestAnimationFrame(() => formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
     };
     const fromEvent = (event: Event) => {
       const custom = event as CustomEvent<{ todoCode?: string }>;
@@ -456,6 +485,35 @@ export default function AdminTodoBoard() {
     }
   }
 
+  async function setEstimate(item: TodoItem) {
+    if (busy || bulkBusy) return;
+    const raw = window.prompt("Estimated hours (increments of 0.25). Leave blank to clear.",item.estimated_minutes ? String(item.estimated_minutes/60) : "");
+    if (raw === null) return;
+    const minutes = raw.trim() ? Number(raw)*60 : null;
+    if (minutes !== null && (!Number.isInteger(minutes) || minutes < 15 || minutes > 60000 || minutes % 15 !== 0)) { setError("Enter a valid estimate in 0.25-hour increments."); return; }
+    setBusy(true);setError("");setNotice("");
+    try {await request<TodoItem>("POST",{action:"setEstimate",todoCode:item.todo_code,expectedUpdatedAt:item.updated_at,estimatedMinutes:minutes});setNotice("Estimate updated.");await load();}catch(err){setError(err instanceof Error?err.message:"Could not save estimate.");}finally{setBusy(false);}
+  }
+
+  async function reviewTask(item: TodoItem, action: "enable" | "disable" | "approve" | "revise") {
+    if (busy || bulkBusy) return;
+    let note = "";
+    if (action === "revise") {
+      const value = window.prompt("Describe the required revisions:");
+      if (!value?.trim()) return;
+      note = value.trim();
+    }
+    if (action === "approve" && !window.confirm("Approve this submitted work? Final completion and delivery remain separate actions.")) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await request<TodoItem>("POST", { action, todoCode: item.todo_code, expectedUpdatedAt: item.updated_at, note });
+      setNotice(action === "approve" ? "Work approved. It can now be completed." : action === "revise" ? "Revision requested." : action === "enable" ? "Management review enabled." : "Management review disabled.");
+      await load();
+      window.dispatchEvent(new Event("landview:todo:changed"));
+    } catch (err) { setError(err instanceof Error ? err.message : "Review action failed."); }
+    finally { setBusy(false); }
+  }
+
   async function completeWithWorkflow(item: TodoItem) {
     if (busy || bulkBusy || !item.workflow_id) return;
     const workflow = workflowById.get(item.workflow_id);
@@ -530,8 +588,10 @@ export default function AdminTodoBoard() {
       <section className={styles.hero}>
         <div>
           <span className={styles.eyebrow}>LAND VIEW WORKSPACE</span>
-          <h1>To Do</h1>
-          <p>Projects, Proposals and Employees are now selected from live LAND VIEW records. Project Workflow remains optional and only changes through Complete + Workflow.</p>
+          <h1>{scope ? scope.code + " · Tasks" : "All Tasks"}</h1>
+          <p>{scope ? "Showing daily work linked to this record. The project responsibility plan remains separate." : "Create, assign and track daily work. Official project workflow changes remain explicit actions."}</p>
+          {scope && <p><a href={workRecordHref(scope)} style={{color:"var(--lv-brand-text)"}}>Open {scope.type.toLowerCase()}</a>{" · "}<a href="/admin/todo#tab=board" style={{color:"var(--lv-brand-text)"}}>Clear context</a></p>}
+          {!scope && typeof window !== "undefined" && window.location.hash.startsWith("#todo=") && <p><a href="/admin/todo#tab=board" style={{color:"var(--lv-brand-text)"}}>Show all tasks</a></p>}
         </div>
         <button className={styles.refreshButton} type="button" onClick={() => void load()} disabled={loading || busy || bulkBusy}>
           {loading ? "Loading…" : "Refresh"}
@@ -755,23 +815,31 @@ export default function AdminTodoBoard() {
                         {referenceType === "Project" ? <span>Project: {item.project_code}{linkedProject?.clientName ? ` · ${linkedProject.clientName}` : ""}</span> : null}
                         {referenceType === "Proposal" ? <span>Proposal: {item.proposal_code}{linkedProposal?.clientName ? ` · ${linkedProposal.clientName}` : ""}</span> : null}
                         {referenceType === "None" ? <span>General task</span> : null}
+                        {referenceType !== "None" && (() => { const linked = workScope(referenceType.toLowerCase(), referenceCodeOf(item)); return linked ? <a href={workRecordHref(linked)} style={{color:"var(--lv-brand-text)",fontWeight:700}}>Open linked {referenceType.toLowerCase()}</a> : null; })()}
                         {referenceType === "Project" && item.workflow_id ? (
                           <span>Workflow: {linkedWorkflow ? `${linkedWorkflow.serviceName} · ${linkedWorkflow.status}` : "Linked service unavailable"}</span>
                         ) : null}
                         {referenceType === "Project" && !item.workflow_id ? <span>Workflow: not linked</span> : null}
                         {item.automation_source === "Bill Issued" ? <span>⚙ Automatic from issued bill · {item.workflow_stage || "Service"}</span> : null}
-                        {item.dependency_todo_code ? <span>Must follow: {items.find((row) => row.todo_code === item.dependency_todo_code)?.title || item.dependency_todo_code}</span> : null}
+                        {item.dependency_todo_code ? <span style={{ color: items.find(row => row.todo_code === item.dependency_todo_code)?.status === "Done" ? "var(--lv-text-secondary)" : "var(--lv-danger)", fontWeight: 700 }}>{items.find(row => row.todo_code === item.dependency_todo_code)?.status === "Done" ? "Predecessor completed: " : "Blocked by: "}{items.find(row => row.todo_code === item.dependency_todo_code)?.title || item.dependency_todo_code}</span> : null}
+                        {item.review_required && <span style={{ color: item.review_state === "revision_requested" ? "var(--lv-danger)" : "var(--lv-brand-text)", fontWeight: 700 }}>Review: {item.review_state === "submitted" ? "Awaiting management" : item.review_state === "revision_requested" ? "Revision requested" : item.review_state === "approved" ? "Approved" : "Required before completion"}{item.review_note ? " · " + item.review_note : ""}</span>}
                         {item.is_delivery_step ? <span style={{ color: "var(--lv-danger)", fontWeight: 850 }}>🔒 Final file delivery requires verified full payment</span> : null}
                         {assignedEmployee ? <span>Assigned: {assignedEmployee.employeeCode} · {assignedEmployee.name}</span> : item.assigned_to ? <span>Assigned: {item.assigned_to}</span> : <span>Unassigned</span>}
                         {isOverdue(item) ? <span className={styles.overdueText}>Overdue</span> : null}
                       </div>
                       <div className={styles.cardActions}>
                         <select aria-label={`Status for ${item.title}`} value={item.status} disabled={busy || bulkBusy} onChange={(event) => void changeStatus(item, event.target.value as TodoStatus)}>
-                          <option>To Do</option><option>In Progress</option><option>Done</option>
+                          <option>To Do</option><option>In Progress</option><option disabled={item.status !== "Done" && item.review_required && item.review_state !== "approved"}>Done</option>
                         </select>
                         <button type="button" onClick={() => startEdit(item)} disabled={busy || bulkBusy}>Edit</button>
+                        {item.status !== "Done" && <button type="button" disabled={busy || bulkBusy} onClick={() => void setEstimate(item)}>{item.estimated_minutes ? "Estimate: "+item.estimated_minutes/60+"h" : "Set estimate"}</button>}
                         <button className={styles.dangerButton} type="button" onClick={() => void remove(item)} disabled={busy || bulkBusy}>Delete</button>
                       </div>
+                      {item.status !== "Done" && !item.is_delivery_step && <div className={styles.workflowActions}>
+                        {!item.review_required ? <button type="button" disabled={busy || bulkBusy} onClick={() => void reviewTask(item, "enable")}>Require review</button> : null}
+                        {item.review_required && (!item.review_state || item.review_state === "not_submitted") ? <button type="button" disabled={busy || bulkBusy} onClick={() => void reviewTask(item, "disable")}>Disable review</button> : null}
+                        {item.review_state === "submitted" && <><button className={styles.workflowPrimary} type="button" disabled={busy || bulkBusy} onClick={() => void reviewTask(item, "approve")}>Approve work</button><button type="button" disabled={busy || bulkBusy} onClick={() => void reviewTask(item, "revise")}>Request revision</button></>}
+                      </div>}
                       {referenceType === "Project" ? (
                         <div className={styles.workflowActions}>
                           <a href="/admin/project-operations/by-project">View Workflow</a>
@@ -779,14 +847,14 @@ export default function AdminTodoBoard() {
                             <button
                               className={styles.workflowPrimary}
                               type="button"
-                              disabled={busy || bulkBusy || (item.status === "Done" && workflowDone)}
+                              disabled={busy || bulkBusy || (item.status === "Done" && workflowDone) || (item.status !== "Done" && item.review_required && item.review_state !== "approved")}
                               onClick={() => void completeWithWorkflow(item)}
                             >
                               {workflowDone ? (item.status === "Done" ? "Workflow completed" : "Complete To Do") : item.status === "Done" ? "Update Workflow" : "Complete + Workflow"}
                             </button>
                           ) : null}
                           {item.workflow_id && item.status !== "Done" ? (
-                            <button type="button" disabled={busy || bulkBusy} onClick={() => void changeStatus(item, "Done")}>Complete only</button>
+                            <button type="button" disabled={busy || bulkBusy || (item.review_required && item.review_state !== "approved")} onClick={() => void changeStatus(item, "Done")}>Complete only</button>
                           ) : null}
                         </div>
                       ) : null}

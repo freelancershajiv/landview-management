@@ -124,8 +124,11 @@ async function collectCandidates(rules: AutomationRule[]): Promise<Candidate[]> 
       { referenceType: "Project", projectCode: code, employeeId: chosen(projectRule), priority: "High" }));
   }
   const serviceRule = enabled.get("service_activated");
+  // Bill-issued work already owns service execution. Do not generate another start task for it.
+  const billGenerated = serviceRule ? await selectRows("todo_items", { select: "workflow_id", filters: { automation_source: "Bill Issued" }, limit: 5000 }) : [];
+  const billWorkflowIds = new Set(billGenerated.map(row => text(row.workflow_id, 80)).filter(Boolean));
   if (serviceRule) for (const wf of workflows) {
-    if (!triggered(wf.activated_at, serviceRule) || amount(wf.paid_amount) <= 0 || !populated(wf.project_code)) continue;
+    if (!triggered(wf.activated_at, serviceRule) || amount(wf.paid_amount) <= 0 || !populated(wf.project_code) || billWorkflowIds.has(text(wf.id, 80))) continue;
     if (/delivered|printed|cancel/i.test(status(wf.status))) continue;
     all.push(newCandidate(serviceRule, "project_service_workflows", text(wf.id, 80), text(wf.activated_at),
       "Start " + text(wf.service_name, 130) + " — " + text(wf.project_code, 80),

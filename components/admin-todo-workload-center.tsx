@@ -1,6 +1,6 @@
 "use client";
 import {useEffect,useMemo,useState} from "react";
-type Work={id:string;code:string;name:string;designation:string;score:number;open:number;urgent:number;overdue:number};
+type Work={id:string;code:string;name:string;designation:string;score:number;open:number;urgent:number;overdue:number;estimatedMinutes:number;unestimated:number};
 type Suggestion={todoCode:string;title:string;updatedAt:string;priority:string;projectCode:string;currentEmployeeId:string;assignedTo:string;suggestedEmployeeId:string;suggestedEmployeeName:string;overdueDays:number;reason:string};
 type Escalation={id:string;todoCode:string;title:string;projectCode:string;level:1|2;status:string;overdueHours:number;assignedTo:string;acknowledgedBy:string};
 type Response={workloads:Work[];recommendations:Suggestion[];escalations:Escalation[];metrics:{activeEmployees:number;openTasks:number;unassigned:number;needsAttention:number;critical:number};refreshedAt:string};
@@ -71,7 +71,7 @@ return <section className="wl">
    <div className="wl-people">{data.workloads.map(w=><div className="wl-person" key={w.id}>
      <div className="wl-person-top"><strong>{w.code} · {w.name}</strong><b>{w.score.toFixed(1)} pts</b></div>
      <small>{w.designation||"Employee"}</small><div className="wl-track"><div className="wl-fill" style={{width:Math.round(w.score/max*100)+"%"}}/></div>
-     <div className="wl-stats"><span>{w.open} open</span><span>{w.urgent} high/urgent</span><span>{w.overdue} overdue</span></div>
+     <div className="wl-stats"><span>{w.open} open</span><span>{w.urgent} high/urgent</span><span>{w.overdue} overdue</span><span>{(w.estimatedMinutes/60).toFixed(1)}h estimated</span><span>{w.unestimated} without estimate</span></div>
    </div>)}{!data.workloads.length&&<div className="wl-empty">No active employees found.</div>}</div>
   </div>
   <div className="wl-section"><h3>Suggested task assignments</h3><p>Unassigned work is suggested to the least-loaded active teammate. Reassignment suggestions for existing owners appear only when the load gap is at least 3 points.</p>

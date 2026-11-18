@@ -1,9 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
+import { estimatedMinutes } from "@/lib/work-day-policy";
+import { workScope } from "@/lib/work-task-links";
+import { applyTodoReview } from "@/lib/todo-review-server";
+import { assertReviewCompletion, type ReviewAction } from "@/lib/todo-review-policy";
 import { selectRows, updateRows } from "@/lib/supabase-data";
 import { workflowStatusesForService } from "@/lib/service-workflow";
-import { createTodoItem, deleteTodoItem, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
+import { assertTodoDependencies, createTodoItem, deleteTodoItem, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -127,6 +131,18 @@ export async function GET(request: NextRequest) {
     await requireTodoUser(request);
     const mode = text(request.nextUrl.searchParams.get("mode"), 40).toLowerCase();
     if (mode === "options") return ok(await todoOptions());
+    if (mode === "scope") {
+      const scope = workScope(request.nextUrl.searchParams.get("scope") || "", request.nextUrl.searchParams.get("code"));
+      if (!scope) return fail(new Error("A valid project or proposal reference is required."), 400);
+      const field = scope.type === "Project" ? "project_code" : "proposal_code";
+      const codes = scope.type === "Project" ? [...new Set([scope.code, "LV-" + Number(scope.code.slice(3))])] : [scope.code];
+      return ok(await selectRows("todo_items", { inFilters: { [field]: codes }, order: "updated_at:desc", limit: 5000 }));
+    }
+    if (mode === "item") {
+      const code = text(request.nextUrl.searchParams.get("code"), 80);
+      if (!/^TODO-[A-Z0-9-]+$/i.test(code)) return fail(new Error("A valid task code is required."), 400);
+      return ok(await selectRows("todo_items", { filters: { todo_code: code.toUpperCase() }, limit: 1 }));
+    }
     return ok(await listTodoItems());
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -144,13 +160,41 @@ export async function POST(request: NextRequest) {
       const createdBy = String((user as Row).name || (user as Row).Name || userIdOf(user) || "LAND VIEW").trim();
       return ok(await createTodoItem((input.item || {}) as Row, createdBy));
     }
+    if (action === "setestimate") {
+      const code = text(input.todoCode,80);
+      const rows = await selectRows("todo_items",{filters:{todo_code:code},limit:1});
+      const todo = rows[0];
+      if (!todo) throw new Error("Task not found.");
+      if (todo.status === "Done") throw new Error("Completed task estimates are locked.");
+      if (!todo.updated_at || text(input.expectedUpdatedAt,110) !== todo.updated_at) throw new Error("Task changed. Refresh before editing the estimate.");
+      const minutes = estimatedMinutes(input.estimatedMinutes);
+      const saved = await updateRows("todo_items",{id:todo.id,updated_at:todo.updated_at},{estimated_minutes:minutes,updated_at:new Date().toISOString()});
+      if (saved.length !== 1) throw new Error("Task changed. Refresh before editing the estimate.");
+      await recordAuditEvent({user,request,action:"todo_estimate_updated",entityType:"todo",entityId:code,before:{minutes:todo.estimated_minutes},after:{minutes},source:"todo-estimate"});
+      return ok(saved[0]);
+    }
+    if (["enable", "disable", "approve", "revise"].includes(action)) {
+      const todoCode = text(input.todoCode, 80);
+      const todos = await listTodoItems();
+      const todo = todos.find(row => row.todo_code === todoCode);
+      if (!todo) throw new Error("To Do item was not found.");
+      const actor = text((user as Row).name || (user as Row).Name || userIdOf(user) || "Management", 160);
+      const updated = await applyTodoReview(todo, todos, action as ReviewAction, "management", text(input.expectedUpdatedAt, 110), input.note, actor);
+      await recordAuditEvent({ user, request, action: "todo_review_" + action, entityType: "todo", entityId: todoCode, before: { required: todo.review_required, state: todo.review_state }, after: { required: updated.review_required, state: updated.review_state }, details: { note: updated.review_note }, source: "todo-review" });
+      return ok(updated);
+    }
     if (action === "update") {
       const todoCode = String(input.todoCode || "").trim();
       if (!todoCode) throw new Error("To Do code is required.");
       const todos = await listTodoItems();
       const current = todos.find((row) => row.todo_code === todoCode);
       if (!current) throw new Error("To Do item was not found.");
-      return ok(await updateTodoItem(todoCode, preserveSchedule((input.item || {}) as Row, current)));
+      const item = preserveSchedule((input.item || {}) as Row, current);
+      if (String(item.status || item.Status || current.status).trim().toLowerCase() === "done" && current.status !== "Done") {
+        assertTodoDependencies(current, todos);
+        assertReviewCompletion(current);
+      }
+      return ok(await updateTodoItem(todoCode, item));
     }
     if (action === "completewithworkflow") {
       const todoCode = text(input.todoCode, 80);
@@ -163,6 +207,8 @@ export async function POST(request: NextRequest) {
         throw new Error("This To Do is not linked to a Project Workflow service.");
       }
 
+      assertTodoDependencies(todo, todos);
+      assertReviewCompletion(todo);
       const workflowRows = await selectRows("project_service_workflows", { filters: { id: todo.workflow_id }, limit: 1 });
       if (!workflowRows.length) throw new Error("The linked Workflow service was not found.");
       const workflow = workflowRows[0] as Record<string, any>;
@@ -227,6 +273,6 @@ export async function POST(request: NextRequest) {
     throw new Error("Unsupported To Do action.");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion|only an active employee|reminder/i.test(message) ? 400 : 500);
+    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion|only an active employee|reminder|predecessor|dependency|review|revision|submitted|approved|task changed/i.test(message) ? 400 : 500);
   }
 }

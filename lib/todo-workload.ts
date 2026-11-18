@@ -53,13 +53,14 @@ export async function getWorkloadDashboard() {
   const {tasks,employees,escalations}=await context();
   const now=Date.now();
   const active=employees.filter(e=>text(e.status).toLowerCase()==="active");
-  const scores=new Map(active.map(e=>[text(e.id,80),{score:0,open:0,urgent:0,overdue:0,items:0}]));
+  const scores=new Map(active.map(e=>[text(e.id,80),{score:0,open:0,urgent:0,overdue:0,items:0,estimatedMinutes:0,unestimated:0}]));
   for(const task of tasks){
     const id=text(task.assigned_employee_id,80);
     const s=scores.get(id);if(!s)continue;
     s.items++;
     if(text(task.status)==="Done") continue;
     s.open++;s.score+=score(task,now);
+    const minutes=Number(task.estimated_minutes||0);if(minutes>0)s.estimatedMinutes+=minutes;else s.unestimated++;
     if(["High","Urgent"].includes(text(task.priority)))s.urgent++;
     if(overdueDays(task,now)>0)s.overdue++;
   }
