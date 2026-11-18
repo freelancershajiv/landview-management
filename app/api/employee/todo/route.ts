@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
+import { applyTodoReview } from "@/lib/todo-review-server";
 import { employeeCodeOf, selectRows } from "@/lib/supabase-data";
 import { assertTodoDependencies, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
 
@@ -130,18 +131,28 @@ export async function POST(request: NextRequest) {
     const employee = session.employee;
     input = await request.json().catch(() => ({})) as Row;
     const action = text(input.action, 80).toLowerCase();
-    if (action !== "updatestatus") throw new Error("Employees can only update To Do status.");
+    if (action !== "updatestatus" && action !== "submitreview") throw new Error("Employees can only update To Do status or submit assigned work.");
 
     const todoCode = text(input.todoCode, 80);
     if (!todoCode) throw new Error("To Do code is required.");
     const nextStatus = text(input.status, 40) as TodoItem["status"];
-    if (!["To Do", "In Progress", "Done"].includes(nextStatus)) throw new Error("Choose a valid To Do status.");
+    if (action === "updatestatus" && !["To Do", "In Progress", "Done"].includes(nextStatus)) throw new Error("Choose a valid To Do status.");
 
     const todos = await listTodoItems();
     const todo = todos.find((row) => row.todo_code === todoCode);
     if (!todo) throw new Error("To Do item was not found.");
     if (text(todo.assigned_employee_id, 80) !== text(employee.id, 80)) throw new Error("You can only update To Dos assigned to you.");
 
+    if (action === "submitreview") {
+      const updated = await applyTodoReview(todo, todos, "submit", "employee", text(input.expectedUpdatedAt, 110), input.note, text(employee.name || employee.employee_code, 160));
+      await recordAuditEvent({ user, request, action: "todo_review_submit", entityType: "todo", entityId: todo.todo_code, before: { reviewState: todo.review_state }, after: { reviewState: updated.review_state }, details: { note: updated.review_note }, source: "todo-review" });
+      return json({ success: true, data: updated });
+    }
+    if (todo.review_required && todo.status !== "Done") {
+      if (nextStatus === "Done") throw new Error("Submit this task for management review. Only management can complete approved work.");
+      if (todo.review_state === "submitted" || todo.review_state === "approved") throw new Error("This task is awaiting management action.");
+    }
+    if (todo.status === "Done" && todo.review_required && nextStatus !== "Done") throw new Error("Only management can reopen reviewed work.");
     if (nextStatus === "Done" && todo.status !== "Done") assertTodoDependencies(todo, todos);
     const updated = await updateTodoItem(todo.todo_code, todoPayload(todo, nextStatus));
     await recordAuditEvent({

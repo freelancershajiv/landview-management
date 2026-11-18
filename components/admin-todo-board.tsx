@@ -28,6 +28,11 @@ type TodoItem = {
   assigned_employee_id?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
+  review_required?: boolean;
+  review_state?: "not_submitted" | "submitted" | "revision_requested" | "approved";
+  review_note?: string | null;
+  review_actor?: string | null;
+  review_changed_at?: string | null;
   completed_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -456,6 +461,25 @@ export default function AdminTodoBoard() {
     }
   }
 
+  async function reviewTask(item: TodoItem, action: "enable" | "disable" | "approve" | "revise") {
+    if (busy || bulkBusy) return;
+    let note = "";
+    if (action === "revise") {
+      const value = window.prompt("Describe the required revisions:");
+      if (!value?.trim()) return;
+      note = value.trim();
+    }
+    if (action === "approve" && !window.confirm("Approve this submitted work? Final completion and delivery remain separate actions.")) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await request<TodoItem>("POST", { action, todoCode: item.todo_code, expectedUpdatedAt: item.updated_at, note });
+      setNotice(action === "approve" ? "Work approved. It can now be completed." : action === "revise" ? "Revision requested." : action === "enable" ? "Management review enabled." : "Management review disabled.");
+      await load();
+      window.dispatchEvent(new Event("landview:todo:changed"));
+    } catch (err) { setError(err instanceof Error ? err.message : "Review action failed."); }
+    finally { setBusy(false); }
+  }
+
   async function completeWithWorkflow(item: TodoItem) {
     if (busy || bulkBusy || !item.workflow_id) return;
     const workflow = workflowById.get(item.workflow_id);
@@ -761,17 +785,23 @@ export default function AdminTodoBoard() {
                         {referenceType === "Project" && !item.workflow_id ? <span>Workflow: not linked</span> : null}
                         {item.automation_source === "Bill Issued" ? <span>⚙ Automatic from issued bill · {item.workflow_stage || "Service"}</span> : null}
                         {item.dependency_todo_code ? <span style={{ color: items.find(row => row.todo_code === item.dependency_todo_code)?.status === "Done" ? "var(--lv-text-secondary)" : "var(--lv-danger)", fontWeight: 700 }}>{items.find(row => row.todo_code === item.dependency_todo_code)?.status === "Done" ? "Predecessor completed: " : "Blocked by: "}{items.find(row => row.todo_code === item.dependency_todo_code)?.title || item.dependency_todo_code}</span> : null}
+                        {item.review_required && <span style={{ color: item.review_state === "revision_requested" ? "var(--lv-danger)" : "var(--lv-brand-text)", fontWeight: 700 }}>Review: {item.review_state === "submitted" ? "Awaiting management" : item.review_state === "revision_requested" ? "Revision requested" : item.review_state === "approved" ? "Approved" : "Required before completion"}{item.review_note ? " · " + item.review_note : ""}</span>}
                         {item.is_delivery_step ? <span style={{ color: "var(--lv-danger)", fontWeight: 850 }}>🔒 Final file delivery requires verified full payment</span> : null}
                         {assignedEmployee ? <span>Assigned: {assignedEmployee.employeeCode} · {assignedEmployee.name}</span> : item.assigned_to ? <span>Assigned: {item.assigned_to}</span> : <span>Unassigned</span>}
                         {isOverdue(item) ? <span className={styles.overdueText}>Overdue</span> : null}
                       </div>
                       <div className={styles.cardActions}>
                         <select aria-label={`Status for ${item.title}`} value={item.status} disabled={busy || bulkBusy} onChange={(event) => void changeStatus(item, event.target.value as TodoStatus)}>
-                          <option>To Do</option><option>In Progress</option><option>Done</option>
+                          <option>To Do</option><option>In Progress</option><option disabled={item.status !== "Done" && item.review_required && item.review_state !== "approved"}>Done</option>
                         </select>
                         <button type="button" onClick={() => startEdit(item)} disabled={busy || bulkBusy}>Edit</button>
                         <button className={styles.dangerButton} type="button" onClick={() => void remove(item)} disabled={busy || bulkBusy}>Delete</button>
                       </div>
+                      {item.status !== "Done" && !item.is_delivery_step && <div className={styles.workflowActions}>
+                        {!item.review_required ? <button type="button" disabled={busy || bulkBusy} onClick={() => void reviewTask(item, "enable")}>Require review</button> : null}
+                        {item.review_required && (!item.review_state || item.review_state === "not_submitted") ? <button type="button" disabled={busy || bulkBusy} onClick={() => void reviewTask(item, "disable")}>Disable review</button> : null}
+                        {item.review_state === "submitted" && <><button className={styles.workflowPrimary} type="button" disabled={busy || bulkBusy} onClick={() => void reviewTask(item, "approve")}>Approve work</button><button type="button" disabled={busy || bulkBusy} onClick={() => void reviewTask(item, "revise")}>Request revision</button></>}
+                      </div>}
                       {referenceType === "Project" ? (
                         <div className={styles.workflowActions}>
                           <a href="/admin/project-operations/by-project">View Workflow</a>
@@ -779,14 +809,14 @@ export default function AdminTodoBoard() {
                             <button
                               className={styles.workflowPrimary}
                               type="button"
-                              disabled={busy || bulkBusy || (item.status === "Done" && workflowDone)}
+                              disabled={busy || bulkBusy || (item.status === "Done" && workflowDone) || (item.status !== "Done" && item.review_required && item.review_state !== "approved")}
                               onClick={() => void completeWithWorkflow(item)}
                             >
                               {workflowDone ? (item.status === "Done" ? "Workflow completed" : "Complete To Do") : item.status === "Done" ? "Update Workflow" : "Complete + Workflow"}
                             </button>
                           ) : null}
                           {item.workflow_id && item.status !== "Done" ? (
-                            <button type="button" disabled={busy || bulkBusy} onClick={() => void changeStatus(item, "Done")}>Complete only</button>
+                            <button type="button" disabled={busy || bulkBusy || (item.review_required && item.review_state !== "approved")} onClick={() => void changeStatus(item, "Done")}>Complete only</button>
                           ) : null}
                         </div>
                       ) : null}

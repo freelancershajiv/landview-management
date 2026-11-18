@@ -33,6 +33,11 @@ export type TodoItem = {
   assigned_employee_id?: string | null;
   assigned_to?: string | null;
   created_by?: string | null;
+  review_required?: boolean;
+  review_state?: "not_submitted" | "submitted" | "revision_requested" | "approved";
+  review_note?: string | null;
+  review_actor?: string | null;
+  review_changed_at?: string | null;
   completed_at?: string | null;
   created_at?: string;
   updated_at?: string;

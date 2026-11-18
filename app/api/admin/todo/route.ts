@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf, userIdOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
+import { applyTodoReview } from "@/lib/todo-review-server";
+import { assertReviewCompletion, type ReviewAction } from "@/lib/todo-review-policy";
 import { selectRows, updateRows } from "@/lib/supabase-data";
 import { workflowStatusesForService } from "@/lib/service-workflow";
 import { assertTodoDependencies, createTodoItem, deleteTodoItem, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
@@ -144,6 +146,16 @@ export async function POST(request: NextRequest) {
       const createdBy = String((user as Row).name || (user as Row).Name || userIdOf(user) || "LAND VIEW").trim();
       return ok(await createTodoItem((input.item || {}) as Row, createdBy));
     }
+    if (["enable", "disable", "approve", "revise"].includes(action)) {
+      const todoCode = text(input.todoCode, 80);
+      const todos = await listTodoItems();
+      const todo = todos.find(row => row.todo_code === todoCode);
+      if (!todo) throw new Error("To Do item was not found.");
+      const actor = text((user as Row).name || (user as Row).Name || userIdOf(user) || "Management", 160);
+      const updated = await applyTodoReview(todo, todos, action as ReviewAction, "management", text(input.expectedUpdatedAt, 110), input.note, actor);
+      await recordAuditEvent({ user, request, action: "todo_review_" + action, entityType: "todo", entityId: todoCode, before: { required: todo.review_required, state: todo.review_state }, after: { required: updated.review_required, state: updated.review_state }, details: { note: updated.review_note }, source: "todo-review" });
+      return ok(updated);
+    }
     if (action === "update") {
       const todoCode = String(input.todoCode || "").trim();
       if (!todoCode) throw new Error("To Do code is required.");
@@ -151,7 +163,10 @@ export async function POST(request: NextRequest) {
       const current = todos.find((row) => row.todo_code === todoCode);
       if (!current) throw new Error("To Do item was not found.");
       const item = preserveSchedule((input.item || {}) as Row, current);
-      if (String(item.status || current.status).trim().toLowerCase() === "done" && current.status !== "Done") assertTodoDependencies(current, todos);
+      if (String(item.status || item.Status || current.status).trim().toLowerCase() === "done" && current.status !== "Done") {
+        assertTodoDependencies(current, todos);
+        assertReviewCompletion(current);
+      }
       return ok(await updateTodoItem(todoCode, item));
     }
     if (action === "completewithworkflow") {
@@ -166,6 +181,7 @@ export async function POST(request: NextRequest) {
       }
 
       assertTodoDependencies(todo, todos);
+      assertReviewCompletion(todo);
       const workflowRows = await selectRows("project_service_workflows", { filters: { id: todo.workflow_id }, limit: 1 });
       if (!workflowRows.length) throw new Error("The linked Workflow service was not found.");
       const workflow = workflowRows[0] as Record<string, any>;
@@ -230,6 +246,6 @@ export async function POST(request: NextRequest) {
     throw new Error("Unsupported To Do action.");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion|only an active employee|reminder|predecessor|dependency/i.test(message) ? 400 : 500);
+    return fail(error, /authentication/i.test(message) ? 401 : /access denied/i.test(message) ? 403 : /required|unsupported|not linked|not found|does not belong|no completion|only an active employee|reminder|predecessor|dependency|review|revision|submitted|approved|task changed/i.test(message) ? 400 : 500);
   }
 }
