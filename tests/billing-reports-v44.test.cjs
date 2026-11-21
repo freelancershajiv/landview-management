@@ -95,6 +95,28 @@ test("historical payments without verified date are undated even when imported r
  assert.equal(report.summary.legacyCreditedPayments,300);
  assert.equal(report.summary.undatedPaymentAmount,300);
 });
+test("project-less office income never enters project billing collection reconciliations",()=>{
+ const {authority,names}=fixture();
+ // 13 valid office-income entries in production total BDT 72,850 and have no project ID.
+ // They are business-income transactions, not client project payments.
+ const officeAmounts=[5500,2000,5000,7000,200,13000,9000,100,5500,7000,17000,50,1500];
+ assert.equal(officeAmounts.reduce((a,b)=>a+b,0),72850);
+ for(const [i,amount] of officeAmounts.entries()){
+  authority.payments.push({
+   paymentId:"office-"+i,projectId:"",amount,effective:true,
+   row:{payment_date:"2026-10-14",transaction_type:"Office Income",
+    status:"POSTED",approval_status:"Approved",affects_business_balance:true,is_legacy_manual:false},
+  });
+ }
+ const report=compileFinancialReportV44(authority,names,new Date("2026-11-21T15:00:00Z"));
+ assert.equal(report.summary.creditedPayments,500);
+ assert.equal(report.summary.operationalCollections,200);
+ assert.equal(report.summary.legacyCreditedPayments,300);
+ assert.equal(report.summary.collectibleDue,650);
+ assert.equal(report.summary.undatedPaymentAmount,300);
+ assert.equal(report.months.reduce((sum,row)=>sum+row.payments,0),200);
+ assert.equal(report.projects.find(row=>row.projectCode==="LV-157").creditedPayments,500);
+});
 test("incomplete datasets and mismatched project balances fail closed",()=>{
  const {authority,names}=fixture();
  assert.throws(()=>compileFinancialReportV44({...authority,complete:false},names),/incomplete/);

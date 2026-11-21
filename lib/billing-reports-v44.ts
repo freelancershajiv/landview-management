@@ -89,7 +89,11 @@ export function compileFinancialReportV44(
   let invoiceDateFallbackCount = 0, invoiceDueDatePresentCount = 0;
   let unverifiedImportDateCount = 0, unverifiedImportDateAmount = 0;
   for (const payment of authority.payments) {
-    if (!payment.effective) continue;
+    // loadReceivableAuthority also reads project-less office income. Such
+    // payments are valid business ledger entries, but its canonical project
+    // totals only include payments with a projectId. Keep collection figures
+    // on the exact same project scope as authority.totals.paid.
+    if (!payment.effective || !payment.projectId || !authority.projects.has(payment.projectId)) continue;
     const amount = money(payment.amount);
     const raw = payment.row as Row;
     const historical = raw.is_legacy_manual === true || raw.affects_business_balance === false;
