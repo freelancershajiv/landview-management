@@ -22,6 +22,11 @@ on:
       - "tests/billing-reconciliation-41.test.cjs"
       - "tests/billing-full-editor-v42.test.cjs"
       - "tests/billing-project-statement-v43.test.cjs"
+      - "tests/billing-reports-v44.test.cjs"
+      - "lib/billing-reports-v44.ts"
+      - "lib/billing-reports-v44-server.ts"
+      - "app/api/billing/reports-v44/**"
+      - "app/admin/finance/reports/**"
       - "lib/project-statement-v43.ts"
       - "lib/project-statement-document-v43.ts"
       - "lib/project-statement-pdf-v43.ts"
@@ -75,6 +80,12 @@ jobs:
             tests/invoice-single-bill-status.test.cjs \
             tests/proposal-billing-conversion.test.cjs \
             tests/invoice-center.test.cjs
+      - name: Billing 4.4 management reports regression gate
+        run: node --test tests/billing-reports-v44.test.cjs
+
+      - name: Billing 4.4 reports scoped lint
+        run: npx eslint lib/billing-reports-v44.ts lib/billing-reports-v44-server.ts app/api/billing/reports-v44/route.ts app/api/billing/reports-v44/print/route.ts app/admin/finance/reports/page.tsx
+
       - name: Billing 4.3 project statements and receipt integrity gate
         run: node --test tests/billing-project-statement-v43.test.cjs
       - name: Billing 4.3 statement and receipt scoped lint
