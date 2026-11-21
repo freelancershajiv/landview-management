@@ -128,7 +128,7 @@
   .portal-admin .direct-bill-page .db-btn.primary :is(span,strong,b,small,i,svg,label),
   .portal-admin .ab-btn.primary :is(span,strong,b,small,i,svg,label),
   .portal-admin .lv-correction button:not(.secondary) :is(span,strong,b,small,i,svg,label),
-  .portal-admin .po-btn.primary :is(span,strong,b,small,i,svg,label) :is(span,strong,b,small,i,svg,label) :is(span,strong,b,small,i,svg,label) :is(span,strong,b,small,i,svg,label) :is(span,strong,b,small,i,svg,label) :is(span,strong,b,small,i,svg,label) {
+  .portal-admin .po-btn.primary :is(span,strong,b,small,i,svg,label) {
     color: #fff !important;
     -webkit-text-fill-color: #fff !important;
   }
