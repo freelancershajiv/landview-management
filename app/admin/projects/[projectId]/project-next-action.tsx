@@ -17,6 +17,7 @@ type DeliveryBalance = {
   delivered: boolean;
   deliveryDue: number;
   deliveryLocked: boolean;
+  billCodes?: string[];
 };
 type DocumentStatus = ReturnType<typeof clientDocumentChecklist>;
 const money = new Intl.NumberFormat("en-BD", { maximumFractionDigits: 2 });
@@ -128,7 +129,15 @@ export default function ProjectNextAction({ projectId, openDocuments }: {
                   <strong>{service.serviceName}</strong> · {service.status}
                   {!service.delivered && service.nextStatus && <div>Next workflow step · {service.nextStatus}</div>}
                   {!service.delivered && service.deliveryLocked &&
-                    <div>Payment hold · <strong>৳{money.format(service.deliveryDue)}</strong> remaining in workflow</div>}
+                    <div>
+                      Payment hold · <strong>৳{money.format(service.deliveryDue)}</strong> remaining in workflow
+                      <p className="pc-note">Accounts: verify payment and allocation against the service bills.</p>
+                      {service.billCodes?.length ? <ul>{service.billCodes.map((code) => (
+                        <li key={code}>
+                          <Link href={`/admin/billing/invoice-center?q=${encodeURIComponent(code)}`}>Find bill {code}</Link>
+                        </li>
+                      ))}</ul> : <Link href={`/admin/billing/bills?fileId=${project}`}>Review project bills</Link>}
+                    </div>}
                   <div className="pc-actions" style={{ flexWrap: "wrap" }}>
                     <Link href={`/admin/project-operations/by-project?project=${project}&workflow=${workflow}`}>Open workflow</Link>
                     <Link href={`/admin/project-operations/document-register?workflowId=${workflow}`}>Service documents</Link>

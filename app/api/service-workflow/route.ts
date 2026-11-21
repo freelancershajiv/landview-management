@@ -155,7 +155,15 @@ export async function GET(request: NextRequest) {
       const projectCode = normalizeProjectCode(request.nextUrl.searchParams.get("projectId"));
       if (!projectCode) return json({ success: false, error: "Valid project ID required." }, 400);
       const workflows = await projectWorkflow(projectCode);
-      const data = workflows.map(({ id, serviceName, status, statuses, deliveryDue, deliveryLocked }) => {
+      const held = workflows.some((row) => row.deliveryLocked && row.status !== row.statuses[row.statuses.length - 1]);
+      const billsByService = new Map<string, string[]>();
+      if (held) {
+        const financials = await getProjectServiceFinancials(projectCode).catch(() => null);
+        for (const service of financials?.services ?? []) {
+          billsByService.set(service.serviceKey, [...new Set(service.billCodes)]);
+        }
+      }
+      const data = workflows.map(({ id, serviceKey, serviceName, status, statuses, deliveryDue, deliveryLocked }) => {
         const index = statuses.indexOf(status as never);
         return {
           id,
@@ -165,6 +173,7 @@ export async function GET(request: NextRequest) {
           delivered: status === statuses[statuses.length - 1],
           deliveryDue,
           deliveryLocked,
+          billCodes: billsByService.get(serviceKey) ?? [],
         };
       });
       return json({ success: true, data });
