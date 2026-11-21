@@ -297,9 +297,9 @@ export default function AdminTodoWorkspace() {
         <div>
           <div className="tws-eyebrow">LAND VIEW · MANAGEMENT WORKSPACE</div>
           <h1>Work Management</h1>
-          <p>Focus on deadlines, assignments and team priorities. Advanced tools remain available when you need them.</p>
+          <p>Project and office work only. Regular Site Visits, supervision schedules and site reports are managed separately.</p>
         </div>
-        <button className="tws-primary" type="button" onClick={newTodo}>+ New Task</button>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><a className="tws-primary" href="/admin/site-visits" style={{textDecoration:"none",background:"var(--lv-surface-panel)",color:"var(--lv-text-primary)",borderColor:"var(--lv-border-default)"}}>Site Visits ↗</a><button className="tws-primary" type="button" onClick={newTodo}>+ New Task</button></div>
       </div>
       <div className="tws-nav-wrap tws-main-navigation">
         <div className="tws-nav" role="tablist" aria-label="To Do management sections">
@@ -374,7 +374,7 @@ export default function AdminTodoWorkspace() {
       {navigation.tab === "reports" && <Reports />}
     </section>
     <p className="tws-footer">
-      Each section uses the existing LAND VIEW records and management permissions. Task links open the correct item in the To Do Board; Workflow changes remain explicit actions.
+      To Do tracks project deliverables and follow-ups. Site Visit scheduling, inspection reports and supervision activity belong in Site Visits; Workflow changes remain explicit management actions.
     </p>
   </div>;
 }

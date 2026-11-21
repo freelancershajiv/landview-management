@@ -1,4 +1,5 @@
 import { getVercelOidcToken } from "@vercel/oidc";
+import {assertProjectWorkTitle,isProjectWorkTodo, type WorkArea} from "@/lib/todo-scope";
 
 const TODO_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-todo";
 const AUDIENCE = "https://supabase.landview.internal";
@@ -9,6 +10,7 @@ export type TodoItem = {
   id?: string;
   todo_code: string;
   title: string;
+  work_area?: WorkArea;
   description?: string | null;
   status: "To Do" | "In Progress" | "Done";
   priority: "Low" | "Normal" | "High" | "Urgent";
@@ -65,15 +67,18 @@ async function todoGateway<T>(action: string, input: Row = {}): Promise<T> {
   return json.data as T;
 }
 
-export function listTodoItems() {
-  return todoGateway<TodoItem[]>("list");
+export async function listTodoItems() {
+  const rows=await todoGateway<TodoItem[]>("list");
+  return rows.filter(isProjectWorkTodo);
 }
 
 export function createTodoItem(item: Row, createdBy: string) {
+  assertProjectWorkTitle(item.title ?? item.Title);
   return todoGateway<TodoItem>("create", { item, createdBy });
 }
 
 export function updateTodoItem(todoCode: string, item: Row) {
+  assertProjectWorkTitle(item.title ?? item.Title);
   return todoGateway<TodoItem>("update", { todoCode, item });
 }
 

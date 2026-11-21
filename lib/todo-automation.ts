@@ -15,7 +15,7 @@ export type AutomationRule = Row & {
 };
 const DAY = 86400000;
 const DHAKA = 21600000;
-const KEYS = new Set(["project_created","service_activated","proposal_sent","site_issue","ready_to_print","invoice_overdue","document_followup"]);
+const KEYS = new Set(["project_created","service_activated","proposal_sent","ready_to_print","invoice_overdue","document_followup"]);
 function text(value: unknown, max = 800) { return String(value ?? "").trim().slice(0, max); }
 function amount(value: unknown) { const n = Number(value); return Number.isFinite(n) ? n : 0; }
 function dateMs(value: unknown) { const ms = Date.parse(text(value, 80)); return Number.isFinite(ms) ? ms : NaN; }
@@ -40,11 +40,6 @@ function newCandidate(rule: AutomationRule, sourceTable: string, sourceId: strin
     priority: "Normal", referenceType: "None", ...options,
   };
 }
-function visitIssue(row: Row) {
-  if (populated(row.action_required) || populated(row.problem_photo_path) || populated(row.problem_photo_drive_file_id)) return true;
-  const media = Array.isArray(row.media_items) ? row.media_items : [];
-  return media.some((item: Row) => /problem|issue|defect/i.test(text(item.type || item.category || item.media_type, 80)));
-}
 function overdueInvoice(row: Row, today: string) {
   const dueDate = dateOnly(row.due_date);
   if (!dueDate || dueDate >= today || /paid|void|cancel|reject/i.test(status(row.status)) && !/partially paid/i.test(status(row.status))) return false;
@@ -65,7 +60,7 @@ export async function listAutomationDashboard() {
     selectRows("todo_automation_rules", { order: "rule_key:asc", limit: 100 }),
     selectRows("todo_automation_events", { order: "created_at:desc", limit: 150 }),
   ]);
-  return { rules: rules as AutomationRule[], events };
+  return { rules: rules.filter(r=>r.rule_key!=="site_issue") as AutomationRule[], events };
 }
 
 export async function saveAutomationRule(key: string, input: Row) {
@@ -96,11 +91,10 @@ async function collectCandidates(rules: AutomationRule[]): Promise<Candidate[]> 
   const need = (key: string) => enabled.has(key);
   const fetch = async (table: string, required: boolean, order = "created_at:desc") =>
     required ? selectRows(table, { order, limit: 5000 }) : Promise.resolve([] as Row[]);
-  const [projects, workflows, proposals, visits, invoices, docRegisters, drawings, employees] = await Promise.all([
+  const [projects, workflows, proposals, invoices, docRegisters, drawings, employees] = await Promise.all([
     fetch("projects", true, "created_at:desc"),
     fetch("project_service_workflows", need("service_activated") || need("ready_to_print"), "updated_at:desc"),
     fetch("proposals", need("proposal_sent"), "updated_at:desc"),
-    fetch("site_visits", need("site_issue"), "created_at:desc"),
     fetch("invoices", need("invoice_overdue"), "created_at:desc"),
     fetch("client_document_register", need("document_followup"), "created_at:desc"),
     fetch("project_service_documents", need("document_followup") || need("ready_to_print"), "created_at:desc"),
@@ -128,6 +122,7 @@ async function collectCandidates(rules: AutomationRule[]): Promise<Candidate[]> 
   const billGenerated = serviceRule ? await selectRows("todo_items", { select: "workflow_id", filters: { automation_source: "Bill Issued" }, limit: 5000 }) : [];
   const billWorkflowIds = new Set(billGenerated.map(row => text(row.workflow_id, 80)).filter(Boolean));
   if (serviceRule) for (const wf of workflows) {
+    if (/^site\s+(supervision|visits?)$/i.test(text(wf.service_name,140))) continue;
     if (!triggered(wf.activated_at, serviceRule) || amount(wf.paid_amount) <= 0 || !populated(wf.project_code) || billWorkflowIds.has(text(wf.id, 80))) continue;
     if (/delivered|printed|cancel/i.test(status(wf.status))) continue;
     all.push(newCandidate(serviceRule, "project_service_workflows", text(wf.id, 80), text(wf.activated_at),
@@ -144,18 +139,6 @@ async function collectCandidates(rules: AutomationRule[]): Promise<Candidate[]> 
       "Client: " + text(prop.client_name, 160) + ". " + text(prop.project_title, 180) + ". Contact the client and record the response.",
       ["Confirm proposal was received", "Discuss questions or revisions", "Record response and next action"],
       { referenceType: "Proposal", proposalCode: text(prop.proposal_code, 120), employeeId: chosen(proposalRule) }));
-  }
-  const visitRule = enabled.get("site_issue");
-  if (visitRule) for (const visit of visits) {
-    if (!triggered(visit.created_at, visitRule) || !visitIssue(visit)) continue;
-    const project = projectMap.get(text(visit.project_id, 80));
-    if (!reference(project)) continue;
-    const code = reference(project);
-    all.push(newCandidate(visitRule, "site_visits", text(visit.id, 80), text(visit.created_at),
-      "Resolve site issue — " + code + " / " + text(visit.visit_code || "Site visit", 70),
-      "Site observation: " + text(visit.observations || visit.notes, 1000) + ". Action required: " + text(visit.action_required || "Review the reported problem and photos.", 1000),
-      ["Review the site visit and issue photos", "Confirm corrective action with responsible engineer", "Record resolution and close the issue"],
-      { referenceType: "Project", projectCode: code, employeeId: chosen(visitRule, text(visit.employee_id, 80)), priority: "Urgent" }));
   }
   const printRule = enabled.get("ready_to_print");
   const readyWorkflowIds = new Set<string>();
