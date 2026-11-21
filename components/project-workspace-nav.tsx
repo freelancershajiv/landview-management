@@ -12,7 +12,9 @@ export default function ProjectWorkspaceNav() {
   const encoded = encodeURIComponent(projectId);
   const lifecycleHref = `/admin/projects/${encoded}/lifecycle`;
   const legacyHref = `/admin/projects/${encoded}`;
+  const v4Href = `/admin/projects/${encoded}/v4-preview`;
   const onLifecycle = pathname === lifecycleHref || pathname.startsWith(`${lifecycleHref}/`);
+  const onV4 = pathname === v4Href || pathname.startsWith(`${v4Href}/`);
 
   return <div className="project-workspace-switcher">
     <style>{`
@@ -24,11 +26,12 @@ export default function ProjectWorkspaceNav() {
     `}</style>
     <div className="project-workspace-switcher-copy">
       <strong>{projectId} · Project Workspace</strong>
-      <span>The lifecycle workspace is the new master view. The current project view remains available during migration.</span>
+      <span>New unified workspace is available in development preview; legacy and lifecycle views remain available.</span>
     </div>
     <div className="project-workspace-switcher-actions">
+      <Link className={onV4 ? "active" : ""} href={v4Href}>Unified v4 Preview</Link>
       <Link className={onLifecycle ? "active" : ""} href={lifecycleHref}>Lifecycle Workspace</Link>
-      <Link className={!onLifecycle ? "active" : ""} href={legacyHref}>Current Project View</Link>
+      <Link className={!onLifecycle && !onV4 ? "active" : ""} href={legacyHref}>Current Project View</Link>
     </div>
   </div>;
 }

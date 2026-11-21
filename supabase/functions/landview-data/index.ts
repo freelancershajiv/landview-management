@@ -10,7 +10,7 @@ const ALLOWED_TABLES = new Set([
   "bills","billing_discount_log","billing_writeoff_log","accounts","transfers","transactions","expenses","tasks","attendance","leave_requests","approvals",
   "app_users","app_permissions","prospective_clients","proposals","proposal_items","proposal_activity",
   "drawing_submissions","quotations","certificates","certificate_requests","certificate_audit","app_audit_log",
-  "client_document_register","design_book_register","project_management_ledger","project_management_summary",
+  "client_document_register","project_client_document_events","project_client_document_files","project_service_document_requirements","design_book_register","project_management_ledger","project_management_summary",
   "project_contractor_contracts","project_contractor_bills","project_contractor_progress_updates","project_supplier_accounts",
   "project_billing","project_ledger","project_lifecycle_transitions","employee_location_checks",
   "project_service_workflows","payment_service_allocations","invoice_items","payment_invoice_allocations","payment_receipts",
@@ -55,6 +55,9 @@ const DEFAULT_TABLE_ORDER: Record<string, string> = {
   certificate_audit: "created_at:desc,certificate_code:desc",
   app_audit_log: "created_at:desc",
   client_document_register: "received_date:desc,created_at:desc,register_code:desc",
+  project_client_document_events: "created_at:desc",
+  project_client_document_files: "created_at:desc",
+  project_service_document_requirements: "configured_at:desc",
   design_book_register: "created_at:desc,project_id:desc",
   project_management_ledger: "created_at:desc,updated_at:desc",
   project_management_summary: "updated_at:desc,created_at:desc",
@@ -234,6 +237,71 @@ async function signedSiteVisitMediaUrl(input: Record<string, unknown>) {
   const signed = String(body.signedURL);
   return { path, url: signed.startsWith("http") ? signed : `${base}/storage/v1${signed.startsWith("/") ? signed : `/${signed}`}` };
 }
+
+const CLIENT_FILE_BUCKET = "project-client-documents-v4";
+const CLIENT_FILE_TYPES: Record<string, string> = {
+  pdf: "application/pdf", jpg: "image/jpeg", png: "image/png", webp: "image/webp",
+};
+function safeClientFilePath(value: unknown) {
+  const path = String(value || "");
+  const match = /^projects\/([0-9a-f-]{36})\/receipts\/([0-9a-f-]{36})\/([0-9a-f-]{36})\.(pdf|jpg|png|webp)$/.exec(path);
+  if (!match || path.includes("..")) throw new Error("Invalid client document file path.");
+  return { path, projectId: match[1], receiptId: match[2], mime: CLIENT_FILE_TYPES[match[4]] };
+}
+async function clientFileRow(pathValue: unknown, expectedStatus: "pending" | "stored") {
+  const info = safeClientFilePath(pathValue);
+  const filter = `storage_path=eq.${encodeURIComponent(info.path)}&status=eq.${expectedStatus}&select=id,project_id,register_id,file_size,content_type,storage_path&limit=1`;
+  const rows = await db(`project_client_document_files?${filter}`) as Record<string, unknown>[];
+  const row = rows?.[0];
+  if (!row || row.project_id !== info.projectId || row.register_id !== info.receiptId ||
+      row.content_type !== info.mime) throw new Error("Client file authorization check failed.");
+  return { ...info, row };
+}
+async function signClientDocumentUpload(input: Record<string, unknown>) {
+  const info = await clientFileRow(input.path, "pending");
+  const key = secretKey();
+  const base = Deno.env.get("SUPABASE_URL")!;
+  const response = await fetch(`${base}/storage/v1/object/upload/sign/${CLIENT_FILE_BUCKET}/${info.path}`, {
+    method: "POST", headers: { apikey: key, Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: "{}",
+  });
+  const result = await response.json().catch(() => null) as Record<string, unknown> | null;
+  if (!response.ok || !result?.url) throw new Error("Client document upload authorization failed.");
+  const signed = new URL(base + "/storage/v1" + (String(result.url).startsWith("/") ? String(result.url) : "/" + String(result.url)));
+  if (!signed.pathname.includes("/object/upload/sign/")) throw new Error("Invalid signed upload endpoint.");
+  return { url: signed.toString(), contentType: info.mime };
+}
+async function clientDocumentObjectInfo(input: Record<string, unknown>) {
+  const info = await clientFileRow(input.path, "pending");
+  const key = secretKey();
+  const base = Deno.env.get("SUPABASE_URL")!;
+  const response = await fetch(`${base}/storage/v1/object/info/${CLIENT_FILE_BUCKET}/${info.path}`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` }, cache: "no-store",
+  });
+  if (!response.ok) throw new Error("Uploaded file is not accessible in private storage.");
+  const item = await response.json() as Record<string, unknown>;
+  const meta = (item.metadata || {}) as Record<string, unknown>;
+  const size = Number(meta.size ?? item.size);
+  const mime = String(meta.mimetype ?? meta.contentType ?? item.content_type ?? "").toLowerCase();
+  if (!Number.isFinite(size) || size !== Number(info.row.file_size) || mime !== info.mime) {
+    throw new Error("Uploaded file type or byte length does not match the receipt.");
+  }
+  return { exists: true, path: info.path, fileSize: size, contentType: mime };
+}
+async function signClientDocumentDownload(input: Record<string, unknown>) {
+  const info = await clientFileRow(input.path, "stored");
+  const key = secretKey();
+  const base = Deno.env.get("SUPABASE_URL")!;
+  const response = await fetch(`${base}/storage/v1/object/sign/${CLIENT_FILE_BUCKET}/${info.path}`, {
+    method: "POST", headers: { apikey: key, Authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({ expiresIn: 60 }),
+  });
+  const result = await response.json().catch(() => null) as Record<string, unknown> | null;
+  if (!response.ok || !result?.signedURL) throw new Error("Could not create a private download link.");
+  const signed = String(result.signedURL);
+  return { url: signed.startsWith("http") ? signed : `${base}/storage/v1${signed.startsWith("/") ? signed : "/" + signed}` };
+}
+
 async function selectRowsPaged(input: Record<string, unknown>) {
   const table = tableName(input.table);
   const desired = Math.min(5000, Math.max(1, Math.trunc(num(input.limit, 1000))));
@@ -257,6 +325,9 @@ async function handleAction(action: string, input: Record<string, unknown>) {
   if (action === "applyBillingWriteOff") return await db("rpc/apply_billing_writeoff", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_writeoff_date: String(input.writeoffDate || input.date || "").trim() || null, p_reason: String(input.reason || "").trim(), p_notes: String(input.notes || "").trim(), p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
   if (action === "recoverBillingWriteOff") return await db("rpc/recover_billing_writeoff", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_payment_date: String(input.paymentDate || input.date || "").trim() || null, p_payment_method: String(input.paymentMethod || "").trim() || null, p_deposit_account: String(input.depositAccount || "").trim() || null, p_reference_no: String(input.reference || input.referenceNo || "").trim() || null, p_notes: String(input.notes || "").trim() || null, p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
   if (action === "moveProjectToProposal") return await db("rpc/move_project_to_proposal", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_created_by: String(input.createdBy || "").trim() || null }) });
+  if (action === "signClientDocumentUpload") return await signClientDocumentUpload(input);
+  if (action === "clientDocumentObjectInfo") return await clientDocumentObjectInfo(input);
+  if (action === "signClientDocumentDownload") return await signClientDocumentDownload(input);
   if (action === "uploadSiteVisitMedia") return await uploadSiteVisitMedia(input);
   if (action === "getSiteVisitMediaUrl") return await signedSiteVisitMediaUrl(input);
   if (action === "selectRows") return await selectRowsPaged(input);
