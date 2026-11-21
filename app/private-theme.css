@@ -688,7 +688,7 @@
     border-color:var(--lv-brand-primary) !important;
     color:#fff !important;
   }
-  .portal-admin .project-workspace-switcher :is(strong,span) {color:var(--lv-text-primary) !important;}
+  .portal-admin .project-workspace-switcher .project-workspace-switcher-copy :is(strong,span) {color:var(--lv-text-primary) !important;}
 
   /* PM presentation consumes the same density, while transactions stay untouched */
   .pf-redesign :is(.pmx-project-control label,.pmx-workspace-overline,.pmx-section-kicker,
@@ -1121,5 +1121,104 @@
   ):not([data-lv-button="soft"]):not([data-lv-button="danger"]):not([data-lv-button="tab-active"]) :is(span,strong,b,small,i,em,svg,label,p,div) {
     color: #fff !important;
     -webkit-text-fill-color: #fff !important;
+  }
+}
+
+/* Projects / Project Register: explicit control-background and foreground pairs.
+   The register previously painted stage filters solid red while assigning
+   data-lv-button="tab-active" (soft red ink); use "primary" for that state.
+   These rules reinforce both color and WebKit text fill, leaving soft WhatsApp
+   state toggles and ordinary text links semantically colored. */
+@media screen {
+  .portal-admin .projects-register button.filter-btn.active[data-lv-button="primary"],
+  .portal-admin .projects-register a.project-id.project-id-link[data-lv-button="primary"],
+  .portal-admin .projects-section-nav a.projects-section-link.primary[data-lv-button="primary"],
+  .portal-admin .pc button.btn.btn-dark[data-lv-button="primary"],
+  .portal-admin .pc .pc-tabs button.active[data-lv-button="primary"],
+  .portal-admin .project-workspace-switcher a.active,
+  .portal-admin .project-locations-page button.pl-tab.active[data-lv-button="primary"],
+  .portal-admin .project-locations-page .pl-btn.primary[data-lv-button="primary"],
+  .portal-admin .new-project-page .new-project-btn.primary[data-lv-button="primary"],
+  .portal-admin .legacy-page .legacy-btn.primary[data-lv-button="primary"],
+  .portal-admin .missing-page .missing-btn.primary[data-lv-button="primary"],
+  .portal-admin .pcb-shell button.pcb-btn.primary[data-lv-button="primary"] {
+    background: var(--lv-brand-primary) !important;
+    border-color: var(--lv-brand-primary) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  .portal-admin .projects-register a.project-id.project-id-link[data-lv-button="primary"] {
+    text-decoration: none;
+  }
+  .portal-admin .projects-register a.project-id.project-id-link[data-lv-button="primary"]:hover,
+  .portal-admin .pc button.btn.btn-dark[data-lv-button="primary"]:hover:not(:disabled),
+  .portal-admin .pc .pc-tabs button.active[data-lv-button="primary"]:hover,
+  .portal-admin .project-workspace-switcher a.active:hover {
+    background: var(--lv-brand-primary-hover) !important;
+    border-color: var(--lv-brand-primary-hover) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  /* White-on-red includes inner badges/labels; do not apply to warning chips. */
+  .portal-admin .projects-register a.project-id.project-id-link[data-lv-button="primary"] :is(span,strong,b,small,i,svg),
+  .portal-admin .projects-register button.filter-btn.active[data-lv-button="primary"] :is(span,strong,b,small,i,svg),
+  .portal-admin .pc :is(.btn.btn-dark[data-lv-button="primary"],.pc-tabs button.active[data-lv-button="primary"]) :is(span,strong,b,small,i,svg),
+  .portal-admin .project-workspace-switcher a.active :is(span,strong,b,small,i,svg) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  /* Former "References" tab was permanently red even when not selected. */
+  .portal-admin .pc .pc-tabs .pc-tab-link[data-lv-button="secondary"],
+  .portal-admin .pc .service-upload button[data-lv-button="secondary"],
+  .portal-admin .project-locations-page button.pl-map-btn[data-lv-button="secondary"] {
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+  }
+  .portal-admin .pc .pc-tabs .pc-tab-link[data-lv-button="secondary"]:hover,
+  .portal-admin .pc .service-upload button[data-lv-button="secondary"]:hover,
+  .portal-admin .project-locations-page button.pl-map-btn[data-lv-button="secondary"]:hover {
+    color: var(--lv-text-strong) !important;
+    -webkit-text-fill-color: var(--lv-text-strong) !important;
+    background: var(--lv-control-bg-hover) !important;
+  }
+
+  .portal-admin .pc :is(.btn:not(.btn-dark):not(.pc-danger),.pc-tabs button:not(.active)):hover {
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+    background: var(--lv-control-bg-hover) !important;
+  }
+  /* New Project's ID selection is a soft selection, not a filled-red CTA. */
+  .portal-admin .new-project-page .id-mode {
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+  }
+  .portal-admin .new-project-page .id-mode.active {
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-brand-border) !important;
+  }
+  .portal-admin .new-project-page .id-mode b {
+    color: var(--lv-text-strong) !important;
+    -webkit-text-fill-color: var(--lv-text-strong) !important;
+  }
+  .portal-admin .new-project-page .id-mode span {
+    color: var(--lv-text-secondary) !important;
+    -webkit-text-fill-color: var(--lv-text-secondary) !important;
+  }
+  .portal-admin .projects-section-nav .projects-section-link:not(.primary):hover {
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+    background: var(--lv-control-bg-hover) !important;
+  }
+
+  /* Red-on-pale is reserved for meaning: WhatsApp OFF and destructive options. */
+  .portal-admin .projects-register :is(.wa-toggle.off,.wa-status.inactive,.wa-status.error) {
+    -webkit-text-fill-color: currentColor !important;
   }
 }
