@@ -257,13 +257,12 @@ export default function FullBillEditorPage() {
     };
   }, [lines]);
 
-  const visibleLines = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return lines.filter((line) => showUnused || !line.isNew || editableGross(line) > 0).filter((line) => {
-      if (!q) return true;
-      return [line.service, line.category, line.billId, line.notes].some((value) => text(value).toLowerCase().includes(q));
-    });
-  }, [lines, search, showUnused]);
+  // Cheap (<60 row) derivation is intentional: React Compiler owns memoization.
+  const query = search.trim().toLowerCase();
+  const visibleLines = lines.filter((line) => showUnused || !line.isNew || editableGross(line) > 0).filter((line) => {
+    if (!query) return true;
+    return [line.service, line.category, line.billId, line.notes].some((value) => text(value).toLowerCase().includes(query));
+  });
 
   const load = useCallback(async (raw: string) => {
     const id = projectCode(raw);
