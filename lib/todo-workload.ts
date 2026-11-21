@@ -1,4 +1,5 @@
 import { selectRows, insertRows, updateRows } from "@/lib/supabase-data";
+import {isProjectWorkTodo} from "@/lib/todo-scope";
 import { recordAuditEvent } from "@/lib/audit-log";
 
 type Row = Record<string, any>;
@@ -50,7 +51,8 @@ async function context() {
   return {tasks,employees,escalations};
 }
 export async function getWorkloadDashboard() {
-  const {tasks,employees,escalations}=await context();
+  const {tasks:allTasks,employees,escalations}=await context();
+  const tasks=allTasks.filter(isProjectWorkTodo);
   const now=Date.now();
   const active=employees.filter(e=>text(e.status).toLowerCase()==="active");
   const scores=new Map(active.map(e=>[text(e.id,80),{score:0,open:0,urgent:0,overdue:0,items:0,estimatedMinutes:0,unestimated:0}]));
@@ -125,7 +127,7 @@ export async function reassignTodoManagement(todoCode:string,employeeId:string,e
     selectRows("employees",{filters:{id:employeeId},limit:1})
   ]);
   const todo=todos[0], employee=employees[0];
-  if(!todo) throw new Error("To Do not found.");
+  if(!todo || !isProjectWorkTodo(todo)) throw new Error("To Do not found.");
   if(text(todo.status)==="Done") throw new Error("Completed To Dos cannot be reassigned.");
   if(!employee || text(employee.status).toLowerCase()!=="active") throw new Error("Select an active employee.");
   if(text(todo.assigned_employee_id,80)===employeeId)throw new Error("This employee is already assigned.");
@@ -145,7 +147,7 @@ export async function acknowledgeTodoEscalation(id:string,action:"acknowledge"|"
   const entries=await selectRows("todo_escalations",{filters:{id},limit:1});
   const row=entries[0];if(!row)throw new Error("Escalation not found.");
   const tasks=await selectRows("todo_items",{filters:{id:row.todo_id},limit:1});
-  const todo=tasks[0];if(!todo||text(todo.status)==="Done"||dateKey(todo)!==text(row.deadline_key))throw new Error("This escalation is no longer active.");
+  const todo=tasks[0];if(!todo||!isProjectWorkTodo(todo)||text(todo.status)==="Done"||dateKey(todo)!==text(row.deadline_key))throw new Error("This escalation is no longer active.");
   const state=action==="acknowledge"?"open":"acknowledged";
   if(text(row.status)!==state)throw new Error("Escalation has already changed. Refresh.");
   const name=text(actor.name||actor.Name||actor.username||actor.Username||actor.userId||"Management",200);
@@ -168,6 +170,7 @@ export async function processTodoEscalations() {
   for(const e of escalations){
     if(text(e.status)==="resolved")continue;
     const task=taskMap.get(text(e.todo_id,80));
+    if(task && !isProjectWorkTodo(task))continue; // Keep archived Site Visit escalation history untouched.
     if(task && text(task.status)!=="Done" && dateKey(task)===text(e.deadline_key))continue;
     try {
       const rows=await updateRows("todo_escalations",{id:e.id,status:e.status},{
@@ -178,7 +181,7 @@ export async function processTodoEscalations() {
     } catch(err){errors.push(text(err instanceof Error?err.message:err,400));}
   }
   for(const todo of tasks){
-    if(text(todo.status)==="Done"||!text(todo.id))continue;
+    if(!isProjectWorkTodo(todo)||text(todo.status)==="Done"||!text(todo.id))continue;
     const late=overdueDays(todo,now);
     if(late<1)continue;
     for(const level of [1,2] as const){

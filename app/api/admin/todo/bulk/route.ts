@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import {isProjectWorkTodo} from "@/lib/todo-scope";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
 import { selectRows, updateRows } from "@/lib/supabase-data";
@@ -117,7 +118,7 @@ export async function POST(request: NextRequest) {
 
     for (const choice of items) {
       const current = byCode.get(choice.todoCode);
-      if (!current) { results.push({ todoCode: choice.todoCode, status: "conflict", message: "Task not found. Refresh." }); continue; }
+      if (!current || !isProjectWorkTodo(current)) { results.push({ todoCode: choice.todoCode, status: "conflict", message: "Task not found in To Do. Refresh." }); continue; }
       if (text(current.updated_at, 110) !== choice.expectedUpdatedAt) {
         results.push({ todoCode: choice.todoCode, status: "conflict", message: "Task changed since selection. Refresh and review." });
         continue;
