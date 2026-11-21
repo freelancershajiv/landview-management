@@ -949,3 +949,66 @@
   }
 
 }
+
+/* Final filled-red contrast guard.
+   Legacy modules may declare red buttons without data-lv-button. Keep this
+   guard AFTER the admin/mobile/route overrides, and do not match the .danger,
+   .soft, .active or .primary classes alone: many of those are pale tinted UI.
+   A red *solid* action always has white foreground, including child labels
+   and Android/WebKit text-fill. No non-red surfaces or print/PDF styles. */
+@media screen {
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"]):is(
+    [data-lv-button="primary"],[data-lv-button="danger-solid"],
+    [data-variant="primary"],[data-variant="danger-solid"],
+    .btn-primary,.btn-accent,.btn-red,.btn-brand,.btn-danger-solid,
+    .nse-btn.primary,.nsp-btn.primary,
+    .ase-toggle,.ase-submit,.b2-btn.primary,.bm-btn.primary,
+    .due-link.primary,.lv-clean-btn.primary,.lv-command-btn.primary,
+    .pm-btn-primary,.bank-btn.primary,.nsdc-button,
+    .aep-submit.expense,.login-submit,
+    .red-button,.primary-button,
+    .bg-red-600,.bg-red-700,.bg-rose-600,.bg-rose-700,
+    [style*="background: rgb(214, 31, 38)"],
+    [style*="background-color: rgb(214, 31, 38)"],
+    [style*="background: rgb(169, 44, 51)"],
+    [style*="background-color: rgb(169, 44, 51)"],
+    [style*="background: #d61f26" i],
+    [style*="background-color: #d61f26" i],
+    [style*="background: #a92c33" i],
+    [style*="background-color: #a92c33" i],
+    [style*="background: #c9232b" i]
+  ):not([data-lv-button="soft"]):not([data-lv-button="danger"]):not([data-lv-button="tab-active"]) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  /* Scope descendants to explicit solid-red controls, never ordinary cards,
+     selected navigation, pale-red tabs or danger warnings. */
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"]):is(
+    [data-lv-button="primary"],[data-lv-button="danger-solid"],
+    [data-variant="primary"],[data-variant="danger-solid"],
+    .btn-primary,.btn-accent,.btn-red,.btn-brand,.btn-danger-solid,
+    .nse-btn.primary,.nsp-btn.primary,
+    .ase-toggle,.ase-submit,.b2-btn.primary,.bm-btn.primary,
+    .due-link.primary,.lv-clean-btn.primary,.lv-command-btn.primary,
+    .pm-btn-primary,.bank-btn.primary,.nsdc-button,
+    .aep-submit.expense,.login-submit,
+    .red-button,.primary-button,
+    .bg-red-600,.bg-red-700,.bg-rose-600,.bg-rose-700,
+    [style*="background: rgb(214, 31, 38)"],
+    [style*="background-color: rgb(214, 31, 38)"],
+    [style*="background: rgb(169, 44, 51)"],
+    [style*="background-color: rgb(169, 44, 51)"],
+    [style*="background: #d61f26" i],
+    [style*="background-color: #d61f26" i],
+    [style*="background: #a92c33" i],
+    [style*="background-color: #a92c33" i],
+    [style*="background: #c9232b" i]
+  ):not([data-lv-button="soft"]):not([data-lv-button="danger"]):not([data-lv-button="tab-active"])
+  :is(span,strong,b,small,i,em,svg,label,p,div) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+}
