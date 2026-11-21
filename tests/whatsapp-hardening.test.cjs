@@ -54,3 +54,23 @@ test('WhatsApp V4.1 exposes temporary hosting outages without suggesting a crede
   assert.match(page, /"Server waking \/ temporarily unreachable"/);
   assert.match(server, /state\.qrDataUrl = ''\s*if \(code === DisconnectReason\.loggedOut\)/);
 });
+
+test('Site Visits never substitute the Admin WhatsApp account for an offline employee', () => {
+  const publisher = source('lib/whatsapp-site-visits.ts');
+  assert.doesNotMatch(publisher, /queueAdminSiteVisitFallback|site-visit-fallback:/);
+  assert.match(publisher, /Fail closed\. Never publish an employee Site Visit via the central Admin Bot/);
+  assert.match(publisher, /const result = await sendFromEmployeeWhatsApp\(token, groupInviteCode, payload\)/);
+  assert.match(publisher, /status: "failed", reason: `Site Visit was not sent:/);
+  const employeeRoute = source('app/api/site-visits/route.ts');
+  assert.match(employeeRoute, /senderEmployeeId: clean\(employees\[0\]\?\.employee_code, 120\)\.toUpperCase\(\)/);
+});
+
+test('Site Visit sender is verified against employee ID and linked mobile number', () => {
+  const publisher = source('lib/whatsapp-site-visits.ts');
+  assert.match(publisher, /assignedEmployeeId !== requestedSenderId/);
+  assert.match(publisher, /connectedEmployeeId !== employeeId/);
+  assert.match(publisher, /connectedPhone !== expectedPhone/);
+  assert.match(publisher, /json\?\.sharedWithAdmin === true/);
+  assert.match(publisher, /filters: \{ employee_code: employeeId \}/);
+  assert.match(publisher, /Re-pair the correct account before retrying/);
+});
