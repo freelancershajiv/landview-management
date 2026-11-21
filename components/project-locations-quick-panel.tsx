@@ -30,7 +30,16 @@ async function apiJson(url: string, init?: RequestInit) {
 }
 
 const css = `
-.plq{display:grid;gap:10px;margin-bottom:14px;padding:13px;border:1px solid var(--lv-brand-border,rgba(214,31,38,.24));border-radius:12px;background:linear-gradient(135deg,var(--lv-brand-soft,rgba(214,31,38,.05)),var(--lv-surface-panel,#111a22))}.plq-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.plq-head small{display:block;color:var(--lv-brand-text,#ef6c66);font-size:8px;font-weight:950;letter-spacing:.12em}.plq-head h2{margin:4px 0 3px;font-size:17px}.plq-head p{margin:0;color:var(--lv-text-muted,#87939c);font-size:9px;line-height:1.5}.plq-grid{display:grid;grid-template-columns:minmax(260px,1fr) auto;gap:8px;align-items:end}.plq-field{display:grid;gap:5px}.plq-field span{font-size:8px;font-weight:950;text-transform:uppercase;color:var(--lv-text-muted,#87939c)}.plq-field select{min-height:40px;width:100%;padding:0 10px;border:1px solid var(--lv-border-default,rgba(255,255,255,.12));border-radius:7px;background:var(--lv-surface-input,#0d151c);color:var(--lv-text-primary,#fff)}.plq-btn{min-height:40px;padding:0 13px;border:1px solid var(--lv-brand-primary,#d61f26);border-radius:7px;background:var(--lv-brand-primary,#d61f26);color:#fff;font-size:9px;font-weight:950;cursor:pointer}.plq-btn:disabled{opacity:.5;cursor:not-allowed}.plq-status{padding:8px 10px;border-radius:7px;font-size:9px}.plq-status.ok{background:var(--lv-success-soft,rgba(46,160,98,.1));color:var(--lv-success,#8cd7aa)}.plq-status.err{background:var(--lv-danger-soft,rgba(214,31,38,.1));color:var(--lv-danger,#ff9d96)}.plq-meta{color:var(--lv-text-muted,#87939c);font-size:8px}.plq-meta strong{color:var(--lv-text-primary,#fff)}@media(max-width:720px){.plq-head{flex-direction:column}.plq-grid{grid-template-columns:1fr}.plq-btn{width:100%}}
+@media screen {
+  .portal-admin .plq button.plq-btn[data-lv-button="primary"] {
+    background: var(--lv-brand-primary) !important;
+    border-color: var(--lv-brand-primary) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+}
+
+.plq{display:grid;gap:10px;margin-bottom:14px;padding:13px;border:1px solid var(--lv-brand-border,rgba(214,31,38,.24));border-radius:12px;background:linear-gradient(135deg,var(--lv-brand-soft,rgba(214,31,38,.05)),var(--lv-surface-panel,#111a22))}.plq-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px}.plq-head small{display:block;color:var(--lv-brand-text,#ef6c66);font-size:8px;font-weight:950;letter-spacing:.12em}.plq-head h2{margin:4px 0 3px;font-size:17px}.plq-head p{margin:0;color:var(--lv-text-muted,#87939c);font-size:9px;line-height:1.5}.plq-grid{display:grid;grid-template-columns:minmax(260px,1fr) auto;gap:8px;align-items:end}.plq-field{display:grid;gap:5px}.plq-field span{font-size:8px;font-weight:950;text-transform:uppercase;color:var(--lv-text-muted,#87939c)}.plq-field select{min-height:40px;width:100%;padding:0 10px;border:1px solid var(--lv-border-default,rgba(255,255,255,.12));border-radius:7px;background:var(--lv-surface-input,#0d151c);color:var(--lv-text-primary,#fff)}.plq-btn{min-height:40px;padding:0 13px;border:1px solid var(--lv-brand-primary,#d61f26);border-radius:7px;background:var(--lv-brand-primary,#d61f26);color:#fff;-webkit-text-fill-color:#fff;font-size:9px;font-weight:950;cursor:pointer}.plq-btn:disabled{opacity:.5;cursor:not-allowed}.plq-status{padding:8px 10px;border-radius:7px;font-size:9px}.plq-status.ok{background:var(--lv-success-soft,rgba(46,160,98,.1));color:var(--lv-success,#8cd7aa)}.plq-status.err{background:var(--lv-danger-soft,rgba(214,31,38,.1));color:var(--lv-danger,#ff9d96)}.plq-meta{color:var(--lv-text-muted,#87939c);font-size:8px}.plq-meta strong{color:var(--lv-text-primary,#fff)}@media(max-width:720px){.plq-head{flex-direction:column}.plq-grid{grid-template-columns:1fr}.plq-btn{width:100%}}
 `;
 
 export default function ProjectLocationsQuickPanel() {
@@ -111,7 +120,7 @@ export default function ProjectLocationsQuickPanel() {
     </div>
     <div className="plq-grid">
       <label className="plq-field"><span>Project / File ID</span><select value={projectId} disabled={loading || saving} onChange={(event) => setProjectId(event.target.value)}><option value="">{loading ? "Loading projects…" : "Select project"}</option>{projects.map((row) => <option key={row.projectId} value={row.projectId}>{row.projectId} · {row.clientName || row.projectName || "Project"}{row.locationComplete ? " · Saved" : " · Location needed"}</option>)}</select></label>
-      <button className="plq-btn" type="button" disabled={!selected || saving} onClick={() => void save()}>{saving ? "Saving…" : "Save Location"}</button>
+      <button className="plq-btn" data-lv-button="primary" type="button" disabled={!selected || saving} onClick={() => void save()}>{saving ? "Saving…" : "Save Location"}</button>
     </div>
     {selected ? <ProjectLocationSimplifier
       value={draft}
