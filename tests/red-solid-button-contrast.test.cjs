@@ -27,8 +27,9 @@ test("all semantic solid-red buttons and older filled classes receive forced whi
     ".lv-clean-btn.primary",".pm-btn-primary",".bank-btn.primary",
     ".lv-command-btn.primary",".nsdc-button",".aep-submit.expense"
   ]) assert.ok(guard.includes(selector), "Missing solid red selector " + selector);
-  assert.equal((guard.match(/color: #fff !important;/g) || []).length, 4,
-    "Force both color and text-fill on actions and descendants");
+  const baseGuard = guard.slice(0, guard.indexOf("/* Audited Admin solid-red control matrix."));
+  assert.equal((baseGuard.match(/color: #fff !important;/g) || []).length, 4,
+    "Base semantic guard must pair color and text-fill on actions and descendants");
   assert.match(guard, /:is\(span,strong,b,small,i,em,svg,label,p,div\)/);
   assert.ok(guard.includes('-webkit-text-fill-color: #fff !important;'));
 });
