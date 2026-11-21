@@ -204,9 +204,7 @@ export default function ReceivePaymentPage() {
         const service = activeSelectedService;
         if (!service) throw new Error("Choose a billed service first.");
         if (amount > serviceDue(service) + 0.01) throw new Error(`${service.serviceName} has only ${money(serviceDue(service))} due.`);
-        serviceType = category === "Other Services Bill"
-          ? service.serviceName === "Municipality Approval Contract" ? "Municipality File Pass" : String(service.serviceName)
-          : "";
+        serviceType = service.serviceName === "Municipality Approval Contract" ? "Municipality File Pass" : String(service.serviceName);
       }
       const payload: Row = {
         Project_ID: projectId, Payment_Date: paymentDate, Amount: amount,

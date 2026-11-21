@@ -1,6 +1,7 @@
+import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
-import { employeeCodeOf, handleLandviewDataAction, insertRows, roleOf, selectRows, supabaseGateway, updateRows } from "@/lib/supabase-data";
+import { employeeCodeOf, handleLandviewDataAction, normalizeProjectCode, roleOf, selectRows, supabaseGateway } from "@/lib/supabase-data";
 import { syncPaidServiceWorkflows, workflowServiceKey, workflowServiceName } from "@/lib/service-workflow";
 import { getAdjustedProjectServiceFinancials } from "@/lib/billing-adjusted-financials";
 
@@ -59,11 +60,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Finance access is required." }, { status: 403 });
     }
 
-    const projectCode = text(body.Project_ID || body.projectId || body.Project_Code, 60).toUpperCase();
+    const projectCode = normalizeProjectCode(body.Project_ID || body.projectId || body.Project_Code);
     const paymentCategory = normalized(body.Payment_For || body.Income_Category || body.Category);
     const serviceType = canonicalPaymentServiceType(body.Service_Type || body.serviceType);
     const serviceAllocations = Array.isArray(body.Service_Allocations) ? body.Service_Allocations as Array<Record<string, unknown>> : [];
     const receiveAdvance = body.Receive_Advance === true;
+    let existingPayment = false;
+    let paymentFingerprint = "";
     if (action === "savePayment") {
       const requestedAmount = num(body.Amount);
       if (!(requestedAmount > 0) || requestedAmount > 1_000_000_000) {
@@ -77,22 +80,28 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ success: false, error: "Finance editing access is required to receive advances." }, { status: 403 });
         }
       }
-      // Idempotency keys are server-verified against the original financial
-      // identity. A duplicate network retry cannot silently reuse a key for a
-      // different payment.
-      const prior = (await selectRows("payments", { select: "id,payment_code,project_id,amount,payment_date,income_category", filters: { idempotency_key: idempotencyKey }, limit: 1 }))[0];
-      if (prior) {
-        const projects = projectCode ? await selectRows("projects", { select: "id", filters: { project_code: projectCode }, limit: 1 }) : [];
-        if (String(prior.project_id || "") !== String(projects[0]?.id || "") ||
-            Math.abs(num(prior.amount) - requestedAmount) > .01 ||
-            normalized(prior.income_category) !== paymentCategory ||
-            text(prior.payment_date) !== text(body.Payment_Date || body.Date)) {
-          return NextResponse.json({ success: false, error: "This payment submission key belongs to another amount, date or project. Review the existing receipt before creating a new payment." }, { status: 409 });
-        }
+      if ((body.Project_ID || body.projectId || body.Project_Code) && !projectCode) {
+        return NextResponse.json({ success: false, error: "Enter a valid project ID." }, { status: 400 });
       }
+      const prior = (await selectRows("payments", {
+        select: "billing_request_fingerprint", filters: { idempotency_key: idempotencyKey }, limit: 1,
+      }))[0];
+      const payload = {
+        ...body, Project_ID: projectCode, Service_Type: serviceType, Idempotency_Key: idempotencyKey,
+      };
+      paymentFingerprint = createHash("sha256").update(JSON.stringify(payload, Object.keys(payload)
+        .concat(serviceAllocations.flatMap((row) => Object.keys(row)))
+        .filter((key, index, keys) => keys.indexOf(key) === index).sort())).digest("hex");
+      if (prior && prior.billing_request_fingerprint !== paymentFingerprint) {
+        return NextResponse.json({
+          success: false,
+          error: "This submission key belongs to another or older payment. Review the existing receipt before retrying.",
+        }, { status: 409 });
+      }
+      existingPayment = Boolean(prior);
     }
 
-    if (action === "savePayment" && !receiveAdvance && paymentCategory === "other services bill") {
+    if (action === "savePayment" && !existingPayment && !receiveAdvance && paymentCategory === "other services bill") {
       if (!projectCode || !serviceType) {
         return NextResponse.json({ success: false, error: "Choose a billed Other Services service." }, { status: 400 });
       }
@@ -102,12 +111,9 @@ export async function POST(request: NextRequest) {
       if (!selected) {
         return NextResponse.json({ success: false, error: "The selected Other Services item is not billed to this project." }, { status: 400 });
       }
-      if (num(body.Amount) > selected.due + .01) {
-        return NextResponse.json({ success: false, error: "Payment cannot exceed the selected billed service due. Use Receive Advance for additional money." }, { status: 400 });
-      }
     }
 
-    if (action === "savePayment" && !receiveAdvance && paymentCategory.includes("engineering")) {
+    if (action === "savePayment" && !existingPayment && !receiveAdvance && paymentCategory.includes("engineering")) {
       if (!projectCode) return NextResponse.json({ success: false, error: "Project is required." }, { status: 400 });
       if (!serviceAllocations.length) {
         return NextResponse.json({ success: false, error: "Engineering Bill payments must be allocated to services. Use Finance → Service Payments." }, { status: 400 });
@@ -119,6 +125,7 @@ export async function POST(request: NextRequest) {
       }
       const snapshot = await getAdjustedProjectServiceFinancials(projectCode);
       const byKey = new Map(snapshot.services.map((row) => [row.serviceKey, row]));
+      const selectedServices = new Set<string>();
       for (const allocation of serviceAllocations) {
         const amount = Math.max(0, num(allocation.amount || allocation.allocatedAmount));
         if (amount <= 0) continue;
@@ -127,9 +134,10 @@ export async function POST(request: NextRequest) {
         if (!service || service.billingCategory !== "Engineering Bill") {
           return NextResponse.json({ success: false, error: `Invalid Engineering service allocation: ${text(allocation.serviceName || allocation.service) || "Unknown service"}.` }, { status: 400 });
         }
-        if (amount > service.due + 0.01) {
-          return NextResponse.json({ success: false, error: `${service.serviceName} allocation cannot exceed its due of BDT ${service.due.toLocaleString("en-BD")}.` }, { status: 400 });
+        if (selectedServices.has(key)) {
+          return NextResponse.json({ success: false, error: "Enter a single allocation per Engineering service." }, { status: 400 });
         }
+        selectedServices.add(key);
       }
     }
 
@@ -151,71 +159,31 @@ export async function POST(request: NextRequest) {
         idempotencyKey,
       });
     } else {
-      data = await handleLandviewDataAction(action, { ...body, Service_Type: serviceType, Idempotency_Key: idempotencyKey }, user);
+      const allocations = !receiveAdvance && paymentCategory.includes("engineering")
+        ? serviceAllocations.flatMap((allocation) => {
+            const amount = num(allocation.amount || allocation.allocatedAmount);
+            if (amount <= 0) return [];
+            const serviceName = workflowServiceName(allocation.serviceName || allocation.service || "");
+            return [{
+              service_name: serviceName,
+              service_key: workflowServiceKey(serviceName),
+              allocated_amount: amount,
+              discount_allocated: Math.max(0, num(allocation.discount)),
+            }];
+          })
+        : [];
+      const paymentOptions = action === "savePayment" ? {
+        fingerprint: paymentFingerprint,
+        serviceType,
+        allocations,
+      } : undefined;
+      data = await handleLandviewDataAction(action, {
+        ...body, ...(action === "savePayment" ? { Project_ID: projectCode } : {}), Idempotency_Key: idempotencyKey,
+      }, user, paymentOptions);
 
-      if (action === "savePayment") {
-        const paymentCode = text((data as Record<string, unknown>)?.Payment_ID, 160);
-        if (!paymentCode) throw new Error("Payment was saved but its payment ID could not be resolved.");
-        const paymentRows = await selectRows("payments", { filters: { payment_code: paymentCode }, limit: 1 });
-        if (!paymentRows.length) throw new Error("Payment was saved but the database record could not be resolved.");
-        const payment = paymentRows[0];
-        const projectRows = projectCode ? await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 }) : [];
-        const project = projectRows[0];
-
-        if (serviceType) {
-          const financeScope = serviceType === "Municipality File Pass" ? "municipality_file_pass" : "main";
-          await updateRows("payments", { payment_code: paymentCode }, { service_type: serviceType, finance_scope: financeScope });
-          data = { ...(data as Record<string, unknown>), Service_Type: serviceType, Finance_Scope: financeScope };
-        }
-
-        if (!receiveAdvance && paymentCategory.includes("engineering") && project) {
-          const rows = serviceAllocations
-            .map((allocation) => {
-              const allocatedAmount = Math.max(0, num(allocation.amount || allocation.allocatedAmount));
-              if (!(allocatedAmount > 0)) return null;
-              const serviceName = workflowServiceName(allocation.serviceName || allocation.service || "");
-              return {
-                payment_id: payment.id,
-                payment_code: paymentCode,
-                project_id: project.id,
-                project_code: projectCode,
-                billing_category: "Engineering Bill",
-                bill_id: null,
-                bill_code: null,
-                service_name: serviceName,
-                service_key: workflowServiceKey(serviceName),
-                allocated_amount: allocatedAmount,
-                discount_allocated: Math.max(0, num(allocation.discount)),
-                created_by: actorOf(user),
-                created_at: new Date().toISOString(),
-              };
-            })
-            .filter(Boolean) as Array<Record<string, unknown>>;
-          if (rows.length) {
-            const existing = await selectRows("payment_service_allocations", {
-              select: "service_key,allocated_amount", filters: { payment_id: payment.id }, limit: 100,
-            });
-            const matches = (current: Array<Record<string, unknown>>) =>
-              current.length === rows.length && rows.every((expected) =>
-                current.some((item) => String(item.service_key) === String(expected.service_key) &&
-                  Math.abs(num(item.allocated_amount) - num(expected.allocated_amount)) <= .01));
-            if (existing.length && !matches(existing)) throw new Error("The existing service allocation conflicts with this payment. Reconcile before retrying.");
-            if (!existing.length) {
-              try { await insertRows("payment_service_allocations", rows); }
-              catch (problem) {
-                const after = await selectRows("payment_service_allocations", {
-                  select: "service_key,allocated_amount", filters: { payment_id: payment.id }, limit: 100,
-                });
-                if (!matches(after)) throw problem;
-              }
-            }
-          }
-        }
-
-        if (projectCode) {
-          try { await syncPaidServiceWorkflows(projectCode, actorOf(user)); }
-          catch (workflowError) { console.error("LAND VIEW paid-service workflow sync failed after payment:", workflowError); }
-        }
+      if (action === "savePayment" && projectCode) {
+        try { await syncPaidServiceWorkflows(projectCode, actorOf(user)); }
+        catch (workflowError) { console.error("LAND VIEW paid-service workflow sync failed after payment:", workflowError); }
       }
     }
 

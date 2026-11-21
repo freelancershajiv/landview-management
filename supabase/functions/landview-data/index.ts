@@ -265,6 +265,14 @@ async function handleAction(action: string, input: Record<string, unknown>) {
       p_preview: input.preview === true,
     }),
   });
+  if (action === "recordBillingPayment") return await db("rpc/billing_record_payment", {
+    method: "POST",
+    body: JSON.stringify({
+      p_payment: input.payment,
+      p_service_allocations: input.serviceAllocations,
+      p_fingerprint: input.fingerprint,
+    }),
+  });
   if (action === "applyBillingDiscount") return await db("rpc/apply_billing_discount", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_discount_date: String(input.discountDate || "").trim() || null, p_notes: String(input.notes || "").trim() || null, p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
   if (action === "applyBillingWriteOff") return await db("rpc/apply_billing_writeoff", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_writeoff_date: String(input.writeoffDate || input.date || "").trim() || null, p_reason: String(input.reason || "").trim(), p_notes: String(input.notes || "").trim(), p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
   if (action === "recoverBillingWriteOff") return await db("rpc/recover_billing_writeoff", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_payment_date: String(input.paymentDate || input.date || "").trim() || null, p_payment_method: String(input.paymentMethod || "").trim() || null, p_deposit_account: String(input.depositAccount || "").trim() || null, p_reference_no: String(input.reference || input.referenceNo || "").trim() || null, p_notes: String(input.notes || "").trim() || null, p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });

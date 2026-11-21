@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
-import { handleLandviewDataAction, normalizeProjectCode, selectRows } from "@/lib/supabase-data";
+import { handleLandviewDataAction, normalizeProjectCode, paymentLegacy, selectRows } from "@/lib/supabase-data";
 import { getProjectServiceFinancials } from "@/lib/service-workflow";
-import { loadReceivableAuthority, type PaymentReceivableState, type ReceivableAuthority } from "@/lib/billing-receivable-authority";
+import { loadReceivableAuthority, receivableBillIsActive, type PaymentReceivableState, type ReceivableAuthority } from "@/lib/billing-receivable-authority";
 import { classifyInvoiceAllocation } from "@/lib/invoice-allocation-assessment";
 
 export const runtime = "nodejs";
@@ -29,7 +29,7 @@ function category(row: Row): Category {
   return "Engineering Bill";
 }
 function effectiveBill(row: Row) {
-  return !["draft", "void", "voided", "cancelled", "canceled", "rejected", "returned"].includes(text(row.Status || row.status).toLowerCase());
+  return receivableBillIsActive({ status: row.Status || row.status });
 }
 function adjustmentKind(row: Row) {
   const createdVia = text(row.Created_Via || row.created_via).toLowerCase();
@@ -148,7 +148,7 @@ function billingLifecycle(authority: ReceivableAuthority) {
 
 export async function GET(request: NextRequest) {
   try {
-    const projectId = normalizeProjectCode(request.nextUrl.searchParams.get("fileId"));
+    const projectId = normalizeProjectCode(request.nextUrl.searchParams.get("fileId") || request.nextUrl.searchParams.get("projectId"));
     if (!projectId) return NextResponse.json({ success: false, error: "Enter a valid File ID such as LV-209." }, { status: 400 });
     const user = await requireLocalSession(request);
     if (!user) return NextResponse.json({ success: false, error: "Session expired." }, { status: 401 });
@@ -162,14 +162,39 @@ export async function GET(request: NextRequest) {
     const projectRow = projectRows[0];
     if (!projectRow) return NextResponse.json({ success: false, error: `Project ${projectId} was not found.` }, { status: 404 });
 
+    const summaryOnly = request.nextUrl.searchParams.get("response") === "summary";
     const [project, billing, commercial, authority] = await Promise.all([
       handleLandviewDataAction("getProject", { projectId }, user) as Promise<Row>,
       handleLandviewDataAction("getProjectBilling", { projectId }, user) as Promise<Row>,
-      billingV2CommercialSummary(projectId).catch(() => null),
+      summaryOnly ? null : billingV2CommercialSummary(projectId).catch(() => null),
       loadReceivableAuthority({ projectId: text(projectRow.id) }),
     ]);
 
+    if (!authority.complete) {
+      return NextResponse.json({ success: false, error: "Project billing records are incomplete." }, {
+        status: 503, headers: { "Cache-Control": "no-store" },
+      });
+    }
+
+    const projectReceivable = authority.projects.get(text(projectRow.id));
     const gatewayBills = ((Array.isArray(billing.bills) ? billing.bills : []) as Row[]).filter(effectiveBill);
+    if (summaryOnly) {
+      return NextResponse.json({
+        success: true,
+        data: {
+          projectId,
+          bills: gatewayBills,
+          payments: authority.payments.filter((payment) => payment.effective).map((payment) => ({
+            ...paymentLegacy(payment.row, projectId),
+            Is_Legacy_Manual: payment.row.is_legacy_manual === true,
+          })),
+          totalBill: projectReceivable?.billed ?? 0,
+          totalPaid: projectReceivable?.paid ?? 0,
+          due: projectReceivable?.totalDue ?? 0,
+        },
+      }, { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "canonical-receivable-authority" } });
+    }
+
     const groups: Record<Category, Group> = {
       "Engineering Bill": { bills: [], payments: [], gross: 0, discount: 0, paid: 0, due: 0, preDue: 0 },
       "Design Books": { bills: [], payments: [], gross: 0, discount: 0, paid: 0, due: 0, preDue: 0 },
@@ -191,7 +216,6 @@ export async function GET(request: NextRequest) {
       group.paid += payment.amount;
     }
 
-    const projectReceivable = authority.projects.get(text(projectRow.id));
     if (projectReceivable) {
       reduceGroupDue(groups, ["Engineering Bill", "Design Books"], projectReceivable.engineeringDue);
       reduceGroupDue(groups, ["Supervision Bill"], projectReceivable.supervisionDue);
@@ -254,7 +278,7 @@ export async function GET(request: NextRequest) {
 
     const billHeaders = ["FILE ID", "Service Name", "Rate (BDT)", "QTY", "Amount (BDT)", "Bill ID", "Status", "Net Amount (BDT)", "Discount (BDT)", "Paid (BDT)", "Due (BDT)", "Invoice Code", "Issue Date"];
     const sheets = [
-      sheet("Summary", ["FILE ID", "Client Name", "Project Name", "Engineering Bill", "Engineering Discount", "Engineering Deposit", "Engineering Due", "Supervision Bill", "Supervision Discount", "Supervision Deposit", "Supervision Due", "Other Services Bill", "Other Services Discount", "Other Services Deposit", "Other Services Due", "Design Books Bill", "Design Books Discount", "Design Books Deposit", "Design Books Due", "Total Due", "Status"], [[projectId, project.Client_Name || "", project.Project_Name || "", eng.gross, eng.discount, eng.paid, eng.due, sup.gross, sup.discount, sup.paid, sup.due, oth.gross, oth.discount, oth.paid, oth.due, books.gross, books.discount, books.paid, books.due, totalDue, totalDue > .009 ? "DUE" : totalBilled > 0 ? "FULL PAID" : ""]]),
+      sheet("Summary", ["FILE ID", "Client Name", "Project Name", "Engineering Bill", "Engineering Discount", "Engineering Deposit", "Engineering Due", "Supervision Bill", "Supervision Discount", "Supervision Deposit", "Supervision Due", "Other Services Bill", "Other Services Discount", "Other Services Deposit", "Other Services Due", "Design Books Bill", "Design Books Discount", "Design Books Deposit", "Design Books Due", "Total Due", "Status"], [[projectId, project.Client_Name || "", project.Project_Name || "", eng.gross, eng.discount, eng.paid, eng.due, sup.gross, sup.discount, sup.paid, sup.due, oth.gross, oth.discount, oth.paid, oth.due, books.gross, books.discount, books.paid, books.due, totalDue, totalDue > .009 ? "DUE" : totalBilled > 0 ? "SETTLED" : ""]]),
       sheet("File List", ["FILE ID", "Client Name", "Address", "Phone", "Floor/Story", "Build Type", "Land Area", "Referred By", "Ref. Contact"], [[projectId, project.Client_Name || "", project.Location || "", project.Phone_Number || "", project.Floors || "", project.Project_Type || "", project.Plot_Area || "", project.Referred_By || "", project.Ref_Contact || ""]]),
       sheet("Design Bill", billHeaders, billRows("Engineering Bill")),
       sheet("Design Deposit", ["FILE ID", "Date", "Details", "Amount", "Verification", "Income ID"], payRows("Engineering Bill")),

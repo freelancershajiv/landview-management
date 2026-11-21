@@ -5,9 +5,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import {
   buildSheetInvoices,
-  mergeBillingWorkspaceBills,
   normalizeFileId,
-  verifySheetInvoicesWithPayments,
   type SheetInvoices,
 } from "@/lib/sheet-invoices";
 import ProjectBillingDocument, {
@@ -37,7 +35,6 @@ type InvoiceRevisionEntry = {
 type ProjectBillingBundle = {
   projectId: string;
   sheets: FinanceSheetData[];
-  payments: Record<string, unknown>[];
   billPayments: { billCode: string; invoiceCode: string; paymentCode: string; date: string; amount: number; details: string }[];
   reconciliation?: InvoicePaymentReconciliation | null;
   updatedAt?: string;
@@ -94,7 +91,9 @@ function numberValue(value: unknown) {
 }
 
 function moneyValue(value: unknown) {
-  const parsed = Number(String(value ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, ""));
+  const cleaned = String(value ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, "");
+  if (!cleaned) return Number.NaN;
+  const parsed = Number(cleaned);
   return Number.isFinite(parsed) ? parsed : Number.NaN;
 }
 
@@ -291,7 +290,6 @@ async function loadProjectBillingBundle(id: string): Promise<ProjectBillingBundl
   return {
     projectId: String(json.data.projectId || `LV-${id}`),
     sheets: json.data.sheets as FinanceSheetData[],
-    payments: Array.isArray(json.data.payments) ? json.data.payments : [],
     billPayments: Array.isArray(json.data.billPayments) ? json.data.billPayments : [],
     reconciliation: json.data.reconciliation && Array.isArray(json.data.reconciliation.bills)
       ? json.data.reconciliation as InvoicePaymentReconciliation : null,
@@ -376,17 +374,14 @@ export default function ProjectBillingPage() {
   }
 
   async function fetchFreshBilling(id: string) {
-    const [bundle, databaseBills] = await Promise.all([
-      loadProjectBillingBundle(id),
-      landViewApi.getBillingRecords(`LV-${id}`).catch(() => [] as Record<string, unknown>[]),
-    ]);
+    const bundle = await loadProjectBillingBundle(id);
     const billing = attachCanonicalBillAmounts(
-      mergeBillingWorkspaceBills(buildSheetInvoices(bundle.sheets, id), databaseBills),
+      buildSheetInvoices(bundle.sheets, id, { useCollectibleDue: true }),
       bundle.sheets,
       id,
       bundle.billPayments,
     );
-    return { billing: verifySheetInvoicesWithPayments(billing, bundle.payments || []), commercial: bundle.commercial, reconciliation: bundle.reconciliation };
+    return { billing, commercial: bundle.commercial, reconciliation: bundle.reconciliation };
   }
 
   async function refreshBilling(id: string, version: number, background: boolean) {

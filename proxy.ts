@@ -93,11 +93,6 @@ function billingCompatibilityRewrite(request: NextRequest) {
   if (request.method !== "GET") return null;
   const url = request.nextUrl.clone();
 
-  if (url.pathname === "/api/project-billing") {
-    url.pathname = "/api/project-billing-compatible";
-    return NextResponse.rewrite(url);
-  }
-
   if (url.pathname !== "/api/landview") return null;
   const action = url.searchParams.get("action");
 
@@ -109,7 +104,7 @@ function billingCompatibilityRewrite(request: NextRequest) {
 
   if (action === "getProjectBilling") {
     const projectId = url.searchParams.get("projectId") || url.searchParams.get("Project_ID") || "";
-    url.pathname = "/api/project-billing-compatible";
+    url.pathname = "/api/project-billing";
     url.searchParams.delete("action");
     url.searchParams.set("response", "summary");
     if (projectId) url.searchParams.set("projectId", projectId);

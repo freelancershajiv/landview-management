@@ -6,7 +6,6 @@ import { useParams } from "next/navigation";
 import {
   buildSheetInvoices,
   normalizeFileId,
-  verifySheetInvoicesWithPayments,
   type SheetInvoices,
 } from "@/lib/sheet-invoices";
 import ProjectBillingDocument, {
@@ -165,8 +164,7 @@ export default function ClientBillingPage() {
         if (!response.ok || !json?.success || !json?.data) throw new Error(String(json?.error || "Unable to load your client billing."));
         if (!Array.isArray(json.data.sheets)) throw new Error("The billing service returned incomplete finance data.");
         // Use the exact Supabase-backed payload used by Admin → Billing → LV-Auto Invoice.
-        let billing = buildSheetInvoices(json.data.sheets, requestedId);
-        billing = verifySheetInvoicesWithPayments(billing, Array.isArray(json.data.payments) ? json.data.payments : []);
+        const billing = buildSheetInvoices(json.data.sheets, requestedId, { useCollectibleDue: true });
         if (!active) return;
         setResult(billing);
         setCommercial(json.data.commercial && typeof json.data.commercial === "object" ? json.data.commercial as CommercialSummary : null);

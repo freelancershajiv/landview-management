@@ -79,7 +79,7 @@ function legacyDiscountMetadata(value: unknown, amount: number): { description: 
   return { description };
 }
 
-export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
+export function buildSheetInvoices(sheets: FinanceSheetData[], input: string, options: { useCollectibleDue?: boolean } = {}) {
   const id = normalizeFileId(input);
   if (!id) throw new Error("Enter a valid File ID, such as 209 or LV-209.");
 
@@ -189,10 +189,22 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
     }, 0);
     const summaryDiscount = summary[category.discountIndex];
     const discount = hasBillingValue(summaryDiscount) ? sheetAmount(summaryDiscount) : itemDiscount;
-    const due = gross - discount - paid;
+    const summaryDue = summary[category.grossIndex + 3];
+    const due = options.useCollectibleDue && hasBillingValue(summaryDue)
+      ? sheetAmount(summaryDue)
+      : gross - discount - paid;
 
     return { name: category.name, items, payments, gross, discount, paid, due };
   });
+
+  const totals = {
+    gross: invoices.reduce((total, item) => total + item.gross, 0),
+    discount: invoices.reduce((total, item) => total + item.discount, 0),
+    paid: invoices.reduce((total, item) => total + item.paid, 0),
+    due: invoices.reduce((total, item) => total + item.due, 0),
+  };
+  const net = totals.gross - totals.discount;
+  const settledWithRelief = options.useCollectibleDue && totals.due <= 0.009 && net - totals.paid > 0.009;
 
   return {
     id: `LV-${id}`,
@@ -207,15 +219,10 @@ export function buildSheetInvoices(sheets: FinanceSheetData[], input: string) {
       referredBy: fileField(["Referred By", "Referred_By", "Referral", "Referral Source", "Ref By", "Reference", "Source"]),
       refContact: fileField(["Ref. Contact", "Ref Contact", "Reference Contact", "Referral Contact", "Referral Phone", "Ref Phone", "Reference Phone"]),
       issueDate: "",
-      status: "",
+      status: settledWithRelief ? "Settled" : "",
     },
     invoices,
-    totals: {
-      gross: invoices.reduce((total, item) => total + item.gross, 0),
-      discount: invoices.reduce((total, item) => total + item.discount, 0),
-      paid: invoices.reduce((total, item) => total + item.paid, 0),
-      due: invoices.reduce((total, item) => total + item.due, 0),
-    },
+    totals,
   };
 }
 

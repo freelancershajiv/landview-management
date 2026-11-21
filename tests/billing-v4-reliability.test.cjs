@@ -48,7 +48,8 @@ test("advance payments use canonical project/category safeguards and preserve pe
   assert.match(paymentApi, /const receiveAdvance = body\.Receive_Advance === true/);
   assert.match(paymentApi, /BILLING_CATEGORIES\.has\(paymentCategory\)/);
   assert.match(paymentApi, /idempotency_key: idempotencyKey/);
-  assert.match(paymentApi, /existing\.length && !matches\(existing\)/);
+  assert.match(paymentApi, /prior && prior\.billing_request_fingerprint !== paymentFingerprint/);
+  assert.match(read("lib/supabase-data.ts"), /supabaseGateway\("recordBillingPayment"/);
   assert.match(paymentApi, /item\.billingCategory === "Other Services Bill"/);
   assert.doesNotMatch(paymentApi, /OTHER_SERVICE_TYPES/);
   assert.match(status, /filters: \{ idempotency_key: key \}/);

@@ -125,7 +125,7 @@ function billLegacy(row: Row, projectCode = "") {
     Idempotency_Key: row.idempotency_key || "", Unit_Price: row.unit_price ?? "", Quantity: row.quantity ?? ""
   };
 }
-function paymentLegacy(row: Row, projectCode = "") {
+export function paymentLegacy(row: Row, projectCode = "") {
   return {
     Payment_ID: row.payment_code, Project_ID: projectCode, Payment_Date: row.payment_date || "", Amount: num(row.amount), Payment_Method: row.payment_method || "", Reference_No: row.reference_no || "",
     Notes: row.notes || "", Deposit_Account: row.deposit_account || "", Payment_For: row.payment_for || "", Income_Category: row.income_category || "", Transaction_Type: row.transaction_type || "",
@@ -272,7 +272,13 @@ async function getProjectBilling(projectId: unknown) {
   };
 }
 
-export async function handleLandviewDataAction(action: string, input: Row, user: WorkspaceUser) {
+type BillingPaymentOptions = {
+  fingerprint: string;
+  serviceType: string;
+  allocations: { service_name: string; service_key: string; allocated_amount: number; discount_allocated: number }[];
+};
+
+export async function handleLandviewDataAction(action: string, input: Row, user: WorkspaceUser, billingPayment?: BillingPaymentOptions) {
   const role = roleOf(user);
   const requiredPermission = ACTION_PERMISSIONS[action];
   if (requiredPermission) await requireWorkspacePermission(user, requiredPermission);
@@ -440,7 +446,7 @@ export async function handleLandviewDataAction(action: string, input: Row, user:
     const projectCode=text(pick(input,"Project_ID","projectId"));
     const p=projectCode?await projectRow(projectCode):null;
     const idem=text(pick(input,"Idempotency_Key","idempotencyKey"));
-    if(idem){
+    if(idem && !billingPayment){
       const found=await selectRows("payments",{filters:{idempotency_key:idem},limit:1});
       if(found.length)return paymentLegacy(found[0],p?.project_code||"");
     }
@@ -473,6 +479,23 @@ export async function handleLandviewDataAction(action: string, input: Row, user:
       source_created_by:who,
       source_created_at:new Date().toISOString()
     };
+    if (billingPayment) {
+      const serviceType = billingPayment.serviceType;
+      const saved = await supabaseGateway("recordBillingPayment", {
+        payment: {
+          ...row,
+          service_type: serviceType || null,
+          finance_scope: serviceType === "Municipality File Pass" ? "municipality_file_pass" : "main",
+        },
+        serviceAllocations: billingPayment.allocations,
+        fingerprint: billingPayment.fingerprint,
+      }) as Row;
+      return {
+        ...paymentLegacy(saved, p?.project_code || ""),
+        Service_Type: saved.service_type || "",
+        Finance_Scope: saved.finance_scope || "main",
+      };
+    }
     const saved=await insertRows("payments",row);
     return paymentLegacy(saved[0]||row,p?.project_code||"");
   }

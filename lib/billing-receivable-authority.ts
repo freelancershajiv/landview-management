@@ -182,7 +182,7 @@ export async function loadReceivableAuthority(options: { projectId?: string } = 
   const [bills, invoices, payments, allocations, adjustments, writeoffs] = await Promise.all([
     selectRows("bills", scopedOptions(projectId, "id,project_id,bill_code,billing_category,category,description,amount,discount,net_amount,status,created_via,bill_date,created_at")),
     selectRows("invoices", scopedOptions(projectId, "id,project_id,invoice_code,invoice_no,bill_code,category,amount,status,issue_date,due_date,created_at")),
-    selectRows("payments", scopedOptions(projectId, "id,project_id,payment_code,payment_date,amount,status,approval_status,transaction_type,affects_business_balance,payment_for,income_category,service_type,finance_scope,is_legacy_manual,receipt_url,payment_method,reference_no,created_at")),
+    selectRows("payments", scopedOptions(projectId, "id,project_id,payment_code,payment_date,amount,status,approval_status,transaction_type,affects_business_balance,payment_for,income_category,service_type,finance_scope,is_legacy_manual,receipt_url,payment_method,reference_no,created_at,billing_service_targeted")),
     selectRows("payment_invoice_allocations", scopedOptions(projectId, "id,payment_id,invoice_id,project_id,allocated_amount", 20000)),
     selectRows("billing_adjustments", scopedOptions(projectId, "id,project_id,bill_id,bill_code,adjustment_type,amount,status", 10000)),
     selectRows("billing_writeoff_log", scopedOptions(projectId, "id,project_id,billing_category,event_type,amount,effective_date,created_at", 10000)),
@@ -361,6 +361,7 @@ export async function loadReceivableAuthority(options: { projectId?: string } = 
 
     const unallocatedByCategory = emptyReceivableAmounts();
     let rawUnallocated = 0;
+    let targetedUnallocated = 0;
     let paid = 0;
     let lastPaymentDate = "";
     let lastPaymentAmount = 0;
@@ -368,7 +369,8 @@ export async function loadReceivableAuthority(options: { projectId?: string } = 
     for (const payment of projectPayments) {
       paid += payment.amount;
       rawUnallocated += payment.unallocated;
-      unallocatedByCategory[payment.category] += payment.unallocated;
+      if (payment.row.billing_service_targeted === true) targetedUnallocated += payment.unallocated;
+      else unallocatedByCategory[payment.category] += payment.unallocated;
       const value = receivableText(payment.row.payment_date || payment.row.created_at);
       const stamp = value ? new Date(value).getTime() : 0;
       if (Number.isFinite(stamp) && stamp >= lastStamp) {
@@ -380,13 +382,13 @@ export async function loadReceivableAuthority(options: { projectId?: string } = 
 
     const billed = projectBills.reduce((sum, row) => sum + row.effectiveAmount, 0);
     const writeoffTotal = CATEGORY_KEYS.reduce((sum, key) => sum + writeoffByCategory[key], 0);
-    const projectBalanceDue = Math.max(0, billed - paid - writeoffTotal);
+    const projectBalanceDue = Math.max(0, billed - (paid - targetedUnallocated) - writeoffTotal);
     const beforeCap = CATEGORY_KEYS.reduce((sum, key) => sum + collectible[key], 0);
     const requiredReduction = Math.max(0, beforeCap - projectBalanceDue);
     const appliedUnallocated = requiredReduction > 0.009
       ? reduceReceivableAmounts(collectible, requiredReduction, unallocatedByCategory)
       : 0;
-    const remainingUnallocated = Math.max(0, rawUnallocated - Math.min(rawUnallocated, appliedUnallocated));
+    const remainingUnallocated = Math.max(0, rawUnallocated - Math.min(rawUnallocated - targetedUnallocated, appliedUnallocated));
     const totalDue = CATEGORY_KEYS.reduce((sum, key) => sum + collectible[key], 0);
 
     projects.set(id, {

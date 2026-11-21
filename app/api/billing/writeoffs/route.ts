@@ -118,7 +118,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, data }, { headers: { "Cache-Control": "no-store, max-age=0", "X-Landview-Data": "supabase" } });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Write-off action failed.";
-    const status = /required|invalid|cannot exceed|must be greater|note/i.test(message) ? 400 : 502;
+    const status = /belongs to another/i.test(message) ? 409
+      : /required|invalid|cannot exceed|must be greater|note/i.test(message) ? 400 : 502;
     return NextResponse.json({ success: false, error: message }, { status, headers: { "Cache-Control": "no-store" } });
   }
 }
