@@ -8,8 +8,6 @@
   html:not([data-theme="dark"]) :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) {
     color-scheme: light;
     --lv-brand-primary: #d61f26 !important;
-    /* Legacy filled controls still consume this inverse-foreground token. */
-    --lv-text-inverse: #ffffff !important;
     --lv-brand-primary-hover: #ad171d !important;
     --lv-brand-text: #d61f26 !important;
     --lv-brand-soft: rgba(214,31,38,.09) !important;
@@ -53,8 +51,6 @@
   html[data-theme="dark"] :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign) {
     color-scheme: dark;
     --lv-brand-primary: #d61f26 !important;
-    /* Legacy filled controls still consume this inverse-foreground token. */
-    --lv-text-inverse: #ffffff !important;
     --lv-brand-primary-hover: #ad171d !important;
     --lv-brand-text: #ef4a50 !important;
     --lv-brand-soft: rgba(214,31,38,.11) !important;

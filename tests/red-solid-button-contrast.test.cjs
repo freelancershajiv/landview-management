@@ -64,13 +64,12 @@ test("forced white labels remain WCAG AA on LAND VIEW solid-red palette", () => 
   }
 });
 
-test("inverse text color is defined in both private palettes for legacy solid fills", () => {
-  const lightStart = theme.indexOf('html:not([data-theme="dark"]) :is(');
-  const darkStart = theme.indexOf('html[data-theme="dark"] :is(');
-  assert.ok(lightStart > 0 && darkStart > lightStart, "Expected light then dark palette");
-  assert.match(theme.slice(lightStart,darkStart), /--lv-text-inverse:\s*#ffffff\s*!important;/);
-  assert.match(theme.slice(darkStart,theme.indexOf("/* Private component scale",darkStart)), /--lv-text-inverse:\s*#ffffff\s*!important;/);
-  assert.equal((theme.match(/--lv-text-inverse: #ffffff !important/g)||[]).length,2);
+test("inverse text is owned by the global design tokens, not redeclared in private themes", () => {
+  const tokens=read("app/landview-design-tokens.css");
+  assert.equal((tokens.match(/--lv-text-inverse:\s*#ffffff/g)||[]).length,2,
+    "Global light and dark tokens must both define the white inverse foreground");
+  assert.doesNotMatch(theme,/--lv-text-inverse:\s*#[a-f0-9]+/,
+    "Avoid a second token authority in the private stylesheet");
 });
 
 test("inspected red-filled actions are protected explicitly instead of a generic .primary override", () => {
