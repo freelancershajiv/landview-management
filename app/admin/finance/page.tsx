@@ -7,7 +7,8 @@ const actions = [
   { n: "03", title: "Invoice Center", href: "/admin/billing/invoice-center", detail: "Search invoices and identify outstanding, partially paid and fully settled bills." },
   { n: "04", title: "Receive Payment", href: "/admin/billing/service-payments", detail: "Record a client receipt, allocate services, or receive an advance with protected retries." },
   { n: "05", title: "Due Bills", href: "/admin/billing/due-bills", detail: "Track receivables by project and billing category. Review due amounts before reminders." },
-  { n: "06", title: "Invoice Print & Share", href: "/admin/billing/invoices", detail: "Create verified client documents, individual invoices and printable statements." },
+  { n: "06", title: "Invoice Print & Share", href: "/admin/billing/invoices", detail: "Create branded individual invoices and printable documents." },
+  { n: "07", title: "Project Statements & Receipts", href: "/admin/billing/project-statement", detail: "Current client ledger, advances, verified receipts and A4 PDF statements." },
 ];
 const quick = [
   { title: "Add Bill", href: "/admin/billing/add-bill", detail: "One service bill" },
