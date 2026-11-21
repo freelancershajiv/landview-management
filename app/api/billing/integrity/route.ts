@@ -3,18 +3,23 @@ import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { selectRows } from "@/lib/supabase-data";
 import { receivablePaymentIsEffective } from "@/lib/billing-receivable-authority";
 
+import { workflowDeliveryBalance, workflowServiceKey, workflowStatusesForService } from "@/lib/service-workflow";
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Row = Record<string, unknown>;
 type Exception = {
-  type: "paid_allocation_gap" | "missing_invoice" | "invoice_missing_bill" | "allocation_reference" | "payment_overallocated";
+  type: "paid_allocation_gap" | "missing_invoice" | "invoice_missing_bill" | "allocation_reference" | "payment_overallocated" | "delivery_allocation_gap";
   projectCode: string;
   billCode: string;
   paymentCode: string;
   amount: number;
   explanation: string;
   source?: string;
+  service?: string;
+  invoiceCode?: string;
+  paymentCodes?: string[];
 };
 const LIMIT = 5000;
 const INACTIVE = new Set(["draft", "void", "voided", "cancelled", "canceled", "rejected", "returned"]);
@@ -30,15 +35,18 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Accounts permission is required." }, { status: 403 });
     }
 
-    const [projects, bills, invoices, payments, allocations] = await Promise.all([
+    const includeDelivery = request.nextUrl.searchParams.get("delivery") === "1";
+    const [projects, bills, invoices, payments, allocations, workflows, contracts] = await Promise.all([
       selectRows("projects", { select: "id,project_code", limit: LIMIT }),
-      selectRows("bills", { select: "id,bill_code,project_id,amount,discount,net_amount,status,created_via", limit: LIMIT }),
+      selectRows("bills", { select: "id,bill_code,project_id,amount,discount,net_amount,status,created_via,description,billing_category,category", limit: LIMIT }),
       selectRows("invoices", { select: "id,project_id,bill_code,invoice_code,status", limit: LIMIT }),
       selectRows("payments", { select: "id,project_id,payment_code,amount,status,approval_status,transaction_type,affects_business_balance", limit: LIMIT }),
       selectRows("payment_invoice_allocations", { select: "id,project_id,payment_id,invoice_id,allocated_amount", limit: LIMIT }),
+      includeDelivery ? selectRows("project_service_workflows", { select: "project_id,service_key,service_name,status,net_amount,paid_amount", limit: LIMIT }) : [],
+      includeDelivery ? selectRows("project_contract_services", { select: "project_id,service_key,contract_net", filters: { active: true }, limit: LIMIT }) : [],
     ]) as Row[][];
 
-    const complete = [projects, bills, invoices, payments, allocations].every((rows) => rows.length < LIMIT);
+    const complete = [projects, bills, invoices, payments, allocations, workflows, contracts].every((rows) => rows.length < LIMIT);
     const projectCodes = new Map(projects.map((p) => [text(p.id), text(p.project_code)]));
     const invoiceById = new Map(invoices.map((i) => [text(i.id), i]));
     const paymentById = new Map(payments.map((p) => [text(p.id), p]));
@@ -48,10 +56,11 @@ export async function GET(request: NextRequest) {
     const exceptions: Exception[] = [];
     const counts = {
       missingInvoice: 0, invoiceMissingBill: 0, paidAllocationGap: 0,
-      paymentOverallocated: 0, allocationReference: 0,
+      paymentOverallocated: 0, allocationReference: 0, deliveryAllocationGap: 0,
     };
     const allocatedByInvoice = new Map<string, number>();
     const allocatedByPayment = new Map<string, number>();
+    const paymentCodesByInvoice = new Map<string, Set<string>>();
     const add = (entry: Exception, count: keyof typeof counts) => {
       counts[count] += 1;
       exceptions.push(entry);
@@ -72,6 +81,12 @@ export async function GET(request: NextRequest) {
         continue;
       }
       if (!receivablePaymentIsEffective(pay)) continue;
+      const paymentCode = text(pay.payment_code);
+      if (paymentCode) {
+        const codes = paymentCodesByInvoice.get(invoiceId) ?? new Set<string>();
+        codes.add(paymentCode);
+        paymentCodesByInvoice.set(invoiceId, codes);
+      }
       allocatedByInvoice.set(invoiceId, (allocatedByInvoice.get(invoiceId) || 0) + amount);
       allocatedByPayment.set(paymentId, (allocatedByPayment.get(paymentId) || 0) + amount);
     }
@@ -82,7 +97,7 @@ export async function GET(request: NextRequest) {
       const projectCode = projectCodes.get(text(b.project_id)) || "";
       const invoice = invoiceByKey.get(`${text(b.project_id)}:${billCode.toLowerCase()}`);
       if (!invoice && !INACTIVE.has(status)) {
-        add({ type: "missing_invoice", projectCode, billCode, paymentCode: "", amount: num(b.net_amount),
+        add({ type: "missing_invoice", projectCode, billCode, paymentCode: "", service: text(b.description), amount: num(b.net_amount),
           explanation: "This issued bill has no linked invoice record." }, "missingInvoice");
       }
       // This is a reconciliation exception, NOT an assertion that the client owes money.
@@ -94,6 +109,9 @@ export async function GET(request: NextRequest) {
           add({
             type: "paid_allocation_gap", projectCode, billCode, paymentCode: "",
             amount: money(net - allocated),
+            service: text(b.description),
+            invoiceCode: text(invoice.invoice_code),
+            paymentCodes: [...(paymentCodesByInvoice.get(text(invoice.id)) ?? [])],
             source: text(b.created_via) || "Unclassified",
             explanation: "Bill is marked Paid but invoice allocation is lower than its recorded net. Check historical payments and adjustments before correction.",
           }, "paidAllocationGap");
@@ -105,7 +123,7 @@ export async function GET(request: NextRequest) {
       if (!billByKey.has(`${text(invoice.project_id)}:${text(invoice.bill_code).toLowerCase()}`)) {
         add({
           type: "invoice_missing_bill", projectCode: projectCodes.get(text(invoice.project_id)) || "",
-          billCode: text(invoice.bill_code), paymentCode: "", amount: 0,
+          billCode: text(invoice.bill_code), invoiceCode: text(invoice.invoice_code), paymentCode: "", amount: 0,
           explanation: "Invoice has no matching bill under the same project.",
         }, "invoiceMissingBill");
       }
@@ -120,6 +138,55 @@ export async function GET(request: NextRequest) {
           billCode: "", paymentCode: text(payment.payment_code), amount: money(allocated - total),
           explanation: "More effective allocations than payment amount; check for duplicate allocations.",
         }, "paymentOverallocated");
+      }
+    }
+
+    if (includeDelivery && complete) {
+      const contractByService = new Map<string, number>();
+      const billsByService = new Map<string, Row[]>();
+      for (const contract of contracts) {
+        const key = `${text(contract.project_id)}:${text(contract.service_key)}`;
+        contractByService.set(key, Math.max(contractByService.get(key) || 0, num(contract.contract_net)));
+      }
+      for (const bill of bills) {
+        if (INACTIVE.has(text(bill.status).toLowerCase()) || /credit note|debit note/i.test(text(bill.created_via))) continue;
+        const category = text(bill.billing_category || bill.category);
+        const description = text(bill.description).replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "");
+        const serviceKey = workflowServiceKey(category === "Supervision Bill" ? "Site Supervision" : description || category);
+        const key = `${text(bill.project_id)}:${serviceKey}`;
+        const existing = billsByService.get(key) ?? [];
+        existing.push(bill);
+        billsByService.set(key, existing);
+      }
+      for (const workflow of workflows) {
+        const statuses = workflowStatusesForService(workflow.service_name);
+        if (workflow.status === statuses[statuses.length - 1]) continue;
+        const projectId = text(workflow.project_id);
+        const key = `${projectId}:${text(workflow.service_key)}`;
+        const balance = workflowDeliveryBalance(workflow, contractByService.get(key));
+        if (balance.deliveryDue <= 0) continue;
+        const serviceBills = billsByService.get(key);
+        if (!serviceBills?.length) continue;
+        const linked = serviceBills.map((bill) => ({
+          bill,
+          invoice: invoiceByKey.get(`${projectId}:${text(bill.bill_code).toLowerCase()}`),
+        }));
+        const isSettled = linked.every(({ bill, invoice }) => {
+          if (!invoice || INACTIVE.has(text(invoice.status).toLowerCase())) return false;
+          const net = Math.max(0, num(bill.net_amount ?? (num(bill.amount) - num(bill.discount))));
+          return text(bill.status).toLowerCase() === "paid" || (allocatedByInvoice.get(text(invoice.id)) ?? 0) + 0.009 >= net;
+        });
+        if (!isSettled) continue;
+        const [{ bill, invoice }] = linked;
+        add({
+          type: "delivery_allocation_gap",
+          projectCode: projectCodes.get(projectId) || "",
+          billCode: text(bill.bill_code), invoiceCode: text(invoice?.invoice_code), paymentCode: "",
+          paymentCodes: [...new Set(linked.flatMap(({ invoice: row }) => [...(paymentCodesByInvoice.get(text(row?.id)) ?? [])]))],
+          service: text(workflow.service_name),
+          amount: balance.deliveryDue,
+          explanation: `Service bills appear settled, but Workflow shows BDT ${balance.paidAmount} verified against BDT ${balance.netAmount} required. Review service allocations and the contract before delivery.`,
+        }, "deliveryAllocationGap");
       }
     }
 

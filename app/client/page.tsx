@@ -137,6 +137,8 @@ export default function ClientPortalPage(){
     <section className={styles.projects} aria-labelledby="client-next-actions">
       <div className={styles.projectHeader}><h2 id="client-next-actions">What you need to do</h2></div>
       <div className={styles.clientActionList}>
+        <p>Project status · <strong>{status}</strong> · {project.completedServices}/{project.totalServices} services completed</p>
+        {!!readiness?.deliverables?.length && <p><a href="#documents">View {readiness.deliverables.length} released {readiness.deliverables.length === 1 ? "document" : "documents"}</a></p>}
         {finance && finance.due > 0 && <p>Consultancy balance due: <strong>{financeValue(finance.due)}</strong>. <a href={`/client/billing/${encodeURIComponent(project.projectId)}`}>View billing statement</a></p>}
         {readiness?.documentActions?.length ? <><p>Confirm these checklist items with LAND VIEW:</p><ul>{readiness.documentActions.map(({ name, status }) => <li key={name}>{name} · {status}</li>)}</ul></>
           : readiness?.documentActions ? <p>No outstanding document requests on the project checklist.</p>

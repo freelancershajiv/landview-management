@@ -104,6 +104,7 @@ const SIDEBAR: SidebarEntry[] = [
     label: "Management",
     icon: "◎",
     items: [
+      { href: "/admin/management-analytics", label: "Operations Scorecard", icon: "⌁", permission: "systemHealth.view" },
       { href: "/admin/action-center", label: "Action Center", icon: "◎", permission: "workflow.edit" },
       { href: "/admin/audit-log", label: "Audit Log", icon: "≣", adminOnly: true },
     ],

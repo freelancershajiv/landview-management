@@ -134,7 +134,7 @@ export default function AdminActionCenter({ compact = false }: { compact?: boole
 
   useEffect(() => { void load(); }, [load]);
 
-  const mutate = async (alertKey: string, operation: "acknowledge" | "resolve" | "dismiss") => {
+  const mutate = async (alertKey: string, operation: "acknowledge" | "resolve" | "dismiss" | "assign", assignedTo?: string) => {
     setBusy(alertKey + operation);
     setError("");
     try {
@@ -142,7 +142,7 @@ export default function AdminActionCenter({ compact = false }: { compact?: boole
         method: "POST",
         credentials: "same-origin",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ alertKey, operation }),
+        body: JSON.stringify({ alertKey, operation, assignedTo }),
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok || !payload?.success) throw new Error(String(payload?.error || "Could not update alert."));
@@ -205,6 +205,7 @@ export default function AdminActionCenter({ compact = false }: { compact?: boole
               <div className="lv-action-copy">
                 <div className="lv-action-meta"><span className="lv-action-chip">{areaLabel(item.category)}</span><span className="lv-action-chip">{item.severity}</span>{item.status === "acknowledged" && <span className="lv-action-chip">Acknowledged</span>}<span className="lv-action-chip">{relative(item.last_detected_at)}</span></div>
                 <strong>{item.title}</strong><p>{item.detail}</p>
+                <small>Owner · {item.assigned_to || "Unassigned"}</small>
               </div>
               <div className="lv-action-buttons">
                 {item.href && <Link className="lv-action-btn primary" href={item.href}>OPEN MODULE</Link>}
@@ -212,6 +213,14 @@ export default function AdminActionCenter({ compact = false }: { compact?: boole
                 <button className="lv-action-btn" disabled={isBusy} onClick={() => void mutate(item.alert_key, "resolve")}>MARK HANDLED</button>
                 {!compact && <button className="lv-action-btn" disabled={isBusy} onClick={() => void mutate(item.alert_key, "dismiss")}>DISMISS</button>}
               </div>
+              {!compact && <form className="lv-action-details" onSubmit={(event) => {
+                event.preventDefault();
+                const owner = String(new FormData(event.currentTarget).get("owner") ?? "").trim();
+                if (owner) void mutate(item.alert_key, "assign", owner);
+              }}>
+                <label>Assign owner <input name="owner" required maxLength={200} placeholder="Employee name or ID" defaultValue={item.assigned_to || ""} /></label>{" "}
+                <button className="lv-action-btn" disabled={isBusy}>Save owner</button>
+              </form>}
               {!compact && rows.length > 0 && <div className="lv-action-details">
                 <div className="lv-action-details-head"><span>Affected records</span><span>{affectedCount} total</span></div>
                 {rows.map((row, index) => <div className="lv-action-detail-row" key={`${item.alert_key}-${index}`}>

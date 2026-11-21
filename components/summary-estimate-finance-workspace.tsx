@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import EstimateRateTemplates from "@/components/estimate-rate-templates";
 import { useEffect, useMemo, useState } from "react";
 import { landViewApi, type FinanceSheetData } from "@/lib/api";
 import { billingQrSvg } from "@/lib/billing-qr";
@@ -280,6 +281,11 @@ export default function SummaryEstimateFinanceWorkspace() {
       <button className={styles.printButton} type="button" onClick={() => void printEstimate()} disabled={verificationBusy}>{verificationBusy ? "Preparing QR…" : "Print / Save PDF"}</button>
     </header>
 
+    <EstimateRateTemplates rates={{ ratePerSft, contingencyPct, allowances }} apply={(rates) => {
+      setRatePerSft(rates.ratePerSft);
+      setContingencyPct(rates.contingencyPct);
+      setAllowances(rates.allowances);
+    }} />
     <section className={styles.lookup}>
       <label>Estimate Source — optional</label>
       <select value={selectedProject} onChange={(e) => void chooseProject(e.target.value)} disabled={loadingSources} style={{...fieldStyle,width:310}}>
@@ -291,6 +297,7 @@ export default function SummaryEstimateFinanceWorkspace() {
         {proposals.map((p) => <option key={String(p.Proposal_ID)} value={String(p.Proposal_ID || "")}>{p.Proposal_ID} · {p.Client_Name || "Unnamed"} · {p.Project_Title || p.Project_Type || "Proposal"}</option>)}
       </select>
       <button type="button" onClick={clearSource}>Clear / New Estimate</button>
+      {selectedProject && <Link href={`/projectmanagement/expenses?projectId=${encodeURIComponent(selectedProject)}`}>View actual project expenses</Link>}
       <span style={{width:"100%",fontSize:10,color:sourceError?"#ffb4aa":"#94a3ad"}}>{sourceError || "Choose either source, or leave both blank and enter a new estimate manually."}</span>
     </section>
 

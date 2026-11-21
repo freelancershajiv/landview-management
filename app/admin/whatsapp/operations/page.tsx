@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 
 type Tab = "overview" | "log" | "failed" | "rules" | "templates" | "groups";
@@ -195,13 +197,19 @@ export default function WhatsAppOperationsPage() {
           <tbody>
             {!rows.length ? (
               <tr><td colSpan={7} style={{ padding: 26, textAlign: "center", color: "var(--lv-text-muted)" }}>No messages in this view.</td></tr>
-            ) : rows.map((row) => (
+            ) : rows.map((row) => {
+              const rule = ops?.rules.find((item) => item.event_key === row.eventKey);
+              const group = ops?.groups.find((item) => item.slug === rule?.recipient_group_slug);
+              return (
               <tr key={`${row.queue}:${row.id}`} style={{ borderTop: "1px solid var(--lv-border-default)", verticalAlign: "top" }}>
                 <td style={{ padding: 12, color: "var(--lv-text-muted)", fontSize: 12, whiteSpace: "nowrap" }}>{when(row.sentAt || row.createdAt)}</td>
                 <td style={{ padding: 12 }}>
                   <div style={{ fontWeight: 900, color: "var(--lv-text-strong)", fontSize: 13 }}>{row.module}</div>
                   <div style={{ marginTop: 4, color: "var(--lv-text-muted)", fontSize: 11 }}>{row.eventKey}</div>
-                  {row.projectCode ? <div style={{ marginTop: 3, color: "var(--lv-danger)", fontWeight: 800, fontSize: 11 }}>{row.projectCode}</div> : null}
+                  {row.projectCode && /^LV-\d+$/.test(row.projectCode) && <Link href={`/admin/projects/${encodeURIComponent(row.projectCode)}/lifecycle`}>{row.projectCode}</Link>}
+                  {group && <div style={{ marginTop: 4, fontSize: 11, color: "var(--lv-text-muted)" }}>
+                    Configured route · {group.name}{group.sender_employee_id ? ` · Sender ${group.sender_employee_id}` : ""}
+                  </div>}
                 </td>
                 <td style={{ padding: 12, maxWidth: 430 }}>
                   <div style={{ color: "var(--lv-text-primary)", fontSize: 12, lineHeight: 1.5, whiteSpace: "pre-wrap", overflowWrap: "anywhere", maxHeight: 78, overflow: "hidden" }}>{row.message || "—"}</div>
@@ -218,7 +226,8 @@ export default function WhatsAppOperationsPage() {
                   ) : row.status === "pending" && row.attempts > 0 ? <span style={{ color: "var(--lv-warning)", fontSize: 11, fontWeight: 800 }}>AUTO RETRY</span> : <span style={{ color: "var(--lv-text-muted)", fontSize: 11 }}>—</span>}
                 </td>
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

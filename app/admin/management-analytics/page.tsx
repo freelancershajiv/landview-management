@@ -1,5 +1,7 @@
-import WebsiteAnalyticsDashboard from "@/components/website-analytics-dashboard";
+import ManagementScorecard from "@/components/management-scorecard";
+import { requirePortalSession } from "@/lib/server-auth";
 
-export default function ManagementAnalyticsPage() {
-  return <WebsiteAnalyticsDashboard />;
+export default async function ManagementAnalyticsPage() {
+  await requirePortalSession(["admin", "manager"]);
+  return <ManagementScorecard />;
 }

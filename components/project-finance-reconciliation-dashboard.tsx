@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { workScope, workTaskHref } from "@/lib/work-task-links";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import {
@@ -63,6 +64,7 @@ export default function ProjectFinanceReconciliationDashboard(){
   const [auditError,setAuditError]=useState("");
   const [filter,setFilter]=useState<ViewFilter>("review");
   const [search,setSearch]=useState("");
+  const [month,setMonth]=useState("");
   const [page,setPage]=useState(1);
   const [showMoreIssues,setShowMoreIssues]=useState(false);
   const [partySearch,setPartySearch]=useState("");
@@ -85,6 +87,7 @@ export default function ProjectFinanceReconciliationDashboard(){
 
   const analysis=useMemo(()=>snapshot?.selectedProject?buildFinanceReconciliation(snapshot):null,[snapshot]);
   const projectCode=analysis?.projectCode||requestedCode;
+  const closeScope=workScope("project",projectCode);
   const canManage=Boolean(snapshot&&!snapshot.readOnly);
   useEffect(()=>{
     if(!analysis||!canManage||!projectCode)return;
@@ -102,7 +105,7 @@ export default function ProjectFinanceReconciliationDashboard(){
     return ()=>controller.abort();
   },[projectCode,canManage,Boolean(analysis),refreshCounter]);
 
-  useEffect(()=>setPage(1),[filter,search]);
+  useEffect(()=>setPage(1),[filter,search,month]);
   const withProject=(path:string)=>projectCode?path+"?projectId="+encodeURIComponent(projectCode):path;
   const openLedgerEntry=(rowId:string)=>withProject("/projectmanagement/expenses")+(projectCode?"&":"?")+"entryId="+encodeURIComponent(rowId);
   const displayed=useMemo(()=>{
@@ -114,10 +117,10 @@ export default function ProjectFinanceReconciliationDashboard(){
         filter==="linked"&&payment.status==="linked"||
         filter==="matched"&&payment.status==="matched"||
         filter==="internal"&&payment.status==="internal";
-      return fits&&(!query||[payment.date,payment.recipient,payment.category,payment.details,payment.party,payment.reason]
+      return (!month || payment.date.slice(0, 7) === month) && fits&&(!query||[payment.date,payment.recipient,payment.category,payment.details,payment.party,payment.reason]
         .some(value=>value.toLowerCase().includes(query)));
     });
-  },[analysis,filter,search]);
+  },[analysis,filter,search,month]);
   const pageSize=20;
   const pageCount=Math.max(1,Math.ceil(displayed.length/pageSize));
   const currentPage=Math.min(page,pageCount);
@@ -149,7 +152,11 @@ export default function ProjectFinanceReconciliationDashboard(){
         <button type="button" className="pmr-button" disabled={loading} onClick={()=>setRefreshCounter(value=>value+1)}>
           {loading?"Refreshing…":"↻ Refresh analysis"}
         </button>
-        {analysis&&<button type="button" className="pmr-button pmr-button-primary" onClick={()=>exportPayments(projectCode,displayed)}>Export current review CSV</button>}
+        {analysis && canManage && month && closeScope && <Link className="pmr-button" href={workTaskHref(closeScope,
+          `Month-end finance review · ${month}`,
+          `Review ${closeScope.code} for ${month}. Compare the reconciliation export to the ledger, check supplier advances, held cheques and staff custody balances, and record unresolved items for carry-forward. Attach the evidence and submit the task for review.`,
+        )}>Assign month-end review</Link>}
+        {analysis&&<button type="button" className="pmr-button pmr-button-primary" onClick={()=>exportPayments(month ? projectCode + "-" + month : projectCode, displayed)}>Export current review CSV</button>}
       </div>
     </header>
 
@@ -202,9 +209,12 @@ export default function ProjectFinanceReconciliationDashboard(){
             ] as [ViewFilter,string][]).map(([value,label])=>
               <button type="button" key={value} className={filter===value?"is-active":""} aria-pressed={filter===value} onClick={()=>setFilter(value)}>{label}</button>)}
           </div>
+          <label>Review month <input type="month" value={month} onChange={event=>setMonth(event.target.value)} /></label>
+          {month && <button type="button" onClick={()=>setMonth("")}>All months</button>}
           <input value={search} onChange={event=>setSearch(event.target.value)}
             aria-label="Search payments by recipient, category or details" placeholder="Search recipient, category, details…" />
         </div>
+        <p>{displayed.length} matching payments · {money(displayed.reduce((sum, payment) => sum + payment.amount, 0))}</p>
         <div className="pmr-table-scroll"><table className="pmr-table">
           <thead><tr><th>Date</th><th>Payment recipient / details</th><th>Category</th><th className="pmr-amount">Amount</th><th>Matching result</th><th>Action</th></tr></thead>
           <tbody>{visible.map(payment=><tr key={payment.id}>

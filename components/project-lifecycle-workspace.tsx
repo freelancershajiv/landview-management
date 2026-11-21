@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import ProjectNextAction from "@/app/admin/projects/[projectId]/project-next-action";
 import { useParams } from "next/navigation";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
@@ -162,6 +163,9 @@ export default function ProjectLifecycleWorkspace() {
     {error && <div className="lwx-msg bad">{error}</div>}{notice && <div className="lwx-msg good">{notice}</div>}
 
     {tab === "overview" && <>
+      <div className="lwx-panel">
+        <ProjectNextAction key={projectId} projectId={projectId} openDocuments={() => setTab("documents")} />
+      </div>
       <section className="lwx-next"><div><small>NEXT ACTION</small><h3>{next.title}</h3><p>{next.detail}</p></div><button className="lwx-btn primary" onClick={() => setTab(next.tab as Tab)}>Open {String(next.tab).replace(/^./, (m: string) => m.toUpperCase())}</button></section>
       <section className="lwx-grid">
         <div className="lwx-card"><span>Lifecycle Phase</span><strong>{project.lifecyclePhase}</strong><small>Master project stage</small></div>

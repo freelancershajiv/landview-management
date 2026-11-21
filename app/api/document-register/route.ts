@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
       };
       await updateRows("documents", { id }, changes);
       await syncWorkflowFromDocuments(workflowId, who);
-      await recordAuditEvent({ user, request, action: "workflow_document_update", entityType: "document", entityId: id, before: { status: before.workflow_status, revisionNo: before.revision_no }, after: { status, revisionNo: changes.revision_no }, source: "document-register" });
+      await recordAuditEvent({ user, request, action: "workflow_document_update", entityType: "document", entityId: id, before: { status: before.workflow_status, revisionNo: before.revision_no }, after: { status, revisionNo: changes.revision_no, deliveredBy: changes.delivered_by, deliveredTo: changes.delivered_to, deliveredAt: "delivered_at" in changes ? changes.delivered_at : before.delivered_at }, source: "document-register" });
       return json({ success: true, data: await documentRegisterSnapshot(workflowId) });
     }
 

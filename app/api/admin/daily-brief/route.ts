@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireApiCapability, permissionStatus } from "@/lib/permission-guard";
 import { selectRows } from "@/lib/supabase-data";
 import { scanOrganizationHealth } from "@/lib/action-center";
+import { receivablePaymentIsEffective } from "@/lib/billing-receivable-authority";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -18,11 +19,6 @@ function dhakaDay(value: Date | string | number = new Date()) {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
-}
-function isEffectivePayment(row: Row) {
-  if (row.affects_business_balance === false || text(row.transaction_type).toLowerCase() === "personal income") return false;
-  const status = text(row.approval_status || row.status).toLowerCase().replace(/[_-]+/g, " ");
-  return !status || ["approved", "received", "paid", "verified", "complete", "completed", "full paid", "fully paid", "posted"].includes(status);
 }
 function isEffectiveExpense(row: Row) {
   const status = text(row.approval_status || row.status).toLowerCase().replace(/[_-]+/g, " ");
@@ -44,7 +40,7 @@ export async function GET(request: NextRequest) {
       scanOrganizationHealth(),
     ]);
 
-    const received = payments.filter(isEffectivePayment).reduce((sum, row) => sum + Math.abs(amount(row.amount)), 0);
+    const received = payments.filter((row) => row.affects_business_balance !== false && receivablePaymentIsEffective(row)).reduce((sum, row) => sum + Math.abs(amount(row.amount)), 0);
     const spent = expenses.filter(isEffectiveExpense).reduce((sum, row) => sum + Math.abs(amount(row.amount)), 0);
     const createdToday = (row: Row) => dhakaDay(row.created_at || row.source_created_at) === today;
     const newSiteEntries = proposals.filter((row) => createdToday(row) && text(row.entry_source).toLowerCase() === "site entry");

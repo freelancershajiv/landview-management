@@ -20,6 +20,8 @@ export default async function DashboardPage() {
 
   return <>
     {management && <div className="lv-ui-actions lv-admin-shortcuts">
+      <LVButtonLink href="/admin/action-center" variant="soft" className="lv-ui-shortcut">Action Center</LVButtonLink>
+      <LVButtonLink href="/admin/management-analytics" variant="soft" className="lv-ui-shortcut">Operations Scorecard</LVButtonLink>
       <LVButtonLink href="/admin/website" variant="soft" className="lv-ui-shortcut"><span aria-hidden="true">⌁</span>Website Content</LVButtonLink>
       {admin && <LVButtonLink href="/admin/system-control" variant="soft" className="lv-ui-shortcut"><span aria-hidden="true">⚙</span>System Control</LVButtonLink>}
     </div>}

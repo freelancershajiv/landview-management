@@ -1,4 +1,6 @@
 "use client";
+import Link from "next/link";
+import { workScope, workTaskHref } from "@/lib/work-task-links";
 
 import LinkedWorkAction from "@/components/linked-work-action";
 
@@ -86,6 +88,8 @@ export default function SiteVisitsAdmin({canDelete=false}:{canDelete?:boolean}){
     <div className="sva-list">
       {filtered.map(visit=>{
         const open=selected?.Visit_ID===visit.Visit_ID;
+        const scope = workScope("project", visit.Project_ID);
+        const issue = String(visit.Problem_Details || "").trim();
         const visitUrl="/api/site-visits/media?visitId="+encodeURIComponent(visit.Visit_ID)+"&kind=visit";
         const problemUrl="/api/site-visits/media?visitId="+encodeURIComponent(visit.Visit_ID)+"&kind=problem";
         return <article className="sva-row" key={visit.Visit_ID}>
@@ -95,6 +99,9 @@ export default function SiteVisitsAdmin({canDelete=false}:{canDelete?:boolean}){
           </div>
           {open&&<div className="sva-details">
             <div className="sva-detail-grid"><div><span>Purpose</span><strong>{visit.Purpose||"—"}</strong></div><div><span>Employee</span><strong>{visit.Employee_Name||visit.Employee_ID||"—"}</strong></div><div><span>Problem / Observation</span><strong>{visit.Problem_Details||"—"}</strong></div><div><span>Action Required</span><strong>{visit.Action_Required||"—"}</strong></div><div><span>Notes</span><strong>{visit.Notes||"—"}</strong></div><div><span>Created</span><strong>{dateText(visit.Created_At)}</strong></div></div>
+            {scope && issue && <Link href={workTaskHref(scope, `Resolve field finding · ${visit.Visit_ID}`, issue)}>
+              Create project task for this finding
+            </Link>}
             {(visit.Visit_Photo_Available||visit.Problem_Photo_Available)&&<div className="sva-photos">{visit.Visit_Photo_Available&&<a className="sva-photo" href={visitUrl} target="_blank" rel="noreferrer"><img loading="lazy" decoding="async" src={visitUrl} alt="Site visit"/></a>}{visit.Problem_Photo_Available&&<a className="sva-photo" href={problemUrl} target="_blank" rel="noreferrer"><img loading="lazy" decoding="async" src={problemUrl} alt="Problem evidence"/></a>}</div>}
             <LinkedWorkAction projectCode={visit.Project_ID} title={"Follow up site visit — "+visit.Visit_ID} source={"Site visit: "+visit.Visit_ID} label="Create follow-up"/>
             {canDelete&&<div className="sva-actions"><button className="sva-delete" type="button" disabled={deletingId===String(visit.Visit_ID)} onClick={()=>void deleteVisit(visit)}>{deletingId===String(visit.Visit_ID)?"DELETING…":"DELETE SITE VISIT"}</button></div>}

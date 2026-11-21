@@ -242,10 +242,13 @@ export default function EmployeeSiteVisitCenter() {
       const visitId = String(json.data?.Visit_ID || "");
       const whatsAppStatus = String(json.data?.WhatsApp_Publish_Status || "").toLowerCase();
       const whatsAppReason = String(json.data?.WhatsApp_Publish_Reason || "").trim();
+      const saved = `Site visit ${visitId} saved.`;
       if (whatsAppStatus === "sent") {
-        setNotice("Site Visit " + visitId + " submitted · WhatsApp SENT.");
+        setNotice(`${saved} WhatsApp sent.`);
+      } else if (["pending", "queued", "sending", "retrying"].includes(whatsAppStatus)) {
+        setNotice(`${saved} WhatsApp delivery is pending.`);
       } else {
-        setNotice("Site Visit " + visitId + " submitted · WhatsApp NOT SENT" + (whatsAppReason ? " — " + whatsAppReason : ". Use Retry WhatsApp below."));
+        setNotice(`${saved} WhatsApp was not sent.${whatsAppReason ? ` ${whatsAppReason}` : ""}`);
       }
       setSiteNotes("");
       setVisitPhoto(null);
