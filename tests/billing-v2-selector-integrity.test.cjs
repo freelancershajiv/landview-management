@@ -7,10 +7,12 @@ const section = css.slice(css.indexOf("/* Billing contrast authority"));
 
 test("Billing primary control descendant selectors do not accidentally repeat", () => {
   assert.ok(section.startsWith("/* Billing contrast authority"), "Billing contrast authority must remain present");
-  const po = section.match(/\.portal-admin \.po-btn\.primary[^,{]*\{/g) || [];
-  assert.equal(po.length, 1, "The outsourcing primary button should have one foreground override");
-  assert.match(po[0], /:is\(span,strong,b,small,i,svg,label\)/);
-  assert.doesNotMatch(po[0], /:is\([^)]*\)\s+:is\(/, "Nested repetition breaks descendant coverage");
+  const po = section.split("\n").map(line => line.trim()).filter(line => line.startsWith(".portal-admin .po-btn.primary"));
+  assert.equal(po.length, 2, "The outsourcing primary button should have one fill and one descendant foreground override");
+  const descendant = po.find(line => line.includes(":is("));
+  assert.ok(descendant, "Descendant foreground override is required");
+  assert.match(descendant, /:is\(span,strong,b,small,i,svg,label\)/);
+  assert.doesNotMatch(descendant, /:is\([^)]*\)\s+:is\(/, "Nested repetition breaks descendant coverage");
 });
 
 test("Billing accessibility guard still respects print and neutral buttons", () => {
