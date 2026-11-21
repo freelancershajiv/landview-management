@@ -53,7 +53,141 @@ const emptyForm: FormState = {
 };
 
 const css = `
-.new-project-page{display:grid;gap:18px;max-width:1050px}.new-project-actions{display:flex;gap:8px;flex-wrap:wrap}.new-project-btn{height:40px;padding:0 14px;border:1px solid var(--theme-line-rgba_255_255_255__14_, rgba(255,255,255,.14));border-radius:8px;background:var(--theme-bg-_18232d, #18232d);color:var(--theme-ink-_fff, #fff);font-size:12px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center}.new-project-btn.primary{background:#d61f26;border-color:var(--theme-line-_d61f26, #d61f26)}.new-project-btn:disabled{opacity:.5;cursor:not-allowed}.new-project-card{border:1px solid var(--theme-line-rgba_255_255_255__11_, rgba(255,255,255,.11));border-radius:12px;background:var(--theme-bg-_0e1720, #0e1720);overflow:hidden}.new-project-head{padding:16px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));background:var(--theme-bg-_141e28, #141e28)}.new-project-head strong{display:block;color:var(--theme-ink-_f4f6f8, #f4f6f8);font-size:14px}.new-project-head small{display:block;margin-top:5px;color:var(--theme-ink-_7e8b95, #7e8b95);font-size:11px;line-height:1.55}.id-mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:16px;border-bottom:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08))}.id-mode{padding:14px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:10px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_b9c2c9, #b9c2c9);text-align:left;cursor:pointer}.id-mode.active{border-color:var(--theme-line-_d61f26, #d61f26);background:var(--theme-bg-rgba_214_31_38__09_, rgba(214,31,38,.09))}.id-mode b{display:block;color:var(--theme-ink-_fff, #fff);font-size:12px}.id-mode span{display:block;margin-top:5px;color:var(--theme-ink-_7f8b95, #7f8b95);font-size:11px;line-height:1.5}.id-preview{margin:0 16px 2px;padding:12px 13px;border:1px solid var(--theme-line-rgba_255_255_255__09_, rgba(255,255,255,.09));border-radius:8px;background:var(--theme-bg-_101922, #101922);color:var(--theme-ink-_b8c1c8, #b8c1c8);font-size:11px;line-height:1.6}.id-preview b{color:var(--theme-ink-_ff7a72, #ff7a72)}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px}.form-grid label{display:grid;gap:6px;color:var(--theme-ink-_8d99a3, #8d99a3);font-size:11px;font-weight:700}.form-grid label.full{grid-column:1/-1}.form-grid input,.form-grid select,.form-grid textarea{border:1px solid var(--theme-line-rgba_255_255_255__13_, rgba(255,255,255,.13));border-radius:7px;background:var(--theme-bg-_111b24, #111b24);color:var(--theme-ink-_edf1f4, #edf1f4);padding:0 10px;font-size:12px}.form-grid input,.form-grid select{height:41px}.form-grid textarea{min-height:96px;padding:10px;resize:vertical}.form-grid input:focus,.form-grid select:focus,.form-grid textarea:focus{outline:none;border-color:var(--theme-line-_d61f26, #d61f26)}.form-grid .submit{grid-column:1/-1}.location-tag-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.location-tag-actions .new-project-btn{height:34px;font-size:10px}.location-tag-status{font-size:10px;color:var(--theme-ink-_7f8b95, #7f8b95);line-height:1.45}.message{margin:0 16px 16px;padding:11px 13px;border:1px solid var(--theme-line-rgba_255_255_255__1_, rgba(255,255,255,.1));border-radius:8px;font-size:11px;line-height:1.55}.message.ok{border-color:var(--theme-line-rgba_59_190_120__35_, rgba(59,190,120,.35));color:var(--theme-ink-_95e2b2, #95e2b2)}.message.err{border-color:var(--theme-line-rgba_214_31_38__35_, rgba(214,31,38,.35));color:var(--theme-ink-_ff9d96, #ff9d96)}.created-box{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.new-project-note{padding:12px 16px;border-top:1px solid var(--theme-line-rgba_255_255_255__08_, rgba(255,255,255,.08));color:var(--theme-ink-_74818c, #74818c);font-size:11px;line-height:1.6}@media(max-width:700px){.id-mode-grid,.form-grid{grid-template-columns:1fr}.form-grid label.full,.form-grid .submit{grid-column:auto}}
+/* New Project geometry and colors are intentionally scoped to this route.
+   Semantic colors come from the centralized private light/dark palette. */
+.new-project-page {
+  display:grid; gap:18px; max-width:1050px; min-width:0;
+  color:var(--lv-text-primary);
+}
+.new-project-page .new-project-actions,
+.new-project-page .location-tag-actions,
+.new-project-page .created-box {
+  display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+}
+.new-project-page .new-project-btn {
+  min-height:40px; padding:0 14px; border:1px solid var(--lv-control-border);
+  border-radius:8px; background:var(--lv-control-bg);
+  color:var(--lv-text-primary); -webkit-text-fill-color:currentColor;
+  font-size:12px; font-weight:800; cursor:pointer; text-decoration:none;
+  display:inline-flex; align-items:center; justify-content:center;
+}
+.new-project-page .new-project-btn:not(.primary):hover:not(:disabled) {
+  background:var(--lv-control-bg-hover); border-color:var(--lv-border-strong);
+  color:var(--lv-text-strong); -webkit-text-fill-color:currentColor;
+}
+.new-project-page .new-project-btn.primary {
+  background:var(--lv-brand-primary); border-color:var(--lv-brand-primary);
+  color:#fff; -webkit-text-fill-color:#fff;
+}
+.new-project-page .new-project-btn.primary:hover:not(:disabled) {
+  background:var(--lv-brand-primary-hover);
+  border-color:var(--lv-brand-primary-hover);
+  color:#fff; -webkit-text-fill-color:#fff;
+}
+.new-project-page .new-project-btn:disabled { opacity:.55; cursor:not-allowed; }
+.new-project-page .new-project-card {
+  overflow:hidden; border:1px solid var(--lv-border-default);
+  border-radius:12px; background:var(--lv-surface-panel); color:var(--lv-text-primary);
+}
+.new-project-page .new-project-head {
+  padding:16px; border-bottom:1px solid var(--lv-border-soft);
+  background:var(--lv-surface-muted);
+}
+.new-project-page .new-project-head strong {
+  display:block; color:var(--lv-text-strong); font-size:14px;
+}
+.new-project-page .new-project-head small {
+  display:block; margin-top:5px; color:var(--lv-text-secondary);
+  font-size:11px; line-height:1.55;
+}
+.new-project-page .id-mode-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:10px;
+  padding:16px; border-bottom:1px solid var(--lv-border-soft);
+}
+.new-project-page .id-mode {
+  padding:14px; border:1px solid var(--lv-control-border);
+  border-radius:10px; background:var(--lv-control-bg);
+  color:var(--lv-text-primary); -webkit-text-fill-color:currentColor;
+  text-align:left; cursor:pointer;
+}
+.new-project-page .id-mode:hover {
+  border-color:var(--lv-brand-border);
+  background:var(--lv-surface-hover);
+}
+.new-project-page .id-mode.active {
+  border-color:var(--lv-brand-border);
+  background:var(--lv-brand-soft);
+}
+.new-project-page .id-mode.active:hover { background:var(--lv-brand-soft-strong); }
+.new-project-page .id-mode b {
+  display:block; color:var(--lv-text-strong); font-size:12px;
+}
+.new-project-page .id-mode span {
+  display:block; margin-top:5px; color:var(--lv-text-secondary);
+  font-size:11px; line-height:1.5;
+}
+.new-project-page .id-preview {
+  margin:0 16px 2px; padding:12px 13px;
+  border:1px solid var(--lv-border-default); border-radius:8px;
+  background:var(--lv-surface-muted); color:var(--lv-text-secondary);
+  font-size:11px; line-height:1.6;
+}
+.new-project-page .id-preview b { color:var(--lv-brand-text); }
+.new-project-page .form-grid {
+  display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:16px;
+}
+.new-project-page .form-grid label {
+  display:grid; gap:6px; color:var(--lv-text-secondary);
+  font-size:11px; font-weight:700;
+}
+.new-project-page .form-grid label.full { grid-column:1 / -1; }
+.new-project-page .form-grid :is(input,select,textarea) {
+  border:1px solid var(--lv-control-border); border-radius:7px;
+  background:var(--lv-control-bg); color:var(--lv-text-primary);
+  padding:0 10px; font-size:12px;
+}
+.new-project-page .form-grid :is(input,select) { min-height:41px; }
+.new-project-page .form-grid textarea {
+  min-height:96px; padding:10px; resize:vertical;
+}
+.new-project-page .form-grid :is(input,select,textarea):focus-visible {
+  outline:2px solid var(--lv-brand-primary); outline-offset:2px;
+  border-color:var(--lv-brand-primary);
+}
+.new-project-page .form-grid .submit { grid-column:1 / -1; }
+.new-project-page .location-tag-actions .new-project-btn {
+  min-height:34px; font-size:10px;
+}
+.new-project-page .location-tag-status {
+  font-size:10px; color:var(--lv-text-secondary); line-height:1.45;
+}
+.new-project-page .message {
+  margin:0 16px 16px; padding:11px 13px; border:1px solid var(--lv-border-default);
+  border-radius:8px; color:var(--lv-text-primary); background:var(--lv-surface-muted);
+  font-size:11px; line-height:1.55;
+}
+.new-project-page .message.ok {
+  border-color:var(--lv-success-border); background:var(--lv-success-soft);
+  color:var(--lv-success);
+}
+.new-project-page .message.err {
+  border-color:var(--lv-danger-border); background:var(--lv-danger-soft);
+  color:var(--lv-danger);
+}
+.new-project-page .created-box { margin-top:10px; }
+.new-project-page .new-project-note {
+  padding:12px 16px; border-top:1px solid var(--lv-border-soft);
+  color:var(--lv-text-secondary); font-size:11px; line-height:1.6;
+}
+.new-project-page :is(button,a):focus-visible {
+  outline:2px solid var(--lv-brand-primary); outline-offset:3px;
+}
+@media (max-width:700px) {
+  .new-project-page .id-mode-grid,
+  .new-project-page .form-grid { grid-template-columns:1fr; }
+  .new-project-page .form-grid label.full,
+  .new-project-page .form-grid .submit { grid-column:auto; }
+}
 `;
 
 function text(value: unknown) { return String(value ?? "").trim(); }
@@ -195,20 +329,20 @@ export default function NewProjectPage() {
   return <>
     <style dangerouslySetInnerHTML={{__html:css}} />
     <div className="new-project-page">
-      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="New Project" description="Create a new project with a distinct Project Name and Owner Name. Project Name describes the building/work; Owner Name identifies the client/owner." action={<div className="new-project-actions"><Link className="new-project-btn" href="/admin/projects">← Projects</Link><Link className="new-project-btn" href="/admin/projects/locations">Locations</Link><Link className="new-project-btn" href="/admin/projects/legacy">Legacy Projects</Link></div>} />
+      <PageHeader eyebrow="LAND VIEW PROJECT REGISTER" title="New Project" description="Create a new project with a distinct Project Name and Owner Name. Project Name describes the building/work; Owner Name identifies the client/owner." action={<div className="new-project-actions"><Link className="new-project-btn" data-lv-button="secondary" href="/admin/projects">← Projects</Link><Link className="new-project-btn" data-lv-button="secondary" href="/admin/projects/locations">Locations</Link><Link className="new-project-btn" data-lv-button="secondary" href="/admin/projects/legacy">Legacy Projects</Link></div>} />
 
       <section className="new-project-card">
         <div className="new-project-head"><strong>Project ID method</strong><small>Automatic is the normal choice. Manual is for an intentionally unused LV number that you know will never belong to its original lost project.</small></div>
         <div className="id-mode-grid">
-          <button className={`id-mode ${mode === "automatic" ? "active" : ""}`} type="button" onClick={() => setMode("automatic")}><b>Automatic ID</b><span>Uses the next number after the highest project currently in Supabase. Current preview: {nextId || "calculating…"}</span></button>
-          <button className={`id-mode ${mode === "manual" ? "active" : ""}`} type="button" onClick={() => setMode("manual")}><b>Manual ID</b><span>Enter an unused gap such as LV-72. Existing IDs are blocked and cannot be overwritten.</span></button>
+          <button className={`id-mode ${mode === "automatic" ? "active" : ""}`} aria-pressed={mode === "automatic"} type="button" onClick={() => setMode("automatic")}><b>Automatic ID</b><span>Uses the next number after the highest project currently in Supabase. Current preview: {nextId || "calculating…"}</span></button>
+          <button className={`id-mode ${mode === "manual" ? "active" : ""}`} aria-pressed={mode === "manual"} type="button" onClick={() => setMode("manual")}><b>Manual ID</b><span>Enter an unused gap such as LV-72. Existing IDs are blocked and cannot be overwritten.</span></button>
         </div>
         <div className="id-preview">
           {mode === "automatic" ? <>This project will normally receive <b>{nextId || "the next available ID"}</b>. The server checks again at save time.</> : <>Manual preview: <b>{normalizedManual || "enter an LV number below"}</b>{manualExists ? " — already in use" : normalizedManual ? " — appears unused" : ""}.</>}
         </div>
 
         <form className="form-grid" onSubmit={submit}>
-          {mode === "manual" && <label>Manual Project ID<input value={form.Project_ID} onChange={(e)=>setForm({...form,Project_ID:e.target.value})} placeholder="LV-072" required /><span style={{fontSize:10,color:manualExists?"#ff8f88":"#6f7d88"}}>{manualExists ? "This ID already exists." : "You may type 72, LV72 or LV-072; it will be stored as LV-072."}</span></label>}
+          {mode === "manual" && <label>Manual Project ID<input value={form.Project_ID} onChange={(e)=>setForm({...form,Project_ID:e.target.value})} placeholder="LV-072" required /><span style={{fontSize:10,color:manualExists?"var(--lv-danger)":"var(--lv-text-secondary)"}}>{manualExists ? "This ID already exists." : "You may type 72, LV72 or LV-072; it will be stored as LV-072."}</span></label>}
           <label className={mode === "automatic" ? "full" : ""}>Project Name<input value={form.Project_Name} onChange={(e)=>setForm({...form,Project_Name:e.target.value})} placeholder="e.g. 7 Storied Residential Building" required /></label>
           <label>Owner Name<input value={form.Client_Name} onChange={(e)=>setForm({...form,Client_Name:e.target.value})} placeholder="Client / property owner name" required /></label>
           <label>Phone Number<input value={form.Phone_Number} onChange={(e)=>setForm({...form,Phone_Number:e.target.value})} /><WhatsAppNumberCheck phoneNumber={form.Phone_Number} /></label>
@@ -216,7 +350,7 @@ export default function NewProjectPage() {
           <label>Ref. Contact<input value={form.Ref_Contact} onChange={(e)=>setForm({...form,Ref_Contact:e.target.value})} placeholder="Referrer phone / contact" /></label>
           <label>Project Type<input value={form.Project_Type} onChange={(e)=>setForm({...form,Project_Type:e.target.value})} placeholder="Residential / Commercial / etc." /></label>
           <label>Address<input value={form.Location} onChange={(e)=>setForm({...form,Location:e.target.value})} placeholder="Project/site address" /></label>
-          <label>Location Tag<input value={form.Location_Tag} onChange={(e)=>setForm({...form,Location_Tag:e.target.value})} placeholder="Google Maps link or use current location" /><div className="location-tag-actions"><button className="new-project-btn" type="button" onClick={useCurrentLocation} disabled={locating}>{locating ? "Getting location…" : "Use Current Location"}</button>{locationMessage && <span className="location-tag-status">{locationMessage}</span>}</div></label>
+          <label>Location Tag<input value={form.Location_Tag} onChange={(e)=>setForm({...form,Location_Tag:e.target.value})} placeholder="Google Maps link or use current location" /><div className="location-tag-actions"><button className="new-project-btn" data-lv-button="secondary" type="button" onClick={useCurrentLocation} disabled={locating}>{locating ? "Getting location…" : "Use Current Location"}</button>{locationMessage && <span className="location-tag-status">{locationMessage}</span>}</div></label>
           <label>Project Area<input value={form.Project_Area} onChange={(e)=>setForm({...form,Project_Area:e.target.value})} placeholder="e.g. 5 decimal / 3200 sft" /></label>
           <label>Stories / Floors<input value={form.Number_of_Stories} onChange={(e)=>setForm({...form,Number_of_Stories:e.target.value})} /></label>
           <label>Start Date<input type="date" value={form.Start_Date} onChange={(e)=>setForm({...form,Start_Date:e.target.value})} /></label>
@@ -228,7 +362,7 @@ export default function NewProjectPage() {
           <button className="new-project-btn primary submit" data-lv-button="primary" type="submit" disabled={!canManage || saving || (mode === "manual" && manualExists)}>{saving ? "Creating project…" : mode === "automatic" ? "Create Project with Automatic ID" : `Create Project as ${normalizedManual || "Manual ID"}`}</button>
         </form>
 
-        {message && <div className={`message ${message.kind}`}>{message.text}{message.kind === "ok" && message.id && <div className="created-box"><Link className="new-project-btn primary" data-lv-button="primary" href={`/admin/projects/locations?project=${encodeURIComponent(message.id)}`}>Add Structured Address</Link><Link className="new-project-btn" href="/admin/projects">View Projects</Link><button className="new-project-btn" type="button" onClick={()=>router.push(`/admin/projects/${encodeURIComponent(message.id || "")}`)}>Open Project</button></div>}</div>}
+        {message && <div className={`message ${message.kind}`}>{message.text}{message.kind === "ok" && message.id && <div className="created-box"><Link className="new-project-btn primary" data-lv-button="primary" href={`/admin/projects/locations?project=${encodeURIComponent(message.id)}`}>Add Structured Address</Link><Link className="new-project-btn" data-lv-button="secondary" href="/admin/projects">View Projects</Link><button className="new-project-btn" data-lv-button="secondary" type="button" onClick={()=>router.push(`/admin/projects/${encodeURIComponent(message.id || "")}`)}>Open Project</button></div>}</div>}
         {!canManage && <div className="message err">Admin or manager access is required to create projects.</div>}
         <div className="new-project-note">Project Name and Owner Name are stored separately. Do not use the owner&apos;s name as the Project Name unless that is genuinely the project&apos;s official name.</div>
       </section>

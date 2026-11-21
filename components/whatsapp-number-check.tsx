@@ -52,17 +52,18 @@ export default function WhatsAppNumberCheck({ phoneNumber }: { phoneNumber: stri
     }
   }
 
-  const tone = state.kind === "ok" ? "#45c884" : state.kind === "bad" || state.kind === "error" ? "#ff7474" : "#8997a3";
+  const tone = state.kind === "ok" ? "var(--lv-success, #2d7350)" : state.kind === "bad" || state.kind === "error" ? "var(--lv-danger, #a92c33)" : "var(--lv-text-secondary, #657185)";
 
   return <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 7 }}>
     <button
       type="button"
+      data-lv-button="secondary"
       onClick={check}
       disabled={state.kind === "checking" || !phone}
-      style={{ minHeight: 30, padding: "0 10px", borderRadius: 7, border: "1px solid rgba(255,255,255,.16)", background: "#14202a", color: "#f3f6f8", fontSize: 10, fontWeight: 800, cursor: state.kind === "checking" || !phone ? "not-allowed" : "pointer", opacity: !phone ? .55 : 1 }}
+      style={{ minHeight: 30, padding: "0 10px", borderRadius: 7, border: "1px solid var(--lv-control-border, #d9dfe5)", background: "var(--lv-control-bg, #fff)", color: "var(--lv-text-primary, #26323e)", fontSize: 10, fontWeight: 800, cursor: state.kind === "checking" || !phone ? "not-allowed" : "pointer", opacity: !phone ? .55 : 1 }}
     >
       {state.kind === "checking" ? "Checking…" : "Check WhatsApp"}
     </button>
-    {state.text ? <span style={{ color: tone, fontSize: 10, fontWeight: 700 }}>{state.text}</span> : <span style={{ color: "#6f7d88", fontSize: 9 }}>Verify before enabling client updates.</span>}
+    {state.text ? <span style={{ color: tone, fontSize: 10, fontWeight: 700 }}>{state.text}</span> : <span style={{ color: "var(--lv-text-secondary, #657185)", fontSize: 9 }}>Verify before enabling client updates.</span>}
   </div>;
 }
