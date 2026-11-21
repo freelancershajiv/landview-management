@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { normalizeProjectCode, selectRows } from "@/lib/supabase-data";
+import { receivablePaymentIsEffective } from "@/lib/billing-receivable-authority";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,7 +53,7 @@ export async function GET(request: NextRequest) {
 
     const [payments, receipts, allocations, bills] = await Promise.all([
       selectRows("payments", {
-        select: "id,payment_code,payment_date,amount,payment_method,reference_no,income_category,payment_for,approval_status,status,receipt_url,created_at",
+        select: "id,payment_code,payment_date,amount,payment_method,reference_no,income_category,payment_for,approval_status,status,receipt_url,created_at,transaction_type,affects_business_balance,is_legacy_manual",
         filters: { project_id: project.id }, order: "payment_date:desc", limit: 5000,
       }),
       selectRows("payment_receipts", {
@@ -79,7 +80,7 @@ export async function GET(request: NextRequest) {
     }
 
     const rows = payments
-      .filter(payment => !["rejected", "void", "voided", "cancelled", "canceled"].includes(text(payment.approval_status || payment.status).toLowerCase()))
+      .filter(payment => receivablePaymentIsEffective(payment))
       .map(payment => {
         const receipt = receiptsByPayment.get(text(payment.id));
         const approval = text(payment.approval_status || payment.status || "Pending");
@@ -91,9 +92,9 @@ export async function GET(request: NextRequest) {
           serviceName: billDescriptions.get(text(row.bill_code)) || text(row.service_name), amount: amount(row.allocated_amount),
         }));
         const allocated = allocationsForPayment.reduce((sum, row) => sum + row.amount, 0);
-        const receiptUrl = issued
-          ? verifiedPath(receipt?.receipt_path) || verifiedPath(payment.receipt_url)
-          : "";
+        const receiptUrl = issued && verifiedPath(receipt?.receipt_path)
+          && verifiedPath(receipt?.receipt_path) === verifiedPath(payment.receipt_url)
+          ? verifiedPath(receipt?.receipt_path) : "";
         return {
           paymentCode: text(payment.payment_code), receiptCode: issued ? text(receipt?.receipt_code) : "",
           projectCode, date: payment.payment_date, amount: amount(payment.amount),

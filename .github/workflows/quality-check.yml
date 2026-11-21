@@ -60,6 +60,12 @@ jobs:
       - name: Billing 4.2 atomic editor integrity gate
         run: node --test tests/billing-full-editor-v42.test.cjs
 
+      - name: Billing 4.3 project statements and receipt integrity gate
+        run: node --test tests/billing-project-statement-v43.test.cjs
+
+      - name: Billing 4.3 statement and receipt scoped lint
+        run: npx eslint lib/project-statement-v43.ts lib/project-statement-document-v43.ts lib/project-statement-pdf-v43.ts app/api/billing/project-statement/route.ts app/api/billing/project-statement-print/route.ts app/admin/finance/project-statement/page.tsx app/api/billing/project-receipts/route.ts components/project-receipt-history.tsx
+
       - name: Billing 4.2 scoped lint
         run: npx eslint app/api/billing/full-revision-v42/route.ts app/admin/finance/full-bill-editor/page.tsx
 
