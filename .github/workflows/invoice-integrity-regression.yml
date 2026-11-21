@@ -20,6 +20,11 @@ on:
       - "tests/invoice-*.test.cjs"
       - "tests/billing-v4-reliability.test.cjs"
       - "tests/billing-reconciliation-41.test.cjs"
+      - "tests/billing-full-editor-v42.test.cjs"
+      - "app/api/billing/full-revision-v42/**"
+      - "app/admin/finance/full-bill-editor/**"
+      - "supabase/migrations/*billing_v42*"
+      - "supabase/functions/landview-data/index.ts"
       - "lib/billing-reconciliation-41.ts"
       - "app/api/billing/reconciliation-41/**"
       - "app/admin/finance/reconciliation/**"
@@ -61,6 +66,12 @@ jobs:
             tests/invoice-single-bill-status.test.cjs \
             tests/proposal-billing-conversion.test.cjs \
             tests/invoice-center.test.cjs
+      - name: Billing 4.2 atomic editor integrity gate
+        run: node --test tests/billing-full-editor-v42.test.cjs
+
+      - name: Billing 4.2 scoped lint
+        run: npx eslint app/api/billing/full-revision-v42/route.ts app/admin/finance/full-bill-editor/page.tsx
+
       - name: Billing 4.1 reconciliation review gate
         run: node --test tests/billing-reconciliation-41.test.cjs
       - name: Billing 4.1 scoped lint
