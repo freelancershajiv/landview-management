@@ -62,8 +62,8 @@ export default function BillingReports44() {
    if(!report)return;
    let rows:(string|number)[][];
    if(exportKind==="monthly")rows=[
-     ["Month","Client payments credited (BDT)","Operational receipts (BDT)","Legacy client credits (BDT)","Payment count","Legacy count","Date fallback count"],
-     ...months.map(item=>[item.month,item.payments,item.operational,item.legacy,item.paymentCount,item.legacyCount,item.fallbackDateCount]),
+     ["Month","Client payments credited (BDT)","Operational receipts (BDT)","Legacy client credits (BDT)","Payment count","Legacy count"],
+     ...months.map(item=>[item.month,item.payments,item.operational,item.legacy,item.paymentCount,item.legacyCount]),
    ];
    else if(exportKind==="aging")rows=[
      ["Invoice issue-date age","Open invoices before project-level offsets (BDT)"],
@@ -159,13 +159,15 @@ export default function BillingReports44() {
   ["Historical client credits",summary.legacyCreditedPayments,"Not new cash ledger receipts"],
   ["Open invoices before relief",summary.openInvoicesBeforeOffsets,"Invoice-aging source amount"],
   ["Net written off",summary.netWrittenOff,"Current write-off balance after recoveries"],
+  ["Payments without dates",summary.undatedPaymentAmount,summary.undatedPaymentCount+" payments not assigned to a month"],
+  ["Unverified import invoice age",summary.unverifiedImportDateAmount,summary.unverifiedImportDateCount+" open bills classified undated"],
  ].map(([name,value,detail],i)=><div className={"br44-kpi"+(i===2?" emphasis":"")} key={String(name)}>
    <small>{name}</small><strong>{money(Number(value))}</strong><p>{detail}</p>
  </div>)}
  </section>
  <div className="br44-grid">
  <section className="br44-panel">
-  <div><h2>Receivable aging by issue date</h2><p>Not an overdue report: contractual due dates were not recorded for the current invoices.</p></div>
+  <div><h2>Invoice age by verified billing date</h2><p>Not an overdue report: contractual due dates are missing, and unverified 2026 migration dates are shown as undated.</p></div>
   {bands.map(key=><div className="br44-band" key={key}>
     <span>{ageNames[key]}</span><div className="br44-track"><div className="br44-fill" style={{width:(summary.openInvoicesBeforeOffsets>0?100*report.aging[key]/summary.openInvoicesBeforeOffsets:0)+"%"}} /></div>
     <strong>{money(report.aging[key])}</strong>
@@ -173,7 +175,7 @@ export default function BillingReports44() {
    <p className="br44-note">These age buckets add up to open invoice balances <strong>before</strong> project-wide relief. Do not add them to collectible due. Issue-date age does not establish contractual late payment.</p>
  </section>
  <section className="br44-panel">
-  <div><h2>Monthly client collections</h2><p>Operational cash receipts and historical client credits are shown separately in the table. A payment creation date is used only if its payment date is missing.</p></div>
+  <div><h2>Monthly client collections</h2><p>Operational cash receipts and historical client credits are shown separately. Missing payment dates are not assigned to the import month; they remain in the undated total.</p></div>
   <div className="br44-filters">
     <label>From month<input aria-label="From month" type="month" value={fromMonth||filterFrom} onChange={e=>setFromMonth(e.target.value)}/></label>
     <label>To month<input aria-label="To month" type="month" value={toMonth||filterTo} onChange={e=>setToMonth(e.target.value)}/></label>
@@ -185,10 +187,10 @@ export default function BillingReports44() {
     <label>{item.month.slice(5)} / {item.month.slice(2,4)}</label>
   </div>)}</div>
   {!months.length&&<p className="br44-empty">No payments dated in this range.</p>}
-  <div className="br44-table-wrap"><table><thead><tr><th>Month</th><th className="right">Credited</th><th className="right">Operational</th><th className="right">Historical</th><th className="right">Count</th><th className="right">Date fallback</th></tr></thead>
+  <div className="br44-table-wrap"><table><thead><tr><th>Month</th><th className="right">Credited</th><th className="right">Operational</th><th className="right">Historical</th><th className="right">Count</th></tr></thead>
    <tbody>{[...months].reverse().map(item=><tr key={item.month}><td>{item.month}</td><td className="right">{money(item.payments)}</td>
     <td className="right">{money(item.operational)}</td><td className="right">{money(item.legacy)}</td>
-    <td className="right">{item.paymentCount}</td><td className="right">{item.fallbackDateCount}</td></tr>)}</tbody></table></div>
+    <td className="right">{item.paymentCount}</td></tr>)}</tbody></table></div>
  </section>
  </div>
  <section className="br44-panel">
@@ -220,7 +222,7 @@ export default function BillingReports44() {
   <div className="br44-note"><strong>Invoice aging:</strong> {report.methodology.aging}</div>
   <div className="br44-note"><strong>Monthly receipts:</strong> {report.methodology.collections}</div>
   <div className="br44-note"><strong>Collectible due:</strong> {report.methodology.due}</div>
-  <p>Invoices with recorded due dates among currently open items: {summary.invoiceDueDatePresentCount}. Invoice dates taken from the bill date instead: {summary.invoiceDateFallbackCount}. Payments with no usable date: {summary.undatedPaymentCount} ({money(summary.undatedPaymentAmount)}). These remain part of totals even when they cannot appear in a month bucket.</p>
+  <p>Invoices with recorded due dates among currently open items: {summary.invoiceDueDatePresentCount}. Invoice dates taken from the bill date instead: {summary.invoiceDateFallbackCount}. Payments with no usable date: {summary.undatedPaymentCount} ({money(summary.undatedPaymentAmount)}), excluded from monthly charts but included in all-time totals. Open invoices with unverified October 25, 2026 migration issue dates: {summary.unverifiedImportDateCount} ({money(summary.unverifiedImportDateAmount)}), classified as undated for aging until an original billing date is verified.</p>
  </section>
  </>}
  </main>;
