@@ -53,7 +53,6 @@ const SIDEBAR: SidebarEntry[] = [
     label: "Billing & Accounts",
     icon: "৳",
     items: [
-      { href: "/admin/accounts/entry", label: "Accounts", icon: "▥", adminOnly: true },
       { href: "/admin/billing", label: "Billing", icon: "৳", permission: "finance.view" },
       { href: "/admin/accounts", label: "Ledger", icon: "≡", permission: "ledger.view" },
       { href: "/admin/billing/invoice-center", label: "Invoice Center", icon: "▤", permission: "finance.view" },
@@ -106,7 +105,6 @@ const SIDEBAR: SidebarEntry[] = [
     icon: "◎",
     items: [
       { href: "/admin/action-center", label: "Action Center", icon: "◎", permission: "workflow.edit" },
-      { href: "/admin/management-analytics", label: "Management Analytics", icon: "⌁", permission: "analytics.view" },
       { href: "/admin/audit-log", label: "Audit Log", icon: "≣", adminOnly: true },
     ],
   },
@@ -169,6 +167,7 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
   const [mobileOpen, setMobileOpen] = useState(false);
   const [mobileFindOpen, setMobileFindOpen] = useState(false);
   const [pageQuery, setPageQuery] = useState("");
+  const [recordSearch, setRecordSearch] = useState<{ query: string; hits: { kind: string; label: string; href: string }[]; partial?: boolean }>({ query: "", hits: [] });
   const [expandedSection, setExpandedSection] = useState("");
   const [access, setAccess] = useState<WorkspaceAccess>(() => {
     const role = roleOf(initialUser);
@@ -215,6 +214,39 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
   const pageResults = searchablePages
     .filter((item) => item.label.toLowerCase().includes(pageQuery.trim().toLowerCase()))
     .slice(0, 8);
+
+  const searchTerm = pageQuery.trim();
+  const records = recordSearch.query === searchTerm ? recordSearch.hits : [];
+  const searchingRecords = searchTerm.length >= 3 && searchTerm.length <= 120 && recordSearch.query !== searchTerm;
+  const firstSearchHref = records[0]?.href || pageResults[0]?.href;
+
+  useEffect(() => {
+    if (searchTerm.length < 3 || searchTerm.length > 120) return;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await fetch(`/api/admin/management-search?q=${encodeURIComponent(searchTerm)}`, {
+          signal: controller.signal, cache: "no-store",
+        });
+        const result = await response.json();
+        if (!response.ok || !result.success || !Array.isArray(result.data)) throw new Error("Record search unavailable");
+        if (!controller.signal.aborted) setRecordSearch({ query: searchTerm, hits: result.data, partial: result.partial });
+      } catch {
+        if (!controller.signal.aborted) setRecordSearch({ query: searchTerm, hits: [], partial: true });
+      }
+    }, 300);
+    return () => { window.clearTimeout(timer); controller.abort(); };
+  }, [searchTerm]);
+
+  function renderSearchResults() {
+    return <>
+      {records.map((item) => <Link key={item.href} href={item.href} onClick={clearSearch}>{item.kind} · {item.label}</Link>)}
+      {pageResults.map((item) => <Link key={item.href} href={item.href} onClick={clearSearch}>{item.label}</Link>)}
+      {searchingRecords && <p role="status">Searching records…</p>}
+      {recordSearch.query === searchTerm && recordSearch.partial && <p role="status">Some records could not be searched.</p>}
+      {!records.length && !pageResults.length && !searchingRecords && !(recordSearch.query === searchTerm && recordSearch.partial) && <p>No matches</p>}
+    </>;
+  }
 
   const activeItem = useMemo(() => {
     const sorted = [...ALL_NAV_ITEMS].sort((a, b) => b.href.length - a.href.length);
@@ -289,9 +321,13 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
     if (mobileFindOpen) mobileFindInputRef.current?.focus();
   }, [mobileFindOpen]);
 
-  function openPageFromSearch(href: string) {
+  function clearSearch() {
     setMobileFindOpen(false);
     setPageQuery("");
+  }
+
+  function openPageFromSearch(href: string) {
+    clearSearch();
     router.push(href);
   }
 
@@ -409,12 +445,12 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
         </Link>
         <div className="global-search" role="search">
           <span aria-hidden="true">⌕</span>
-          <input type="search" aria-label="Find a management page" placeholder="Find a page..." value={pageQuery} onChange={(event) => setPageQuery(event.target.value)} onKeyDown={(event) => {
-            if (event.key === "Enter" && pageResults[0]) { event.preventDefault(); openPageFromSearch(pageResults[0].href); }
+          <input type="search" aria-label="Find a page or record" placeholder="Find a page, client or ID…" value={pageQuery} onChange={(event) => setPageQuery(event.target.value)} onKeyDown={(event) => {
+            if (event.key === "Enter" && firstSearchHref) { event.preventDefault(); openPageFromSearch(firstSearchHref); }
             if (event.key === "Escape") setPageQuery("");
           }} />
-          {pageQuery.trim() && <div className="lv-desktop-page-results" aria-label="Matching management pages">
-            {pageResults.length ? pageResults.map((item) => <Link key={item.href} href={item.href} onClick={() => setPageQuery("")}>{item.label}</Link>) : <p>No matching page</p>}
+          {pageQuery.trim() && <div className="lv-desktop-page-results" aria-label="Matching pages and records">
+            {renderSearchResults()}
           </div>}
         </div>
         <button type="button" ref={mobileFindButtonRef} className="lv-mobile-find-toggle" aria-label={mobileFindOpen ? "Close page search" : "Find a page"} aria-expanded={mobileFindOpen} aria-controls="lv-mobile-page-finder" onClick={() => { setMobileOpen(false); setMobileFindOpen((open) => !open); }}>{mobileFindOpen ? "×" : "⌕"}</button>
@@ -426,14 +462,14 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
           {(isAdmin || isManager) && <button className="utility-logout" onClick={setupOrLockQuickPin} disabled={quickBusy}>{quickConfigured ? "PIN LOCK" : "SET PIN"}</button>}
           <button className="utility-logout" onClick={logout}>Sign out</button>
         </div>
-        {mobileFindOpen && <div className="lv-mobile-find-panel" id="lv-mobile-page-finder" role="search" aria-label="Find management pages">
-          <label htmlFor="lv-mobile-find-input">Find a page</label>
-          <input ref={mobileFindInputRef} id="lv-mobile-find-input" type="search" autoComplete="off" value={pageQuery} placeholder="Projects, billing, site visits..." onChange={(event) => setPageQuery(event.target.value)} onKeyDown={(event) => {
-            if (event.key === "Enter" && pageResults[0]) { event.preventDefault(); openPageFromSearch(pageResults[0].href); }
+        {mobileFindOpen && <div className="lv-mobile-find-panel" id="lv-mobile-page-finder" role="search" aria-label="Find pages and records">
+          <label htmlFor="lv-mobile-find-input">Find a page or record</label>
+          <input ref={mobileFindInputRef} id="lv-mobile-find-input" type="search" autoComplete="off" value={pageQuery} placeholder="Page, client, LV file, proposal or invoice…" onChange={(event) => setPageQuery(event.target.value)} onKeyDown={(event) => {
+            if (event.key === "Enter" && firstSearchHref) { event.preventDefault(); openPageFromSearch(firstSearchHref); }
             if (event.key === "Escape") { setMobileFindOpen(false); mobileFindButtonRef.current?.focus(); }
           }} />
           <div className="lv-mobile-find-results">
-            {pageResults.length ? pageResults.map((item) => <Link key={item.href} href={item.href} onClick={() => { setMobileFindOpen(false); setPageQuery(""); }}>{item.label}</Link>) : <p>No matching management page</p>}
+            {searchTerm ? renderSearchResults() : <p>Search by page, client name or record ID.</p>}
           </div>
           <button type="button" className="lv-mobile-find-dismiss" onClick={() => { setMobileFindOpen(false); mobileFindButtonRef.current?.focus(); }}>Close search</button>
         </div>}

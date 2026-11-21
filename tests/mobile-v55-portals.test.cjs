@@ -40,12 +40,11 @@ test("Client navigation preserves external link rather than treating last charac
 test("Client project overview appears before optional finance and Site Visit calls complete", () => {
   const show = client.indexOf("setWorkspace(json.data as Workspace)");
   const ready = client.indexOf("setLoading(false);", show);
-  const optional = client.indexOf("const optionalRequests: Promise<void>[]", ready);
-  const concurrent = client.indexOf("await Promise.all(optionalRequests)", optional);
-  assert.ok(show >= 0 && ready > show && optional > ready && concurrent > optional);
-  assert.match(client, /fetch\("\/api\/site-visits"/);
-  assert.match(client, /fetch\("\/api\/project-management\?projectId="/);
-  assert.doesNotMatch(client, /Promise\.all\(optionalRequests\)[\s\S]{0,100}setWorkspace/);
+  const selected = client.indexOf("const selectedDetails = detail.projectId === projectId");
+  assert.ok(show >= 0 && ready > show && selected > ready);
+  assert.match(client, /read<Row\[\]>\(`\/api\/site-visits\?projectId=\$\{code\}`/);
+  assert.match(client, /read<ConstructionFinance>\(`\/api\/project-management\?projectId=\$\{code\}`/);
+  assert.match(client, /return \(\) => controller.abort\(\)/);
 });
 
 test("Client financial and visit tables remain available with keyboard scrolling", () => {

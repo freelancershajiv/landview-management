@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "@/app/client/client.module.css";
+import { workScope } from "@/lib/work-task-links";
 
 type CertificateRow = {
   certificateId: string;
@@ -13,9 +14,7 @@ type CertificateRow = {
   reference: string;
   verificationUrl?: string;
 };
-type Project = { projectId: string; projectName?: string };
-export type CertificateSummary = { total: number; pending: number };
-type Props = { projects: Project[]; refreshKey: number; onSummary: (summary: CertificateSummary | null) => void };
+type Props = { projectId: string; refreshKey: number };
 
 const categories = [
   { value: "project", label: "Project Certificate" },
@@ -38,7 +37,7 @@ function statusClass(value: string) {
 function categoryLabel(category: string) { return categories.find(item => item.value === category)?.label || category || "Certificate"; }
 function errorText(error: unknown) { return error instanceof Error ? error.message : "Certificate service is unavailable. Please retry."; }
 
-export default function ClientCertificateCenter({ refreshKey, onSummary }: Props) {
+export default function ClientCertificateCenter({ projectId, refreshKey }: Props) {
   const [data, setData] = useState<{ certificates: CertificateRow[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -51,18 +50,19 @@ export default function ClientCertificateCenter({ refreshKey, onSummary }: Props
       if (!response.ok || !json?.success) throw new Error(json?.error || "Could not load certificates.");
       if (!Array.isArray(json.data?.certificates)) throw new Error("The certificate service returned an incomplete response. Please retry.");
       if (version !== loadVersion.current.version) return;
-      const certificates = json.data.certificates as CertificateRow[];
+      const selected = workScope("project", projectId)?.code;
+      const certificates = (json.data.certificates as CertificateRow[]).filter((certificate) =>
+        selected !== undefined && workScope("project", certificate.reference)?.code === selected,
+      );
       setLoadError("");
       setData({ certificates });
-      onSummary({ total: certificates.length, pending: 0 });
     }).catch(error => {
       if (version !== loadVersion.current.version) return;
       setLoadError(errorText(error));
-      onSummary(null);
     }).finally(() => {
       if (version === loadVersion.current.version) setLoading(false);
     });
-  }, [onSummary]);
+  }, [projectId]);
 
   useEffect(() => {
     const tracker = loadVersion.current;

@@ -13,7 +13,7 @@ import {
   roleOf,
 } from "@/lib/local-session";
 import { supabaseAuthGateway } from "@/lib/supabase-auth";
-import { mergeRolePermissions, roleDefaultPermissions } from "@/lib/role-permissions";
+import { permissionAccess } from "@/lib/workspace-permission-access";
 import {
   deleteRows,
   handleLandviewDataAction,
@@ -65,13 +65,6 @@ async function requireAdmin(request: NextRequest) {
   const user = await requireUser(request);
   if (roleOf(user) !== "admin") throw new Error("Admin permission required.");
   return user;
-}
-async function permissionAccess(user: Row) {
-  const role = roleOf(user), userId = userIdOf(user);
-  if (role === "admin") return { userId, role, all: true, permissions: roleDefaultPermissions("admin") };
-  const rows = userId ? await selectRows("app_permissions", { filters: { user_key: userId }, order: "created_at:asc", limit: 5000 }) : []; const overrides: Record<string, boolean> = {}; for (const row of rows) overrides[text(row.permission)] = text(row.status).toLowerCase() === "active";
-  if (role === "manager" || role === "employee" || role === "client") return { userId, role, all: false, permissions: mergeRolePermissions(role, overrides) };
-  return { userId, role, all: false, permissions: overrides };
 }
 async function hasPermission(user: Row, permission: string) {
   const access = await permissionAccess(user);

@@ -53,3 +53,32 @@
 @media (prefers-reduced-motion:reduce){
   .skeleton span{animation:none}
 }
+
+.projectPicker {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border: 1px solid var(--lv-border-default);
+  border-radius: 12px;
+  background: var(--lv-surface-panel);
+  color: var(--lv-text-primary);
+}
+
+.projectPicker label { font-weight: 750; }
+.projectPicker select {
+  width: min(100%, 32rem);
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px 12px;
+  border: 1px solid var(--lv-control-border);
+  border-radius: 8px;
+  background: var(--lv-control-bg);
+  color: var(--lv-text-primary);
+  font: inherit;
+}
+
+.clientActionList { padding: 14px 18px; overflow-wrap: anywhere; }
+.clientActionList ul { padding-inline-start: 20px; }
+.clientActionList li + li { margin-block-start: 8px; }
+.clientActionList small { display: block; color: var(--lv-text-secondary); }
+.clientActionList a { color: var(--lv-text-strong); text-decoration: underline; text-underline-offset: 3px; }
