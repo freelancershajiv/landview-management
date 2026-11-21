@@ -101,7 +101,8 @@ test("high-use project, payment, Site Visit and employee controls use the centra
     ["components/employee-whatsapp-connect.tsx", ["success-solid","secondary"]],
     ["components/admin-dashboard-clean.tsx", ["primary","secondary"]],
     ["components/accounts-entry-panel.tsx", ["success","danger","secondary"]],
-    ["app/admin/projects/page.tsx", ["secondary","tab-active"]]
+    // Project stage filters use a filled red active state, not a soft red tab.
+    ["app/admin/projects/page.tsx", ["secondary","primary"]]
   ];
   for (const [path,variants] of expected) {
     const source=read(path);
