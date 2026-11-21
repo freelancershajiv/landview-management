@@ -110,7 +110,7 @@
   /* These legacy surfaces have their own backgrounds. Give the label and
      surface matching theme tokens so the foreground cannot follow another panel. */
   .portal-admin .rbac-page [role="button"].user-head,
-  .portal-admin .wl-page button.wl-stat {
+  .portal-admin .wl-page .wl-stat {
     background: var(--lv-surface) !important;
     color: var(--lv-text-primary) !important;
     -webkit-text-fill-color: currentColor !important;
@@ -119,9 +119,40 @@
   .portal-admin .proposal-register :is(a.pr-id,button.pr-btn:not(.primary)),
   .portal-admin a.wov-link,
   .portal-admin a.lv-invoice-back,
-  .portal-admin:has(.lv-wa-pair-page) a.lv-wa-nav-pairing,
-  :is(.portal-admin,.pf-redesign) .pmx-nav-link.is-active {
+  .portal-admin .ledger-export-page .export-top a,
+  .portal-admin:has(.lv-wa-pair-page) a.lv-wa-nav-pairing {
     color: var(--lv-ui-btn-soft-text, var(--lv-text-primary)) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  .portal-admin .wl-page .wl-stat button,
+  .portal-admin .rbac-page button.rbac-action.secondary,
+  .portal-admin button.register-edit,
+  :is(.portal-admin,.pf-redesign) .pmx-nav-link.is-active {
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: currentColor !important;
+  }
+
+  .portal-admin .rbac-page button.rbac-action.secondary,
+  .portal-admin button.register-edit {
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+  }
+
+  :is(.portal-admin,.pf-redesign) .pmx-nav-link.is-active {
+    background: var(--lv-surface) !important;
+    border-color: var(--lv-brand-primary) !important;
+  }
+
+  .portal-admin .rbac-page button.rbac-action.danger {
+    color: var(--lv-danger) !important;
+    -webkit-text-fill-color: currentColor !important;
+    background: var(--lv-danger-soft) !important;
+    border-color: var(--lv-danger-border) !important;
+  }
+
+  .portal-admin .projects-register .public-wrap button.toggle:not(.on) {
+    color: #fff !important;
     -webkit-text-fill-color: currentColor !important;
   }
 

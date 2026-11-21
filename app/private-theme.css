@@ -1020,7 +1020,7 @@
    Children inherit the same foreground despite legacy nested rules. */
 @media screen {
   .portal-admin :is(button,a,[role="button"]):is(
-    .tws-primary,
+    .tws-primary:not([data-lv-button="secondary"]),
     .ta-btn.primary,
     .twf-actions button.primary,
     .tt-btn.primary,
@@ -1070,7 +1070,7 @@
     .project-workspace-switcher a.active
   ):not([data-lv-button="soft"]):not([data-lv-button="danger"]):not([data-lv-button="tab-active"]),
   .portal-admin :is(button,a,[role="button"]):is(
-    .tws-primary,
+    .tws-primary:not([data-lv-button="secondary"]),
     .ta-btn.primary,
     .twf-actions button.primary,
     .tt-btn.primary,
