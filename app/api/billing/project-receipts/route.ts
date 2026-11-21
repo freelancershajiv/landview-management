@@ -6,7 +6,7 @@ import { receivablePaymentIsEffective } from "@/lib/billing-receivable-authority
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Row = Record<string, any>;
+type Row = Record<string, unknown>;
 const text = (value: unknown) => String(value ?? "").trim();
 const amount = (value: unknown) => {
   const valueNumber = Number(value ?? 0);

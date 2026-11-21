@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { normalizeProjectCode, selectRows } from "@/lib/supabase-data";
 import {
-  loadReceivableAuthority, receivableText, receivableNumber,
+  loadReceivableAuthority, receivableNumber,
   type ReceivableCategoryKey,
 } from "@/lib/billing-receivable-authority";
 

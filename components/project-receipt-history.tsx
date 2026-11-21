@@ -51,7 +51,7 @@ export default function ProjectReceiptHistory({
     finally { setLoading(false); }
   }, [projectId]);
 
-  useEffect(() => { void load(); }, [load, highlightPaymentCode]);
+  useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load, highlightPaymentCode]);
 
   async function copyReceipt(path: string, paymentCode: string) {
     if (!path) return;
