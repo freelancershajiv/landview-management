@@ -88,8 +88,8 @@ test("inspected red-filled actions are protected explicitly instead of a generic
     ["components/admin-todo-reminder-center.tsx",".trc-save"],
     ["app/admin/finance/writeoffs/writeoffs.css",".wo-toggle button.active"],
   ];
-  const block=theme.slice(theme.indexOf("/* Audited Admin routes with old solid-red button classes."));
-  assert.ok(block.startsWith("/* Audited Admin routes"),"Final audited guard missing");
+  const block=theme.slice(theme.indexOf("/* Audited Admin solid-red control matrix."));
+  assert.ok(block.startsWith("/* Audited Admin solid-red"),"Final audited guard missing");
   assert.doesNotMatch(block,/\.b2-tab\.active|\.due-filter\.active|\.twf-tabs button\.active|\.lwx-tabs button\.active/,
     "Potential pale selected tabs must not get a white foreground without red fill");
   for (const [file,selector] of audited) {
@@ -99,4 +99,168 @@ test("inspected red-filled actions are protected explicitly instead of a generic
   }
   assert.match(block, /color:\s*#fff\s*!important/);
   assert.match(block, /-webkit-text-fill-color:\s*#fff\s*!important/);
+});
+
+test("audited Admin red-filled routes consistently inherit white text in both themes", () => {
+  const audited = [
+  [
+    "app/admin/proposals/page.tsx",
+    ".pr-btn.primary"
+  ],
+  [
+    "app/admin/projects/new/page.tsx",
+    ".new-project-btn.primary"
+  ],
+  [
+    "app/admin/estimate/page.tsx",
+    ".estimate-open"
+  ],
+  [
+    "app/admin/finance/billing-control/page.tsx",
+    ".bc-btn.primary"
+  ],
+  [
+    "app/admin/finance/invoice-center/page.tsx",
+    ".ic-head-actions .ic-primary"
+  ],
+  [
+    "app/admin/finance/adjustments/page.tsx",
+    ".adj-btn.primary"
+  ],
+  [
+    "app/admin/finance/payment-lifecycle/page.tsx",
+    ".pl-head button"
+  ],
+  [
+    "app/admin/finance/service-payments/page.tsx",
+    ".rp-tab.active"
+  ],
+  [
+    "app/admin/finance/service-payments/page.tsx",
+    ".rp-btn"
+  ],
+  [
+    "app/admin/finance/reconciliation/page.tsx",
+    ".r41 button.primary"
+  ],
+  [
+    "app/admin/finance/integrity/page.tsx",
+    ".integrity-head button"
+  ],
+  [
+    "app/admin/finance/full-bill-editor/page.tsx",
+    ".fbe-btn.primary"
+  ],
+  [
+    "app/admin/project-operations/overview/page.tsx",
+    ".wov-btn.primary"
+  ],
+  [
+    "app/admin/project-operations/overview/page.tsx",
+    ".wov-button.primary"
+  ],
+  [
+    "app/admin/project-operations/overview/page.tsx",
+    ".wov-filter.active"
+  ],
+  [
+    "app/admin/project-operations/document-register/page.tsx",
+    ".wdr-btn.primary"
+  ],
+  [
+    "app/admin/project-operations/by-project/page.tsx",
+    ".byp-btn.primary"
+  ],
+  [
+    "app/admin/project-operations/by-project/page.tsx",
+    ".byp-small.primary"
+  ],
+  [
+    "app/admin/project-operations/by-service/page.tsx",
+    ".bys-btn.primary"
+  ],
+  [
+    "app/admin/project-operations/by-service/page.tsx",
+    ".bys-tab.active"
+  ],
+  [
+    "app/admin/projects/reclassify/page.tsx",
+    ".reclass-btn.primary"
+  ],
+  [
+    "app/admin/projects/reclassify/page.tsx",
+    ".filter-btn.active"
+  ],
+  [
+    "app/admin/registers/registers.css",
+    ".register-btn.primary"
+  ],
+  [
+    "app/admin/registers/registers.css",
+    ".register-tabs button.active"
+  ],
+  [
+    "app/admin/registers/registers.css",
+    ".register-filter.active"
+  ],
+  [
+    "app/admin/finance/allocation-corrections/page.tsx",
+    ".lv-correction button"
+  ],
+  [
+    "app/admin/finance/add-bill/page.tsx",
+    ".ab-btn.primary"
+  ],
+  [
+    "app/admin/finance/outsourcing/new/page.tsx",
+    ".po-btn.primary"
+  ],
+  [
+    "app/admin/finance/direct-bill/direct-full-bill-workspace.tsx",
+    ".db-btn.primary"
+  ],
+  [
+    "app/admin/website-leads/page.tsx",
+    ".wl-save"
+  ],
+  [
+    "app/admin/website-leads/page.tsx",
+    ".wl-links .proposal"
+  ],
+  [
+    "app/admin/website-leads/page.tsx",
+    ".wl-btn.primary"
+  ],
+  [
+    "app/admin/projects/[projectId]/project-dashboard-red.css",
+    ".project-workspace-switcher a.active"
+  ]
+];
+  const block = theme.slice(theme.indexOf("/* Audited Admin solid-red control matrix."));
+  assert.ok(block.includes("color: #fff !important;"));
+  assert.ok(block.includes("-webkit-text-fill-color: #fff !important;"));
+  assert.equal((block.match(/\.portal-admin :is\(button,a,\[role="button"\]\):is\(/g)||[]).length,2);
+  for (const [file,selector] of audited) {
+    const source = read(file);
+    const index = source.indexOf(selector);
+    assert.ok(index>=0, file + " no longer declares " + selector);
+    const brace = source.indexOf("{",index);
+    assert.ok(brace>index && brace-index<90, file + ": unexpected selector body");
+    const ending=source.indexOf("}",brace);
+    const rule=source.slice(brace+1,ending);
+    assert.match(rule, /background(?:-color)?\s*:\s*(?:var\(--lv-brand-primary\)|#[a-f0-9]{6})/i,
+      file + " " + selector + " is no longer solid red");
+    assert.ok(block.includes(selector), "Missing contrast rule for " + file + " " + selector);
+  }
+  for (const pale of [".b2-tab.active",".due-filter.active",".bank-tabs button.active",".twf-tabs button.active",".lwx-tabs button.active"]) {
+    assert.ok(!block.includes(pale), "Pale selected tab cannot use white-on-red override: "+pale);
+  }
+  assert.match(block, /:not\(\[data-lv-button="soft"\]\)/);
+  assert.match(block, /:not\(\[data-lv-button="tab-active"\]\)/);
+});
+
+test("Direct Bill uses a readable LAND VIEW red background behind white button text", () => {
+  const source=read("app/admin/finance/direct-bill/direct-full-bill-workspace.tsx");
+  assert.match(source,/\.db-btn\.primary\{background:var\(--lv-brand-primary\);border-color:var\(--lv-brand-primary\);color:#fff;-webkit-text-fill-color:#fff\}/);
+  assert.doesNotMatch(source,/\.db-btn\.primary\{background:#d94b45/);
 });
