@@ -9,6 +9,7 @@ const actions = [
   { n: "05", title: "Due Bills", href: "/admin/billing/due-bills", detail: "Track receivables by project and billing category. Review due amounts before reminders." },
   { n: "06", title: "Invoice Print & Share", href: "/admin/billing/invoices", detail: "Create branded individual invoices and printable documents." },
   { n: "07", title: "Project Statements & Receipts", href: "/admin/billing/project-statement", detail: "Current client ledger, advances, verified receipts and A4 PDF statements." },
+  { n: "08", title: "Financial Reports & Aging", href: "/admin/billing/reports", detail: "Collectible dues, invoice issue-date aging, monthly collections and management CSV/PDF reports." },
 ];
 const quick = [
   { title: "Add Bill", href: "/admin/billing/add-bill", detail: "One service bill" },
