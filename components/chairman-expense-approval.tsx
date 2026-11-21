@@ -124,19 +124,19 @@ export default function ChairmanExpenseApproval() {
 
   return <section className="lv-ack" aria-label="Master Admin payment acknowledgements">
     <style>{`
-      .lv-ack{margin:0 0 18px;border:1px solid var(--theme-line-_39434c, #39434c);border-radius:14px;background:var(--theme-bg-_10171d, #10171d);color:var(--theme-ink-_eef3f6, #eef3f6);overflow:hidden;box-shadow:0 16px 42px var(--theme-shadow-rgba_0_0_0__18_, rgba(0,0,0,.18))}
-      .lv-ack *{box-sizing:border-box}.lv-ack-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border-bottom:1px solid var(--theme-line-_303a43, #303a43);background:linear-gradient(110deg,var(--theme-bg-_121b22, #121b22),var(--theme-bg-_181315, #181315))}
-      .lv-ack-kicker{display:block;color:var(--theme-ink-_ff8179, #ff8179);font-size:10px;font-weight:900;letter-spacing:.13em;margin-bottom:3px}.lv-ack h2{margin:0;font-size:18px}.lv-ack-head p{margin:4px 0 0;color:var(--theme-ink-_aab5bd, #aab5bd);font-size:11px;line-height:1.45}
-      .lv-ack-count{min-width:34px;height:34px;display:grid;place-items:center;border-radius:999px;background:#d94b45;color:#fff;font-weight:900}
-      .lv-ack-body{padding:10px}.lv-ack-row{display:grid;grid-template-columns:105px 95px minmax(170px,1fr) 125px 115px;gap:10px;align-items:center;padding:11px 10px;border-bottom:1px solid var(--theme-line-_29333b, #29333b)}.lv-ack-row:last-child{border-bottom:0}
-      .lv-ack-cell small{display:block;color:var(--theme-ink-_8f9ba4, #8f9ba4);font-size:9px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}.lv-ack-cell strong{display:block;color:var(--theme-ink-_f5f8fa, #f5f8fa);font-size:12px}.lv-ack-amount strong{font-size:14px}.lv-ack-meta{color:var(--theme-ink-_aeb9c1, #aeb9c1);font-size:10px;margin-top:2px}
-      .lv-ack-btn{border:1px solid var(--theme-line-_486152, #486152);background:var(--theme-bg-_183124, #183124);color:var(--lv-success, #2d7350);border-radius:8px;padding:9px 12px;font-weight:900;cursor:pointer}.lv-ack-btn:hover{background:var(--theme-bg-_21402f, #21402f)}.lv-ack-btn:disabled{opacity:.55;cursor:wait}
-      .lv-ack-msg{padding:13px 16px;color:var(--theme-ink-_aab5bd, #aab5bd)}.lv-ack-error{margin:10px;border:1px solid var(--theme-line-_713d38, #713d38);background:var(--theme-bg-_321f1d, #321f1d);color:var(--theme-ink-_ffb2ac, #ffb2ac);border-radius:8px;padding:10px 12px;font-size:11px}.lv-ack-refresh{border:1px solid var(--theme-line-_3b4650, #3b4650);background:var(--theme-bg-_151e25, #151e25);color:var(--theme-ink-_e9eef1, #e9eef1);border-radius:8px;padding:8px 11px;font-weight:800;cursor:pointer}
+      .lv-ack{margin:0 0 18px;border:1px solid var(--lv-border-default);border-radius:14px;background:var(--lv-surface-panel);color:var(--lv-text-primary);overflow:hidden;box-shadow:var(--lv-shadow-sm)}
+      .lv-ack *{box-sizing:border-box}.lv-ack-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border-bottom:1px solid var(--lv-border-default);background:var(--lv-surface-muted)}
+      .lv-ack-kicker{display:block;color:var(--lv-brand-text);font-size:10px;font-weight:900;letter-spacing:.13em;margin-bottom:3px}.lv-ack h2{margin:0;font-size:18px}.lv-ack-head p{margin:4px 0 0;color:var(--lv-text-secondary);font-size:11px;line-height:1.45}
+      .lv-ack-count{min-width:34px;height:34px;display:grid;place-items:center;border-radius:999px;background:var(--lv-brand-primary);color:#fff;font-weight:900}
+      .lv-ack-body{padding:10px}.lv-ack-row{display:grid;grid-template-columns:105px 95px minmax(170px,1fr) 125px 115px;gap:10px;align-items:center;padding:11px 10px;border-bottom:1px solid var(--lv-border-soft)}.lv-ack-row:last-child{border-bottom:0}
+      .lv-ack-cell small{display:block;color:var(--lv-text-muted);font-size:9px;text-transform:uppercase;letter-spacing:.07em;margin-bottom:3px}.lv-ack-cell strong{display:block;color:var(--lv-text-strong);font-size:12px}.lv-ack-amount strong{font-size:14px}.lv-ack-meta{color:var(--lv-text-secondary);font-size:10px;margin-top:2px}
+      .lv-ack-btn{border:1px solid var(--lv-success-border);background:var(--lv-success-soft);color:var(--lv-success);border-radius:8px;padding:9px 12px;font-weight:900;cursor:pointer}.lv-ack-btn:hover{background:color-mix(in srgb,var(--lv-success) 14%,var(--lv-surface-panel))}.lv-ack-btn:disabled{opacity:.55;cursor:wait}
+      .lv-ack-msg{padding:13px 16px;color:var(--lv-text-secondary)}.lv-ack-error{margin:10px;border:1px solid var(--lv-danger-border);background:var(--lv-danger-soft);color:var(--lv-danger);border-radius:8px;padding:10px 12px;font-size:11px}.lv-ack-refresh{border:1px solid var(--lv-control-border);background:var(--lv-control-bg);color:var(--lv-text-primary);border-radius:8px;padding:8px 11px;font-weight:800;cursor:pointer}
       @media(max-width:850px){.lv-ack-row{grid-template-columns:1fr 1fr}.lv-ack-cell.details{grid-column:1/-1}.lv-ack-btn{width:100%}}
     `}</style>
     <header className="lv-ack-head">
       <div><span className="lv-ack-kicker">EMP-0001 / FINANCE REVIEW</span><h2>Master Admin payments awaiting acknowledgement</h2><p>These payments are already approved and posted to Billing and the ledger. “Mark Seen” is acknowledgement only and does not change the financial amount or approver.</p></div>
-      <div style={{display:"flex",alignItems:"center",gap:8}}><button className="lv-ack-refresh" type="button" onClick={() => void load()} disabled={loading}>Refresh</button><span className="lv-ack-count">{unseen.length}</span></div>
+      <div style={{display:"flex",alignItems:"center",gap:8}}><button className="lv-ack-refresh" data-lv-button="secondary" type="button" onClick={() => void load()} disabled={loading}>Refresh</button><span className="lv-ack-count">{unseen.length}</span></div>
     </header>
     {error && <div className="lv-ack-error">{error}</div>}
     {loading ? <div className="lv-ack-msg">Loading finance acknowledgements…</div> : unseen.length === 0 ? <div className="lv-ack-msg">No unseen Master Admin payments.</div> : <div className="lv-ack-body">
@@ -145,7 +145,7 @@ export default function ChairmanExpenseApproval() {
         <div className="lv-ack-cell"><small>Project</small><strong>{text(row.Project_ID) || "—"}</strong></div>
         <div className="lv-ack-cell details"><small>Payment</small><strong>{text(row.Category || row.Description) || "Client payment"}</strong><div className="lv-ack-meta">{text(row.Source_ID)} · entered/approved by {text(row.Reviewed_By) || "Master Admin"}</div></div>
         <div className="lv-ack-cell lv-ack-amount"><small>Amount</small><strong>{money(row.Amount)}</strong></div>
-        <button className="lv-ack-btn" type="button" disabled={busy === text(row.Source_ID)} onClick={() => void acknowledge(row)}>{busy === text(row.Source_ID) ? "Saving…" : "Mark Seen"}</button>
+        <button className="lv-ack-btn" data-lv-button="success" type="button" disabled={busy === text(row.Source_ID)} onClick={() => void acknowledge(row)}>{busy === text(row.Source_ID) ? "Saving…" : "Mark Seen"}</button>
       </div>)}
     </div>}
   </section>;

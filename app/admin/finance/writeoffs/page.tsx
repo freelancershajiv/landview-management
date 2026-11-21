@@ -181,8 +181,8 @@ export default function BillingWriteoffsPage() {
         <h2>New Transaction</h2>
         <p className="wo-hint">Only Admin, Manager and Accounts roles may post these transactions. No existing financial records are overwritten.</p>
         <div className="wo-toggle" role="group" aria-label="Transaction type">
-          <button type="button" className={action === "saveWriteOff" ? "active" : ""} aria-pressed={action === "saveWriteOff"} onClick={() => edit(() => setAction("saveWriteOff"))}>Write Off Due</button>
-          <button type="button" className={action === "recoverWriteOff" ? "active" : ""} aria-pressed={action === "recoverWriteOff"} onClick={() => edit(() => setAction("recoverWriteOff"))}>Recover Payment</button>
+          <button type="button" className={action === "saveWriteOff" ? "active" : ""} data-lv-button={action==="saveWriteOff"?"primary":"secondary"} aria-pressed={action === "saveWriteOff"} onClick={() => edit(() => setAction("saveWriteOff"))}>Write Off Due</button>
+          <button type="button" className={action === "recoverWriteOff" ? "active" : ""} data-lv-button={action==="recoverWriteOff"?"primary":"secondary"} aria-pressed={action === "recoverWriteOff"} onClick={() => edit(() => setAction("recoverWriteOff"))}>Recover Payment</button>
         </div>
         <div className="wo-fields">
           <label>Project / File ID
@@ -236,7 +236,7 @@ export default function BillingWriteoffsPage() {
           </label>
           <p className="wo-warning">Recovery creates a real client payment and a matching reversal entry. Use it only after money has actually arrived.</p>
         </>}
-        <button className="wo-submit" type="button" disabled={loading || busy || !code || limit <= 0} onClick={() => void submit()}>{busy ? "Saving…" : action === "saveWriteOff" ? "Record Write-Off" : "Record Recovered Payment"}</button>
+        <button className="wo-submit" data-lv-button="primary" type="button" disabled={loading || busy || !code || limit <= 0} onClick={() => void submit()}>{busy ? "Saving…" : action === "saveWriteOff" ? "Record Write-Off" : "Record Recovered Payment"}</button>
       </section>
 
       <section className="wo-card">

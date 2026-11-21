@@ -104,13 +104,13 @@ export default function ProjectContextBar() {
       <div className="pcb-id"><small>Project</small><strong>{context?.identity || projectId}</strong></div>
       <div className="pcb-actions">
         {context && <span className={`pcb-status ${context.lifecyclePhase === "Completed" ? "completed" : ""}`}>{context.lifecyclePhase}</span>}
-        <button className="pcb-btn" onClick={() => { setEditing((value) => !value); setError(""); setNotice(""); }} disabled={!context}>{context?.lifecyclePhase === "Completed" ? "Reopen / Change Status" : "Change Status"}</button>
+        <button className="pcb-btn" data-lv-button="secondary" onClick={() => { setEditing((value) => !value); setError(""); setNotice(""); }} disabled={!context}>{context?.lifecyclePhase === "Completed" ? "Reopen / Change Status" : "Change Status"}</button>
       </div>
     </div>
     {editing && context && <div className="pcb-editor">
       <select value={phase} onChange={(e) => setPhase(e.target.value)}>{context.phases.map((item) => <option key={item}>{item}</option>)}</select>
       <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder={isRollback ? "Reason required for rollback / reopen" : "Reason or note (optional)"} />
-      <button className="pcb-btn primary" disabled={busy || phase === context.lifecyclePhase} onClick={() => void save()}>{busy ? "Updating…" : context.lifecyclePhase === "Completed" && phase !== "Completed" ? "Reopen Project" : "Update Status"}</button>
+      <button className="pcb-btn primary" data-lv-button="primary" disabled={busy || phase === context.lifecyclePhase} onClick={() => void save()}>{busy ? "Updating…" : context.lifecyclePhase === "Completed" && phase !== "Completed" ? "Reopen Project" : "Update Status"}</button>
     </div>}
     {error && <div className="pcb-msg bad">{error}</div>}
     {notice && <div className="pcb-msg good">{notice}</div>}

@@ -304,27 +304,215 @@
     border-radius:var(--lv-ui-radius); font-size:var(--lv-ui-label-size);
     font-weight:750; text-decoration:none;
   }
+  /* Current Admin dashboard: one semantic bridge for both themes. */
   .portal-admin .lv-clean-dashboard {
-    --red: var(--lv-brand-primary) !important;
-    --red2: var(--lv-brand-primary-hover) !important;
-    --redsoft: var(--lv-brand-soft) !important;
-    --ink: var(--lv-text-primary) !important;
-    --muted: var(--lv-text-muted) !important;
-    --line: var(--lv-border-default) !important;
-    --panel: var(--lv-surface-panel) !important;
-    --bg: var(--lv-surface-page) !important;
     background: var(--lv-surface-page) !important;
     color: var(--lv-text-primary) !important;
+    --lv-dashboard-income: var(--lv-success);
+    --lv-dashboard-expense: var(--lv-danger);
   }
-  .portal-admin .lv-clean-dashboard :is(.lv-clean-card,.lv-clean-kpi) {
-    background:var(--lv-surface-panel) !important;
-    border-color:var(--lv-border-default) !important;
-    color:var(--lv-text-primary);
+
+  .portal-admin .lv-clean-dashboard :is(
+    .lv-clean-btn:not(.primary),.lv-clean-kpi,.lv-clean-card,.lv-today-item
+  ) {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: var(--lv-shadow-sm) !important;
   }
-  .portal-admin .lv-clean-dashboard :is(.lv-clean-head p,.lv-clean-kpi span,.lv-clean-kpi small,.lv-clean-card small) {
-    color:var(--lv-text-secondary) !important;
+
+  .portal-admin .lv-clean-dashboard .lv-clean-btn:not(.primary):hover,
+  .portal-admin .lv-clean-dashboard .lv-today-item:hover {
+    background: var(--lv-surface-hover) !important;
+    border-color: var(--lv-border-strong) !important;
   }
-  .portal-admin .lv-clean-dashboard :is(.lv-clean-title i,.lv-clean-link) {color:var(--lv-brand-text) !important;}
+
+  .portal-admin .lv-clean-dashboard :is(
+    h1,h2,h3,.lv-clean-kpi strong,.lv-finance-summary strong,.lv-activity-copy strong,.lv-workflow-step strong,
+    .lv-project-copy strong,.lv-calendar-head strong,.lv-priority-copy strong
+  ) { color: var(--lv-text-strong) !important; }
+
+  .portal-admin .lv-clean-dashboard :is(
+    .lv-clean-head p,.lv-clean-kpi span,.lv-clean-kpi small,.lv-workflow-step small,
+    .lv-finance-summary span,.lv-chart-label,.lv-chart-legend,.lv-activity-copy small,
+    .lv-activity-date,.lv-project-copy small,.lv-calendar-week span,
+    .lv-calendar-day:not(.today),.lv-today-item span,.lv-priority-copy small,.lv-empty
+  ) { color: var(--lv-text-muted) !important; }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-link,.lv-priority-open) {
+    color: var(--lv-brand-text) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(
+    .lv-finance-summary > div,.lv-chart,.lv-activity-row,.lv-project-row,
+    .lv-today-summary,.lv-priority-row
+  ) { border-color: var(--lv-border-soft) !important; }
+
+  .portal-admin .lv-clean-dashboard .lv-workflow-icon {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-secondary) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-workflow-step:first-child .lv-workflow-icon,
+  .portal-admin .lv-clean-dashboard .lv-clean-btn.primary,
+  .portal-admin .lv-clean-dashboard .lv-calendar-day.today {
+    background: var(--lv-brand-primary) !important;
+    border-color: var(--lv-brand-primary) !important;
+    color: #fff !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-progress-track { background: var(--lv-surface-subtle) !important; }
+  .portal-admin .lv-clean-dashboard .lv-chart-bar { background: var(--lv-dashboard-income) !important; }
+
+  .portal-admin .lv-clean-dashboard .lv-chart-bar.expense,
+  .portal-admin .lv-clean-dashboard .lv-chart-legend i.exp {
+    background: var(--lv-dashboard-expense) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-activity-icon {
+    background: var(--lv-info-soft) !important;
+    color: var(--lv-info) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-activity-icon.red {
+    background: var(--lv-danger-soft) !important;
+    color: var(--lv-danger) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-activity-icon.green {
+    background: var(--lv-success-soft) !important;
+    color: var(--lv-success) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-project-avatar {
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-strong) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard :is(.lv-project-status.completed,.lv-project-status.ontrack) {
+    background: var(--lv-success-soft) !important;
+    color: var(--lv-success) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-project-status.progress {
+    background: var(--lv-info-soft) !important;
+    color: var(--lv-info) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-project-status.early {
+    background: var(--lv-warning-soft) !important;
+    color: var(--lv-warning) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-quick a {
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-brand-border) !important;
+    color: var(--lv-text-strong) !important;
+    -webkit-text-fill-color: var(--lv-text-strong) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-quick a b {
+    background: var(--lv-brand-soft-strong) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-dashboard-error {
+    background: var(--lv-danger-soft) !important;
+    border-color: color-mix(in srgb, var(--lv-danger) 30%, var(--lv-border-default)) !important;
+    color: var(--lv-danger) !important;
+  }
+
+  .portal-admin .lv-clean-dashboard .lv-dashboard-loading span {
+    background: linear-gradient(
+      90deg,
+      var(--lv-surface-muted),
+      var(--lv-surface-panel),
+      var(--lv-surface-muted)
+    ) !important;
+    background-size: 220% 100% !important;
+  }
+
+  /* Action labels on tinted backgrounds need stronger contrast than the brand accent. */
+  .portal-admin .lv-admin-shortcuts .lv-ui-shortcut[data-lv-button="soft"],
+  .portal-admin .lv-clean-dashboard .lv-clean-mobile-quick a {
+    color: var(--lv-text-strong) !important;
+    -webkit-text-fill-color: var(--lv-text-strong) !important;
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-brand-border) !important;
+  }
+  .portal-admin .lv-admin-shortcuts .lv-ui-shortcut[data-lv-button="soft"]:hover {
+    background: var(--lv-brand-soft-strong) !important;
+    color: var(--lv-text-strong) !important;
+  }
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-mobile-quick a,.lv-quick a) > span:not(.lv-mobile-action-icon) {
+    color: var(--lv-text-strong) !important;
+    -webkit-text-fill-color: var(--lv-text-strong) !important;
+  }
+
+  /* Explicit pairs for nested components: no legacy light/dark fallback. */
+  .portal-admin .lv-clean-dashboard .lv-clean-kpi-icon {
+    color: var(--lv-brand-text) !important;
+    background: var(--lv-brand-soft) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-clean-kpi small b { color: var(--lv-success) !important; -webkit-text-fill-color: currentColor !important; }
+  .portal-admin .lv-clean-dashboard .lv-clean-kpi.expense small b { color: var(--lv-danger) !important; -webkit-text-fill-color: currentColor !important; }
+  .portal-admin .lv-clean-dashboard :is(.lv-workflow-step b,.lv-today-item strong,.lv-clean-title i) {
+    color: var(--lv-brand-text) !important;
+  }
+  .portal-admin .lv-clean-dashboard .lv-workflow-step:not(:last-child)::after { color: var(--lv-text-muted) !important; }
+  .portal-admin .lv-clean-dashboard .lv-chart-legend i:not(.exp) { background: var(--lv-dashboard-income) !important; }
+  .portal-admin .lv-clean-dashboard .lv-priority-dot { background: var(--lv-info) !important; }
+  .portal-admin .lv-clean-dashboard .lv-priority-dot.critical { background: var(--lv-danger) !important; }
+  .portal-admin .lv-clean-dashboard .lv-priority-dot.warning { background: var(--lv-warning) !important; }
+  .portal-admin .lv-clean-dashboard :is(.lv-project-row,.lv-workflow-step):hover { background: var(--lv-surface-hover); }
+  .portal-admin .lv-clean-dashboard :is(.lv-quick a,.lv-clean-mobile-quick a):hover {
+    color: var(--lv-text-strong) !important;
+    background: var(--lv-brand-soft-strong) !important;
+  }
+  .portal-admin .lv-clean-dashboard :is(.lv-quick a b,.lv-mobile-action-icon) { color: var(--lv-brand-text) !important; }
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-btn.primary,.lv-calendar-day.today,.lv-workflow-step:first-child .lv-workflow-icon) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+  .portal-admin .lv-clean-dashboard :is(.lv-clean-btn.primary:hover,.lv-clean-btn.primary:focus-visible) {
+    background: var(--lv-brand-primary-hover) !important;
+    border-color: var(--lv-brand-primary-hover) !important;
+  }
+  .portal-admin .lv-clean-dashboard :is(a,button):focus-visible {
+    outline: 2px solid var(--lv-brand-text);
+    outline-offset: 3px;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .portal-admin .lv-clean-dashboard .lv-dashboard-loading span { animation: none !important; }
+  }
+
+  /* Dashboard finance acknowledgement: the same theme in both modes. */
+  .portal-admin .lv-ack {
+    background: var(--lv-surface-panel) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-primary) !important;
+    box-shadow: var(--lv-shadow-sm) !important;
+  }
+  .portal-admin .lv-ack .lv-ack-head {
+    background: var(--lv-surface-muted) !important;
+    border-color: var(--lv-border-default) !important;
+    color: var(--lv-text-strong) !important;
+  }
+  .portal-admin .lv-ack :is(h2,.lv-ack-cell strong) { color: var(--lv-text-strong) !important; }
+  .portal-admin .lv-ack :is(.lv-ack-head p,.lv-ack-cell small,.lv-ack-meta,.lv-ack-msg) { color: var(--lv-text-secondary) !important; }
+  .portal-admin .lv-ack .lv-ack-kicker { color: var(--lv-brand-text) !important; }
+  .portal-admin .lv-ack .lv-ack-row { border-color: var(--lv-border-soft) !important; }
+  .portal-admin .lv-ack .lv-ack-count {
+    background: var(--lv-brand-primary) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+  .portal-admin .lv-ack .lv-ack-error {
+    background: var(--lv-danger-soft) !important;
+    color: var(--lv-danger) !important;
+    border-color: var(--lv-danger-border) !important;
+  }
 
   /* Projects register and its nested document/workflow pages */
   .portal-admin .projects-register :is(.register-shell,.team-panel,.service-assignment) {
@@ -500,7 +688,7 @@
     border-color:var(--lv-brand-primary) !important;
     color:#fff !important;
   }
-  .portal-admin .project-workspace-switcher :is(strong,span) {color:var(--lv-text-primary) !important;}
+  .portal-admin .project-workspace-switcher .project-workspace-switcher-copy :is(strong,span) {color:var(--lv-text-primary) !important;}
 
   /* PM presentation consumes the same density, while transactions stay untouched */
   .pf-redesign :is(.pmx-project-control label,.pmx-workspace-overline,.pmx-section-kicker,
@@ -760,4 +948,277 @@
     .portal-admin .lv-wa-page { padding-inline: 10px !important; }
   }
 
+}
+
+/* Final filled-red contrast guard.
+   Legacy modules may declare red buttons without data-lv-button. Keep this
+   guard AFTER the admin/mobile/route overrides, and do not match the .danger,
+   .soft, .active or .primary classes alone: many of those are pale tinted UI.
+   A red *solid* action always has white foreground, including child labels
+   and Android/WebKit text-fill. No non-red surfaces or print/PDF styles. */
+@media screen {
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"]):is(
+    [data-lv-button="primary"],[data-lv-button="danger-solid"],
+    [data-variant="primary"],[data-variant="danger-solid"],
+    .btn-primary,.btn-accent,.btn-red,.btn-brand,.btn-danger-solid,
+    .nse-btn.primary,.nsp-btn.primary,
+    .ase-toggle,.ase-submit,.b2-btn.primary,.bm-btn.primary,
+    .due-link.primary,.lv-clean-btn.primary,.lv-command-btn.primary,
+    .pm-btn-primary,.bank-btn.primary,.nsdc-button,
+    .aep-submit.expense,.login-submit,
+    .red-button,.primary-button,
+    .bg-red-600,.bg-red-700,.bg-rose-600,.bg-rose-700,
+    [style*="background: rgb(214, 31, 38)"],
+    [style*="background-color: rgb(214, 31, 38)"],
+    [style*="background: rgb(169, 44, 51)"],
+    [style*="background-color: rgb(169, 44, 51)"],
+    [style*="background: #d61f26" i],
+    [style*="background-color: #d61f26" i],
+    [style*="background: #a92c33" i],
+    [style*="background-color: #a92c33" i],
+    [style*="background: #c9232b" i]
+  ):not([data-lv-button="soft"]):not([data-lv-button="danger"]):not([data-lv-button="tab-active"]) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  /* Scope descendants to explicit solid-red controls, never ordinary cards,
+     selected navigation, pale-red tabs or danger warnings. */
+  :is(.portal-admin,.portal-employee,.portal-client,.lv-client-shell,.pf-redesign)
+  :is(button,a,[role="button"]):is(
+    [data-lv-button="primary"],[data-lv-button="danger-solid"],
+    [data-variant="primary"],[data-variant="danger-solid"],
+    .btn-primary,.btn-accent,.btn-red,.btn-brand,.btn-danger-solid,
+    .nse-btn.primary,.nsp-btn.primary,
+    .ase-toggle,.ase-submit,.b2-btn.primary,.bm-btn.primary,
+    .due-link.primary,.lv-clean-btn.primary,.lv-command-btn.primary,
+    .pm-btn-primary,.bank-btn.primary,.nsdc-button,
+    .aep-submit.expense,.login-submit,
+    .red-button,.primary-button,
+    .bg-red-600,.bg-red-700,.bg-rose-600,.bg-rose-700,
+    [style*="background: rgb(214, 31, 38)"],
+    [style*="background-color: rgb(214, 31, 38)"],
+    [style*="background: rgb(169, 44, 51)"],
+    [style*="background-color: rgb(169, 44, 51)"],
+    [style*="background: #d61f26" i],
+    [style*="background-color: #d61f26" i],
+    [style*="background: #a92c33" i],
+    [style*="background-color: #a92c33" i],
+    [style*="background: #c9232b" i]
+  ):not([data-lv-button="soft"]):not([data-lv-button="danger"]):not([data-lv-button="tab-active"])
+  :is(span,strong,b,small,i,em,svg,label,p,div) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+}
+
+/* Audited Admin solid-red control matrix.
+   These selectors were verified against actual component red-fill rules,
+   including workflow, finance, proposals, registers and project operations.
+   Exclude semantic soft variants so pale selected tabs are never white-on-pale.
+   Children inherit the same foreground despite legacy nested rules. */
+@media screen {
+  .portal-admin :is(button,a,[role="button"]):is(
+    .tws-primary,
+    .ta-btn.primary,
+    .twf-actions button.primary,
+    .tt-btn.primary,
+    .tr-btn.primary,
+    .wl-btn.primary,
+    .tc-btn.primary,
+    .ma-btn.primary,
+    .lwx-btn.primary,
+    .lwx-link.primary,
+    .b2-small.primary,
+    .tb-button.primary,
+    .trc-save,
+    .trc-filters button.active,
+    .wo-toggle button.active,
+    .workflowActions .workflowPrimary,
+    .pr-btn.primary,
+    .new-project-btn.primary,
+    .estimate-open,
+    .bc-btn.primary,
+    .ic-head-actions .ic-primary,
+    .adj-btn.primary,
+    .pl-head button,
+    .rp-tab.active,
+    .rp-btn,
+    .r41 button.primary,
+    .integrity-head button,
+    .fbe-btn.primary,
+    .wov-btn.primary,
+    .wov-button.primary,
+    .wov-filter.active,
+    .wdr-btn.primary,
+    .byp-btn.primary,
+    .byp-small.primary,
+    .bys-btn.primary,
+    .bys-tab.active,
+    .reclass-btn.primary,
+    .filter-btn.active,
+    .register-btn.primary,
+    .register-tabs button.active,
+    .register-filter.active,
+    .lv-correction button,
+    .ab-btn.primary,
+    .po-btn.primary,
+    .db-btn.primary,
+    .wl-save,
+    .wl-links .proposal,
+    .project-workspace-switcher a.active
+  ):not([data-lv-button="soft"]):not([data-lv-button="danger"]):not([data-lv-button="tab-active"]),
+  .portal-admin :is(button,a,[role="button"]):is(
+    .tws-primary,
+    .ta-btn.primary,
+    .twf-actions button.primary,
+    .tt-btn.primary,
+    .tr-btn.primary,
+    .wl-btn.primary,
+    .tc-btn.primary,
+    .ma-btn.primary,
+    .lwx-btn.primary,
+    .lwx-link.primary,
+    .b2-small.primary,
+    .tb-button.primary,
+    .trc-save,
+    .trc-filters button.active,
+    .wo-toggle button.active,
+    .workflowActions .workflowPrimary,
+    .pr-btn.primary,
+    .new-project-btn.primary,
+    .estimate-open,
+    .bc-btn.primary,
+    .ic-head-actions .ic-primary,
+    .adj-btn.primary,
+    .pl-head button,
+    .rp-tab.active,
+    .rp-btn,
+    .r41 button.primary,
+    .integrity-head button,
+    .fbe-btn.primary,
+    .wov-btn.primary,
+    .wov-button.primary,
+    .wov-filter.active,
+    .wdr-btn.primary,
+    .byp-btn.primary,
+    .byp-small.primary,
+    .bys-btn.primary,
+    .bys-tab.active,
+    .reclass-btn.primary,
+    .filter-btn.active,
+    .register-btn.primary,
+    .register-tabs button.active,
+    .register-filter.active,
+    .lv-correction button,
+    .ab-btn.primary,
+    .po-btn.primary,
+    .db-btn.primary,
+    .wl-save,
+    .wl-links .proposal,
+    .project-workspace-switcher a.active
+  ):not([data-lv-button="soft"]):not([data-lv-button="danger"]):not([data-lv-button="tab-active"]) :is(span,strong,b,small,i,em,svg,label,p,div) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+}
+
+/* Projects / Project Register: explicit control-background and foreground pairs.
+   The register previously painted stage filters solid red while assigning
+   data-lv-button="tab-active" (soft red ink); use "primary" for that state.
+   These rules reinforce both color and WebKit text fill, leaving soft WhatsApp
+   state toggles and ordinary text links semantically colored. */
+@media screen {
+  .portal-admin .projects-register button.filter-btn.active[data-lv-button="primary"],
+  .portal-admin .projects-register a.project-id.project-id-link[data-lv-button="primary"],
+  .portal-admin .projects-section-nav a.projects-section-link.primary[data-lv-button="primary"],
+  .portal-admin .pc button.btn.btn-dark[data-lv-button="primary"],
+  .portal-admin .pc .pc-tabs button.active[data-lv-button="primary"],
+  .portal-admin .project-workspace-switcher a.active,
+  .portal-admin .project-locations-page button.pl-tab.active[data-lv-button="primary"],
+  .portal-admin .project-locations-page .pl-btn.primary[data-lv-button="primary"],
+  .portal-admin .new-project-page .new-project-btn.primary[data-lv-button="primary"],
+  .portal-admin .legacy-page .legacy-btn.primary[data-lv-button="primary"],
+  .portal-admin .missing-page .missing-btn.primary[data-lv-button="primary"],
+  .portal-admin .pcb-shell button.pcb-btn.primary[data-lv-button="primary"] {
+    background: var(--lv-brand-primary) !important;
+    border-color: var(--lv-brand-primary) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  .portal-admin .projects-register a.project-id.project-id-link[data-lv-button="primary"] {
+    text-decoration: none;
+  }
+  .portal-admin .projects-register a.project-id.project-id-link[data-lv-button="primary"]:hover,
+  .portal-admin .pc button.btn.btn-dark[data-lv-button="primary"]:hover:not(:disabled),
+  .portal-admin .pc .pc-tabs button.active[data-lv-button="primary"]:hover,
+  .portal-admin .project-workspace-switcher a.active:hover {
+    background: var(--lv-brand-primary-hover) !important;
+    border-color: var(--lv-brand-primary-hover) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  /* White-on-red includes inner badges/labels; do not apply to warning chips. */
+  .portal-admin .projects-register a.project-id.project-id-link[data-lv-button="primary"] :is(span,strong,b,small,i,svg),
+  .portal-admin .projects-register button.filter-btn.active[data-lv-button="primary"] :is(span,strong,b,small,i,svg),
+  .portal-admin .pc :is(.btn.btn-dark[data-lv-button="primary"],.pc-tabs button.active[data-lv-button="primary"]) :is(span,strong,b,small,i,svg),
+  .portal-admin .project-workspace-switcher a.active :is(span,strong,b,small,i,svg) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  /* Former "References" tab was permanently red even when not selected. */
+  .portal-admin .pc .pc-tabs .pc-tab-link[data-lv-button="secondary"],
+  .portal-admin .pc .service-upload button[data-lv-button="secondary"],
+  .portal-admin .project-locations-page button.pl-map-btn[data-lv-button="secondary"] {
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+  }
+  .portal-admin .pc .pc-tabs .pc-tab-link[data-lv-button="secondary"]:hover,
+  .portal-admin .pc .service-upload button[data-lv-button="secondary"]:hover,
+  .portal-admin .project-locations-page button.pl-map-btn[data-lv-button="secondary"]:hover {
+    color: var(--lv-text-strong) !important;
+    -webkit-text-fill-color: var(--lv-text-strong) !important;
+    background: var(--lv-control-bg-hover) !important;
+  }
+
+  .portal-admin .pc :is(.btn:not(.btn-dark):not(.pc-danger),.pc-tabs button:not(.active)):hover {
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+    background: var(--lv-control-bg-hover) !important;
+  }
+  /* New Project's ID selection is a soft selection, not a filled-red CTA. */
+  .portal-admin .new-project-page .id-mode {
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+  }
+  .portal-admin .new-project-page .id-mode.active {
+    background: var(--lv-brand-soft) !important;
+    border-color: var(--lv-brand-border) !important;
+  }
+  .portal-admin .new-project-page .id-mode b {
+    color: var(--lv-text-strong) !important;
+    -webkit-text-fill-color: var(--lv-text-strong) !important;
+  }
+  .portal-admin .new-project-page .id-mode span {
+    color: var(--lv-text-secondary) !important;
+    -webkit-text-fill-color: var(--lv-text-secondary) !important;
+  }
+  .portal-admin .projects-section-nav .projects-section-link:not(.primary):hover {
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+    background: var(--lv-control-bg-hover) !important;
+  }
+
+  /* Red-on-pale is reserved for meaning: WhatsApp OFF and destructive options. */
+  .portal-admin .projects-register :is(.wa-toggle.off,.wa-status.inactive,.wa-status.error) {
+    -webkit-text-fill-color: currentColor !important;
+  }
 }

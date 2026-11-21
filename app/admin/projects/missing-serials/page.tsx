@@ -156,7 +156,7 @@ export default function MissingProjectSerialsPage() {
         eyebrow="LAND VIEW PROJECT REGISTER"
         title="Missing Project Serials"
         description="Unused LV serials from LV-001 through LV-280. A serial is treated as occupied if it exists in Supabase, Auto Invoice / File List, or any Running, Paused or Completed Google Drive project folder."
-        action={<div className="missing-actions"><button className="missing-btn" type="button" onClick={load}>Refresh</button><button className="missing-btn primary" type="button" disabled={!missing.length} onClick={() => void copyMissing()}>{copied ? "Copied" : "Copy Missing Serials"}</button></div>}
+        action={<div className="missing-actions"><button className="missing-btn" type="button" onClick={load}>Refresh</button><button className="missing-btn primary" data-lv-button="primary" type="button" disabled={!missing.length} onClick={() => void copyMissing()}>{copied ? "Copied" : "Copy Missing Serials"}</button></div>}
       />
 
       {error && <div className="missing-note" style={{border:"1px solid rgba(214,31,38,.35)",borderRadius:8}}>{error}</div>}

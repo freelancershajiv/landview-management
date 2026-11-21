@@ -60,3 +60,99 @@
   .rp .rp-form { padding: 14px; }
   .billing-nav-shell .billing-nav-core a { min-height: 44px; }
 }
+
+/* Billing contrast authority - audited solid-red controls.
+   Screen-only: financial/receipt PDFs and print styles are unchanged.
+   Keep selections aligned with data-lv-button="primary"; tab-active is
+   reserved for soft red surfaces and must not be used on solid red. */
+@media screen {
+  .portal-admin .billing-nav-shell .billing-nav-core a[aria-current="page"],
+  .portal-admin .billing-nav-shell .billing-nav-advanced a[aria-current="page"],
+  .portal-admin .bv4-head-actions a.primary,
+  .portal-admin .bv4-jump-links a.primary,
+  .portal-admin .b2-shell .b2-btn.primary,
+  .portal-admin .b2-shell .b2-tab.active[data-lv-button="primary"],
+  .portal-admin .b2-shell .b2-small.primary,
+  .portal-admin .bm-page .bm-btn.primary,
+  .portal-admin .due-page .due-filter.active[data-lv-button="primary"],
+  .portal-admin .due-page .due-link.primary,
+  .portal-admin .wo-page .wo-toggle button.active[data-lv-button="primary"],
+  .portal-admin .wo-page .wo-submit[data-lv-button="primary"],
+  .portal-admin .rp .rp-tab.active[data-lv-button="primary"],
+  .portal-admin .rp .rp-btn:not([data-lv-button="secondary"]),
+  .portal-admin .sv43 button.primary,
+  .portal-admin .sv43 a.sv43-button.primary,
+  .portal-admin .lv-receipts a.lv-receipt-action.primary,
+  .portal-admin .ic-head-actions .ic-primary,
+  .portal-admin .bc-btn.primary,
+  .portal-admin .adj-btn.primary,
+  .portal-admin .r41 button.primary,
+  .portal-admin .pl-head button,
+  .portal-admin .integrity-head button,
+  .portal-admin .fbe-btn.primary,
+  .portal-admin .direct-bill-page .db-btn.primary,
+  .portal-admin .ab-btn.primary,
+  .portal-admin .lv-correction button:not(.secondary),
+  .portal-admin .po-btn.primary {
+    background: var(--lv-brand-primary) !important;
+    border-color: var(--lv-brand-primary) !important;
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  /* Child glyphs/labels can retain legacy red text-fill even if parent is white. */
+  .portal-admin .billing-nav-shell .billing-nav-core a[aria-current="page"] :is(span,strong,b,small,i,svg,label),
+  .portal-admin .billing-nav-shell .billing-nav-advanced a[aria-current="page"] :is(span,strong,b,small,i,svg,label),
+  .portal-admin .bv4-head-actions a.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .bv4-jump-links a.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .b2-shell .b2-btn.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .b2-shell .b2-tab.active[data-lv-button="primary"] :is(span,strong,b,small,i,svg,label),
+  .portal-admin .b2-shell .b2-small.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .bm-page .bm-btn.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .due-page .due-filter.active[data-lv-button="primary"] :is(span,strong,b,small,i,svg,label),
+  .portal-admin .due-page .due-link.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .wo-page .wo-toggle button.active[data-lv-button="primary"] :is(span,strong,b,small,i,svg,label),
+  .portal-admin .wo-page .wo-submit[data-lv-button="primary"] :is(span,strong,b,small,i,svg,label),
+  .portal-admin .rp .rp-tab.active[data-lv-button="primary"] :is(span,strong,b,small,i,svg,label),
+  .portal-admin .rp .rp-btn:not([data-lv-button="secondary"]) :is(span,strong,b,small,i,svg,label),
+  .portal-admin .sv43 button.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .sv43 a.sv43-button.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .lv-receipts a.lv-receipt-action.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .ic-head-actions .ic-primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .bc-btn.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .adj-btn.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .r41 button.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .pl-head button :is(span,strong,b,small,i,svg,label),
+  .portal-admin .integrity-head button :is(span,strong,b,small,i,svg,label),
+  .portal-admin .fbe-btn.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .direct-bill-page .db-btn.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .ab-btn.primary :is(span,strong,b,small,i,svg,label),
+  .portal-admin .lv-correction button:not(.secondary) :is(span,strong,b,small,i,svg,label),
+  .portal-admin .po-btn.primary :is(span,strong,b,small,i,svg,label) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+
+  /* A formerly solid .rp-btn class also wraps a deliberately neutral reset
+     action. Preserve readable dark/light ink on that one pale control. */
+  .portal-admin .rp .rp-btn[data-lv-button="secondary"],
+  .portal-admin .rp .rp-btn[data-lv-button="secondary"] :is(span,strong,b,small,i,svg) {
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: var(--lv-text-primary) !important;
+  }
+  .portal-admin .rp .rp-btn[data-lv-button="secondary"] {
+    background: var(--lv-control-bg) !important;
+    border-color: var(--lv-control-border) !important;
+  }
+  .portal-admin .rp .rp-btn[data-lv-button="secondary"]:hover:not(:disabled) {
+    background: var(--lv-control-bg-hover) !important;
+  }
+
+  /* PDF-generation controls use solid red only in the interactive screen UI.
+     Paper versions maintain their own document colors and are never overridden. */
+  .portal-admin :is(button,a)[class*="printButton"],
+  .portal-admin :is(button,a)[class*="printButton"] :is(span,strong,b,small,i,svg) {
+    color: #fff !important;
+    -webkit-text-fill-color: #fff !important;
+  }
+}

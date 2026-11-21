@@ -42,7 +42,7 @@ async function session(request: NextRequest, write = false) {
   if (!user) throw new Error("Session expired.");
   const role = roleOf(user);
   if (write && !WRITE_ROLES.has(role)) throw new Error("Admin, manager or accounts access is required for billing adjustments.");
-  if (!write && ![...WRITE_ROLES, "employee"].includes(role)) throw new Error("Billing adjustment access is not available for this role.");
+  if (!write && !WRITE_ROLES.has(role)) throw new Error("Billing adjustment access is not available for this role.");
   return user;
 }
 

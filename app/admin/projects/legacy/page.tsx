@@ -468,7 +468,7 @@ export default function LegacyProjectsPage() {
               <label>Supervision Bill<input inputMode="decimal" value={form.Supervision_Bill} onChange={(e)=>setField("Supervision_Bill",e.target.value)} placeholder="0" /></label>
               <label>Other Services Bill<input inputMode="decimal" value={form.Other_Services_Bill} onChange={(e)=>setField("Other_Services_Bill",e.target.value)} placeholder="0" /></label>
             </div>
-            <button className="legacy-btn primary submit" type="submit" disabled={!canManage || Boolean(saving) || bulkSaving}>{saving ? `Saving ${saving}…` : formIsRegistered ? "Update Legacy Project" : "Register Legacy Project"}</button>
+            <button className="legacy-btn primary submit" data-lv-button="primary" type="submit" disabled={!canManage || Boolean(saving) || bulkSaving}>{saving ? `Saving ${saving}…` : formIsRegistered ? "Update Legacy Project" : "Register Legacy Project"}</button>
           </form>
           {message && <div className={`legacy-message ${message.kind}`}>{message.text}</div>}
           {!canManage && <div className="legacy-message err">Admin or manager access is required to register or update projects.</div>}
@@ -481,7 +481,7 @@ export default function LegacyProjectsPage() {
             <div className="legacy-stat"><b>{legacy.length - missing.length}</b><span>Already in Supabase</span></div>
             <div className="legacy-stat"><b>{missing.length}</b><span>Missing</span></div>
           </div>
-          <div style={{padding:"12px 16px",borderBottom:"1px solid var(--theme-line-rgba_255_255_255__08_,rgba(255,255,255,.08))"}}><button className="legacy-btn primary" type="button" disabled={!canManage || !missing.length || bulkSaving || Boolean(saving)} onClick={()=>void importAllMissing()}>{bulkSaving ? "Importing…" : `Import All Missing (${missing.length})`}</button></div>
+          <div style={{padding:"12px 16px",borderBottom:"1px solid var(--theme-line-rgba_255_255_255__08_,rgba(255,255,255,.08))"}}><button className="legacy-btn primary" data-lv-button="primary" type="button" disabled={!canManage || !missing.length || bulkSaving || Boolean(saving)} onClick={()=>void importAllMissing()}>{bulkSaving ? "Importing…" : `Import All Missing (${missing.length})`}</button></div>
           <div className="legacy-scroll">
             {legacy.length ? <table className="legacy-table"><thead><tr><th>ID</th><th>Name</th><th>Type</th><th>Location</th><th>State</th><th></th></tr></thead><tbody>{legacy.map((project)=>{const exists=registered.has(project.Project_ID);return <tr key={project.Project_ID}><td className="legacy-id">{project.Project_ID}</td><td>{project.Project_Name}<div className="legacy-muted">{project.Phone_Number || "No phone"}</div></td><td>{project.Project_Type || "—"}</td><td>{project.Location || "—"}</td><td><span className={`legacy-state ${exists ? "registered" : "missing"}`}>{exists ? "Registered" : "Missing"}</span></td><td><button className="legacy-btn" type="button" disabled={!canManage || Boolean(saving) || bulkSaving} onClick={()=>edit(project)}>{exists ? "Edit / Update" : "Review / Register"}</button></td></tr>})}</tbody></table> : <div className="legacy-empty">No historical project records were found.</div>}
           </div>
