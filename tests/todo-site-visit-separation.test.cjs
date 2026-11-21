@@ -36,3 +36,11 @@ test("schema migration is non-destructive and reclassifies only the three confir
   assert.match(s,/work_area/);assert.match(s,/rule_key='site_issue'/);
   assert.doesNotMatch(s,/\bdelete\s+from\s+(?:public\.)?todo_items/i);
 });
+
+test("bill-issued generation cannot create Site Supervision To Dos through fallback templates",()=>{
+  const s=source("supabase/release/todo-site-visits-bill-generator.sql");
+  assert.ok((s.match(/p_service_key <> 'site-supervision'/g)||[]).length>=2);
+  assert.match(s,/landview_service_todo_steps\('soil-test'\)/);
+  assert.match(s,/landview_service_todo_steps\('digital-survey'\)/);
+  assert.doesNotMatch(s,/\bdelete\s+from\b/i);
+});
