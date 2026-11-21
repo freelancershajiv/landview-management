@@ -1,4 +1,5 @@
 import { selectRows, supabaseGateway } from "@/lib/supabase-data";
+import {isProjectWorkTodo} from "@/lib/todo-scope";
 
 type Row = Record<string, any>;
 export type ReportFilters = {
@@ -103,7 +104,7 @@ export async function buildTodoReport(filtersInput:unknown) {
   const projectMap=new Map(projects.map(x=>[text(x.project_code,80),x]));
   const proposalMap=new Map(proposals.map(x=>[text(x.proposal_code,100),x]));
   const today=dhakaNow(),seven=afterDays(today,7),now=Date.now();
-  const rows:ReportRow[] = tasks.map(t=>{
+  const rows:ReportRow[] = tasks.filter(isProjectWorkTodo).map(t=>{
     const code=text(t.project_code,80);
     const proposal=text(t.proposal_code,100);
     const staff=staffMap.get(text(t.assigned_employee_id,80));

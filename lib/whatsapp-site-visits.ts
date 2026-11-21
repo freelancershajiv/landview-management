@@ -191,28 +191,6 @@ function formatClientSiteVisitMessage(payload: SiteVisitWhatsAppPayload) {
   return lines.join("\n").slice(0, 4000);
 }
 
-async function botStoreRequest(token: string, input: Record<string, unknown>) {
-  const url = String(
-    process.env.WHATSAPP_BOT_STORE_URL ||
-    "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-bot-store",
-  ).trim();
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-land-view-bot-token": token,
-    },
-    body: JSON.stringify(input),
-    cache: "no-store",
-    signal: AbortSignal.timeout(10_000),
-  });
-  const json = await response.json().catch(() => null) as any;
-  if (!response.ok || !json?.success) {
-    throw new Error(text(json?.error || `WhatsApp queue returned HTTP ${response.status}.`, 500));
-  }
-  return json.data as any;
-}
-
 async function projectQueueRequest(token: string, input: Record<string, unknown>) {
   const url = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-whatsapp-project-queue";
   const response = await fetch(url, {
@@ -273,65 +251,20 @@ async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhats
   }
 }
 
-async function queueAdminSiteVisitFallback(
-  token: string,
-  groupInviteCode: string,
-  payload: SiteVisitWhatsAppPayload,
-  employeeReason?: string,
-): Promise<SiteVisitWhatsAppResult> {
-  const visitId = text(payload.visitId, 120);
-  if (!visitId) {
-    return { status: "failed", reason: "Site Visit ID is missing, so fail-safe delivery could not be queued." };
-  }
-
-  // The durable Admin Bot outbox is text based. Remove inline media from the
-  // formatter so the already-uploaded R2 photo URLs remain visible in fallback messages.
-  const fallbackPayload: SiteVisitWhatsAppPayload = {
-    ...payload,
-    mediaItems: [],
-    visitPhotoBase64: undefined,
-    problemPhotoBase64: undefined,
-  };
-
-  try {
-    const queued = await botStoreRequest(token, {
-      action: "enqueue",
-      dedupeKey: `site-visit-fallback:${visitId}`,
-      message: formatSiteVisitWhatsAppMessage(fallbackPayload),
-      groupInviteCode,
-    });
-    await wakeBot(token, "/wake");
-
-    const queueStatus = text(queued?.status, 40).toLowerCase();
-    const reasonPrefix = queueStatus === "sent"
-      ? "Employee WhatsApp was unavailable; the existing Admin Bot fail-safe message is already sent."
-      : "Employee WhatsApp was unavailable; Site Visit group delivery is safely queued through the Admin Bot with automatic retries.";
-    const reason = [reasonPrefix, text(employeeReason, 500)].filter(Boolean).join(" ");
-
-    return {
-      status: queueStatus === "sent" ? "sent" : "queued",
-      mediaCount: 0,
-      reason,
-    };
-  } catch (error: any) {
-    const fallbackError = text(error?.message || "Admin Bot fail-safe queue failed.", 500);
-    const original = text(employeeReason, 500);
-    return {
-      status: "failed",
-      reason: ["Employee WhatsApp was unavailable and the Admin Bot fail-safe queue also failed.", original, fallbackError]
-        .filter(Boolean)
-        .join(" "),
-    };
-  }
+function normalizeWhatsAppPhone(value: unknown) {
+  const raw = String(value ?? "").replace(/\D/g, "");
+  const normalized = /^01[3-9]\d{8}$/.test(raw) ? `88${raw}` : /^1[3-9]\d{8}$/.test(raw) ? `880${raw}` : raw;
+  return /^8801[3-9]\d{8}$/.test(normalized) ? normalized : "";
 }
 
 async function waitForEmployeeWhatsApp(
   base: string,
   token: string,
   employeeId: string,
+  expectedPhone: string,
 ): Promise<{ ready: boolean; reason?: string }> {
-  // Give the employee session a short opportunity to reconnect. If it is still
-  // unavailable, the durable Admin Bot outbox takes over instead of failing the visit.
+  // Allow this employee's linked device to reconnect. If unavailable, fail
+  // closed and keep the Site Visit retryable; never substitute the Admin account.
   const deadline = Date.now() + 20_000;
   let lastState = "";
   let lastError = "";
@@ -349,7 +282,23 @@ async function waitForEmployeeWhatsApp(
       lastState = text(json?.connection, 80);
       lastError = text(json?.error || json?.lastError, 500);
 
-      if (response.ok && lastState === "open" && json?.paired !== false) return { ready: true };
+      if (response.ok && lastState === "open" && json?.paired === true) {
+        const connectedEmployeeId = text(json?.employeeId, 120).toUpperCase();
+        if (connectedEmployeeId !== employeeId) {
+          return { ready: false, reason: `Sender mismatch: the WhatsApp session does not belong to ${employeeId}.` };
+        }
+        if (employeeId !== "EMP-0002" && (json?.sharedWithAdmin === true || json?.senderType === "admin-shared")) {
+          return { ready: false, reason: `${employeeId} is incorrectly sharing the Admin WhatsApp session.` };
+        }
+        const connectedPhone = normalizeWhatsAppPhone(json?.phoneNumber);
+        if (!connectedPhone) {
+          return { ready: false, reason: `Cannot verify the WhatsApp number linked to ${employeeId}. Message blocked to protect sender identity.` };
+        }
+        if (connectedPhone !== expectedPhone) {
+          return { ready: false, reason: `The WhatsApp number linked to ${employeeId} does not match the employee's registered mobile number. Re-pair the correct account before retrying.` };
+        }
+        return { ready: true };
+      }
       if (lastState === "pairing") {
         return { ready: false, reason: "WhatsApp needs to be linked from the employee dashboard before Site Visit updates can be sent." };
       }
@@ -379,12 +328,25 @@ async function sendFromEmployeeWhatsApp(
   payload: SiteVisitWhatsAppPayload,
 ): Promise<SiteVisitWhatsAppResult> {
   const base = String(process.env.WHATSAPP_BOT_URL || "").trim().replace(/\/+$/, "");
-  const employeeId = text(payload.senderEmployeeId || payload.employeeId, 120);
-  if (!base) return { status: "skipped", reason: "LAND VIEW WhatsApp service URL is not configured." };
-  if (!employeeId) return { status: "skipped", reason: "Employee ID is missing, so the WhatsApp sender cannot be selected." };
+  const employeeId = text(payload.senderEmployeeId || payload.employeeId, 120).toUpperCase();
+  if (!base) return { status: "failed", reason: "LAND VIEW WhatsApp service URL is not configured." };
+  if (!employeeId) return { status: "failed", reason: "Employee ID is missing; Site Visit messages must never be sent using another employee's WhatsApp." };
 
-  const readiness = await waitForEmployeeWhatsApp(base, token, employeeId);
-  if (!readiness.ready) return { status: "skipped", reason: readiness.reason };
+  // Verify both employee identity and the linked WhatsApp mobile number.
+  // A linked but different account must never publish another employee's visit.
+  const employee = (await selectRows("employees", { filters: { employee_code: employeeId }, limit: 1 }))[0];
+  const expectedPhone = normalizeWhatsAppPhone(employee?.phone_number);
+  if (!employee || text(employee.status, 30).toLowerCase() !== "active") {
+    return { status: "failed", reason: `WhatsApp sender ${employeeId} is not an active registered employee. No message was sent.` };
+  }
+  if (!expectedPhone) {
+    return { status: "failed", reason: `Employee ${employeeId} has no valid registered WhatsApp mobile number. No message was sent.` };
+  }
+
+  const readiness = await waitForEmployeeWhatsApp(base, token, employeeId, expectedPhone);
+  if (!readiness.ready) {
+    return { status: "failed", reason: `Site Visit was not sent: ${employeeId} WhatsApp is unavailable or unverified. ${readiness.reason || ""} Reconnect ${employeeId} and use Retry WhatsApp; the Admin account will not substitute.` };
+  }
 
   const message = formatSiteVisitWhatsAppMessage(payload);
   const media = directMedia(payload);
@@ -406,8 +368,8 @@ async function sendFromEmployeeWhatsApp(
 
       if (response.status === 409) {
         return {
-          status: "skipped",
-          reason: text(json?.error || "Connect WhatsApp from the employee dashboard before Site Visit updates can be sent from this number.", 500),
+          status: "failed",
+          reason: `${employeeId}: ${text(json?.error || "Connect WhatsApp from the employee dashboard before Site Visit updates can be sent from this number.", 500)}`,
         };
       }
       if (response.ok && json?.ok) {
@@ -427,9 +389,9 @@ async function sendFromEmployeeWhatsApp(
     }
 
     await sleep(1_500 * attempt);
-    const retryReadiness = await waitForEmployeeWhatsApp(base, token, employeeId);
+    const retryReadiness = await waitForEmployeeWhatsApp(base, token, employeeId, expectedPhone);
     if (!retryReadiness.ready && attempt === 2) {
-      return { status: "skipped", reason: retryReadiness.reason || lastReason };
+      return { status: "failed", reason: `${employeeId}: ${retryReadiness.reason || lastReason}` };
     }
   }
 
@@ -450,10 +412,19 @@ export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPaylo
   }
 
   try {
-    const employeeResult = await sendFromEmployeeWhatsApp(token, groupInviteCode, payload);
-    const result = employeeResult.status === "skipped"
-      ? await queueAdminSiteVisitFallback(token, groupInviteCode, payload, employeeResult.reason)
-      : employeeResult;
+    const assignedEmployeeId = text(payload.employeeId, 120).toUpperCase();
+    const requestedSenderId = text(payload.senderEmployeeId || payload.employeeId, 120).toUpperCase();
+    if (assignedEmployeeId && assignedEmployeeId !== requestedSenderId) {
+      await clientUpdate;
+      return recordSiteVisitWhatsAppResult(payload, {
+        status: "failed",
+        reason: `Sender mismatch: Site Visit belongs to ${assignedEmployeeId}, not ${requestedSenderId || "an unspecified account"}. Message was blocked.`,
+      });
+    }
+
+    // Fail closed. Never publish an employee Site Visit via the central Admin Bot.
+    // Failed attempts stay on the Site Visit record with a Retry WhatsApp action.
+    const result = await sendFromEmployeeWhatsApp(token, groupInviteCode, payload);
     await clientUpdate;
     return recordSiteVisitWhatsAppResult(payload, result);
   } catch (error: any) {

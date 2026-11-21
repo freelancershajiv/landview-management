@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { selectRows, supabaseGateway } from "@/lib/supabase-data";
 import { todoDependencyBlocker, todoDependencyIndex } from "@/lib/todo-data";
+import {isProjectWorkTodo} from "@/lib/todo-scope";
 import { workflowStatusesForService } from "@/lib/service-workflow";
 
 export const runtime = "nodejs";
@@ -32,26 +33,29 @@ export async function GET(request: NextRequest) {
     if (!["admin","manager"].includes(roleOf(user))) return json({ success: false, error: "Access denied." }, 403);
 
     const [tasks, employees, workflows, subtasks, taskCount, subtaskCount] = await Promise.all([
-      readAll("todo_items", "id,todo_code,title,status,priority,due_date,due_time,created_at,updated_at,completed_at,assigned_employee_id,assigned_to,reference_type,project_code,proposal_code,workflow_id,dependency_todo_code,is_delivery_step,review_required,review_state,review_changed_at,estimated_minutes,automation_source", "created_at:desc"),
+      readAll("todo_items", "id,todo_code,title,status,priority,due_date,due_time,created_at,updated_at,completed_at,assigned_employee_id,assigned_to,reference_type,project_code,proposal_code,workflow_id,dependency_todo_code,is_delivery_step,review_required,review_state,review_changed_at,estimated_minutes,automation_source,work_area", "created_at:desc"),
       readAll("employees", "id,employee_code,name,designation,status", "employee_code:asc", 5000),
       readAll("project_service_workflows", "id,service_name,project_code,status", "created_at:desc", 5000),
       readAll("todo_subtasks", "id,todo_id,is_completed", "created_at:desc"),
       supabaseGateway("countRows", { table: "todo_items" }) as Promise<{count: number}>,
       supabaseGateway("countRows", { table: "todo_subtasks" }) as Promise<{count: number}>,
     ]);
+    const visibleTasks=tasks.filter(isProjectWorkTodo);
+    const visibleTaskIds=new Set(visibleTasks.map(t=>text(t.id)));
     const employeeMap = new Map(employees.map((row) => [text(row.id), row]));
     const workflowMap = new Map(workflows.map((row) => [text(row.id), row]));
     const checklist = new Map<string, {total: number; completed: number}>();
     for (const row of subtasks) {
       const id = text(row.todo_id);
+      if(!visibleTaskIds.has(id)) continue;
       const current = checklist.get(id) || { total: 0, completed: 0 };
       current.total += 1;
       if (row.is_completed === true) current.completed += 1;
       checklist.set(id, current);
     }
-    const dependencyItems = tasks.map(todo => ({ todo_code: text(todo.todo_code), dependency_todo_code: text(todo.dependency_todo_code), status: text(todo.status) as "To Do" | "In Progress" | "Done" }));
+    const dependencyItems = visibleTasks.map(todo => ({ todo_code: text(todo.todo_code), dependency_todo_code: text(todo.dependency_todo_code), status: text(todo.status) as "To Do" | "In Progress" | "Done" }));
     const dependenciesByCode = todoDependencyIndex(dependencyItems);
-    const items = tasks.map((todo) => {
+    const items = visibleTasks.map((todo) => {
       const employee = employeeMap.get(text(todo.assigned_employee_id));
       const workflow = workflowMap.get(text(todo.workflow_id));
       const chain = workflow ? workflowStatusesForService(text(workflow.service_name)) : [];
@@ -102,8 +106,8 @@ export async function GET(request: NextRequest) {
           designation: text(row.designation, 160),
           status: text(row.status, 60),
         })),
-        totalTasks: Number(taskCount.count || 0),
-        totalSubtasks: Number(subtaskCount.count || 0),
+        totalTasks: visibleTasks.length,
+        totalSubtasks: [...checklist.values()].reduce((sum,item)=>sum+item.total,0),
         truncated: tasks.length < Number(taskCount.count || 0) || subtasks.length < Number(subtaskCount.count || 0),
         refreshedAt: new Date().toISOString(),
       },

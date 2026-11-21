@@ -36,6 +36,7 @@ export default function ProjectReceiptHistory({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
+  const [downloading, setDownloading] = useState("");
   const load = useCallback(async () => {
     if (!projectId) return;
     setLoading(true); setError("");
@@ -50,7 +51,7 @@ export default function ProjectReceiptHistory({
     finally { setLoading(false); }
   }, [projectId]);
 
-  useEffect(() => { void load(); }, [load, highlightPaymentCode]);
+  useEffect(() => { const timer = window.setTimeout(() => { void load(); }, 0); return () => window.clearTimeout(timer); }, [load, highlightPaymentCode]);
 
   async function copyReceipt(path: string, paymentCode: string) {
     if (!path) return;
@@ -58,6 +59,18 @@ export default function ProjectReceiptHistory({
       await navigator.clipboard.writeText(window.location.origin + path);
       setCopied(paymentCode);
     } catch { setError("Could not copy this link. Use View Receipt to share its address."); }
+  }
+
+  async function downloadPdf(receiptUrl: string, paymentCode: string) {
+    const token = /^\/verify\/receipt\/([A-Za-z0-9]{20,80})$/.exec(receiptUrl)?.[1];
+    if (!token || downloading) return;
+    setDownloading(paymentCode); setError("");
+    try {
+      const { downloadReceiptPdfV4 } = await import("@/lib/receipt-pdf-v4");
+      await downloadReceiptPdfV4(token);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Receipt PDF download failed.");
+    } finally { setDownloading(""); }
   }
 
   const selected = highlightPaymentCode ? payments.find(row => row.paymentCode === highlightPaymentCode) : undefined;
@@ -68,8 +81,8 @@ export default function ProjectReceiptHistory({
       .lv-receipts{padding:16px;border:1px solid var(--lv-border-default, #d5dce3);border-radius:12px;background:var(--lv-surface-panel, #fff);color:var(--lv-text-primary,#1c252d)}
       .lv-receipts *{box-sizing:border-box}.lv-receipts h3{margin:0;font-size:16px;color:inherit}.lv-receipts p{margin:5px 0 0;font-size:12px;color:var(--lv-text-secondary,#64748b)}
       .lv-receipts-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
-      .lv-receipts button,.lv-receipts a.lv-receipt-action{display:inline-flex;align-items:center;justify-content:center;min-height:34px;padding:7px 12px;border:1px solid var(--lv-border-default,#cbd5e1);border-radius:8px;background:var(--lv-surface-input,#fff);color:var(--lv-text-primary,#111827);font-size:12px;font-weight:700;text-decoration:none;cursor:pointer}
-      .lv-receipts .primary{background:var(--lv-brand-primary,#b4232c)!important;color:var(--lv-text-inverse,#fff)!important;border-color:var(--lv-brand-primary,#b4232c)!important}
+      .lv-receipts button,.lv-receipts a.lv-receipt-action{display:inline-flex;align-items:center;justify-content:center;min-height:42px;padding:7px 12px;border:1px solid var(--lv-border-default,#cbd5e1);border-radius:8px;background:var(--lv-surface-input,#fff);color:var(--lv-text-primary,#111827);font-size:12px;font-weight:700;text-decoration:none;cursor:pointer}
+      .lv-receipts .primary{background:var(--lv-brand-primary,#b4232c)!important;color:#fff!important;-webkit-text-fill-color:#fff!important;border-color:var(--lv-brand-primary,#b4232c)!important}
       .lv-receipt-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
       .lv-receipt-notice{padding:10px 12px;margin:13px 0;border-radius:8px;background:var(--lv-surface-muted,#f1f5f9);font-size:12px}
       .lv-receipt-notice.error{color:var(--lv-danger,#b42318)}.lv-receipt-notice.success{border:1px solid var(--lv-success,#168048)}
@@ -81,14 +94,18 @@ export default function ProjectReceiptHistory({
     `}</style>
     <div className="lv-receipts-head">
       <div><h3>Payments & Receipts</h3><p>Each receipt links to its original payment in {projectId}. Invoice allocations reflect the current ledger.</p></div>
-      <button type="button" disabled={loading} onClick={() => void load()}>{loading ? "Refreshing…" : "Refresh receipts"}</button>
+      <div className="lv-receipt-actions">
+        {!clientView && <a className="lv-receipt-action primary" data-lv-button="primary" href={"/admin/billing/project-statement?fileId="+encodeURIComponent(projectId)}>Project Statement / PDF</a>}
+        <button type="button" disabled={loading} onClick={() => void load()}>{loading ? "Refreshing…" : "Refresh receipts"}</button>
+      </div>
     </div>
     {selected && <div className="lv-receipt-notice success">
       <strong>Saved payment: {selected.paymentCode} · {money(selected.amount)}</strong>
       <div className="lv-receipt-actions" style={{marginTop:8}}>
         {selected.receiptUrl ? <>
           <a className="lv-receipt-action" href={selected.receiptUrl} target="_blank" rel="noreferrer">View Receipt</a>
-          {printHref(selected.receiptUrl) && <a className="lv-receipt-action primary" href={printHref(selected.receiptUrl)} target="_blank" rel="noopener noreferrer">Print / Save PDF</a>}
+          {printHref(selected.receiptUrl) && <a className="lv-receipt-action primary" data-lv-button="primary" href={printHref(selected.receiptUrl)} target="_blank" rel="noopener noreferrer">Print / Save PDF</a>}
+          <button type="button" disabled={Boolean(downloading)} onClick={() => void downloadPdf(selected.receiptUrl, selected.paymentCode)}>{downloading === selected.paymentCode ? "Preparing…" : "Download PDF"}</button>
           <button type="button" onClick={() => void copyReceipt(selected.receiptUrl, selected.paymentCode)}>{copied === selected.paymentCode ? "Link copied" : "Copy receipt link"}</button>
         </> : <span>Receipt not yet issued; verify payment approval and refresh.</span>}
       </div>
@@ -107,7 +124,8 @@ export default function ProjectReceiptHistory({
         ) : <span>No invoice allocation recorded</span>}</div></td>
         <td>{payment.receiptUrl ? <div className="lv-receipt-actions">
           <a className="lv-receipt-action" href={payment.receiptUrl} target="_blank" rel="noreferrer">View</a>
-          {printHref(payment.receiptUrl) && <a className="lv-receipt-action primary" href={printHref(payment.receiptUrl)} target="_blank" rel="noopener noreferrer">Print / PDF</a>}
+          {printHref(payment.receiptUrl) && <a className="lv-receipt-action primary" data-lv-button="primary" href={printHref(payment.receiptUrl)} target="_blank" rel="noopener noreferrer">Print / PDF</a>}
+          <button type="button" disabled={Boolean(downloading)} onClick={() => void downloadPdf(payment.receiptUrl, payment.paymentCode)}>{downloading === payment.paymentCode ? "Preparing…" : "Download PDF"}</button>
           <button type="button" onClick={() => void copyReceipt(payment.receiptUrl, payment.paymentCode)}>{copied===payment.paymentCode?"Copied":"Share link"}</button>
         </div> : <small>Not issued</small>}</td>
       </tr>)}</tbody>

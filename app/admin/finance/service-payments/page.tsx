@@ -250,15 +250,15 @@ export default function ReceivePaymentPage() {
     {error && <div className="rp-msg bad" role="alert">{error}</div>}{message && <div className="rp-msg good" role="status">{message}</div>}
     {pendingCheck && <section className="rp-card" style={{ padding: 14, marginBottom: 12, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 9 }}>
       <strong style={{ fontSize: 13 }}>Previous payment submission requires confirmation</strong>
-      <button type="button" className="rp-btn" style={{ padding: "0 12px" }} onClick={() => void checkPending()} disabled={busy}>Check recorded payment</button>
-      <button type="button" className="rp-btn" style={{ padding: "0 12px", background: "var(--lv-surface-input)", color: "var(--lv-text-primary)", borderColor: "var(--lv-border-default)" }} onClick={resetAfterReview} disabled={busy}>Start different payment after review</button>
+      <button type="button" className="rp-btn" data-lv-button="primary" style={{ padding: "0 12px" }} onClick={() => void checkPending()} disabled={busy}>Check recorded payment</button>
+      <button type="button" className="rp-btn" data-lv-button="secondary" style={{ padding: "0 12px", background: "var(--lv-surface-input)", color: "var(--lv-text-primary)", borderColor: "var(--lv-border-default)" }} onClick={resetAfterReview} disabled={busy}>Start different payment after review</button>
     </section>}
 
     <section className="rp-card rp-select">
       <div className="rp-field"><label>Project / File ID</label><select value={projectId} onChange={(e) => { setProjectId(e.target.value); setReceiptPaymentCode(""); void loadProject(e.target.value); }}><option value="">Choose project</option>{projects.map((p) => <option key={p.projectId || p.project_code} value={p.projectId || p.project_code}>{p.projectId || p.project_code} · {p.ownerName || p.projectName || p.project_name || "Project"}</option>)}</select></div>
     </section>
 
-    <div className="rp-tabs">{CATEGORY_ORDER.map((item) => <button key={item} className={`rp-tab ${category === item ? "active" : ""}`} onClick={() => { setCategory(item); setAllocations({}); setPaymentAmount(""); setSelectedService(""); }}>{item}</button>)}</div>
+    <div className="rp-tabs">{CATEGORY_ORDER.map((item) => <button key={item} className={`rp-tab ${category === item ? "active" : ""}`} data-lv-button={category===item?"primary":"secondary"} onClick={() => { setCategory(item); setAllocations({}); setPaymentAmount(""); setSelectedService(""); }}>{item}</button>)}</div>
 
     {data ? <>
       <section className="rp-card rp-summary"><div className="rp-stat"><span>Gross</span><strong>{money(categorySummary.gross)}</strong></div><div className="rp-stat"><span>Discount</span><strong>{money(categorySummary.discount)}</strong></div><div className="rp-stat"><span>Net</span><strong>{money(categorySummary.net)}</strong></div><div className="rp-stat"><span>Paid</span><strong className="rp-paid">{money(categorySummary.paid)}</strong></div><div className="rp-stat"><span>Due</span><strong className="rp-due">{money(categorySummary.due)}</strong></div></section>
@@ -281,7 +281,7 @@ export default function ReceivePaymentPage() {
           </div>
           <div className="rp-two"><div className="rp-field"><label>Reference</label><input value={reference} onChange={(e) => setReference(e.target.value)} /></div><div className="rp-field"><label>Category Due</label><input readOnly value={money(categorySummary.due)} /></div></div>
           <div className="rp-field"><label>Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
-          <button type="button" className="rp-btn" disabled={busy || loading || (!advanceMode && !categoryServices.length)} onClick={() => void pay()}>{busy ? "Saving…" : advanceMode ? "Save Advance Payment" : "Save Payment"}</button>
+          <button type="button" className="rp-btn" data-lv-button="primary" disabled={busy || loading || (!advanceMode && !categoryServices.length)} onClick={() => void pay()}>{busy ? "Saving…" : advanceMode ? "Save Advance Payment" : "Save Payment"}</button>
         </section>
       </div>
       <div style={{marginTop:14}}><ProjectReceiptHistory projectId={projectId} highlightPaymentCode={receiptPaymentCode} /></div>

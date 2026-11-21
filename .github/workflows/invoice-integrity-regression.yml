@@ -20,6 +20,20 @@ on:
       - "tests/invoice-*.test.cjs"
       - "tests/billing-v4-reliability.test.cjs"
       - "tests/billing-reconciliation-41.test.cjs"
+      - "tests/billing-full-editor-v42.test.cjs"
+      - "tests/billing-project-statement-v43.test.cjs"
+      - "lib/project-statement-v43.ts"
+      - "lib/project-statement-document-v43.ts"
+      - "lib/project-statement-pdf-v43.ts"
+      - "app/api/billing/project-statement/**"
+      - "app/api/billing/project-statement-print/**"
+      - "app/api/billing/project-receipts/route.ts"
+      - "app/admin/finance/project-statement/**"
+      - "components/project-receipt-history.tsx"
+      - "app/api/billing/full-revision-v42/**"
+      - "app/admin/finance/full-bill-editor/**"
+      - "supabase/migrations/*billing_v42*"
+      - "supabase/functions/landview-data/index.ts"
       - "lib/billing-reconciliation-41.ts"
       - "app/api/billing/reconciliation-41/**"
       - "app/admin/finance/reconciliation/**"
@@ -61,6 +75,17 @@ jobs:
             tests/invoice-single-bill-status.test.cjs \
             tests/proposal-billing-conversion.test.cjs \
             tests/invoice-center.test.cjs
+      - name: Billing 4.3 project statements and receipt integrity gate
+        run: node --test tests/billing-project-statement-v43.test.cjs
+      - name: Billing 4.3 statement and receipt scoped lint
+        run: npx eslint lib/project-statement-v43.ts lib/project-statement-document-v43.ts lib/project-statement-pdf-v43.ts app/api/billing/project-statement/route.ts app/api/billing/project-statement-print/route.ts app/admin/finance/project-statement/page.tsx app/api/billing/project-receipts/route.ts components/project-receipt-history.tsx
+
+      - name: Billing 4.2 atomic editor integrity gate
+        run: node --test tests/billing-full-editor-v42.test.cjs
+
+      - name: Billing 4.2 scoped lint
+        run: npx eslint app/api/billing/full-revision-v42/route.ts app/admin/finance/full-bill-editor/page.tsx
+
       - name: Billing 4.1 reconciliation review gate
         run: node --test tests/billing-reconciliation-41.test.cjs
       - name: Billing 4.1 scoped lint

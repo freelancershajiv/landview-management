@@ -8,6 +8,7 @@ import { assertReviewCompletion, type ReviewAction } from "@/lib/todo-review-pol
 import { selectRows, updateRows } from "@/lib/supabase-data";
 import { workflowStatusesForService } from "@/lib/service-workflow";
 import { assertTodoDependencies, createTodoItem, deleteTodoItem, listTodoItems, updateTodoItem, type TodoItem } from "@/lib/todo-data";
+import {isProjectWorkTodo} from "@/lib/todo-scope";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -136,12 +137,12 @@ export async function GET(request: NextRequest) {
       if (!scope) return fail(new Error("A valid project or proposal reference is required."), 400);
       const field = scope.type === "Project" ? "project_code" : "proposal_code";
       const codes = scope.type === "Project" ? [...new Set([scope.code, "LV-" + Number(scope.code.slice(3))])] : [scope.code];
-      return ok(await selectRows("todo_items", { inFilters: { [field]: codes }, order: "updated_at:desc", limit: 5000 }));
+      return ok((await selectRows("todo_items", { inFilters: { [field]: codes }, order: "updated_at:desc", limit: 5000 })).filter(isProjectWorkTodo));
     }
     if (mode === "item") {
       const code = text(request.nextUrl.searchParams.get("code"), 80);
       if (!/^TODO-[A-Z0-9-]+$/i.test(code)) return fail(new Error("A valid task code is required."), 400);
-      return ok(await selectRows("todo_items", { filters: { todo_code: code.toUpperCase() }, limit: 1 }));
+      return ok((await selectRows("todo_items", { filters: { todo_code: code.toUpperCase() }, limit: 1 })).filter(isProjectWorkTodo));
     }
     return ok(await listTodoItems());
   } catch (error) {
@@ -164,7 +165,7 @@ export async function POST(request: NextRequest) {
       const code = text(input.todoCode,80);
       const rows = await selectRows("todo_items",{filters:{todo_code:code},limit:1});
       const todo = rows[0];
-      if (!todo) throw new Error("Task not found.");
+      if (!todo || !isProjectWorkTodo(todo)) throw new Error("To Do task not found.");
       if (todo.status === "Done") throw new Error("Completed task estimates are locked.");
       if (!todo.updated_at || text(input.expectedUpdatedAt,110) !== todo.updated_at) throw new Error("Task changed. Refresh before editing the estimate.");
       const minutes = estimatedMinutes(input.estimatedMinutes);
@@ -268,6 +269,8 @@ export async function POST(request: NextRequest) {
     if (action === "delete") {
       const todoCode = String(input.todoCode || "").trim();
       if (!todoCode) throw new Error("To Do code is required.");
+      const rows=await selectRows("todo_items",{filters:{todo_code:todoCode},limit:1});
+      if(!rows[0] || !isProjectWorkTodo(rows[0])) throw new Error("To Do task not found.");
       return ok(await deleteTodoItem(todoCode));
     }
     throw new Error("Unsupported To Do action.");
