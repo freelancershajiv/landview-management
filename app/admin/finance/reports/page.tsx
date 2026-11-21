@@ -173,7 +173,7 @@ export default function BillingReports44() {
    <p className="br44-note">These age buckets add up to open invoice balances <strong>before</strong> project-wide relief. Do not add them to collectible due. Issue-date age does not establish contractual late payment.</p>
  </section>
  <section className="br44-panel">
-  <div><h2>Monthly client collections</h2><p>Operational cash receipts and historical client credits are shown separately in the table. A payment's creation date is used only if its payment date is missing.</p></div>
+  <div><h2>Monthly client collections</h2><p>Operational cash receipts and historical client credits are shown separately in the table. A payment creation date is used only if its payment date is missing.</p></div>
   <div className="br44-filters">
     <label>From month<input aria-label="From month" type="month" value={fromMonth||filterFrom} onChange={e=>setFromMonth(e.target.value)}/></label>
     <label>To month<input aria-label="To month" type="month" value={toMonth||filterTo} onChange={e=>setToMonth(e.target.value)}/></label>
