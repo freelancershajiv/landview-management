@@ -30,12 +30,12 @@
   font-size: 10px;
   letter-spacing: .1em;
   font-weight: 850;
-  color: var(--pmx-red);
+  color: var(--lv-text-strong, var(--pmx-text));
 }
 .pf-redesign .pmx-overline-mark { width: 7px; height: 7px; border-radius: 50%; background: var(--pmx-red); display: inline-block; }
 .pf-redesign .pmx-heading-line { display: flex; flex-wrap: wrap; align-items: center; gap: 11px; margin-top: 8px; }
 .pf-redesign .pmx-heading-line h1 { font-size: clamp(24px, 2.3vw, 31px); font-weight: 830; letter-spacing: -.035em; line-height: 1.18; color: var(--pmx-text); margin: 0; }
-.pf-redesign .pmx-header-label { padding: 5px 10px; border-radius: 50px; border: 1px solid var(--pmx-border); background: var(--pmx-muted-surface); font-size: 10px; font-weight: 750; color: var(--pmx-muted); }
+.pf-redesign .pmx-header-label { padding: 5px 10px; border-radius: 50px; border: 1px solid var(--pmx-border); background: var(--pmx-muted-surface); font-size: 10px; font-weight: 750; color: var(--lv-text-strong, var(--pmx-text)); }
 .pf-redesign .pmx-topbar-heading p { margin: 9px 0 0; font-size: 13px; line-height: 1.55; color: var(--pmx-muted); }
 .pf-redesign .pmx-project-control { width: min(100%, 390px); min-width: 235px; display: flex; flex-direction: column; gap: 5px; }
 .pf-redesign .pmx-project-control label { font-size: 10px; letter-spacing: .09em; color: var(--pmx-muted); font-weight: 850; }

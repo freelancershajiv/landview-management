@@ -23,7 +23,7 @@
 .pf-redesign .pmr-overline{display:block;color:var(--pmr-brand);font-size:10px;letter-spacing:.1em;font-weight:850;}
 .pf-redesign .pmr-intro-title{display:flex;flex-wrap:wrap;align-items:center;gap:13px;margin:8px 0;}
 .pf-redesign .pmr-intro-title h2{font-size:clamp(23px,2.5vw,32px);line-height:1.2;letter-spacing:-.037em;margin:0;color:var(--pmr-ink);}
-.pf-redesign .pmr-readonly-tag{font-size:10px;font-weight:790;padding:6px 10px;color:var(--pmr-blue);
+.pf-redesign .pmr-readonly-tag{font-size:10px;font-weight:790;padding:6px 10px;color:var(--lv-text-strong, var(--pmr-ink));
   background:color-mix(in srgb,var(--pmr-blue) 9%,var(--pmr-surface));border-radius:100px;
   border:1px solid color-mix(in srgb,var(--pmr-blue) 22%,var(--pmr-border));}
 .pf-redesign .pmr-intro p{font-size:12px;line-height:1.65;color:var(--pmr-muted);margin:7px 0;max-width:820px;}

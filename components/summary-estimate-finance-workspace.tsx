@@ -298,7 +298,7 @@ export default function SummaryEstimateFinanceWorkspace() {
       </select>
       <button type="button" onClick={clearSource}>Clear / New Estimate</button>
       {selectedProject && <Link href={`/projectmanagement/expenses?projectId=${encodeURIComponent(selectedProject)}`}>View actual project expenses</Link>}
-      <span style={{width:"100%",fontSize:10,color:sourceError?"#ffb4aa":"#94a3ad"}}>{sourceError || "Choose either source, or leave both blank and enter a new estimate manually."}</span>
+      <span style={{width:"100%",fontSize:10,color:sourceError?"var(--lv-danger)":"var(--lv-text-muted)"}}>{sourceError || "Choose either source, or leave both blank and enter a new estimate manually."}</span>
     </section>
 
     <section className={styles.projectCard}>
