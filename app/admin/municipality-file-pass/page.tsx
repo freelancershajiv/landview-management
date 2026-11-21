@@ -130,7 +130,7 @@ export default function MunicipalityFilePassPage() {
 
     <header className="mfp-head">
       <div><span className="mfp-kicker">LAND VIEW / SPECIAL SERVICE FINANCE</span><h1>Municipality File Pass</h1><p>Municipality File Pass income and expenses are kept separate from the main LAND VIEW ledger.</p></div>
-      <div className="mfp-actions"><button className="mfp-btn primary" onClick={() => { setMessage(""); setFormError(""); setExpense(blankExpense(data.accounts[0]?.name || "")); setExpenseOpen(true); }}>+ Add Expense</button></div>
+      <div className="mfp-actions"><button className="mfp-btn primary" data-lv-button="primary" onClick={() => { setMessage(""); setFormError(""); setExpense(blankExpense(data.accounts[0]?.name || "")); setExpenseOpen(true); }}>+ Add Expense</button></div>
     </header>
 
     {message && <div className="mfp-note">{message}</div>}
@@ -159,6 +159,6 @@ export default function MunicipalityFilePassPage() {
       <div className="mfp-field"><label>Paid from account</label><select value={expense.account} onChange={(e) => setExpense((f) => ({ ...f, account: e.target.value }))}><option value="">Choose account</option>{data.accounts.map((account) => <option key={`${account.code}-${account.name}`} value={account.name}>{account.name}</option>)}</select></div>
       <div className="mfp-field"><label>Reference</label><input value={expense.reference} onChange={(e) => setExpense((f) => ({ ...f, reference: e.target.value }))}/></div>
       <div className="mfp-field full"><label>Notes</label><textarea value={expense.notes} onChange={(e) => setExpense((f) => ({ ...f, notes: e.target.value }))}/></div>
-    </div><div className="mfp-modal-actions"><button className="mfp-btn" disabled={saving} onClick={() => setExpenseOpen(false)}>Cancel</button><button className="mfp-btn primary" disabled={saving} onClick={saveExpense}>{saving ? "Saving…" : "Save Expense"}</button></div></div></div>}
+    </div><div className="mfp-modal-actions"><button className="mfp-btn" disabled={saving} onClick={() => setExpenseOpen(false)}>Cancel</button><button className="mfp-btn primary" data-lv-button="primary" disabled={saving} onClick={saveExpense}>{saving ? "Saving…" : "Save Expense"}</button></div></div></div>}
   </div>;
 }

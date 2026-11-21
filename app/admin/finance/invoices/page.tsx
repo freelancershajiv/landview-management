@@ -547,7 +547,7 @@ export default function ProjectBillingPage() {
     <div className={styles.workspace}>
       <div className={styles.header}>
         <div>
-          <Link href="/admin/finance">← Billing</Link>
+          <Link className="lv-invoice-back" href="/admin/billing">← Billing</Link>
           <span className={styles.eyebrow}>LAND VIEW / BILLING</span>
           <h1>LV-Auto Invoice</h1>
           <p>Select a project from Billing → File List and generate its live billing statement.</p>

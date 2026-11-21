@@ -291,7 +291,7 @@ export default function DirectFullBillWorkspace() {
       <h2>Complete Service Billing</h2>
       <div className="db-discount-panel">
         <div className="db-discount-copy"><strong>Whole Bill Discount</strong><span>Enter one total discount here. It will be distributed across the active service rows. You can still fine-tune each row in the Discount column.</span></div>
-        <div className="db-discount-control"><label>Discount (BDT)<input inputMode="decimal" value={wholeDiscount} disabled={saving || !activeLines.length} onChange={(event) => setWholeDiscount(event.target.value)} placeholder="0"/></label><button type="button" className="db-btn draft" disabled={saving || !activeLines.length || !(numberValue(wholeDiscount) > 0)} onClick={applyWholeDiscount}>Apply Discount</button></div>
+        <div className="db-discount-control"><label>Discount (BDT)<input inputMode="decimal" value={wholeDiscount} disabled={saving || !activeLines.length} onChange={(event) => setWholeDiscount(event.target.value)} placeholder="0"/></label><button type="button" className="db-btn draft" data-lv-button="warning" disabled={saving || !activeLines.length || !(numberValue(wholeDiscount) > 0)} onClick={applyWholeDiscount}>Apply Discount</button></div>
       </div>
       <div className="db-table"><table><thead><tr><th>Category</th><th>Service / Description</th><th>Entry Type</th><th>Qty</th><th>Rate / Flat BDT</th><th>Gross</th><th>Discount</th><th>Net</th><th>Action</th></tr></thead><tbody>{lines.map((line) => {
         const pricing = pricingFor(line);
@@ -305,7 +305,7 @@ export default function DirectFullBillWorkspace() {
           <td className="db-gross"><strong>{money(pricing.gross)}</strong></td>
           <td className="db-money"><input inputMode="decimal" value={line.discount} disabled={saving} onChange={(event) => updateLine(line.id, { discount: event.target.value })} placeholder="0"/></td>
           <td className="db-gross"><strong>{money(Math.max(0, pricing.gross - discount))}</strong></td>
-          <td><button type="button" className="db-delete" disabled={saving} onClick={() => deleteLine(line.id)}>Delete</button></td>
+          <td><button type="button" className="db-delete" data-lv-button="danger" disabled={saving} onClick={() => deleteLine(line.id)}>Delete</button></td>
         </tr>;
       })}</tbody></table></div>
       <datalist id="direct-full-service-list">{BILL_SERVICE_CATALOG.map((item) => <option key={item.service} value={item.service}/>)}</datalist>
@@ -320,7 +320,7 @@ export default function DirectFullBillWorkspace() {
         <div className="db-stat db-due"><span>Projected due</span><strong>{money(projectedDue)}</strong></div>
       </div>
       <p className="db-help">Projected due = existing net billed + this full bill − all payments already recorded for the project. A Draft lets you review/edit quantity, rate and discount before it becomes an issued financial document.</p>
-      <div className="db-submit"><Link className="db-btn" href="/admin/finance">Cancel</Link><button type="button" className="db-btn draft" disabled={saving || loading} onClick={() => void createFullBill("Draft")}>{saving ? "Saving…" : `Save as Draft${activeLines.length ? ` · ${activeLines.length} item${activeLines.length === 1 ? "" : "s"}` : ""}`}</button><button type="button" className="db-btn primary" disabled={saving || loading} onClick={() => void createFullBill("Issued")}>{saving ? "Issuing…" : `Issue Now${activeLines.length ? ` · ${activeLines.length} item${activeLines.length === 1 ? "" : "s"}` : ""}`}</button></div>
+      <div className="db-submit"><Link className="db-btn" href="/admin/finance">Cancel</Link><button type="button" className="db-btn draft" data-lv-button="warning" disabled={saving || loading} onClick={() => void createFullBill("Draft")}>{saving ? "Saving…" : `Save as Draft${activeLines.length ? ` · ${activeLines.length} item${activeLines.length === 1 ? "" : "s"}` : ""}`}</button><button type="button" className="db-btn primary" disabled={saving || loading} onClick={() => void createFullBill("Issued")}>{saving ? "Issuing…" : `Issue Now${activeLines.length ? ` · ${activeLines.length} item${activeLines.length === 1 ? "" : "s"}` : ""}`}</button></div>
     </section>
   </div>;
 }

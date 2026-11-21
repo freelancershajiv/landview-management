@@ -204,7 +204,7 @@ export default function AccountMaintenance() {
           <div className="acct-field full"><label>LinkedIn</label><input value={profile.linkedinUrl} onChange={(e)=>setProfile(v=>v?({...v,linkedinUrl:e.target.value}):v)}/></div>
           <div className="acct-field full"><label>Bio</label><textarea value={profile.bio} onChange={(e)=>setProfile(v=>v?({...v,bio:e.target.value}):v)}/></div>
         </div>
-        <div className="acct-actions"><button className="acct-btn primary" disabled={saving}>{saving ? "Saving…" : "Save Profile"}</button></div>
+        <div className="acct-actions"><button className="acct-btn primary" data-lv-button="primary" disabled={saving}>{saving ? "Saving…" : "Save Profile"}</button></div>
       </form>
 
       <aside className="acct-card">
@@ -253,7 +253,7 @@ export default function AccountMaintenance() {
         <div className="acct-field"><label>Current password</label><input type="password" autoComplete="current-password" value={password.current} onChange={(e)=>setPassword(v=>({...v,current:e.target.value}))} required/></div>
         <div className="acct-field" style={{marginTop:12}}><label>New password</label><input type="password" autoComplete="new-password" minLength={8} value={password.next} onChange={(e)=>setPassword(v=>({...v,next:e.target.value}))} required/></div>
         <div className="acct-field" style={{marginTop:12}}><label>Confirm new password</label><input type="password" autoComplete="new-password" minLength={8} value={password.confirm} onChange={(e)=>setPassword(v=>({...v,confirm:e.target.value}))} required/></div>
-        <div className="acct-actions"><button className="acct-btn primary" disabled={saving}>{saving ? "Updating…" : "Change Password"}</button></div>
+        <div className="acct-actions"><button className="acct-btn primary" data-lv-button="primary" disabled={saving}>{saving ? "Updating…" : "Change Password"}</button></div>
         <div className="acct-details" style={{marginTop:18}}>
           <div className="acct-line"><span>Current device</span><strong>{currentSession?.deviceName || "—"}</strong></div>
           <div className="acct-line"><span>Browser / OS</span><strong>{[currentSession?.browser,currentSession?.os].filter(Boolean).join(" · ") || "—"}</strong></div>

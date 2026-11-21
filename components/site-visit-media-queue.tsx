@@ -159,7 +159,7 @@ export default function SiteVisitMediaQueue({ canRetry = false }: { canRetry?: b
       <div className="svmq-stat"><span>Completed 24h</span><strong>{totals.completed24h}</strong></div>
     </div>
     <div className="svmq-toolbar">
-      {canRetry ? <button className="svmq-sync" type="button" onClick={() => void processQueue()} disabled={processing}>{processing ? "SYNCING…" : "SYNC NOW"}</button> : null}
+      {canRetry ? <button className="svmq-sync" data-lv-button="primary" type="button" onClick={() => void processQueue()} disabled={processing}>{processing ? "SYNCING…" : "SYNC NOW"}</button> : null}
       <button type="button" onClick={() => void load()} disabled={loading || processing}>{loading ? "CHECKING…" : "REFRESH QUEUE"}</button>
     </div>
     <div className="svmq-jobs">

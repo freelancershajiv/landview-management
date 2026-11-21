@@ -299,7 +299,7 @@ export default function AdminTodoWorkspace() {
           <h1>Work Management</h1>
           <p>Project and office work only. Regular Site Visits, supervision schedules and site reports are managed separately.</p>
         </div>
-        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><a className="tws-primary" href="/admin/site-visits" style={{textDecoration:"none",background:"var(--lv-surface-panel)",color:"var(--lv-text-primary)",borderColor:"var(--lv-border-default)"}}>Site Visits ↗</a><button className="tws-primary" type="button" onClick={newTodo}>+ New Task</button></div>
+        <div style={{display:"flex",gap:8,alignItems:"center",flexWrap:"wrap"}}><a className="tws-primary" data-lv-button="secondary" href="/admin/site-visits">Site Visits ↗</a><button className="tws-primary" type="button" onClick={newTodo}>+ New Task</button></div>
       </div>
       <div className="tws-nav-wrap tws-main-navigation">
         <div className="tws-nav" role="tablist" aria-label="To Do management sections">
