@@ -105,7 +105,7 @@ export default function DueBillsPage() {
       <div className="due-toolbar">
         <input className="due-search" aria-label="Search due bills" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search File ID, client, project, phone or address…" />
         <div className="due-filters">
-          {([ ["all","All Due"], ["engineering","Engineering"], ["supervision","Supervision"], ["other","Other Services"] ] as const).map(([key,label]) => <button key={key} className={`due-filter ${filter===key?"active":""}`} data-lv-button={filter===key?"tab-active":"secondary"} aria-pressed={filter===key} onClick={() => setFilter(key)}>{label}</button>)}
+          {([ ["all","All Due"], ["engineering","Engineering"], ["supervision","Supervision"], ["other","Other Services"] ] as const).map(([key,label]) => <button key={key} className={`due-filter ${filter===key?"active":""}`} data-lv-button={filter===key?"primary":"secondary"} aria-pressed={filter===key} onClick={() => setFilter(key)}>{label}</button>)}
         </div>
       </div>
       {/* A compact read-only representation of the exact same receivables.

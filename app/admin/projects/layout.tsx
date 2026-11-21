@@ -7,7 +7,7 @@ export default function ProjectsLayout({ children }: { children: React.ReactNode
     <ProjectLegacyNavigation />
     <nav className="projects-section-nav" aria-label="Project management">
       <Link className="projects-section-link" href="/admin/projects">Projects</Link>
-      <Link className="projects-section-link primary" href="/admin/projects/new">+ New Project</Link>
+      <Link className="projects-section-link primary" data-lv-button="primary" href="/admin/projects/new">+ New Project</Link>
       <Link className="projects-section-link missing" href="/admin/projects/missing-serials">Missing Serials</Link>
       <Link className="projects-section-link" href="/admin/projects/locations">Locations</Link>
       <Link className="projects-section-link website" href="/admin/projects/website-readiness">Website Readiness</Link>

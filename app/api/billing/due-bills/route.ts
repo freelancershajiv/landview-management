@@ -6,7 +6,8 @@ import { loadReceivableAuthority } from "@/lib/billing-receivable-authority";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FINANCE_ROLES = new Set(["admin", "manager", "accounts", "employee"]);
+// Due-bill reports include client contact and financial balances: restrict to finance roles.
+const FINANCE_ROLES = new Set(["admin", "manager", "accounts"]);
 type Row = Record<string, any>;
 
 function text(value: unknown) { return String(value ?? "").trim(); }

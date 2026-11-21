@@ -414,7 +414,14 @@ export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPaylo
   try {
     const assignedEmployeeId = text(payload.employeeId, 120).toUpperCase();
     const requestedSenderId = text(payload.senderEmployeeId || payload.employeeId, 120).toUpperCase();
-    if (assignedEmployeeId && assignedEmployeeId !== requestedSenderId) {
+    if (!assignedEmployeeId || !requestedSenderId) {
+      await clientUpdate;
+      return recordSiteVisitWhatsAppResult(payload, {
+        status: "failed",
+        reason: "Site Visit WhatsApp sender identity is missing. Choose the correct employee; the Admin account is not a fallback.",
+      });
+    }
+    if (assignedEmployeeId !== requestedSenderId) {
       await clientUpdate;
       return recordSiteVisitWhatsAppResult(payload, {
         status: "failed",

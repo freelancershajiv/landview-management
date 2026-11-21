@@ -5,7 +5,8 @@ import { employeeCodeOf, normalizeProjectCode, roleOf, selectRows, supabaseGatew
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const FINANCE_ROLES = new Set(["admin", "manager", "accounts", "employee"]);
+// Billing records are private to finance roles; employees have no billing.view capability.
+const FINANCE_ROLES = new Set(["admin", "manager", "accounts"]);
 const WRITEOFF_ROLES = new Set(["admin", "manager", "accounts"]);
 
 function sameOrigin(request: NextRequest) {

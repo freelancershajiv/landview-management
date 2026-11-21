@@ -156,8 +156,9 @@ export async function POST(request: NextRequest) {
     const attributedEmployee = visit.employee_id
       ? (await selectRows("employees", { filters: { id: visit.employee_id }, limit: 1 }))[0]
       : null;
-    const senderEmployee = attributedEmployee || (await selectRows("employees", { filters: { employee_code: "EMP-0002" }, limit: 1 }))[0];
-    if (!project || !senderEmployee) return response({ success: false, error: "Site Visit project or WhatsApp sender record is missing." }, 409);
+    // Legacy unassigned visits must not be resent from an unrelated employee account.
+    const senderEmployee = attributedEmployee;
+    if (!project || !senderEmployee) return response({ success: false, error: "This Site Visit has no attributed employee. Assign the correct employee before retrying WhatsApp; no fallback sender will be used." }, 409);
 
     if (!internal && user) {
       const role = roleOf(user);

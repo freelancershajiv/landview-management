@@ -151,10 +151,11 @@ export async function POST(request: NextRequest) {
 
     const issueEmployeeCode = clean(form.get("employeeId"), 120).toUpperCase();
     let issueEmployee: Row | null = null;
-    if (issueEmployeeCode) {
-      issueEmployee = ((await selectRows("employees", { filters: { employee_code: issueEmployeeCode, status: "Active" }, limit: 1 }))[0] as Row | undefined) || null;
-      if (!issueEmployee) return deny("Selected employee is not active or could not be found.", 400);
-    }
+    // The sender must be an explicitly selected employee; never post from
+    // a default employee account when a manager records a visit.
+    if (!issueEmployeeCode) return deny("Select the employee whose WhatsApp account will publish this Site Visit.", 400);
+    issueEmployee = ((await selectRows("employees", { filters: { employee_code: issueEmployeeCode, status: "Active" }, limit: 1 }))[0] as Row | undefined) || null;
+    if (!issueEmployee) return deny("Selected employee is not active or could not be found.", 400);
 
     const visitDate = clean(form.get("visitDate"), 20) || new Date().toISOString().slice(0, 10);
     const purpose = clean(form.get("purpose"), 300) || "Site Visit";
@@ -195,7 +196,7 @@ export async function POST(request: NextRequest) {
     const adminName = clean(user?.name || user?.Name || user?.username || user?.Username || actorRole, 200) || actorRole;
     const attributedEmployeeCode = clean(issueEmployee?.employee_code, 120);
     const attributedEmployeeName = clean(issueEmployee?.name, 200) || `${actorRole} · ${adminName}`;
-    const senderEmployeeCode = attributedEmployeeCode || "EMP-0002";
+    const senderEmployeeCode = attributedEmployeeCode;
     const createdBy = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(user?.id || "")) ? String(user.id) : null;
     const now = new Date().toISOString();
 
