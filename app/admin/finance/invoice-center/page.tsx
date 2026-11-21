@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 type Status = "issued" | "partial" | "paid" | "review";
 type InvoiceRow = {
@@ -41,12 +42,17 @@ function csvExport(rows: InvoiceRow[]) {
 }
 
 export default function InvoiceCenterPage() {
+  return <Suspense fallback={<p role="status">Loading Invoice Center…</p>}><InvoiceCenter /></Suspense>;
+}
+
+function InvoiceCenter() {
+  const query = useSearchParams().get("q") || "";
   const [report, setReport] = useState<Report | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [revision, setRevision] = useState(0);
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(query);
   const [status, setStatus] = useState<Status | "all">("all");
   const [category, setCategory] = useState("all");
   const [fromDate, setFromDate] = useState("");
@@ -54,6 +60,15 @@ export default function InvoiceCenterPage() {
   const [onlyProjectDue, setOnlyProjectDue] = useState(false);
   const [sending, setSending] = useState("");
   const [notified, setNotified] = useState<string[]>([]);
+
+  useEffect(() => {
+    setSearch(query);
+    setStatus("all");
+    setCategory("all");
+    setFromDate("");
+    setToDate("");
+    setOnlyProjectDue(false);
+  }, [query]);
 
   useEffect(() => {
     const controller = new AbortController();

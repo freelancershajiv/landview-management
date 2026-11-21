@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { recordAuditEvent } from "@/lib/audit-log";
-import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
+import { insertRows, normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
 import { canonicalProjectService } from "@/lib/project-task-templates";
 import {
   ENGINEERING_SERVICE_STATUSES,
@@ -80,11 +80,16 @@ async function proposalWorkflow() {
   }).filter(Boolean);
 }
 
-async function projectWorkflow() {
+async function projectWorkflow(projectCode?: string) {
+  const project = projectCode
+    ? (await selectRows("projects", { filters: { project_code: projectCode }, limit: 1 }))[0]
+    : undefined;
+  if (projectCode && !project) throw new Error("Project not found.");
+  const scope = project ? { filters: { project_id: project.id } } : {};
   const [workflows, projects, contractServices] = await Promise.all([
-    selectRows("project_service_workflows", { order: "updated_at:desc", limit: 10000 }),
-    selectRows("projects", { order: "project_code:desc", limit: 5000 }),
-    selectRows("project_contract_services", { select: "project_id,service_key,contract_net,active", limit: 10000 }),
+    selectRows("project_service_workflows", { ...scope, order: "updated_at:desc", limit: 10000 }),
+    project ? [project] : selectRows("projects", { order: "project_code:desc", limit: 5000 }),
+    selectRows("project_contract_services", { ...scope, select: "project_id,service_key,contract_net,active", limit: 10000 }),
   ]);
   const contractByKey = new Map<string, number>();
   for (const service of contractServices) {
@@ -143,8 +148,17 @@ async function billingProjects() {
 
 export async function GET(request: NextRequest) {
   try {
-    await session(request, false);
+    const user = await session(request, false);
     const mode = text(request.nextUrl.searchParams.get("mode"), 40).toLowerCase() || "project";
+    if (mode === "project-delivery") {
+      if (!["admin", "manager"].includes(roleOf(user))) return json({ success: false, error: "Management access required." }, 403);
+      const projectCode = normalizeProjectCode(request.nextUrl.searchParams.get("projectId"));
+      if (!projectCode) return json({ success: false, error: "Valid project ID required." }, 400);
+      const workflows = await projectWorkflow(projectCode);
+      return json({ success: true, data: workflows.filter((row) =>
+        row.deliveryLocked && !["Delivered", "Delivered to Client"].includes(row.status),
+      ).map(({ id, serviceName, deliveryDue }) => ({ id, serviceName, deliveryDue })) });
+    }
     if (mode === "proposal") return json({ success: true, data: { proposals: await proposalWorkflow(), statuses: ["Working", "Ready", "Sent", "Approved"] } });
     if (mode === "billing-projects") return json({ success: true, data: { projects: await billingProjects() } });
     if (mode === "billing") {

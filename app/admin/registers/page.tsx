@@ -46,7 +46,7 @@ export default function RegistersPage(){
     }catch(err){setError(err instanceof Error?err.message:"Could not load registers.");}
     finally{setLoading(false);}
   }
-  useEffect(function(){void load();},[]);
+  useEffect(function(){setQuery(new URLSearchParams(window.location.search).get("fileId") || "");void load();},[]);
 
   const docRows=useMemo(function(){
     const term=query.trim().toLowerCase();

@@ -9,6 +9,8 @@ import {
 } from "@/lib/local-session";
 import { supabaseAuthGateway } from "@/lib/supabase-auth";
 import { insertRows, normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
+import { loadReceivableAuthority, type ReceivableCategoryKey } from "@/lib/billing-receivable-authority";
+import { clientDocumentChecklist } from "@/lib/client-document-checklist";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -103,6 +105,62 @@ async function buildWorkspace(user:Row){
   return {projects:result,client:{name:user.name||user.Name||"Client",projectIds:allowed},updatedAt:new Date().toISOString(),source:"supabase"};
 }
 
+async function projectReadiness(project: Row) {
+  const filters = { project_id: project.id };
+  const [receivables, register, files] = await Promise.allSettled([
+    loadReceivableAuthority({ projectId: String(project.id) }),
+    selectRows("client_document_register", {
+      select: "document_name,collection_status,return_status", filters, limit: 5000,
+    }),
+    selectRows("documents", {
+      select: "id,title,drawing_no,revision_no,delivered_at,service_workflow_id,drive_file_url",
+      filters: { ...filters, client_visible: true, workflow_status: "Delivered" },
+      order: "delivered_at:desc", limit: 100,
+    }),
+  ]);
+  let finance = null;
+  if (receivables.status === "fulfilled" && receivables.value.complete) {
+    const authority = receivables.value;
+    const balance = authority.projects.get(String(project.id));
+    const categories: [ReceivableCategoryKey, string, number][] = [
+      ["engineering", "Engineering and design books", balance?.engineeringDue ?? 0],
+      ["supervision", "Supervision", balance?.supervisionDue ?? 0],
+      ["other", "Other services", balance?.otherDue ?? 0],
+    ];
+    finance = {
+      billed: balance?.billed ?? 0, paid: balance?.paid ?? 0, due: balance?.totalDue ?? 0,
+      categories: categories.map(([key, label, due]) => ({
+        label, due,
+        billed: authority.bills.filter((bill) => bill.category === key).reduce((sum, bill) => sum + bill.effectiveAmount, 0),
+        paid: authority.payments.filter((payment) => payment.effective && payment.category === key).reduce((sum, payment) => sum + payment.amount, 0),
+      })),
+    };
+  }
+
+  const releasedDrawings = new Set<string>();
+  const deliverables = files.status === "fulfilled" ? files.value.flatMap((row) => {
+    if (!row.service_workflow_id || !row.delivered_at) return [];
+    try {
+      const url = new URL(String(row.drive_file_url ?? ""));
+      if (url.protocol !== "https:" || url.username || url.password) return [];
+      const drawing = clean(row.drawing_no || row.title || row.id).toLowerCase();
+      const key = `${row.service_workflow_id}:${drawing}`;
+      if (releasedDrawings.has(key)) return [];
+      releasedDrawings.add(key);
+      return [{ id: String(row.id), title: String(row.title || "Project document"),
+        drawing: String(row.drawing_no || ""), revision: String(row.revision_no || ""),
+        deliveredAt: String(row.delivered_at), url: url.href }];
+    } catch { return []; }
+  }).slice(0, 12) : null;
+  return {
+    finance, deliverables,
+    documentActions: register.status === "fulfilled" && register.value.length < 5000
+      ? clientDocumentChecklist(register.value).filter(({ status }) =>
+        ["Missing", "Pending", "Partially received", "Returned or unavailable"].includes(status))
+      : null,
+  };
+}
+
 export async function GET(request:NextRequest){
   try{
     const mode=clean(request.nextUrl.searchParams.get("mode"),30).toLowerCase();
@@ -114,6 +172,16 @@ export async function GET(request:NextRequest){
     }
     const user=await requireLocalSession(request) as Row|null;
     if(!user)return NextResponse.json({success:false,error:"Session expired."},{status:401});
+    if (mode === "project-readiness") {
+      const projectCode = normalizeProjectCode(request.nextUrl.searchParams.get("projectId"));
+      const headers = { "Cache-Control": "private, no-store" };
+      if (roleOf(user) !== "client" || !projectIdsOf(user).includes(projectCode)) {
+        return NextResponse.json({ success: false, error: "Access denied." }, { status: 403, headers });
+      }
+      const [project] = await selectRows("projects", { select: "id", filters: { project_code: projectCode }, limit: 1 });
+      if (!project) return NextResponse.json({ success: false, error: "Project not found." }, { status: 404, headers });
+      return NextResponse.json({ success: true, data: await projectReadiness(project) }, { headers });
+    }
     return NextResponse.json({success:true,data:await buildWorkspace(user)},{headers:{"Cache-Control":"no-store, max-age=0","X-Landview-Data":"supabase"}});
   }catch(error:any){const message=error?.message||"Could not load client portal.";return NextResponse.json({success:false,error:message},{status:statusForMessage(message)});}
 }
