@@ -130,5 +130,5 @@ test("financial reports are wired into Billing and provide safe CSV exports",()=
  assert.match(ui,/csvDownload/);
  assert.match(ui,/protectedText=\/\^\[=\+@/);
  assert.match(ui,/onlyDue/);
- assert.match(ui,/date fallback/i);
+ assert.match(ui,/Unverified import invoice age/);
 });
