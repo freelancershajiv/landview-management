@@ -93,8 +93,9 @@ test("filled, soft, neutral and semantic buttons meet WCAG AA normal text in bot
 test("high-use project, payment, Site Visit and employee controls use the central contract", () => {
   const expected = [
     ["components/admin-site-visit-entry.tsx", ["primary"]],
-    ["app/admin/finance/due-bills/page.tsx", ["primary","secondary","tab-active"]],
-    ["app/admin/finance/workspace/page.tsx", ["primary","secondary","success","tab-active"]],
+    // Solid-red Billing and Due tabs use primary; tab-active is for soft variants only.
+    ["app/admin/finance/due-bills/page.tsx", ["primary","secondary"]],
+    ["app/admin/finance/workspace/page.tsx", ["primary","secondary","success"]],
     ["app/admin/finance/bills/page.tsx", ["primary","secondary","soft","danger"]],
     ["components/new-site-entry-center.tsx", ["primary","secondary","success","danger"]],
     ["components/new-site-entry-center-v2.tsx", ["primary","secondary","success","danger"]],
