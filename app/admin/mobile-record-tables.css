@@ -1,0 +1,86 @@
+/* Phone layouts for wide management registers. The same cells and actions
+   remain in the desktop table and the phone layout. */
+@media screen and (max-width: 640px) {
+  .portal-admin.portal-admin .register-scroll:has(> [data-mobile-table]),
+  .portal-admin.portal-admin .b2-table-wrap:has(> [data-mobile-table]),
+  .portal-admin.portal-admin .bm-table-wrap:has(> [data-mobile-table]),
+  .portal-admin.portal-admin .sv43-table-wrap:has(> [data-mobile-table]) {
+    overflow: visible !important;
+    min-width: 0 !important;
+  }
+
+  .portal-admin.portal-admin table[data-mobile-table][data-mobile-table] {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .portal-admin.portal-admin [data-mobile-table] > thead {
+    position: absolute !important;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .portal-admin.portal-admin [data-mobile-table] > tbody {
+    display: grid !important;
+    gap: 10px;
+  }
+
+  .portal-admin.portal-admin [data-mobile-table] > tbody > tr {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+    padding: 6px;
+    border: 1px solid var(--lv-border-default);
+    border-radius: 12px;
+    background: var(--lv-surface-panel) !important;
+  }
+
+  .portal-admin.portal-admin [data-mobile-table] > tbody > tr > td,
+  .portal-admin.portal-admin table.project-table[data-mobile-table] > tbody > tr > td:first-child {
+    display: block !important;
+    position: static !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    padding: 8px !important;
+    white-space: normal !important;
+    overflow-wrap: anywhere;
+    text-align: start !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    background: transparent !important;
+  }
+
+  .portal-admin.portal-admin [data-mobile-table] td[data-mobile-label]::before {
+    content: attr(data-mobile-label);
+    display: block;
+    margin-bottom: 4px;
+    color: var(--lv-text-secondary);
+    font-size: 11px;
+    font-weight: 750;
+  }
+
+  .portal-admin.portal-admin [data-mobile-table] > tbody > tr > td:first-child,
+  .portal-admin.portal-admin [data-mobile-table] td:is([colspan], [data-mobile-label="Location / Area"], [data-mobile-label="WhatsApp"], [data-mobile-label="Action"], [data-mobile-label="Actions"], [data-mobile-label="Receipt"], [data-mobile-label="Reason"]) {
+    grid-column: 1 / -1;
+  }
+
+  .portal-admin.portal-admin [data-mobile-table] :is(.project-main, .wa-controls, .service-summary, .b2-row-actions, .bm-row-actions) {
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .portal-admin.portal-admin [data-mobile-table] .b2-milestone {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .portal-admin.portal-admin [data-mobile-table] :is(select, .bm-btn, .b2-small, .sv43-link) {
+    max-width: 100%;
+    min-height: 44px;
+  }
+}

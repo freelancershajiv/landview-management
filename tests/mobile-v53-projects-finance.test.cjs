@@ -33,7 +33,7 @@ test("Mobile due actions navigate to original billing, receiving and statements"
 
 test("Projects register retains every lifecycle and WhatsApp control", () => {
   assert.match(projects, /className="register-scroll"/);
-  assert.match(projects, /<table className="project-table">/);
+  assert.match(projects, /<table role="table" data-mobile-table="" className="project-table">/);
   assert.match(projects, /className="projects-mobile-swipe"/);
   assert.match(projects, /href=\{\x60\/admin\/projects\/\$\{encodeURIComponent\(id\)\}\x60\}/);
   assert.match(projects, /aria-label=\{\x60Open \$\{id\} project dashboard\x60\}/);
@@ -42,11 +42,15 @@ test("Projects register retains every lifecycle and WhatsApp control", () => {
   }
 });
 
-test("Project table sticky identifier does not trap expanded team-assignments row", () => {
+test("Project table keeps the tablet sticky identifier and unsticks phone cards", () => {
   assert.match(css, /project-table tbody td:first-child:not\(\[colspan\]\)/);
   assert.match(css, /project-table tbody td\[colspan\] \{/);
   assert.match(css, /project-table \.project-main/);
   assert.match(css, /project-id-link/);
+  const phoneTables = fs.readFileSync("app/admin/mobile-record-tables.css", "utf8");
+  assert.match(phoneTables, /max-width: 640px/);
+  assert.match(phoneTables, /position: static !important/);
+  assert.match(projects, /data-mobile-label="Service team"/);
 });
 
 test("Due cards are mobile only; desktop table remains the original primary view", () => {

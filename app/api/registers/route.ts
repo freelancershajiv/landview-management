@@ -99,9 +99,19 @@ async function loadRegister(user: Row) {
   };
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await requirePortalSession(["admin", "manager", "employee"]);
+    const projectCode = request.nextUrl.searchParams.get("projectDocuments");
+    if (projectCode !== null) {
+      const project = await projectByCode(projectCode, session.user as Row);
+      const documents = await selectRows("client_document_register", {
+        select: "document_name,collection_status,return_status,updated_at",
+        filters: { project_id: project.id }, order: "updated_at:desc", limit: 5000,
+      });
+      if (documents.length >= 5000) throw new Error("The project document register is incomplete.");
+      return NextResponse.json({ success: true, data: documents }, { headers: { "Cache-Control": "private, no-store" } });
+    }
     return NextResponse.json({ success: true, data: await loadRegister(session.user as Row) });
   } catch (error) {
     return NextResponse.json({ success: false, error: error instanceof Error ? error.message : "Could not load registers." }, { status: 500 });

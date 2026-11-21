@@ -10,6 +10,7 @@ import { notifyClientProjectStage } from "@/lib/client-project-whatsapp";
 import { PROJECT_SERVICE_FOLDERS, uploadProjectFile } from "@/lib/project-service-folders";
 import WorkflowStage from "@/components/workflow-stage";
 import ProjectReceiptHistory from "@/components/project-receipt-history";
+import ProjectNextAction from "./project-next-action";
 
 const WORKFLOW_ORDER = [
   "Architectural Design",
@@ -175,7 +176,7 @@ export default function ProjectDetailPage(){
       <div className="form-actions"><button type="button" onClick={remove} className="btn pc-danger" data-lv-button="danger">Delete project</button><span className="pc-note">Created: {formatDate(project?.Created_Date)} · Updated: {formatDate(project?.Updated_At)}</span><button type="button" className="btn" data-lv-button="secondary" onClick={()=>setDraft(project)}>Reset changes</button><button className="btn btn-dark" data-lv-button="primary" disabled={savingProject}>{savingProject?"Saving...":"Save all project details"}</button></div>
     </form>}
 
-    {tab==="overview"&&<><section className="pc-grid">
+    {tab==="overview"&&<><ProjectNextAction key={projectId} projectId={projectId} openDocuments={()=>setTab("documents")}/><section className="pc-grid">
       <div className="pc-stat"><span>Current stage</span><strong>{idOf(project,["Current_Stage","Current Stage"])||"Design Stage"}</strong><small>{formatDate(project.Start_Date||project["Start Date"])}</small></div>
       <div className="pc-stat"><span>Workflow progress</span><strong>{progress}%</strong><small>{completed} of {orderedTasks.length} required services completed</small></div>
       <div className="pc-stat"><span>Outstanding</span><strong><Money value={due}/></strong><small><Money value={paid}/> received · live finance</small></div>

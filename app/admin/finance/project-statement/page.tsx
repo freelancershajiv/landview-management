@@ -159,33 +159,33 @@ export default function ProjectStatementPageV43() {
       </section>
       <section className="sv43-panel">
         <div className="sv43-section-head"><div><h2>Service bills & invoices</h2><p>Effective bills after discounts and posted credit/debit notes. Draft and adjustment mirror bills are excluded.</p></div><span className="sv43-tag">{data.invoices.length} active services</span></div>
-        <div className="sv43-table-wrap"><table><thead><tr>
-          <th>Invoice / Bill</th><th>Service</th><th>Category</th>
-          <th className="right">Gross</th><th className="right">Discount</th><th className="right">Net</th>
-          <th className="right">To invoices</th><th className="right">Invoice open*</th>
-        </tr></thead><tbody>{data.invoices.map(line => <tr key={line.billCode}>
-          <td><strong>{line.invoiceCode || line.billCode}</strong><small>{line.billCode} · {date(line.billDate)}</small></td>
-          <td>{line.service}<small>{line.status}</small></td><td>{line.category}</td>
-          <td className="right">{money(line.gross)}</td>
-          <td className="right">{money(line.directDiscount + line.creditNote)}<small>Debit note: {money(line.debitNote)}</small></td>
-          <td className="right">{money(line.net)}</td><td className="right">{money(line.allocated)}</td>
-          <td className="right">{money(line.invoiceDueBeforeProjectOffsets)}</td>
+        <div className="sv43-table-wrap"><table role="table" data-mobile-table=""><thead role="rowgroup"><tr role="row">
+          <th role="columnheader">Invoice / Bill</th><th role="columnheader">Service</th><th role="columnheader">Category</th>
+          <th role="columnheader" className="right">Gross</th><th role="columnheader" className="right">Discount</th><th role="columnheader" className="right">Net</th>
+          <th role="columnheader" className="right">To invoices</th><th role="columnheader" className="right">Invoice open*</th>
+        </tr></thead><tbody role="rowgroup">{data.invoices.map(line => <tr role="row" key={line.billCode}>
+          <td role="cell" data-mobile-label="Invoice / Bill"><strong>{line.invoiceCode || line.billCode}</strong><small>{line.billCode} · {date(line.billDate)}</small></td>
+          <td role="cell" data-mobile-label="Service">{line.service}<small>{line.status}</small></td><td role="cell" data-mobile-label="Category">{line.category}</td>
+          <td role="cell" data-mobile-label="Gross" className="right">{money(line.gross)}</td>
+          <td role="cell" data-mobile-label="Discount" className="right">{money(line.directDiscount + line.creditNote)}<small>Debit note: {money(line.debitNote)}</small></td>
+          <td role="cell" data-mobile-label="Net" className="right">{money(line.net)}</td><td role="cell" data-mobile-label="To invoices" className="right">{money(line.allocated)}</td>
+          <td role="cell" data-mobile-label="Invoice open*" className="right">{money(line.invoiceDueBeforeProjectOffsets)}</td>
         </tr>)}</tbody></table></div>
         {!data.invoices.length && <p className="sv43-empty">No active service bills found.</p>}
         <p>* Individual invoice balances are shown before project-wide advances and write-off relief.</p>
       </section>
       <section className="sv43-panel">
         <div className="sv43-section-head"><div><h2>Payments & verified receipts</h2><p>Every effective project payment appears here, including genuine legacy manual payments even when an online receipt was not issued.</p></div><span className="sv43-tag">{data.payments.length} payments · {data.counts.verifiedReceipts} online receipts</span></div>
-        <div className="sv43-table-wrap"><table><thead><tr>
-          <th>Payment</th><th>Date / Method</th><th className="right">Received</th>
-          <th className="right">Allocated to invoices</th><th className="right">Not allocated</th><th>Receipt</th>
-        </tr></thead><tbody>{data.payments.map(payment => <tr key={payment.paymentCode}>
-          <td><strong>{payment.paymentCode}</strong><small>{payment.category}{payment.legacyManual ? " · Historical entry" : ""}</small></td>
-          <td>{date(payment.date)}<small>{payment.method || "—"}{payment.reference ? " · " + payment.reference : ""}</small></td>
-          <td className="right">{money(payment.amount)}</td>
-          <td className="right">{money(payment.allocatedToInvoices)}</td>
-          <td className="right">{money(payment.notAllocatedToInvoices)}</td>
-          <td>{payment.receiptUrl ? <>
+        <div className="sv43-table-wrap"><table role="table" data-mobile-table=""><thead role="rowgroup"><tr role="row">
+          <th role="columnheader">Payment</th><th role="columnheader">Date / Method</th><th role="columnheader" className="right">Received</th>
+          <th role="columnheader" className="right">Allocated to invoices</th><th role="columnheader" className="right">Not allocated</th><th role="columnheader">Receipt</th>
+        </tr></thead><tbody role="rowgroup">{data.payments.map(payment => <tr role="row" key={payment.paymentCode}>
+          <td role="cell" data-mobile-label="Payment"><strong>{payment.paymentCode}</strong><small>{payment.category}{payment.legacyManual ? " · Historical entry" : ""}</small></td>
+          <td role="cell" data-mobile-label="Date / Method">{date(payment.date)}<small>{payment.method || "—"}{payment.reference ? " · " + payment.reference : ""}</small></td>
+          <td role="cell" data-mobile-label="Received" className="right">{money(payment.amount)}</td>
+          <td role="cell" data-mobile-label="Allocated to invoices" className="right">{money(payment.allocatedToInvoices)}</td>
+          <td role="cell" data-mobile-label="Not allocated" className="right">{money(payment.notAllocatedToInvoices)}</td>
+          <td role="cell" data-mobile-label="Receipt">{payment.receiptUrl ? <>
             <a href={payment.receiptUrl} target="_blank" rel="noopener noreferrer">{payment.receiptCode || "View verified receipt"}</a>
             <small><a href={"/api/billing/receipt-print?token=" + encodeURIComponent(payment.receiptUrl.split("/").at(-1) || "") + "&autoprint=1"}
               target="_blank" rel="noopener noreferrer">Print receipt / Save PDF</a></small>
@@ -197,9 +197,9 @@ export default function ProjectStatementPageV43() {
         <div className="sv43-section-head"><div><h2>Adjustments, write-offs & recoveries</h2>
           <p>Financial corrections already reflected in the statement totals; not extra charges.</p></div></div>
         {data.adjustments.length > 0 && <><h3>Credit / Debit Notes</h3>
-          <div className="sv43-table-wrap"><table><thead><tr><th>Correction</th><th>Original bill</th><th>Date</th><th>Type</th><th className="right">Amount</th><th>Reason</th></tr></thead><tbody>{data.adjustments.map(item => <tr key={item.code}><td>{item.code}</td><td>{item.billCode}</td><td>{date(item.date)}</td><td>{item.kind}</td><td className="right">{money(item.amount)}</td><td>{item.reason}</td></tr>)}</tbody></table></div></>}
+          <div className="sv43-table-wrap"><table role="table" data-mobile-table=""><thead role="rowgroup"><tr role="row"><th role="columnheader">Correction</th><th role="columnheader">Original bill</th><th role="columnheader">Date</th><th role="columnheader">Type</th><th role="columnheader" className="right">Amount</th><th role="columnheader">Reason</th></tr></thead><tbody role="rowgroup">{data.adjustments.map(item => <tr role="row" key={item.code}><td role="cell" data-mobile-label="Correction">{item.code}</td><td role="cell" data-mobile-label="Original bill">{item.billCode}</td><td role="cell" data-mobile-label="Date">{date(item.date)}</td><td role="cell" data-mobile-label="Type">{item.kind}</td><td role="cell" data-mobile-label="Amount" className="right">{money(item.amount)}</td><td role="cell" data-mobile-label="Reason">{item.reason}</td></tr>)}</tbody></table></div></>}
         {data.writeoffs.length > 0 && <><h3>Write-offs & Recoveries</h3>
-          <div className="sv43-table-wrap"><table><thead><tr><th>Effective date</th><th>Billing category</th><th>Event type</th><th className="right">Amount</th></tr></thead><tbody>{data.writeoffs.map((item,i) => <tr key={String(i)+item.date}><td>{date(item.date)}</td><td>{item.category}</td><td>{item.kind}</td><td className="right">{money(item.amount)}</td></tr>)}</tbody></table></div></>}
+          <div className="sv43-table-wrap"><table role="table" data-mobile-table=""><thead role="rowgroup"><tr role="row"><th role="columnheader">Effective date</th><th role="columnheader">Billing category</th><th role="columnheader">Event type</th><th role="columnheader" className="right">Amount</th></tr></thead><tbody role="rowgroup">{data.writeoffs.map((item,i) => <tr role="row" key={String(i)+item.date}><td role="cell" data-mobile-label="Effective date">{date(item.date)}</td><td role="cell" data-mobile-label="Billing category">{item.category}</td><td role="cell" data-mobile-label="Event type">{item.kind}</td><td role="cell" data-mobile-label="Amount" className="right">{money(item.amount)}</td></tr>)}</tbody></table></div></>}
       </section>}
     </>}
   </main>;
