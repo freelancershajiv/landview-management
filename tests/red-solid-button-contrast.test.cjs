@@ -63,3 +63,41 @@ test("forced white labels remain WCAG AA on LAND VIEW solid-red palette", () => 
     assert.ok(ratio>=4.5, bg + " has insufficient white-on-red contrast "+ratio.toFixed(2)+":1");
   }
 });
+
+test("inverse text color is defined in both private palettes for legacy solid fills", () => {
+  const lightStart = theme.indexOf('html:not([data-theme="dark"]) :is(');
+  const darkStart = theme.indexOf('html[data-theme="dark"] :is(');
+  assert.ok(lightStart > 0 && darkStart > lightStart, "Expected light then dark palette");
+  assert.match(theme.slice(lightStart,darkStart), /--lv-text-inverse:\s*#ffffff\s*!important;/);
+  assert.match(theme.slice(darkStart,theme.indexOf("/* Private component scale",darkStart)), /--lv-text-inverse:\s*#ffffff\s*!important;/);
+  assert.equal((theme.match(/--lv-text-inverse: #ffffff !important/g)||[]).length,2);
+});
+
+test("inspected red-filled actions are protected explicitly instead of a generic .primary override", () => {
+  const audited = [
+    ["components/admin-todo-workspace.tsx",".tws-primary"],
+    ["components/admin-todo-automation-center.tsx",".ta-btn.primary"],
+    ["components/admin-todo-workflow-center.tsx",".twf-actions button.primary"],
+    ["components/admin-todo-template-center.tsx",".tt-btn.primary"],
+    ["components/admin-todo-reports.tsx",".tr-btn.primary"],
+    ["components/admin-todo-workload-center.tsx",".wl-btn.primary"],
+    ["components/admin-todo-calendar.tsx",".tc-btn.primary"],
+    ["components/admin-todo-management-alerts.tsx",".ma-btn.primary"],
+    ["components/project-lifecycle-workspace.tsx",".lwx-btn.primary"],
+    ["app/admin/finance/workspace/billing-workspace.css",".b2-small.primary"],
+    ["components/admin-todo-bulk-actions.tsx",".tb-button.primary"],
+    ["components/admin-todo-reminder-center.tsx",".trc-save"],
+    ["app/admin/finance/writeoffs/writeoffs.css",".wo-toggle button.active"],
+  ];
+  const block=theme.slice(theme.indexOf("/* Audited Admin routes with old solid-red button classes."));
+  assert.ok(block.startsWith("/* Audited Admin routes"),"Final audited guard missing");
+  assert.doesNotMatch(block,/\.b2-tab\.active|\.due-filter\.active|\.twf-tabs button\.active|\.lwx-tabs button\.active/,
+    "Potential pale selected tabs must not get a white foreground without red fill");
+  for (const [file,selector] of audited) {
+    const source=read(file);
+    assert.ok(source.includes(selector), file + " no longer contains " + selector);
+    assert.ok(block.includes(selector), "The filled red action is not protected: " + file);
+  }
+  assert.match(block, /color:\s*#fff\s*!important/);
+  assert.match(block, /-webkit-text-fill-color:\s*#fff\s*!important/);
+});
