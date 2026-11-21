@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { landViewApi } from "@/lib/api";
 import {
   BILL_CATEGORIES,
@@ -35,6 +35,8 @@ type EditLine = {
   notes: string;
   currentNet: number;
   originalDate: string;
+  originalStoredDate: string;
+  originalStatus: string;
   originalCategory: BillCategory;
   originalService: string;
   originalNotes: string;
@@ -55,7 +57,7 @@ function pick(row: Row, ...keys: string[]) {
 function projectCode(value: unknown) {
   const raw = text(value).toUpperCase();
   const match = raw.match(/^(?:LV[\s_-]*)?0*(\d+)$/i);
-  return match ? `LV-${Number(match[1])}` : "";
+  return match ? `LV-${String(Number(match[1])).padStart(3, "0")}` : "";
 }
 function billId(row: Row) { return text(pick(row, "Bill_ID", "bill_code")); }
 function billStatus(row: Row) { return text(pick(row, "Status", "status")) || "Issued"; }
@@ -117,7 +119,8 @@ function pricingFor(line: EditLine) {
 }
 function linesForProject(records: Row[], adjustments: Row[]): EditLine[] {
   const existing = records.map((row) => {
-    const date = text(pick(row, "Bill_Date", "bill_date")).slice(0, 10) || today();
+    const storedDate = text(pick(row, "Bill_Date", "bill_date")).slice(0, 10);
+    const date = storedDate || today();
     const category = categoryOf(row);
     const service = serviceText(pick(row, "Description", "description"));
     const discount = Math.max(0, num(pick(row, "Discount", "discount")));
@@ -132,7 +135,7 @@ function linesForProject(records: Row[], adjustments: Row[]): EditLine[] {
       quantity: String(quantity || 1), unitPrice: unitPrice > 0 ? String(unitPrice) : "", gross: String(gross),
       discount: String(discount), savedDiscount: discount, notes,
       currentNet: effectiveNet(row, adjustments),
-      originalDate: date, originalCategory: category, originalService: service, originalNotes: notes,
+      originalDate: date, originalStoredDate: storedDate, originalStatus: billStatus(row), originalCategory: category, originalService: service, originalNotes: notes,
       originalGross: gross, originalQuantity: quantity, originalUnitPrice: unitPrice,
     } satisfies EditLine;
   });
@@ -145,7 +148,7 @@ function linesForProject(records: Row[], adjustments: Row[]): EditLine[] {
     billId: "", isNew: true, isDraft: defaultDraft, template: true, removed: false,
     date: defaultDate, category: item.category, service: item.service, entryMode: item.defaultMode,
     quantity: "1", unitPrice: "", gross: "", discount: "0", savedDiscount: 0, notes: "", currentNet: 0,
-    originalDate: defaultDate, originalCategory: item.category, originalService: item.service, originalNotes: "",
+    originalDate: defaultDate, originalStoredDate: "", originalStatus: "", originalCategory: item.category, originalService: item.service, originalNotes: "",
     originalGross: 0, originalQuantity: 0, originalUnitPrice: 0,
   } satisfies EditLine));
 
@@ -198,6 +201,50 @@ export default function FullBillEditorPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const [revisionReason, setRevisionReason] = useState("");
+  const [revisions, setRevisions] = useState<Row[]>([]);
+  const [pendingNotice, setPendingNotice] = useState(false);
+  const pendingRevision = useRef<{ id: string; fingerprint: string; projectCode: string } | null>(null);
+  const savingRef = useRef(false);
+  const pendingStorageKey = "lv-full-bill-editor-42";
+  useEffect(() => {
+    try {
+      const saved = window.sessionStorage.getItem(pendingStorageKey);
+      const item = saved ? JSON.parse(saved) : null;
+      if (item && typeof item.id === "string" && typeof item.fingerprint === "string" &&
+          typeof item.projectCode === "string" && item.createdAt > Date.now() - 86400000) {
+        pendingRevision.current = { id: item.id, fingerprint: item.fingerprint, projectCode: item.projectCode };
+        window.setTimeout(() => setPendingNotice(true), 0);
+      }
+    } catch { /* Browser storage may be disabled; in-memory identity still works. */ }
+  }, []);
+  function forgetPendingRevision() {
+    pendingRevision.current = null;
+    setPendingNotice(false);
+    try { window.sessionStorage.removeItem(pendingStorageKey); } catch { /* Ignore storage restrictions. */ }
+  }
+  async function verifyPendingRevision() {
+    const pending = pendingRevision.current;
+    if (!pending) return;
+    setError(""); setMessage(""); setLoading(true);
+    try {
+      const url = `/api/billing/full-revision-v42?projectId=${encodeURIComponent(pending.projectCode)}&requestId=${encodeURIComponent(pending.id)}`;
+      const result = await readJson(await fetch(url, { credentials: "same-origin", cache: "no-store" }), "Could not verify earlier revision.") as Row;
+      if (result.found) {
+        forgetPendingRevision();
+        await load(pending.projectCode);
+        setMessage("The previous atomic revision is already recorded. No duplicate service rows were created.");
+      } else {
+        setError("No matching revision was recorded. Retry the SAME unchanged revision or inspect the invoice history before starting a different save.");
+      }
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Could not confirm earlier revision."); }
+    finally { setLoading(false); }
+  }
+  function startDifferentRevisionAfterReview() {
+    if (!window.confirm("Confirm you checked the bill and invoice history for the prior save. Start a different revision?")) return;
+    forgetPendingRevision();
+    setError("Previous request cleared after review. Confirm the loaded bill amounts before submitting another revision.");
+  }
 
   const summary = useMemo(() => {
     const active = lines.filter(isUsedLine);
@@ -210,29 +257,31 @@ export default function FullBillEditorPage() {
     };
   }, [lines]);
 
-  const visibleLines = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return lines.filter((line) => showUnused || !line.isNew || editableGross(line) > 0).filter((line) => {
-      if (!q) return true;
-      return [line.service, line.category, line.billId, line.notes].some((value) => text(value).toLowerCase().includes(q));
-    });
-  }, [lines, search, showUnused]);
+  // Cheap (<60 row) derivation is intentional: React Compiler owns memoization.
+  const query = search.trim().toLowerCase();
+  const visibleLines = lines.filter((line) => showUnused || !line.isNew || editableGross(line) > 0).filter((line) => {
+    if (!query) return true;
+    return [line.service, line.category, line.billId, line.notes].some((value) => text(value).toLowerCase().includes(query));
+  });
 
   const load = useCallback(async (raw: string) => {
     const id = projectCode(raw);
     if (!id) { setError("Enter a valid File ID, for example LV-157."); return; }
     setFileId(id); setLoading(true); setError(""); setMessage("");
     try {
-      const [billRowsRaw, adjustmentRowsRaw] = await Promise.all([
+      const [billRowsRaw, adjustmentRowsRaw, revisionHistory] = await Promise.all([
         landViewApi.getBillingRecords(id),
         readJson(await fetch(`/api/billing/adjustments?projectId=${encodeURIComponent(id)}`, { credentials: "same-origin", cache: "no-store" }), "Could not load bill adjustments."),
+        readJson(await fetch(`/api/billing/full-revision-v42?projectId=${encodeURIComponent(id)}`, { credentials: "same-origin", cache: "no-store" }), "Could not load bill revision history."),
       ]);
       const billRows = Array.isArray(billRowsRaw)
-        ? billRowsRaw.filter((row) => !/credit note|debit note/i.test(text(pick(row as Row, "Created_Via", "created_via")))) as Row[]
+        ? billRowsRaw.filter((row) => !/credit note|debit note/i.test(text(pick(row as Row, "Created_Via", "created_via")))
+            && !["void","voided","cancelled","canceled"].includes(billStatus(row as Row).toLowerCase())) as Row[]
         : [];
       const adjustmentRows = Array.isArray(adjustmentRowsRaw) ? adjustmentRowsRaw as Row[] : [];
       setRecords(billRows);
       setLines(linesForProject(billRows, adjustmentRows));
+      setRevisions(Array.isArray((revisionHistory as Row)?.revisions) ? (revisionHistory as Row).revisions as Row[] : []);
       setWholeDiscount("");
       setDiscountReason("");
       const url = new URL(window.location.href);
@@ -274,7 +323,7 @@ export default function FullBillEditorPage() {
     setLines((current) => [...current, {
       key: `custom-${crypto.randomUUID()}`, billId: "", isNew: true, isDraft: defaultDraft, template: false, removed: false,
       date, category: "Engineering Bill", service: "", entryMode: "flat_amount", quantity: "1", unitPrice: "", gross: "", discount: "0", savedDiscount: 0, notes: "", currentNet: 0,
-      originalDate: date, originalCategory: "Engineering Bill", originalService: "", originalNotes: "", originalGross: 0, originalQuantity: 0, originalUnitPrice: 0,
+      originalDate: date, originalStoredDate: "", originalStatus: "", originalCategory: "Engineering Bill", originalService: "", originalNotes: "", originalGross: 0, originalQuantity: 0, originalUnitPrice: 0,
     }]);
   }
   function applyDateToAll(date: string) {
@@ -311,7 +360,7 @@ export default function FullBillEditorPage() {
   }
 
   async function save() {
-    if (!fileId || !lines.length || saving) return;
+    if (!fileId || !lines.length || savingRef.current || saving) return;
     const active = lines.filter(isUsedLine);
     for (const line of active) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(line.date)) { setError(`Choose a valid date for ${line.service || "the service"}.`); return; }
@@ -323,115 +372,121 @@ export default function FullBillEditorPage() {
       if (!(pricing.gross > 0)) { setError(`Enter a valid amount for ${line.service}.`); return; }
       if (discount < 0 || discount > pricing.gross) { setError(`Discount for ${line.service} must be between zero and ${money(pricing.gross)}.`); return; }
     }
+    const reason = revisionReason.trim();
+    if (reason.length < 12) { setError("Enter an evidence-based revision reason (at least 12 characters)."); return; }
 
-    setSaving(true); setError(""); setMessage("");
-    let changed = 0;
-    try {
-      const batchId = crypto.randomUUID();
-      for (const [index, line] of lines.entries()) {
-        const pricing = pricingFor(line);
-        if (line.isNew) {
-          if (line.removed || !(pricing.gross > 0)) continue;
-          await readJson(await fetch("/api/billing/write", {
-            method: "POST", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: "saveBill", Project_ID: fileId, Bill_Date: line.date,
-              Billing_Category: line.category, Category: line.category,
-              Description: `[${line.category}] ${line.service.trim()}`,
-              Quantity: pricing.quantity, Unit_Price: pricing.unitPrice,
-              Amount: pricing.gross, Discount: num(line.discount),
-              Status: line.isDraft ? "Draft" : "Issued", Notes: line.notes.trim(),
-              Created_Via: "Full Bill Editor", Idempotency_Key: `direct-full-${batchId}-${index}`,
-            }),
-          }), "Could not add the new service row.");
-          changed += 1;
-          continue;
-        }
-
-        if (line.isDraft) {
-          if (line.removed) {
-            await readJson(await fetch("/api/billing/bills", {
-              method: "DELETE", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ Bill_ID: line.billId, Project_ID: fileId }),
-            }), "Could not remove the draft service row.");
-            changed += 1;
-            continue;
-          }
-          const financialChanged = Math.abs(num(line.discount) - line.savedDiscount) > .009 || metadataChanged(line) || pricingChanged(line);
-          if (!financialChanged) continue;
-          await readJson(await fetch("/api/billing/bills", {
-            method: "PATCH", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              Bill_ID: line.billId, Project_ID: fileId, Bill_Date: line.date,
-              Billing_Category: line.category, Description: line.service.trim(),
-              Quantity: pricing.quantity, Unit_Price: pricing.unitPrice,
-              Amount: pricing.gross, Discount: num(line.discount), Notes: line.notes.trim(),
-            }),
-          }), "Could not update the draft service row.");
-          changed += 1;
-          continue;
-        }
-
-        if (line.removed) {
-          if (line.currentNet > .009) {
-            await readJson(await fetch("/api/billing/adjustments", {
-              method: "POST", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                action: "create", projectId: fileId, billCode: line.billId,
-                type: "Credit Note", amount: line.currentNet,
-                reason: "Full bill revision — service removed",
-                notes: line.notes.trim() || "Service removed through Full Bill Editor.",
-              }),
-            }), "Could not remove the issued service financially.");
-            changed += 1;
-          }
-          continue;
-        }
-
-        if (metadataChanged(line)) {
-          await readJson(await fetch("/api/billing/bills/metadata", {
-            method: "PATCH", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              Bill_ID: line.billId, Project_ID: fileId, Bill_Date: line.date,
-              Billing_Category: line.category, Description: line.service.trim(), Notes: line.notes.trim(),
-            }),
-          }), "Could not update issued bill details.");
-          changed += 1;
-        }
-
-        const desiredDiscount = Math.round(Math.max(0, num(line.discount)) * 100) / 100;
-        if (Math.abs(desiredDiscount - line.savedDiscount) > .009) {
-          await readJson(await fetch("/api/billing/service-discount", {
-            method: "POST", credentials: "same-origin", cache: "no-store", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              projectId: fileId, billCode: line.billId, discount: desiredDiscount,
-              reason: discountReason.trim() || "Full Bill Editor service discount",
-              notes: line.notes.trim(),
-            }),
-          }), "Could not update the service discount.");
-          changed += 1;
-        }
+    const operations: Row[] = [];
+    for (const line of lines) {
+      const newGross = editableGross(line);
+      const pricing = pricingFor(line);
+      if (line.isNew && (line.removed || newGross < .01)) continue;
+      const next = {
+        date: (!line.isNew && !line.isDraft && line.date === line.originalDate) ? line.originalStoredDate : line.date,
+        category: line.category,
+        service: line.service.trim(),
+        notes: line.notes.trim(),
+        gross: line.isNew || line.isDraft ? pricing.gross : line.originalGross,
+        discount: Math.round(num(line.discount) * 100) / 100,
+        quantity: line.isNew || line.isDraft ? pricing.quantity : line.originalQuantity,
+        unitPrice: line.isNew || line.isDraft ? pricing.unitPrice : line.originalUnitPrice,
+        status: line.isNew ? (line.isDraft ? "Draft" : "Issued") : line.originalStatus,
+      };
+      if (line.isNew) {
+        operations.push({ kind: "create", next });
+        continue;
       }
+      const expected = {
+        status: line.originalStatus, date: line.originalStoredDate, category: line.originalCategory,
+        service: line.originalService, notes: line.originalNotes,
+        gross: line.originalGross, discount: line.savedDiscount,
+        quantity: line.originalQuantity, unitPrice: line.originalUnitPrice,
+        effectiveNet: line.currentNet,
+      };
+      if (line.isDraft) {
+        if (line.removed) operations.push({ kind: "draft_void", billCode: line.billId, expected });
+        else if (Math.abs(num(line.discount) - line.savedDiscount) > .009 || metadataChanged(line) || pricingChanged(line))
+          operations.push({ kind: "draft_update", billCode: line.billId, expected, next });
+      } else if (line.removed) {
+        if (line.currentNet > .009) operations.push({ kind: "issued_remove", billCode: line.billId, expected });
+      } else if (Math.abs(num(line.discount) - line.savedDiscount) > .009 || metadataChanged(line)) {
+        operations.push({ kind: "issued_revision", billCode: line.billId, expected, next });
+      }
+    }
+    if (!operations.length) { setError(""); setMessage("No changes are needed. The full bill is already up to date."); return; }
+    if (operations.length > 60) { setError("Only 60 changed service rows may be submitted in one revision."); return; }
 
+    savingRef.current = true;
+    setSaving(true); setError(""); setMessage("");
+    try {
+      const body = { projectId: fileId, reason, operations };
+      const bytes = new TextEncoder().encode(JSON.stringify(body));
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const fingerprint = Array.from(new Uint8Array(digest)).map(byte => byte.toString(16).padStart(2, "0")).join("");
+      const previous = pendingRevision.current;
+      if (previous && (previous.projectCode !== fileId || previous.fingerprint !== fingerprint))
+        throw new Error("An earlier revision is unresolved. Check that revision before editing a different project or amount.");
+
+      const requestId = previous?.id || crypto.randomUUID();
+      const endpoint = "/api/billing/full-revision-v42";
+      const request = (preview: boolean) => fetch(endpoint, {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, requestId, preview }),
+      });
+      const preview = await readJson(await request(true), "Revision preview failed.") as Row;
+      if (!preview?.valid) throw new Error("Server could not validate all changed rows. Nothing was saved.");
+      if (!window.confirm(`Apply ${operations.length} change${operations.length === 1 ? "" : "s"} as ONE atomic revision for ${fileId}?\n\nRevised total: ${money(summary.revised)}\nOriginal bill records and audit history are retained. This cannot be undone automatically.`)) return;
+
+      if (!previous) {
+        pendingRevision.current = { id: requestId, fingerprint, projectCode: fileId };
+        setPendingNotice(true);
+        try { window.sessionStorage.setItem(pendingStorageKey, JSON.stringify({
+          id: requestId, fingerprint, projectCode: fileId, createdAt: Date.now(),
+        })); } catch { /* In-memory identity remains. */ }
+      }
+      const saved = await readJson(await request(false), "The full bill revision could not be confirmed.") as Row;
+      forgetPendingRevision();
       await load(fileId);
-      setMessage(changed
-        ? `Full bill editor applied ${changed} change${changed === 1 ? "" : "s"}. Issued-bill revisions remain separately audited; review the latest invoice and history.`
-        : "No changes were needed. The full bill is already up to date.");
+      setRevisionReason("");
+      setMessage(saved.recovered
+        ? `Revision ${requestId} was already recorded. No duplicate invoice or credit note was created.`
+        : `Atomic revision saved: ${saved.changeCount || operations.length} change${operations.length === 1 ? "" : "s"} with before/after history. All changes committed together.`);
     } catch (cause) {
-      const failure = `${changed ? `${changed} change${changed === 1 ? " was" : "s were"} saved before the error. ` : ""}${cause instanceof Error ? cause.message : "Could not save the full bill."}`;
-      await load(fileId).catch(() => undefined);
-      setError(failure);
-    } finally { setSaving(false); }
+      setError(`${cause instanceof Error ? cause.message : "Could not confirm the full bill revision."} No partial revision is allowed. Verify revision history before another submission.`);
+    } finally { savingRef.current = false; setSaving(false); }
   }
 
   return <main className="fbe">
     <style>{`
       .fbe{max-width:1700px;margin:0 auto;color:var(--lv-text-primary)}.fbe *{box-sizing:border-box}.fbe-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:14px}.fbe-head small{display:block;color:var(--lv-brand-text);font-size:8px;font-weight:950;letter-spacing:.13em}.fbe-head h1{margin:5px 0 3px;font-size:28px}.fbe-head p{margin:0;color:var(--lv-text-muted);font-size:9px;max-width:900px;line-height:1.55}.fbe-actions,.fbe-toolbar-left,.fbe-discount{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.fbe-btn{min-height:36px;padding:0 11px;border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);font-size:8px;font-weight:900;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}.fbe-btn.primary{background:var(--lv-brand-primary);border-color:var(--lv-brand-border);color:var(--lv-text-inverse)}.fbe-btn.danger{color:var(--lv-danger);border-color:var(--lv-danger)}.fbe-btn:disabled{opacity:.5;cursor:not-allowed}.fbe input,.fbe select,.fbe textarea{border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);font:inherit}.fbe-picker{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:7px;padding:11px;border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-panel);margin-bottom:12px}.fbe-picker input{min-height:39px;padding:8px 10px}.fbe-msg{padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:9px}.fbe-msg.bad{background:var(--lv-danger-soft);color:var(--lv-danger)}.fbe-msg.good{background:var(--lv-success-soft);color:var(--lv-success)}.fbe-panel{border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-panel);overflow:hidden}.fbe-toolbar{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 11px;border-bottom:1px solid var(--lv-border-default);flex-wrap:wrap}.fbe-toolbar input,.fbe-discount input{min-height:34px;padding:6px 8px;font-size:8px}.fbe-toolbar-search{min-width:220px}.fbe-discount{padding:9px 11px;border-bottom:1px solid var(--lv-border-default);background:var(--lv-brand-soft)}.fbe-discount input.amount{width:140px}.fbe-discount input.reason{min-width:260px;flex:1}.fbe-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;padding:10px 11px;border-bottom:1px solid var(--lv-border-default);background:var(--lv-surface-muted)}.fbe-kpi{padding:8px;border:1px solid var(--lv-border-subtle);border-radius:7px;background:var(--lv-surface-panel)}.fbe-kpi span{display:block;font-size:6px;text-transform:uppercase;color:var(--lv-text-muted);font-weight:950}.fbe-kpi strong{display:block;margin-top:4px;font-size:12px}.fbe-kpi.revised strong{color:var(--lv-brand-text)}.fbe-table-wrap{overflow:auto}.fbe-table{width:100%;border-collapse:collapse;min-width:1550px}.fbe-table th,.fbe-table td{padding:7px;border-bottom:1px solid var(--lv-border-subtle);vertical-align:top}.fbe-table th{background:var(--lv-surface-muted);font-size:7px;text-transform:uppercase;color:var(--lv-text-muted);text-align:left;position:sticky;top:0;z-index:1}.fbe-table input,.fbe-table select,.fbe-table textarea{width:100%;min-height:35px;padding:6px 7px;font-size:8px}.fbe-table input:disabled,.fbe-table select:disabled{opacity:.58}.fbe-table textarea{min-height:42px;resize:vertical}.fbe-service{min-width:190px}.fbe-money{width:115px}.fbe-qty{width:78px}.fbe-mode{width:130px}.fbe-date{width:118px}.fbe-category{width:150px}.fbe-state{width:120px}.fbe-notes{min-width:180px}.fbe-action{width:82px}.fbe-lock{font-size:7px;color:var(--lv-text-muted);line-height:1.35}.fbe-badge{display:inline-flex;min-height:22px;align-items:center;padding:0 7px;border-radius:999px;background:var(--lv-surface-muted);font-size:7px;font-weight:950}.fbe-badge.issued{color:var(--lv-warning)}.fbe-badge.available{color:var(--lv-text-muted)}.fbe-line-template{background:color-mix(in srgb,var(--lv-surface-muted) 45%,transparent)}.fbe-line-removed{opacity:.5}.fbe-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px}.fbe-footer small{color:var(--lv-text-muted);font-size:8px;max-width:900px}@media(max-width:850px){.fbe-head{align-items:flex-start;flex-direction:column}.fbe-actions{width:100%}.fbe-actions .fbe-btn{flex:1}.fbe-kpis{grid-template-columns:repeat(2,1fr)}.fbe-picker{grid-template-columns:1fr}.fbe-footer{align-items:stretch;flex-direction:column}.fbe-footer .fbe-btn{width:100%}.fbe-discount{display:grid;grid-template-columns:1fr}.fbe-discount input.amount,.fbe-discount input.reason{width:100%;min-width:0}.fbe-toolbar{align-items:stretch}.fbe-toolbar-left{width:100%}.fbe-toolbar-search{flex:1;min-width:140px}}
+      /* Billing 4.2 readability overrides: keep full tables scrollable on phones. */
+      .fbe-head small{font-size:11px}.fbe-head p{font-size:13px;line-height:1.5}
+      .fbe .fbe-btn{min-height:42px;font-size:12px;padding:8px 13px}
+      .fbe .fbe-kpi span,.fbe .fbe-badge,.fbe .fbe-lock,.fbe .fbe-panel small{font-size:11px}
+      .fbe .fbe-kpi strong{font-size:17px}
+      .fbe .fbe-table th,.fbe .fbe-table td{font-size:12px}
+      .fbe .fbe-table th{font-size:11px}
+      .fbe .fbe-table input,.fbe .fbe-table select,.fbe .fbe-table textarea,
+      .fbe .fbe-toolbar input,.fbe .fbe-discount input,.fbe .fbe-picker input{min-height:42px;font-size:13px}
+      .fbe .fbe-msg{font-size:12px}
+      .fbe .fbe-revision-panel{margin-top:14px;padding:16px;border:1px solid var(--lv-border-default);border-radius:12px;background:var(--lv-surface-panel)}
+      .fbe .fbe-revision-panel h2{margin:0 0 7px;font-size:18px}
+      .fbe .fbe-revision-panel p,.fbe .fbe-revision-panel label{font-size:12px;color:var(--lv-text-secondary);line-height:1.5}
+      .fbe .fbe-revision-reason{width:100%;min-height:76px;padding:10px 12px;font-size:14px;resize:vertical}
+      .fbe .fbe-revision-list details{border:1px solid var(--lv-border-default);border-radius:8px;margin-top:8px;padding:10px}
+      .fbe .fbe-revision-list summary{cursor:pointer;font-size:13px;font-weight:750}
+      .fbe .fbe-revision-list .fbe-history-grid{overflow-x:auto;margin-top:10px}
+      .fbe .fbe-revision-list table{border-collapse:collapse;width:100%;min-width:720px}
+      .fbe .fbe-revision-list th,.fbe .fbe-revision-list td{text-align:left;padding:9px;border:1px solid var(--lv-border-subtle);font-size:12px}
+      .fbe .fbe-revision-list th{background:var(--lv-surface-muted)}
+      .fbe .fbe-revision-guard{font-size:12px;line-height:1.5;padding:12px;border-left:3px solid var(--lv-brand-primary);margin-bottom:12px;background:var(--lv-surface-muted)}
+      @media(max-width:640px){.fbe .fbe-table input,.fbe .fbe-table select,.fbe .fbe-table textarea,
+        .fbe .fbe-revision-reason{font-size:16px}}
     `}</style>
 
     <header className="fbe-head">
-      <div><small>FINANCE / FULL BILL CONTROL</small><h1>Full Bill Editor</h1><p>Open a File ID once and edit every service bill together. New and draft services support Quantity × Rate or Flat Amount; issued financial values stay locked while service metadata and approved discounts remain editable.</p></div>
-      <div className="fbe-actions"><Link className="fbe-btn" href="/admin/finance/direct-bill">+ New Full Bill</Link><Link className="fbe-btn" href="/admin/finance/invoices">Generate Invoice</Link><Link className="fbe-btn" href="/admin/finance/service-payments">Add Payment</Link></div>
+      <div><small>BILLING / ATOMIC FULL BILL CONTROL · V4.2</small><h1>Full Bill Editor</h1><p>Review every service for a File ID, then save all changes together. Issued gross values remain locked; removal of an unpaid issued service creates an auditable credit note. The database commits the entire revision or none of it.</p></div>
+      <div className="fbe-actions"><Link className="fbe-btn" href="/admin/billing/direct-bill">+ New Full Bill</Link><Link className="fbe-btn" href="/admin/billing/invoices">Generate Invoice</Link><Link className="fbe-btn" href="/admin/billing/service-payments">Add Payment</Link></div>
     </header>
 
     <section className="fbe-picker">
@@ -439,8 +494,15 @@ export default function FullBillEditorPage() {
       <button className="fbe-btn primary" onClick={() => void load(fileId)} disabled={loading}>{loading ? "Loading…" : "Open Full Bill"}</button>
     </section>
 
-    {error ? <div className="fbe-msg bad">{error}</div> : null}
-    {message ? <div className="fbe-msg good">{message}</div> : null}
+    {pendingNotice && <div className="fbe-revision-guard" role="status">
+      <strong>An earlier revision submission needs confirmation.</strong> Check its history before changing amounts or retrying a different batch.
+      <div className="fbe-actions" style={{marginTop:9}}>
+        <button type="button" className="fbe-btn primary" onClick={() => void verifyPendingRevision()} disabled={saving || loading}>Check earlier revision</button>
+        <button type="button" className="fbe-btn" onClick={startDifferentRevisionAfterReview} disabled={saving || loading}>Start different revision after review</button>
+      </div>
+    </div>}
+    {error ? <div className="fbe-msg bad" role="alert">{error}</div> : null}
+    {message ? <div className="fbe-msg good" role="status">{message}</div> : null}
 
     <section className="fbe-panel">
       <div className="fbe-toolbar">
@@ -450,11 +512,11 @@ export default function FullBillEditorPage() {
           <input className="fbe-toolbar-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search service / bill"/>
           <button className="fbe-btn" onClick={() => setShowUnused((value) => !value)} disabled={!lines.length}>{showUnused ? "Hide Unused Services" : "Show All Services"}</button>
         </div>
-        <button className="fbe-btn primary" onClick={() => void save()} disabled={saving || !lines.length}>{saving ? "Saving Full Bill…" : "Save Whole Bill"}</button>
+        <button className="fbe-btn primary" onClick={() => void save()} disabled={saving || loading || !lines.length || revisionReason.trim().length < 12}>{saving ? "Checking / Saving…" : "Preview & Save Revision"}</button>
       </div>
 
       <div className="fbe-discount">
-        <strong style={{fontSize:8}}>Additional Whole Bill Discount</strong>
+        <strong style={{fontSize:12}}>Additional Whole Bill Discount</strong>
         <input className="amount" inputMode="decimal" placeholder="Amount" value={wholeDiscount} onChange={(event) => setWholeDiscount(event.target.value)}/>
         <input className="reason" placeholder="Reason / offer / negotiation note" value={discountReason} onChange={(event) => setDiscountReason(event.target.value)}/>
         <button className="fbe-btn" onClick={applyWholeDiscount} disabled={!summary.services}>Distribute Automatically</button>
@@ -498,9 +560,47 @@ export default function FullBillEditorPage() {
       </div>
 
       <div className="fbe-footer">
-        <small>All manual bill entry now uses the same pricing structure. Other Services can carry real quantities; Flat Amount is stored as Quantity 1 × Unit Rate. Issued gross values remain protected from direct editing.</small>
-        <button className="fbe-btn primary" onClick={() => void save()} disabled={saving || !lines.length}>{saving ? "Saving…" : "Save Whole Bill"}</button>
+        <small>All revisions are validated against the loaded bill snapshot. Changed draft rows, new services, discounts and eligible credit notes commit together. Previously issued gross values cannot be directly edited.</small>
+        <button type="button" className="fbe-btn primary" onClick={() => void save()} disabled={saving || loading || !lines.length || revisionReason.trim().length < 12}>{saving ? "Checking / Saving…" : "Preview & Save Revision"}</button>
       </div>
+    </section>
+
+    <section className="fbe-revision-panel">
+      <h2>Revision reason &amp; approval</h2>
+      <p>Every service update, draft void, new bill or issued-service credit is included in one database revision. Describe the instruction or supporting documentation before submitting.</p>
+      <label htmlFor="fbe-revision-reason">Reason for this full bill revision (required)</label>
+      <textarea id="fbe-revision-reason" className="fbe-revision-reason" maxLength={1200} value={revisionReason}
+        onChange={event => setRevisionReason(event.target.value)}
+        placeholder="Example: Client approved revised service discounts and the attached updated service schedule."/>
+      <p>Issued services with payment allocations cannot be removed automatically. Use reviewed financial corrections or refund procedures. Previously issued invoices retain their bill IDs and a before/after audit trail.</p>
+    </section>
+
+    <section className="fbe-revision-panel fbe-revision-list">
+      <h2>Full bill revision history</h2>
+      <p>{revisions.length} recent atomic revisions recorded for this project. Expand one to compare original and revised details.</p>
+      {!revisions.length && <p>No Full Bill Editor 4.2 revision has been recorded for this File ID.</p>}
+      {revisions.map((revision, index) => {
+        const changes = Array.isArray(revision.changes) ? revision.changes as Row[] : [];
+        return <details key={text(revision.revisionId) || String(index)}>
+          <summary>{text(revision.at).slice(0, 19).replace("T", " ")} · {text(revision.actor)} · {changes.length} changed service{changes.length === 1 ? "" : "s"}</summary>
+          <p><strong>Revision:</strong> {text(revision.revisionId)} · <strong>Reason:</strong> {text(revision.reason)}</p>
+          <div className="fbe-history-grid"><table>
+            <thead><tr><th>Operation</th><th>Bill ID</th><th>Original gross / discount</th><th>Revised gross / discount</th><th>Original status</th><th>Revised status / adjustment</th></tr></thead>
+            <tbody>{changes.map((change, changeIndex) => {
+              const before = change.before && typeof change.before === "object" ? change.before as Row : {};
+              const after = change.after && typeof change.after === "object" ? change.after as Row : {};
+              return <tr key={changeIndex}>
+                <td>{text(change.kind).replaceAll("_", " ")}</td>
+                <td>{text(after.billCode || before.billCode)}</td>
+                <td>{before.billCode ? `${money(before.gross)} / ${money(before.discount)}` : "New service"}</td>
+                <td>{`${money(after.gross)} / ${money(after.discount)}`}</td>
+                <td>{text(before.status) || "—"}</td>
+                <td>{text(after.status)}{after.creditNoteCode ? ` · Credit ${text(after.creditNoteCode)}` : ""}</td>
+              </tr>;
+            })}</tbody>
+          </table></div>
+        </details>;
+      })}
     </section>
   </main>;
 }

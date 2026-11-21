@@ -253,6 +253,18 @@ async function selectRowsPaged(input: Record<string, unknown>) {
 async function handleAction(action: string, input: Record<string, unknown>) {
   if (action === "health") return { backend: "supabase", ok: true, version: 18, globalOrder: true, schemaValidated: true };
   if (action === "trackVisitorAnalytics") return await db("rpc/track_website_analytics_event", { method: "POST", body: JSON.stringify({ p: input }) });
+  if (action === "applyFullBillRevisionV42") return await db("rpc/billing_v42_apply_full_revision", {
+    method: "POST",
+    body: JSON.stringify({
+      p_project_code: String(input.projectCode || "").trim(),
+      p_request_id: String(input.requestId || "").trim(),
+      p_request_hash: String(input.requestHash || "").trim(),
+      p_actor: String(input.actor || "").trim(),
+      p_reason: String(input.reason || "").trim(),
+      p_operations: Array.isArray(input.operations) ? input.operations : [],
+      p_preview: input.preview === true,
+    }),
+  });
   if (action === "applyBillingDiscount") return await db("rpc/apply_billing_discount", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_discount_date: String(input.discountDate || "").trim() || null, p_notes: String(input.notes || "").trim() || null, p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
   if (action === "applyBillingWriteOff") return await db("rpc/apply_billing_writeoff", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_writeoff_date: String(input.writeoffDate || input.date || "").trim() || null, p_reason: String(input.reason || "").trim(), p_notes: String(input.notes || "").trim(), p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
   if (action === "recoverBillingWriteOff") return await db("rpc/recover_billing_writeoff", { method: "POST", body: JSON.stringify({ p_project_code: String(input.projectCode || input.projectId || "").trim(), p_category: String(input.category || "").trim(), p_amount: num(input.amount), p_payment_date: String(input.paymentDate || input.date || "").trim() || null, p_payment_method: String(input.paymentMethod || "").trim() || null, p_deposit_account: String(input.depositAccount || "").trim() || null, p_reference_no: String(input.reference || input.referenceNo || "").trim() || null, p_notes: String(input.notes || "").trim() || null, p_created_by: String(input.createdBy || "").trim() || null, p_idempotency_key: String(input.idempotencyKey || "").trim() }) });
