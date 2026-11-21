@@ -155,9 +155,19 @@ export async function GET(request: NextRequest) {
       const projectCode = normalizeProjectCode(request.nextUrl.searchParams.get("projectId"));
       if (!projectCode) return json({ success: false, error: "Valid project ID required." }, 400);
       const workflows = await projectWorkflow(projectCode);
-      return json({ success: true, data: workflows.filter((row) =>
-        row.deliveryLocked && !["Delivered", "Delivered to Client"].includes(row.status),
-      ).map(({ id, serviceName, deliveryDue }) => ({ id, serviceName, deliveryDue })) });
+      const data = workflows.map(({ id, serviceName, status, statuses, deliveryDue, deliveryLocked }) => {
+        const index = statuses.indexOf(status as never);
+        return {
+          id,
+          serviceName,
+          status,
+          nextStatus: index >= 0 ? statuses[index + 1] : undefined,
+          delivered: status === statuses[statuses.length - 1],
+          deliveryDue,
+          deliveryLocked,
+        };
+      });
+      return json({ success: true, data });
     }
     if (mode === "proposal") return json({ success: true, data: { proposals: await proposalWorkflow(), statuses: ["Working", "Ready", "Sent", "Approved"] } });
     if (mode === "billing-projects") return json({ success: true, data: { projects: await billingProjects() } });

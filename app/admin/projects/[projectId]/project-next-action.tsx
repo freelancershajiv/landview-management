@@ -9,7 +9,15 @@ import { workItemHref, workScope, workScopeQuery, workTaskHref } from "@/lib/wor
 type WorkItem = Pick<TodoItem, "todo_code" | "title" | "status" | "priority" | "due_date" |
   "assigned_employee_id" | "assigned_to" | "dependency_todo_code" | "review_required" | "review_state">;
 
-type DeliveryBalance = { id: string; serviceName: string; deliveryDue: number };
+type DeliveryBalance = {
+  id: string;
+  serviceName: string;
+  status: string;
+  nextStatus?: string;
+  delivered: boolean;
+  deliveryDue: number;
+  deliveryLocked: boolean;
+};
 type DocumentStatus = ReturnType<typeof clientDocumentChecklist>;
 const money = new Intl.NumberFormat("en-BD", { maximumFractionDigits: 2 });
 
@@ -110,13 +118,26 @@ export default function ProjectNextAction({ projectId, openDocuments }: {
           <Link className="btn btn-small" data-lv-button="secondary" href={`/admin/registers?fileId=${encodeURIComponent(scope?.code || projectId)}`}>Open document register</Link>
         </section>
         <section aria-labelledby="pc-delivery-clearance">
-          <h3 id="pc-delivery-clearance">Payment clearance</h3>
-          {delivery === "unavailable" ? <p className="pc-note">Payment clearance unavailable.</p>
-            : delivery ? delivery.length ? <ul>{delivery.map(({ id, serviceName, deliveryDue }) => (
-              <li key={id}>{serviceName} · <strong>৳{money.format(deliveryDue)}</strong> remaining in workflow</li>
-            ))}</ul> : <p className="pc-note">No outstanding payment flagged by active service workflows.</p>
-            : <p role="status" className="pc-note">Loading payment clearance…</p>}
-          <p className="pc-note">Issued bills allow work to start. Final delivery remains subject to the payment check when releasing files.</p>
+          <h3 id="pc-delivery-clearance">Service handoff</h3>
+          {delivery === "unavailable" ? <p className="pc-note">Service handoff unavailable.</p>
+            : delivery ? delivery.length ? <ul>{delivery.map((service) => {
+              const project = encodeURIComponent(scope?.code || projectId);
+              const workflow = encodeURIComponent(service.id);
+              return (
+                <li key={service.id}>
+                  <strong>{service.serviceName}</strong> · {service.status}
+                  {!service.delivered && service.nextStatus && <div>Next workflow step · {service.nextStatus}</div>}
+                  {!service.delivered && service.deliveryLocked &&
+                    <div>Payment hold · <strong>৳{money.format(service.deliveryDue)}</strong> remaining in workflow</div>}
+                  <div className="pc-actions" style={{ flexWrap: "wrap" }}>
+                    <Link href={`/admin/project-operations/by-project?project=${project}&workflow=${workflow}`}>Open workflow</Link>
+                    <Link href={`/admin/project-operations/document-register?workflowId=${workflow}`}>Service documents</Link>
+                  </div>
+                </li>
+              );
+            })}</ul> : <p className="pc-note">No active service workflows.</p>
+            : <p role="status" className="pc-note">Loading service handoff…</p>}
+          <p className="pc-note">Issued bills allow work to start. The system checks verified payment when staff record final delivery.</p>
           <Link className="btn btn-small" data-lv-button="secondary" href={`/admin/billing/bills?fileId=${encodeURIComponent(scope?.code || projectId)}`}>Open project bills</Link>
         </section>
       </div>
