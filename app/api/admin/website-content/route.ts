@@ -1,6 +1,7 @@
 import { getVercelOidcToken } from "@vercel/oidc";
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
+import { hasCapability } from "@/lib/permissions";
 import { roleOf } from "@/lib/supabase-data";
 import { normalizeWebsiteContent } from "@/lib/website-content";
 
@@ -17,10 +18,12 @@ function sameOrigin(request: NextRequest) {
   try { return new URL(origin).host === request.nextUrl.host; } catch { return false; }
 }
 
-async function manager(request: NextRequest) {
+async function manager(request: NextRequest, write = false) {
   const user = await requireLocalSession(request);
   if (!user) return { error: NextResponse.json({ success: false, error: "Session expired." }, { status: 401 }) };
   if (!MANAGE_ROLES.has(roleOf(user))) return { error: NextResponse.json({ success: false, error: "Admin or manager access is required." }, { status: 403 }) };
+  // Read-only review remains available to managers. Website publishing is admin-only.
+  if (write && !hasCapability(user, "website.manage")) return { error: NextResponse.json({ success: false, error: "Admin website management permission is required." }, { status: 403 }) };
   return { user };
 }
 
@@ -52,7 +55,7 @@ export async function GET(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
-    const auth = await manager(request); if (auth.error) return auth.error;
+    const auth = await manager(request, true); if (auth.error) return auth.error;
     const body = await request.json() as Record<string, unknown>;
     const content = normalizeWebsiteContent(body.content);
     const user = auth.user as Record<string, unknown>;

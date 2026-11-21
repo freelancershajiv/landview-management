@@ -25,13 +25,9 @@ function originAllowed(request: NextRequest) {
     return process.env.NODE_ENV !== "production" || request.headers.get("sec-fetch-site") === "same-origin";
   }
   try {
-    const host = new URL(origin).hostname.toLowerCase();
-    return host === "app.landview.com.bd"
-      || host === "www.landview.com.bd"
-      || host === "landview.com.bd"
-      || host === "localhost"
-      || host === "127.0.0.1"
-      || host.endsWith(".vercel.app");
+    // A trusted hostname is not enough: Origin must match the actual request host.
+    // Otherwise an unrelated *.vercel.app site could submit a privileged request.
+    return new URL(origin).host === request.nextUrl.host;
   } catch {
     return false;
   }
