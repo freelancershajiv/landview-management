@@ -7,7 +7,7 @@ export type AgeBandV44 = "0_30" | "31_60" | "61_90" | "91_plus" | "undated";
 export type AgeAmountsV44 = Record<AgeBandV44, number>;
 export type ReportMonthV44 = {
   month: string; payments: number; operational: number; legacy: number;
-  paymentCount: number; legacyCount: number; fallbackDateCount: number;
+  paymentCount: number; legacyCount: number;
 };
 export type ReportProjectV44 = {
   projectId: string; projectCode: string; projectName: string; client: string;
@@ -26,6 +26,7 @@ export type FinancialReportV44 = {
     openInvoicesBeforeOffsets: number; invoiceAgeUnassigned: number;
     undatedPaymentAmount: number; undatedPaymentCount: number;
     invoiceDateFallbackCount: number; invoiceDueDatePresentCount: number;
+    unverifiedImportDateCount: number; unverifiedImportDateAmount: number;
   };
   aging: AgeAmountsV44;
   months: ReportMonthV44[];
@@ -49,6 +50,15 @@ const validDate = (value: unknown) => {
 };
 const keyOf = (date: string) => date.slice(0,7);
 const day = (date: string) => Date.parse(date + "T00:00:00Z") / 86400000;
+/** A 2026-10-25 invoice with no original bill date is a known migration-generated
+ * issue date in LAND VIEW; it does not establish when the service was billed. */
+export function invoiceAgeEvidenceV44(invoiceIssue: unknown, originalBillDate: unknown) {
+  const issued = validDate(invoiceIssue);
+  const bill = validDate(originalBillDate);
+  const unverifiedImport = issued === "2026-10-25" && !bill;
+  return { ageDate: unverifiedImport ? "" : issued || bill,
+    unverifiedImport, usedBillDateFallback: !issued && !!bill };
+}
 export function invoiceAgeBandV44(issued: unknown, today: string): AgeBandV44 {
   const date = validDate(issued);
   if (!date || !validDate(today)) return "undated";
@@ -77,6 +87,7 @@ export function compileFinancialReportV44(
   const paymentsByProject = new Map<string, number>();
   let operational = 0, legacy = 0, undatedPaymentAmount = 0, undatedPaymentCount = 0;
   let invoiceDateFallbackCount = 0, invoiceDueDatePresentCount = 0;
+  let unverifiedImportDateCount = 0, unverifiedImportDateAmount = 0;
   for (const payment of authority.payments) {
     if (!payment.effective) continue;
     const amount = money(payment.amount);
@@ -84,20 +95,19 @@ export function compileFinancialReportV44(
     const historical = raw.is_legacy_manual === true || raw.affects_business_balance === false;
     if (historical) legacy += amount; else operational += amount;
     paymentsByProject.set(payment.projectId, (paymentsByProject.get(payment.projectId) || 0) + amount);
+    // Never assign undated receipts to created_at: migration/import timestamps
+    // are not proof of when the client actually made the payment.
     const paymentDate = validDate(raw.payment_date);
-    const backup = paymentDate ? "" : validDate(raw.created_at);
-    const stamped = paymentDate || backup;
-    if (!stamped) { undatedPaymentAmount += amount; undatedPaymentCount++; continue; }
-    const key = keyOf(stamped);
+    if (!paymentDate) { undatedPaymentAmount += amount; undatedPaymentCount++; continue; }
+    const key = keyOf(paymentDate);
     const row = monthly.get(key) || {
       month: key, payments: 0, operational: 0, legacy: 0,
-      paymentCount: 0, legacyCount: 0, fallbackDateCount: 0,
+      paymentCount: 0, legacyCount: 0,
     };
     row.payments += amount;
     if (historical) { row.legacy += amount; row.legacyCount++; }
     else row.operational += amount;
     row.paymentCount++;
-    if (backup) row.fallbackDateCount++;
     monthly.set(key,row);
   }
   const billByProject = new Map<string, typeof authority.bills>();
@@ -117,12 +127,14 @@ export function compileFinancialReportV44(
       activeInvoiceCount++;
       const invoice = invoicesByBill.get(bill.billCode);
       if (validDate(invoice?.row.due_date)) invoiceDueDatePresentCount++;
-      const invoiceIssued = validDate(invoice?.row.issue_date);
-      const billDate = validDate(bill.row.bill_date);
-      const dated = invoiceIssued || billDate;
-      if (!invoiceIssued && billDate) { fallback++; invoiceDateFallbackCount++; }
-      if (!dated) undatedInvoiceCount++;
-      const band = invoiceAgeBandV44(dated, date);
+      const evidence = invoiceAgeEvidenceV44(invoice?.row.issue_date, bill.row.bill_date);
+      if (evidence.usedBillDateFallback) { fallback++; invoiceDateFallbackCount++; }
+      if (evidence.unverifiedImport) {
+        unverifiedImportDateCount++;
+        unverifiedImportDateAmount += open;
+      }
+      if (!evidence.ageDate) undatedInvoiceCount++;
+      const band = invoiceAgeBandV44(evidence.ageDate, date);
       projectAging[band] += open;
       aging[band] += open;
     }
@@ -158,7 +170,7 @@ export function compileFinancialReportV44(
       const key = cursor.toISOString().slice(0,7);
       if (!monthly.has(key)) monthly.set(key, {
         month:key,payments:0,operational:0,legacy:0,
-        paymentCount:0,legacyCount:0,fallbackDateCount:0,
+        paymentCount:0,legacyCount:0,
       });
       cursor.setUTCMonth(cursor.getUTCMonth()+1);
     }
@@ -179,8 +191,8 @@ export function compileFinancialReportV44(
   return {
     version:"4.4",snapshotAt:now.toISOString(),ageReferenceDate:date,
     methodology:{
-      aging:"Age since invoice issue date (bill date fallback). It is NOT contractual overdue aging; missing dates are classified as undated. Buckets are before project-level advances and write-off relief.",
-      collections:"Monthly effective client payment credits. 'Operational' excludes legacy/manual non-ledger credits. Payment date is used when present; recorded creation date is fallback, and undated payments remain separately identified.",
+      aging:"Verified issue-date age only (original bill date fallback). LAND VIEW migrated historical invoices on October 25, 2026; import-generated issue dates with no original bill date are marked undated, not fresh invoices. This is NOT contractual overdue aging. Buckets precede project-wide advances and write-offs.",
+      collections:"Monthly effective client payment credits only where a recorded payment date exists. Missing payment dates are UNDATED, never assigned to a migration/import creation month. 'Operational' excludes legacy/manual non-ledger credits. Historical recorded dates may require independent documentation.",
       due:"Collectible receivables, write-offs and remaining advances come exclusively from the existing billing-receivable-authority. Raw invoice aging is not an additional debt figure.",
     },
     summary:{
@@ -192,6 +204,7 @@ export function compileFinancialReportV44(
       openInvoicesBeforeOffsets:canonicalOpen,invoiceAgeUnassigned:cents(aging.undated),
       undatedPaymentAmount:cents(undatedPaymentAmount),undatedPaymentCount,
       invoiceDateFallbackCount,invoiceDueDatePresentCount,
+      unverifiedImportDateCount,unverifiedImportDateAmount:cents(unverifiedImportDateAmount),
     },
     aging:Object.fromEntries(bands.map(key=>[key,cents(aging[key])])) as AgeAmountsV44,
     months,projects:reportProjects,

@@ -14,7 +14,7 @@ const home=read("app/admin/finance/page.tsx");
 const context={module:{exports:{}}};context.exports=context.module.exports;
 const code=ts.transpileModule(logic,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 vm.runInNewContext(code,context,{filename:"billing-reports-v44.js"});
-const {compileFinancialReportV44,invoiceAgeBandV44}=context.module.exports;
+const {compileFinancialReportV44,invoiceAgeBandV44,invoiceAgeEvidenceV44}=context.module.exports;
 function fixture(){
  const invoices=[
   {billCode:"BILL-A",projectId:"A",row:{issue_date:"2026-11-01",due_date:null}},
@@ -65,10 +65,35 @@ test("legacy client credits are separated from operational collections",()=>{
  assert.equal(report.summary.operationalCollections,200);
  assert.equal(report.summary.legacyCreditedPayments,300);
  assert.equal(report.months.find(x=>x.month==="2026-11").operational,200);
- assert.equal(report.months.find(x=>x.month==="2026-10").legacy,300);
- assert.equal(report.months.find(x=>x.month==="2026-10").fallbackDateCount,1);
- assert.equal(report.months.reduce((s,x)=>s+x.payments,0),500);
+ assert.equal(report.months.find(x=>x.month==="2026-10")?.legacy || 0,0);
+ assert.equal(report.summary.undatedPaymentAmount,300);
+ assert.equal(report.summary.undatedPaymentCount,1);
+ assert.equal(report.months.reduce((s,x)=>s+x.payments,0),200);
  assert.equal(report.projects.find(x=>x.projectCode==="LV-157").collectibleDue,350);
+});
+test("migration-issued invoice with no original date stays undated rather than 0-30 days",()=>{
+ const evidence=invoiceAgeEvidenceV44("2026-10-25",null);
+ assert.equal(evidence.unverifiedImport,true);
+ assert.equal(evidence.ageDate,"");
+ assert.equal(invoiceAgeBandV44(evidence.ageDate,"2026-11-21"),"undated");
+ const {authority,names}=fixture();
+ authority.invoices[0].row.issue_date="2026-10-25";
+ authority.bills[0].row.bill_date=null;
+ const report=compileFinancialReportV44(authority,names,new Date("2026-11-21T15:00:00Z"));
+ assert.equal(report.aging["0_30"],0);
+ assert.equal(report.aging.undated,500);
+ assert.equal(report.summary.unverifiedImportDateCount,1);
+ assert.equal(report.summary.unverifiedImportDateAmount,500);
+ assert.equal(report.summary.collectibleDue,650);
+ assert.equal(report.summary.openInvoicesBeforeOffsets,800);
+});
+test("historical payments without verified date are undated even when imported recently",()=>{
+ const {authority,names}=fixture();
+ authority.payments[1].row.created_at="2026-10-13T08:00:00Z";
+ const report=compileFinancialReportV44(authority,names,new Date("2026-11-21T15:00:00Z"));
+ assert.equal(report.months.find(row=>row.month==="2026-10")?.legacy || 0,0);
+ assert.equal(report.summary.legacyCreditedPayments,300);
+ assert.equal(report.summary.undatedPaymentAmount,300);
 });
 test("incomplete datasets and mismatched project balances fail closed",()=>{
  const {authority,names}=fixture();

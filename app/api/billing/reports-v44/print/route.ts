@@ -20,20 +20,23 @@ function documentHtml(data:FinancialReportV44,autoprint:boolean) {
   ["Operational collections",s.operationalCollections],["Historical client credits",s.legacyCreditedPayments],
   ["Collectible due",s.collectibleDue],["Net write-offs",s.netWrittenOff],
   ["Available advance",s.remainingAdvance],["Open invoices before offsets",s.openInvoicesBeforeOffsets],
+  ["Payments without dates",s.undatedPaymentAmount],["Unverified import invoice age",s.unverifiedImportDateAmount],
  ];
  const summary=`<div class="metrics">${metrics.map(([k,v])=>`<div><span>${esc(k)}</span><strong>${esc(fmt(v))}</strong></div>`).join("")}</div>
  <h2>Invoice age since issue date — not contractual overdue</h2>${table(
  ["Invoice age", "Open before project-level relief"], bands.map(k=>[labels[k],fmt(data.aging[k])]),"No open invoice aging")}
  <div class="disclosure"><strong>Important financial basis</strong><p>${esc(data.methodology.aging)}</p>
  <p>${esc(data.methodology.collections)}</p><p>${esc(data.methodology.due)}</p>
- <p>Invoice dates used as fallback: ${s.invoiceDateFallbackCount}. Payments with no usable date: ${s.undatedPaymentCount} (${fmt(s.undatedPaymentAmount)}).
- Some dated payments may use their creation date, which is identified in the monthly table.</p></div>`;
+ <p>Original bill dates used as fallback: ${s.invoiceDateFallbackCount}. Unverified October 25, 2026 import issue dates:
+ ${s.unverifiedImportDateCount} open bills (${fmt(s.unverifiedImportDateAmount)}), counted as undated, not recent.
+ Payments with no usable actual payment date: ${s.undatedPaymentCount} (${fmt(s.undatedPaymentAmount)}).
+ These are included in all-time credited balances but excluded from monthly charts.</p></div>`;
  const sheets:Sheet[]=[{heading:"Billing management summary",hint:"Live canonical balance and aging methodology",body:summary}];
  const months=[...data.months].reverse();
  for(const [i,items] of slice(months,19).entries())sheets.push({
   heading:"Monthly collections",hint:`Part ${i+1} of ${Math.ceil(months.length/19)} · credited payment month`,
-  body:table(["Month","Total credited","Operational","Legacy credits","Payments","Date fallbacks"],
-   items.map(x=>[x.month,fmt(x.payments),fmt(x.operational),fmt(x.legacy),x.paymentCount,x.fallbackDateCount]),"No month-dated payments"),
+  body:table(["Month","Total credited","Operational","Legacy credits","Payments"],
+   items.map(x=>[x.month,fmt(x.payments),fmt(x.operational),fmt(x.legacy),x.paymentCount]),"No month-dated payments"),
  });
  const projects=data.projects;
  for(const [i,items] of slice(projects,16).entries())sheets.push({
