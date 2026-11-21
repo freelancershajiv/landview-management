@@ -18,6 +18,7 @@ type DeliveryBalance = {
   deliveryDue: number;
   deliveryLocked: boolean;
   billCodes?: string[];
+  billedBalance?: number;
 };
 type DocumentStatus = ReturnType<typeof clientDocumentChecklist>;
 const money = new Intl.NumberFormat("en-BD", { maximumFractionDigits: 2 });
@@ -130,7 +131,12 @@ export default function ProjectNextAction({ projectId, openDocuments }: {
                   {!service.delivered && service.nextStatus && <div>Next workflow step · {service.nextStatus}</div>}
                   {!service.delivered && service.deliveryLocked &&
                     <div>
-                      Payment hold · <strong>৳{money.format(service.deliveryDue)}</strong> remaining in workflow
+                      {service.deliveryDue > 0
+                        ? <>Delivery hold · <strong>৳{money.format(service.deliveryDue)}</strong> remaining in Workflow</>
+                        : "Delivery hold · check the issued bill and contract"}
+                      {service.deliveryDue > 0 && service.billCodes?.length && service.billedBalance === 0
+                        ? <p className="pc-note">Billing shows no open service bill balance. Accounts should reconcile the service allocation before delivery.</p>
+                        : null}
                       <p className="pc-note">Accounts: verify payment and allocation against the service bills.</p>
                       {service.billCodes?.length ? <ul>{service.billCodes.map((code) => (
                         <li key={code}>

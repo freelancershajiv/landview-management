@@ -239,7 +239,7 @@ export default function DocumentRegisterPage() {
       <section className="wdr-identity">
         <div className="wdr-box"><span>Service</span><strong>{workflow.serviceName || "—"}</strong></div>
         <div className="wdr-box"><span>Workflow Status</span><strong><span className={`wdr-status ${workflow.status === "Delivered" || workflow.status === "Delivered to Client" ? "done" : ""}`}>{workflow.status || "—"}</span></strong></div>
-        <div className="wdr-box"><span>Paid / Net</span><strong>{money(workflow.paidAmount)} / {money(workflow.netAmount)}</strong></div>
+        <div className="wdr-box"><span>Workflow paid / Required</span><strong>{money(workflow.paidAmount)} / {money(workflow.netAmount)}</strong></div>
         <div className="wdr-box"><span>Required Deliverables</span><strong>{stats.required || 0}</strong></div>
       </section>
 

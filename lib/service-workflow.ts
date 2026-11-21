@@ -72,9 +72,17 @@ export type ServiceFinancial = {
   paid: number;
   due: number;
   relief: number;
+  billedBalance: number;
   fullyPaid: boolean;
   billCodes: string[];
 };
+
+export function workflowDeliveryBalance(workflow: Row, contractNet = 0) {
+  const netAmount = Math.max(0, Number(workflow.net_amount) || 0, contractNet);
+  const paidAmount = Math.max(0, Number(workflow.paid_amount) || 0);
+  const deliveryDue = Math.round(Math.max(0, netAmount - paidAmount) * 100) / 100;
+  return { netAmount, paidAmount, deliveryDue, deliveryLocked: netAmount < 0.01 || deliveryDue > 0 };
+}
 
 function serviceRank(name: string) {
   const index = ENGINEERING_ORDER.indexOf(name);
@@ -114,6 +122,7 @@ export async function getProjectServiceFinancials(projectCode: string) {
       paid: 0,
       due: 0,
       relief: 0,
+      billedBalance: 0,
       fullyPaid: false,
       billCodes: [],
     };
@@ -122,6 +131,7 @@ export async function getProjectServiceFinancials(projectCode: string) {
     existing.net += bill.effectiveAmount;
     existing.paid += bill.paidForReceivable;
     existing.due += bill.dueBeforeRelief;
+    existing.billedBalance += bill.dueBeforeRelief;
     if (bill.billCode) existing.billCodes.push(bill.billCode);
     map.set(serviceKey, existing);
   }

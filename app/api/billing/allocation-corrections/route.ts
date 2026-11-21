@@ -93,6 +93,15 @@ function candidate(ctx: Awaited<ReturnType<typeof projectContext>>, allocationId
     service_key: t(existingDestination?.service_key) || workflowServiceKey(serviceName),
     billing_category: t(existingDestination?.billing_category) || t(destinationBill.row.billing_category || destinationBill.row.category),
   } : undefined;
+  if (!error && sourceBill && nextIdentity) {
+    const sourceDescription = t(sourceBill.row.description, 300)
+      .replace(/^\[(Engineering Bill|Design Books|Supervision Bill|Other Services Bill)\]\s*/i, "").trim();
+    const sourceKey = workflowServiceKey(sourceBill.category === "supervision"
+      ? "Site Supervision" : sourceDescription || sourceBill.row.billing_category || sourceBill.row.category);
+    if (sourceKey !== nextIdentity.service_key) {
+      error = "This move changes the service. Reconcile the receipt’s service allocation before moving it to another service.";
+    }
+  }
   return { allocation, payment, source, destination, sourceBill, destinationBill, original: raw, nextIdentity, error };
 }
 async function events(projectCode: string) {

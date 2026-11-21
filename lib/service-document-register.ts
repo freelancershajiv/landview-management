@@ -1,5 +1,5 @@
 import { insertRows, selectRows, updateRows } from "@/lib/supabase-data";
-import { workflowServiceName, workflowStatusesForService, workflowTypeForService } from "@/lib/service-workflow";
+import { workflowDeliveryBalance, workflowServiceName, workflowStatusesForService, workflowTypeForService } from "@/lib/service-workflow";
 
 type Row = Record<string, any>;
 
@@ -77,11 +77,15 @@ export async function documentRegisterSnapshot(workflowId: string) {
   const workflowRows = await selectRows("project_service_workflows", { filters: { id: workflowId }, limit: 1 });
   if (!workflowRows.length) throw new Error("Service workflow was not found.");
   const workflow = workflowRows[0];
-  const [projectRows, rawDocuments, designBooks, drawings] = await Promise.all([
+  const [projectRows, rawDocuments, designBooks, drawings, contracts] = await Promise.all([
     selectRows("projects", { filters: { id: workflow.project_id }, limit: 1 }),
     selectRows("documents", { filters: { service_workflow_id: workflowId }, order: "updated_at:desc", limit: 1000 }),
     selectRows("design_book_register", { filters: { project_id: workflow.project_id }, order: "updated_at:desc", limit: 500 }),
     selectRows("drawing_submissions", { filters: { project_code: workflow.project_code }, order: "created_at:desc", limit: 1000 }),
+    selectRows("project_contract_services", {
+      filters: { project_id: workflow.project_id, service_key: workflow.service_key, active: true },
+      select: "contract_net",
+    }),
   ]);
   const project = projectRows[0] || {};
   const service = workflowServiceName(workflow.service_name);
@@ -114,8 +118,7 @@ export async function documentRegisterSnapshot(workflowId: string) {
       workflowType: workflow.workflow_type || workflowTypeForService(service),
       status: workflow.status,
       statuses: workflowStatusesForService(service),
-      netAmount: num(workflow.net_amount),
-      paidAmount: num(workflow.paid_amount),
+      ...workflowDeliveryBalance(workflow, Math.max(0, ...contracts.map((row) => num(row.contract_net)))),
     },
     documents: current,
     archivedDocuments: rawDocuments.filter((row) => row.archived_at).map(registerDocument) as Row[],

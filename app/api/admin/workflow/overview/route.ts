@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
 import { deleteRows, insertRows, selectRows, updateRows } from "@/lib/supabase-data";
 import { recordAuditEvent } from "@/lib/audit-log";
-import { workflowStatusesForService } from "@/lib/service-workflow";
+import { workflowDeliveryBalance, workflowStatusesForService } from "@/lib/service-workflow";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -159,10 +159,8 @@ export async function GET(request: NextRequest) {
       });
       const services = rawServices.map((row) => {
         const state = workflowProgress(row);
-        const required = Math.max(Number(row.net_amount || 0), contractByKey.get(`${text(row.project_id)}::${text(row.service_key)}`) || 0);
-        const paid = Number(row.paid_amount || 0);
-        const deliveryDue = Math.max(0, required - paid);
-        return { id: text(row.id), key: text(row.service_key), name: text(row.service_name), status: text(row.status), stage: stageOfService(row), progress: state.progress, done: state.done, statuses: state.statuses, billingCategory: text(row.billing_category), paid, net: required, deliveryDue, deliveryLocked: !state.done && deliveryDue > 0.01, updatedAt: text(row.updated_at) };
+        const balance = workflowDeliveryBalance(row, contractByKey.get(`${text(row.project_id)}::${text(row.service_key)}`));
+        return { id: text(row.id), key: text(row.service_key), name: text(row.service_name), status: text(row.status), stage: stageOfService(row), progress: state.progress, done: state.done, statuses: state.statuses, billingCategory: text(row.billing_category), paid: balance.paidAmount, net: balance.netAmount, deliveryDue: balance.deliveryDue, deliveryLocked: !state.done && balance.deliveryLocked, updatedAt: text(row.updated_at) };
       });
       const todos = rawTodos.map((todo) => {
         const workflow = workflowById.get(text(todo.workflow_id));

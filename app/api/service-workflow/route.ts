@@ -10,6 +10,7 @@ import {
   getProjectServiceFinancials,
   syncIssuedServiceWorkflows,
   workflowServiceKey,
+  workflowDeliveryBalance,
   workflowServiceName,
   workflowStatusesForService,
 } from "@/lib/service-workflow";
@@ -101,9 +102,7 @@ async function projectWorkflow(projectCode?: string) {
   return workflows.map((row) => {
     const project = projectById.get(text(row.project_id));
     const statuses = workflowStatusesForService(row.service_name);
-    const required = Math.max(num(row.net_amount), contractByKey.get(`${text(row.project_id)}::${text(row.service_key)}`) || 0);
-    const paid = num(row.paid_amount);
-    const deliveryDue = Math.max(0, required - paid);
+    const balance = workflowDeliveryBalance(row, contractByKey.get(`${text(row.project_id)}::${text(row.service_key)}`));
     return {
       id: row.id,
       projectId: row.project_code || project?.project_code || "",
@@ -117,10 +116,7 @@ async function projectWorkflow(projectCode?: string) {
       workflowType: row.workflow_type,
       status: row.status,
       statuses,
-      netAmount: required,
-      paidAmount: paid,
-      deliveryDue,
-      deliveryLocked: deliveryDue > 0.01,
+      ...balance,
       activatedAt: row.activated_at,
       updatedAt: row.updated_at,
     };
@@ -156,11 +152,14 @@ export async function GET(request: NextRequest) {
       if (!projectCode) return json({ success: false, error: "Valid project ID required." }, 400);
       const workflows = await projectWorkflow(projectCode);
       const held = workflows.some((row) => row.deliveryLocked && row.status !== row.statuses[row.statuses.length - 1]);
-      const billsByService = new Map<string, string[]>();
+      const billingByService = new Map<string, { billCodes: string[]; billedBalance: number }>();
       if (held) {
         const financials = await getProjectServiceFinancials(projectCode).catch(() => null);
         for (const service of financials?.services ?? []) {
-          billsByService.set(service.serviceKey, [...new Set(service.billCodes)]);
+          billingByService.set(service.serviceKey, {
+            billCodes: [...new Set(service.billCodes)],
+            billedBalance: service.billedBalance,
+          });
         }
       }
       const data = workflows.map(({ id, serviceKey, serviceName, status, statuses, deliveryDue, deliveryLocked }) => {
@@ -173,7 +172,8 @@ export async function GET(request: NextRequest) {
           delivered: status === statuses[statuses.length - 1],
           deliveryDue,
           deliveryLocked,
-          billCodes: billsByService.get(serviceKey) ?? [],
+          billCodes: billingByService.get(serviceKey)?.billCodes ?? [],
+          billedBalance: billingByService.get(serviceKey)?.billedBalance,
         };
       });
       return json({ success: true, data });
