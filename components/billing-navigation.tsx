@@ -12,6 +12,7 @@ const main = [
   { href: "/admin/billing/project-statement", label: "Project Statements" },
   { href: "/admin/billing/reports", label: "Financial Reports" },
   { href: "/admin/billing/due-bills", label: "Due Bills" },
+  { href: "/admin/billing/full-bill-editor#bill-discount", label: "Apply Discount" },
   { href: "/admin/billing/writeoffs", label: "Write-Offs" },
   { href: "/admin/billing/reconciliation", label: "Reconciliation" },
 ];
