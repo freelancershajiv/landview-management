@@ -84,7 +84,6 @@ export default function DirectFullBillWorkspace() {
   const [billDate, setBillDate] = useState(today());
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<ServiceLine[]>(freshLines);
-  const [wholeDiscount, setWholeDiscount] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -177,34 +176,7 @@ export default function DirectFullBillWorkspace() {
     }]);
   }
   function deleteLine(id: string) { setLines((current) => current.filter((line) => line.id !== id)); }
-  function restoreStandardServices() { setLines(freshLines()); setWholeDiscount(""); setError(""); }
-  function applyWholeDiscount() {
-    const amount = Math.round(Math.max(0, numberValue(wholeDiscount)) * 100) / 100;
-    const candidates = activeLines.filter((line) => Math.max(0, pricingFor(line).gross - Math.max(0, numberValue(line.discount))) > 0.009);
-    const capacity = candidates.reduce((sum, line) => sum + Math.max(0, pricingFor(line).gross - Math.max(0, numberValue(line.discount))), 0);
-    if (!candidates.length || !(amount > 0) || amount > capacity + .01) {
-      setError("Enter a whole bill discount greater than zero and not more than the remaining gross value.");
-      return;
-    }
-    const shares = new Map<string, number>();
-    let allocated = 0;
-    candidates.forEach((line, index) => {
-      const lineCapacity = Math.max(0, pricingFor(line).gross - Math.max(0, numberValue(line.discount)));
-      const share = index === candidates.length - 1
-        ? Math.round((amount - allocated) * 100) / 100
-        : Math.round((amount * lineCapacity / capacity) * 100) / 100;
-      allocated += share;
-      shares.set(line.id, Math.min(lineCapacity, share));
-    });
-    setLines((current) => current.map((line) => {
-      const share = shares.get(line.id);
-      return share === undefined ? line : { ...line, discount: String(Math.round((Math.max(0, numberValue(line.discount)) + share) * 100) / 100) };
-    }));
-    setWholeDiscount("");
-    setError("");
-    setMessage(`${money(amount)} whole bill discount applied across ${candidates.length} service${candidates.length === 1 ? "" : "s"}. You can still edit each service discount manually.`);
-  }
-
+  function restoreStandardServices() { setLines(freshLines()); setError(""); }
   async function createFullBill(status: BillState) {
     const normalizedId = normalizeProjectId(projectId);
     if (!normalizedId || !selectedProject) { setError("Choose a valid existing LAND VIEW File ID / project first."); return; }
@@ -289,11 +261,7 @@ export default function DirectFullBillWorkspace() {
 
     <section className="db-panel">
       <h2>Complete Service Billing</h2>
-      <div className="db-discount-panel">
-        <div className="db-discount-copy"><strong>Whole Bill Discount</strong><span>Enter one total discount here. It will be distributed across the active service rows. You can still fine-tune each row in the Discount column.</span></div>
-        <div className="db-discount-control"><label>Discount (BDT)<input inputMode="decimal" value={wholeDiscount} disabled={saving || !activeLines.length} onChange={(event) => setWholeDiscount(event.target.value)} placeholder="0"/></label><button type="button" className="db-btn draft" data-lv-button="warning" disabled={saving || !activeLines.length || !(numberValue(wholeDiscount) > 0)} onClick={applyWholeDiscount}>Apply Discount</button></div>
-      </div>
-      <div className="db-table"><table><thead><tr><th>Category</th><th>Service / Description</th><th>Entry Type</th><th>Qty</th><th>Rate / Flat BDT</th><th>Gross</th><th>Discount</th><th>Net</th><th>Action</th></tr></thead><tbody>{lines.map((line) => {
+      <div className="db-table"><table><thead><tr><th>Category</th><th>Service / Description</th><th>Entry Type</th><th>Qty</th><th>Rate / Flat BDT</th><th>Gross</th><th>Service discount (৳)</th><th>Net</th><th>Action</th></tr></thead><tbody>{lines.map((line) => {
         const pricing = pricingFor(line);
         const discount = Math.max(0, numberValue(line.discount));
         return <tr key={line.id}>
@@ -303,7 +271,7 @@ export default function DirectFullBillWorkspace() {
           <td className="db-qty"><input inputMode="decimal" value={line.entryMode === "quantity_rate" ? line.quantity : "1"} disabled={saving || line.entryMode === "flat_amount"} onChange={(event) => updateLine(line.id, { quantity: event.target.value })} placeholder="1"/></td>
           <td className="db-money"><input inputMode="decimal" value={line.entryMode === "quantity_rate" ? line.unitPrice : line.amount} disabled={saving} onChange={(event) => updateLine(line.id, line.entryMode === "quantity_rate" ? { unitPrice: event.target.value } : { amount: event.target.value })} placeholder="0"/></td>
           <td className="db-gross"><strong>{money(pricing.gross)}</strong></td>
-          <td className="db-money"><input inputMode="decimal" value={line.discount} disabled={saving} onChange={(event) => updateLine(line.id, { discount: event.target.value })} placeholder="0"/></td>
+          <td className="db-money"><input aria-label={`Discount for ${line.service}`} inputMode="decimal" value={line.discount} disabled={saving} onChange={(event) => updateLine(line.id, { discount: event.target.value })} placeholder="0"/></td>
           <td className="db-gross"><strong>{money(Math.max(0, pricing.gross - discount))}</strong></td>
           <td><button type="button" className="db-delete" data-lv-button="danger" disabled={saving} onClick={() => deleteLine(line.id)}>Delete</button></td>
         </tr>;
