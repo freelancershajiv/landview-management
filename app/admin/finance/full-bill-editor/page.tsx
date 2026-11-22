@@ -81,7 +81,7 @@ function baseNet(row: Row) {
   return text(explicit) ? num(explicit) : Math.max(0, num(pick(row, "Amount", "amount")) - num(pick(row, "Discount", "discount")));
 }
 function activeAdjustment(row: Row) {
-  return !["void", "voided", "cancelled", "canceled"].includes(text(row.status).toLowerCase());
+  return text(row.status).toLowerCase() === "posted";
 }
 function today() { return new Date().toISOString().slice(0, 10); }
 function effectiveNet(row: Row, adjustments: Row[]) {
@@ -91,8 +91,8 @@ function effectiveNet(row: Row, adjustments: Row[]) {
   for (const adjustment of adjustments) {
     if (!activeAdjustment(adjustment) || text(adjustment.bill_code) !== id) continue;
     const amount = Math.max(0, num(adjustment.amount));
-    if (text(adjustment.adjustment_type) === "Debit Note") debit += amount;
-    if (text(adjustment.adjustment_type) === "Credit Note") credit += amount;
+    if (["debit", "debit note"].includes(text(adjustment.adjustment_type).toLowerCase())) debit += amount;
+    if (["credit", "credit note"].includes(text(adjustment.adjustment_type).toLowerCase())) credit += amount;
   }
   return Math.max(0, baseNet(row) + debit - credit);
 }
@@ -177,6 +177,9 @@ function metadataChanged(line: EditLine) {
 }
 function pricingChanged(line: EditLine) {
   const pricing = pricingFor(line);
+  const originalMode = entryModeFromStored(line.originalQuantity, line.originalUnitPrice);
+  if (line.entryMode !== originalMode) return true;
+  if (originalMode === "flat_amount") return Math.abs(pricing.gross - line.originalGross) > .009;
   return Math.abs(pricing.gross - line.originalGross) > .009
     || Math.abs(pricing.quantity - line.originalQuantity) > .009
     || Math.abs(pricing.unitPrice - line.originalUnitPrice) > .009;
@@ -191,6 +194,9 @@ async function readJson(response: Response, fallback: string): Promise<unknown> 
 
 export default function FullBillEditorPage() {
   const [fileId, setFileId] = useState("");
+  const [requestedFileId, setRequestedFileId] = useState("");
+  const reasonInput = useRef<HTMLTextAreaElement>(null);
+  const feedback = useRef<HTMLDivElement>(null);
   const [records, setRecords] = useState<Row[]>([]);
   const [lines, setLines] = useState<EditLine[]>([]);
   const [discountServiceKey, setDiscountServiceKey] = useState("");
@@ -267,7 +273,13 @@ export default function FullBillEditorPage() {
   const load = useCallback(async (raw: string) => {
     const id = projectCode(raw);
     if (!id) { setError("Enter a valid File ID, for example LV-157."); return; }
-    setFileId(id); setLoading(true); setError(""); setMessage("");
+    setRequestedFileId(id);
+    setFileId("");
+    setLines([]);
+    setRecords([]);
+    setRevisions([]);
+    setRevisionReason("");
+    setLoading(true); setError(""); setMessage("");
     try {
       const [billRowsRaw, adjustmentRowsRaw, revisionHistory] = await Promise.all([
         landViewApi.getBillingRecords(id),
@@ -279,6 +291,7 @@ export default function FullBillEditorPage() {
             && !["void","voided","cancelled","canceled"].includes(billStatus(row as Row).toLowerCase())) as Row[]
         : [];
       const adjustmentRows = Array.isArray(adjustmentRowsRaw) ? adjustmentRowsRaw as Row[] : [];
+      setFileId(id);
       setRecords(billRows);
       setLines(linesForProject(billRows, adjustmentRows));
       setRevisions(Array.isArray((revisionHistory as Row)?.revisions) ? (revisionHistory as Row).revisions as Row[] : []);
@@ -332,9 +345,15 @@ export default function FullBillEditorPage() {
   function clearNewLine(key: string) {
     setLines((current) => current.map((line) => line.key === key ? { ...line, quantity: "1", unitPrice: "", gross: "", discount: "0", notes: "", removed: false } : line));
   }
+  useEffect(() => {
+    if (error && document.activeElement !== reasonInput.current) feedback.current?.scrollIntoView({ block: "nearest" });
+  }, [error]);
+
   async function save() {
     if (!fileId || !lines.length || savingRef.current || saving) return;
-    const active = lines.filter(isUsedLine);
+    if (projectCode(requestedFileId) !== fileId) { setError("Open the entered File ID before saving."); return; }
+    const active = lines.filter(line => isUsedLine(line) && (line.isNew || metadataChanged(line) ||
+      Math.abs(num(line.discount) - line.savedDiscount) > .009 || (line.isDraft && pricingChanged(line))));
     for (const line of active) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(line.date)) { setError(`Choose a valid date for ${line.service || "the service"}.`); return; }
       if (!line.service.trim()) { setError("Every active service row needs a service / description."); return; }
@@ -346,7 +365,7 @@ export default function FullBillEditorPage() {
       if (discount < 0 || discount > pricing.gross) { setError(`Discount for ${line.service} must be between zero and ${money(pricing.gross)}.`); return; }
     }
     const reason = revisionReason.trim();
-    if (reason.length < 12) { setError("Enter an evidence-based revision reason (at least 12 characters)."); return; }
+    if (reason.length < 12) { setError("Enter a revision reason of at least 12 characters, then preview again."); reasonInput.current?.focus(); return; }
 
     const operations: Row[] = [];
     for (const line of lines) {
@@ -407,6 +426,12 @@ export default function FullBillEditorPage() {
         body: JSON.stringify({ ...body, requestId, preview }),
       });
       const preview = await readJson(await request(true), "Revision preview failed.") as Row;
+      if (preview?.recovered && previous) {
+        forgetPendingRevision();
+        await load(fileId);
+        setMessage("Your earlier revision was already saved. Its details are in revision history.");
+        return;
+      }
       if (!preview?.valid) throw new Error("Server could not validate all changed rows. Nothing was saved.");
       if (!window.confirm(`Apply ${operations.length} change${operations.length === 1 ? "" : "s"} as ONE atomic revision for ${fileId}?\n\nRevised total: ${money(summary.revised)}\nOriginal bill records and audit history are retained. This cannot be undone automatically.`)) return;
 
@@ -458,13 +483,13 @@ export default function FullBillEditorPage() {
     `}</style>
 
     <header className="fbe-head">
-      <div><h1>Service Discounts & Bill Edits</h1><p>Open a project, choose a service and enter its total discount. Add a revision reason below to preview and save.</p></div>
+      <div><h1>Service Discounts & Bill Edits</h1><p>Open a project, choose a service and enter its total discount. Add a revision reason to preview and save.</p></div>
       <div className="fbe-actions"><Link className="fbe-btn" href="/admin/billing/direct-bill">+ New Full Bill</Link><Link className="fbe-btn" href="/admin/billing/invoices">Generate Invoice</Link><Link className="fbe-btn" href="/admin/billing/service-payments">Add Payment</Link></div>
     </header>
 
     <section className="fbe-picker" id="bill-discount">
-      <input value={fileId} onChange={(event) => setFileId(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void load(fileId); }} placeholder="Enter File ID — e.g. LV-157"/>
-      <button className="fbe-btn primary" onClick={() => void load(fileId)} disabled={loading}>{loading ? "Loading…" : "Open Full Bill"}</button>
+      <input value={requestedFileId} disabled={saving || loading} onChange={(event) => setRequestedFileId(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void load(requestedFileId); }} placeholder="Enter File ID — e.g. LV-157"/>
+      <button className="fbe-btn primary" onClick={() => void load(requestedFileId)} disabled={saving || loading}>{loading ? "Loading…" : "Open Full Bill"}</button>
     </section>
 
     {pendingNotice && <div className="fbe-revision-guard" role="status">
@@ -474,7 +499,7 @@ export default function FullBillEditorPage() {
         <button type="button" className="fbe-btn" onClick={startDifferentRevisionAfterReview} disabled={saving || loading}>Start different revision after review</button>
       </div>
     </div>}
-    {error ? <div className="fbe-msg bad" role="alert">{error}</div> : null}
+    {error ? <div ref={feedback} className="fbe-msg bad" role="alert">{error}</div> : null}
     {message ? <div className="fbe-msg good" role="status">{message}</div> : null}
 
     <section className="fbe-panel">
@@ -485,7 +510,7 @@ export default function FullBillEditorPage() {
           <input className="fbe-toolbar-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search service / bill"/>
           <button className="fbe-btn" onClick={() => setShowUnused((value) => !value)} disabled={!lines.length}>{showUnused ? "Hide Unused Services" : "Show All Services"}</button>
         </div>
-        <button className="fbe-btn primary" onClick={() => void save()} disabled={saving || loading || !lines.length || revisionReason.trim().length < 12}>{saving ? "Checking / Saving…" : "Preview & Save Revision"}</button>
+        <button className="fbe-btn primary" onClick={() => void save()} disabled={saving || loading || !lines.length}>{saving ? "Checking / Saving…" : "Preview & Save Revision"}</button>
       </div>
 
       <div className="fbe-discount">
@@ -496,6 +521,13 @@ export default function FullBillEditorPage() {
         </select></label>
         {discountService && <label>Discount (৳) <input className="amount" type="number" min="0" step="0.01" max={editableGross(discountService)} value={discountService.discount} disabled={loading || saving} onChange={event => patchLine(discountService.key, { discount: event.target.value })}/></label>}
         {discountService && <span>Revised service total <strong>{money(targetNet(discountService))}</strong></span>}
+      </div>
+
+      <div className="fbe-revision-panel">
+        <label htmlFor="fbe-revision-reason">Reason for this full bill revision (at least 12 characters)</label>
+        <textarea ref={reasonInput} id="fbe-revision-reason" className="fbe-revision-reason" maxLength={1200}
+          value={revisionReason} onChange={event => setRevisionReason(event.target.value)}
+          placeholder="e.g. Client approved the architectural design discount"/>
       </div>
 
       <div className="fbe-kpis">
@@ -537,19 +569,11 @@ export default function FullBillEditorPage() {
 
       <div className="fbe-footer">
         <small>All revisions are validated against the loaded bill snapshot. Changed draft rows, new services, discounts and eligible credit notes commit together. Previously issued gross values cannot be directly edited.</small>
-        <button type="button" className="fbe-btn primary" onClick={() => void save()} disabled={saving || loading || !lines.length || revisionReason.trim().length < 12}>{saving ? "Checking / Saving…" : "Preview & Save Revision"}</button>
+        <button type="button" className="fbe-btn primary" onClick={() => void save()} disabled={saving || loading || !lines.length}>{saving ? "Checking / Saving…" : "Preview & Save Revision"}</button>
       </div>
     </section>
 
-    <section className="fbe-revision-panel">
-      <h2>Revision reason &amp; approval</h2>
-      <p>Every service update, draft void, new bill or issued-service credit is included in one database revision. Describe the instruction or supporting documentation before submitting.</p>
-      <label htmlFor="fbe-revision-reason">Reason for this full bill revision (required)</label>
-      <textarea id="fbe-revision-reason" className="fbe-revision-reason" maxLength={1200} value={revisionReason}
-        onChange={event => setRevisionReason(event.target.value)}
-        placeholder="Example: Client approved revised service discounts and the attached updated service schedule."/>
-      <p>Issued services with payment allocations cannot be removed automatically. Use reviewed financial corrections or refund procedures. Previously issued invoices retain their bill IDs and a before/after audit trail.</p>
-    </section>
+
 
     <section className="fbe-revision-panel fbe-revision-list">
       <h2>Full bill revision history</h2>
