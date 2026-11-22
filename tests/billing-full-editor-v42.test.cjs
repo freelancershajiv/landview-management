@@ -99,3 +99,11 @@ test("discount entry targets an individual service in both bill workflows", () =
   assert.match(create, /updateLine\(line\.id, \{ discount: event\.target\.value \}\)/);
   for (const source of [page, create]) assert.doesNotMatch(source, /applyWholeDiscount|Distribute Automatically/);
 });
+
+test("preview asks for a missing reason at the field and checks edited services", () => {
+  assert.doesNotMatch(page, /disabled=\{[^}]*revisionReason/);
+  assert.match(page, /reasonInput\.current\?\.focus\(\)/);
+  assert.match(page, /const active = lines\.filter\(line => isUsedLine\(line\) && \(line\.isNew \|\| metadataChanged\(line\)/);
+  assert.match(page, /if \(originalMode === "flat_amount"\) return Math\.abs\(pricing\.gross - line\.originalGross\)/);
+  assert.match(page, /projectCode\(requestedFileId\) !== fileId/);
+});
