@@ -78,6 +78,7 @@ function ProgressBar({ label, tasks }: { label: string; tasks: readonly Task[] }
 export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code: string) => void }) {
   const [data, setData] = useState<Dashboard | null>(null);
   const [projectFilter, setProjectFilter] = useState("");
+  const [hideSidebar, setHideSidebar] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -141,7 +142,7 @@ export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code:
   }, [scoped]);
 
   const done = scoped.filter(task => task.status === "Done").length;
-  return <section className={styles.tdp} aria-label="Work progress by discipline">
+  return <section className={styles.tdp} aria-label="Work progress by discipline" data-work-type-board="true" data-sidebar-hidden={hideSidebar ? "true" : "false"}>
     <div className={styles.heading}>
       <div>
         <h2>Work by discipline</h2>
@@ -154,6 +155,7 @@ export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code:
             {projects.map(project => <option key={project} value={project}>{project}</option>)}
           </select>
         </label>
+        <button type="button" aria-pressed={hideSidebar} onClick={() => setHideSidebar(current => !current)}>{hideSidebar ? "Show sidebar" : "Hide sidebar"}</button>
         <button type="button" onClick={() => window.dispatchEvent(new Event("landview:todo:changed"))}>Refresh</button>
       </div>
     </div>
@@ -166,8 +168,8 @@ export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code:
         <span><strong>{done}</strong> completed</span>
         <span><strong>{completionPercent(scoped)}%</strong> overall progress</span>
       </div>
-      <p className={styles.scrollHint}>Scroll sideways to view all work types. Open a project to see its tasks.</p>
-      <div className={styles.grid} role="region" aria-label="Discipline progress columns" tabIndex={0}>
+      <p className={styles.scrollHint}>All disciplines fit across wide desktop screens. Open a project to see its tasks; smaller screens can scroll sideways.</p>
+      <div className={styles.grid} role="region" aria-label="Discipline progress columns" tabIndex={0} style={{ gridTemplateColumns: `repeat(${grouped.length}, minmax(0, 1fr))` }}>
         {grouped.map(group => {
           const count = group.tasks.length;
           const finished = group.tasks.filter(task => task.status === "Done").length;
