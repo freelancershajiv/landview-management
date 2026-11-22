@@ -10,7 +10,7 @@ const api=read("app/api/billing/reports-v44/route.ts");
 const print=read("app/api/billing/reports-v44/print/route.ts");
 const ui=read("app/admin/finance/reports/page.tsx");
 const nav=read("components/billing-navigation.tsx");
-const home=read("app/admin/finance/page.tsx");
+const layout=read("app/admin/finance/layout.tsx");
 const context={module:{exports:{}}};context.exports=context.module.exports;
 const code=ts.transpileModule(logic,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 vm.runInNewContext(code,context,{filename:"billing-reports-v44.js"});
@@ -145,7 +145,7 @@ test("printable A4 management report uses same authorized snapshot",()=>{
 });
 test("financial reports are wired into Billing and provide safe CSV exports",()=>{
  assert.match(nav,/href: "\/admin\/billing\/reports"/);
- assert.match(home,/Financial Reports & Aging/);
+ assert.match(layout,/<BillingNavigation \/>/);
  assert.match(ui,/\/api\/billing\/reports-v44/);
  assert.match(ui,/\/api\/billing\/reports-v44\/print\?autoprint=1/);
  assert.match(ui,/Math\.max\(1,\.\.\.months\.map/);

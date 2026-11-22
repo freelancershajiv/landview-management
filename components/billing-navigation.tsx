@@ -5,27 +5,27 @@ import { usePathname } from "next/navigation";
 
 const main = [
   { href: "/admin/billing", label: "Overview" },
+  { href: "/admin/billing/direct-bill", label: "Create Bill" },
+  { href: "/admin/billing/full-bill-editor", label: "Service Discounts & Edits" },
+  { href: "/admin/billing/service-payments", label: "Receive Payment" },
+  { href: "/admin/billing/due-bills", label: "Due Bills" },
+];
+const advanced = [
   { href: "/admin/billing/workspace", label: "Project Billing" },
   { href: "/admin/billing/bills", label: "Bill Manager" },
   { href: "/admin/billing/invoice-center", label: "Invoice Center" },
-  { href: "/admin/billing/service-payments", label: "Receive Payment" },
-  { href: "/admin/billing/project-statement", label: "Project Statements" },
+  { href: "/admin/billing/invoices", label: "Print Invoice" },
+  { href: "/admin/billing/project-statement", label: "Statements & Receipts" },
   { href: "/admin/billing/reports", label: "Financial Reports" },
-  { href: "/admin/billing/due-bills", label: "Due Bills" },
-  { href: "/admin/billing/full-bill-editor#bill-discount", label: "Apply Discount" },
-  { href: "/admin/billing/writeoffs", label: "Write-Offs" },
+  { href: "/admin/billing/add-bill", label: "Single Bill Entry" },
+  { href: "/admin/billing/writeoffs", label: "Write-Offs & Recoveries" },
   { href: "/admin/billing/reconciliation", label: "Reconciliation" },
-];
-const advanced = [
-  { href: "/admin/billing/add-bill", label: "Add Single Bill" },
-  { href: "/admin/billing/direct-bill", label: "Create Full Bill" },
-  { href: "/admin/billing/full-bill-editor", label: "Edit Full Bill" },
-  { href: "/admin/billing/invoices", label: "Print / Generate Invoice" },
-  { href: "/admin/billing/payment-lifecycle", label: "Payment Lifecycle & Advances" },
+  { href: "/admin/billing/payment-lifecycle", label: "Payments & Advances" },
   { href: "/admin/billing/adjustments", label: "Credit / Debit Notes" },
   { href: "/admin/billing/allocation-corrections", label: "Allocation Corrections" },
   { href: "/admin/billing/integrity", label: "Financial Integrity" },
   { href: "/admin/billing/billing-control", label: "Billing Controls" },
+  { href: "/admin/accounts", label: "Accounts & Ledger" },
 ];
 export default function BillingNavigation() {
   const pathname = usePathname();
@@ -50,12 +50,11 @@ export default function BillingNavigation() {
     </nav>
     <div className="billing-nav-tools">
       <details>
-        <summary>Additional billing tools, corrections and reports</summary>
+        <summary>More billing tools</summary>
         <nav className="billing-nav-advanced" aria-label="Additional billing tools">
           {advanced.map((item) => <Link key={item.href} href={item.href} aria-current={active(item.href) ? "page" : undefined}>{item.label}</Link>)}
         </nav>
       </details>
-      <Link className="billing-ledger-link" href="/admin/accounts">Accounts & Ledger (separate)</Link>
     </div>
   </div>;
 }

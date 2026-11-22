@@ -13,7 +13,7 @@ const page = read("app/admin/finance/project-statement/page.tsx");
 const history = read("components/project-receipt-history.tsx");
 const receiptsApi = read("app/api/billing/project-receipts/route.ts");
 const nav = read("components/billing-navigation.tsx");
-const dashboard = read("app/admin/finance/page.tsx");
+const jump = read("components/billing-project-jump.tsx");
 const context = { module: { exports: {} } };
 context.exports = context.module.exports;
 vm.runInNewContext(ts.transpileModule(renderer, {
@@ -123,7 +123,7 @@ test("receipt list shares canonical effective-payment exclusions and supports di
 
 test("user interface connects statement, payments, verified receipts and document actions",()=>{
   assert.match(nav,/href: "\/admin\/billing\/project-statement"/);
-  assert.match(dashboard,/Project Statements & Receipts/);
+  assert.match(jump,/\/admin\/billing\/project-statement\?fileId=/);
   assert.match(page,/\/api\/billing\/project-statement\?projectId=/);
   assert.match(page,/\/api\/billing\/project-statement-print\?projectId=/);
   assert.match(page,/downloadProjectStatementPdfV43/);

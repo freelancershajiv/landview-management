@@ -8,13 +8,13 @@ const css = read("app/admin/finance/writeoffs/writeoffs.css");
 const api = read("app/api/billing/writeoffs/route.ts");
 const due = read("app/admin/finance/due-bills/page.tsx");
 const nav = read("components/billing-navigation.tsx");
-const home = read("app/admin/finance/page.tsx");
+const layout = read("app/admin/finance/layout.tsx");
 const rewrite = read("next.config.ts");
 
 test("write-off UI is reachable from billing overview, navigation and both Due Bills views", () => {
   assert.match(rewrite, /source: "\/admin\/billing\/:path\*", destination: "\/admin\/finance\/:path\*"/);
   assert.match(nav, /\/admin\/billing\/writeoffs/);
-  assert.match(home, /\/admin\/billing\/writeoffs/);
+  assert.match(layout, /<BillingNavigation\s*\/>/);
   assert.equal((due.match(/\/admin\/billing\/writeoffs\?fileId=/g) || []).length, 2);
 });
 

@@ -193,7 +193,8 @@ export default function FullBillEditorPage() {
   const [fileId, setFileId] = useState("");
   const [records, setRecords] = useState<Row[]>([]);
   const [lines, setLines] = useState<EditLine[]>([]);
-  const [wholeDiscount, setWholeDiscount] = useState("");
+  const [discountServiceKey, setDiscountServiceKey] = useState("");
+  const discountService = lines.find(line => line.key === discountServiceKey && isUsedLine(line));
   const [search, setSearch] = useState("");
   const [showUnused, setShowUnused] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -281,7 +282,7 @@ export default function FullBillEditorPage() {
       setRecords(billRows);
       setLines(linesForProject(billRows, adjustmentRows));
       setRevisions(Array.isArray((revisionHistory as Row)?.revisions) ? (revisionHistory as Row).revisions as Row[] : []);
-      setWholeDiscount("");
+      setDiscountServiceKey("");
       const url = new URL(window.location.href);
       url.searchParams.set("fileId", id);
       window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
@@ -331,34 +332,6 @@ export default function FullBillEditorPage() {
   function clearNewLine(key: string) {
     setLines((current) => current.map((line) => line.key === key ? { ...line, quantity: "1", unitPrice: "", gross: "", discount: "0", notes: "", removed: false } : line));
   }
-  function applyWholeDiscount() {
-    const amount = Math.round(Math.max(0, num(wholeDiscount)) * 100) / 100;
-    const candidates = lines.filter(isUsedLine).map(line => ({
-      key: line.key,
-      capacity: Math.max(0, Math.round(Math.min(editableGross(line) - num(line.discount), targetNet(line)) * 100)),
-    })).filter(line => line.capacity > 0);
-    let remainingCapacity = candidates.reduce((sum, line) => sum + line.capacity, 0);
-    let remainingAmount = Math.round(amount * 100);
-    if (!Number.isSafeInteger(remainingAmount) || remainingAmount <= 0 || remainingAmount > remainingCapacity) {
-      setError("Enter a discount greater than zero and within the remaining bill value.");
-      return;
-    }
-    const shares = new Map<string, number>();
-    for (const line of candidates) {
-      const share = Math.round(remainingAmount * (line.capacity / remainingCapacity));
-      shares.set(line.key, share / 100);
-      remainingAmount -= share;
-      remainingCapacity -= line.capacity;
-    }
-    setLines((current) => current.map((line) => {
-      const share = shares.get(line.key);
-      return share === undefined ? line : { ...line, discount: String(Math.round((num(line.discount) + share) * 100) / 100) };
-    }));
-    setError("");
-    setWholeDiscount("");
-    setMessage(`${money(amount)} additional discount distributed across ${candidates.length} service${candidates.length === 1 ? "" : "s"}. Review the Discount column, then choose Preview & Save Revision.`);
-  }
-
   async function save() {
     if (!fileId || !lines.length || savingRef.current || saving) return;
     const active = lines.filter(isUsedLine);
@@ -485,7 +458,7 @@ export default function FullBillEditorPage() {
     `}</style>
 
     <header className="fbe-head">
-      <div><small>BILLING / ATOMIC FULL BILL CONTROL · V4.2</small><h1>Full Bill Editor</h1><p>Review every service for a File ID, then save all changes together. Issued gross values remain locked; removal of an unpaid issued service creates an auditable credit note. The database commits the entire revision or none of it.</p></div>
+      <div><h1>Service Discounts & Bill Edits</h1><p>Open a project, choose a service and enter its total discount. Add a revision reason below to preview and save.</p></div>
       <div className="fbe-actions"><Link className="fbe-btn" href="/admin/billing/direct-bill">+ New Full Bill</Link><Link className="fbe-btn" href="/admin/billing/invoices">Generate Invoice</Link><Link className="fbe-btn" href="/admin/billing/service-payments">Add Payment</Link></div>
     </header>
 
@@ -516,10 +489,13 @@ export default function FullBillEditorPage() {
       </div>
 
       <div className="fbe-discount">
-        <strong style={{fontSize:12}}>Additional Whole Bill Discount</strong>
-        <input className="amount" aria-label="Additional whole bill discount in taka" inputMode="decimal" placeholder="Amount (৳)" value={wholeDiscount} onChange={(event) => setWholeDiscount(event.target.value)}/>
-        <input className="reason" placeholder="Reason / offer / negotiation note" aria-label="Revision reason" value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)}/>
-        <button className="fbe-btn" onClick={applyWholeDiscount} disabled={!summary.services}>Distribute Automatically</button>
+        <strong>Service discount</strong>
+        <label>Service <select value={discountService?.key || ""} disabled={loading || saving || !summary.services} onChange={event => setDiscountServiceKey(event.target.value)}>
+          <option value="">Choose a billed service</option>
+          {lines.filter(isUsedLine).map(line => <option key={line.key} value={line.key}>{line.service} · {line.billId || line.category} · {money(editableGross(line))}</option>)}
+        </select></label>
+        {discountService && <label>Discount (৳) <input className="amount" type="number" min="0" step="0.01" max={editableGross(discountService)} value={discountService.discount} disabled={loading || saving} onChange={event => patchLine(discountService.key, { discount: event.target.value })}/></label>}
+        {discountService && <span>Revised service total <strong>{money(targetNet(discountService))}</strong></span>}
       </div>
 
       <div className="fbe-kpis">
@@ -550,7 +526,7 @@ export default function FullBillEditorPage() {
               <td className="fbe-qty">{editablePricing ? <input inputMode="decimal" value={line.entryMode === "quantity_rate" ? line.quantity : "1"} disabled={line.removed || line.entryMode === "flat_amount"} onChange={(event) => patchLine(line.key,{quantity:event.target.value})}/> : <><strong>{pricing.quantity || 1}</strong><div className="fbe-lock">Qty</div></>}</td>
               <td className="fbe-money">{editablePricing ? <input inputMode="decimal" placeholder="0" value={line.entryMode === "quantity_rate" ? line.unitPrice : line.gross} disabled={line.removed} onChange={(event) => patchLine(line.key,line.entryMode === "quantity_rate" ? {unitPrice:event.target.value} : {gross:event.target.value})}/> : <><strong>{money(pricing.unitPrice)}</strong><div className="fbe-lock">{line.entryMode === "quantity_rate" ? "Unit rate" : "Flat amount"}</div></>}</td>
               <td className="fbe-money"><strong>{money(pricing.gross)}</strong>{!editablePricing ? <div className="fbe-lock">Issued gross preserved</div> : <div className="fbe-lock">Calculated gross</div>}</td>
-              <td className="fbe-money"><input inputMode="decimal" value={line.discount} disabled={line.removed || (line.isNew && !activeNew)} onChange={(event) => patchLine(line.key,{discount:event.target.value})}/><div className="fbe-lock">Direct service discount</div></td>
+              <td className="fbe-money"><input aria-label={`Discount for ${line.service}`} inputMode="decimal" value={line.discount} disabled={line.removed || (line.isNew && !activeNew)} onChange={(event) => patchLine(line.key,{discount:event.target.value})}/><div className="fbe-lock">Direct service discount</div></td>
               <td className="fbe-money"><strong>{money(targetNet(line))}</strong>{!line.isNew ? <div className="fbe-lock">Current {money(line.currentNet)}</div> : null}</td>
               <td className="fbe-notes"><textarea value={line.notes} disabled={line.removed} placeholder="Optional note" onChange={(event) => patchLine(line.key,{notes:event.target.value})}/></td>
               <td className="fbe-action">{line.isNew ? (activeNew || (!line.template && (line.service || line.notes)) ? <button className="fbe-btn" onClick={() => clearNewLine(line.key)}>Clear</button> : <span className="fbe-lock">Ready</span>) : <button className={`fbe-btn ${line.removed ? "" : "danger"}`} onClick={() => patchLine(line.key,{removed:!line.removed})}>{line.removed ? "Restore" : "Remove"}</button>}</td>

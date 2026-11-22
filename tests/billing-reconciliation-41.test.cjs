@@ -8,7 +8,7 @@ const logic = read("lib/billing-reconciliation-41.ts");
 const api = read("app/api/billing/reconciliation-41/route.ts");
 const page = read("app/admin/finance/reconciliation/page.tsx");
 const nav = read("components/billing-navigation.tsx");
-const home = read("app/admin/finance/page.tsx");
+const layout = read("app/admin/finance/layout.tsx");
 const sandbox = { exports: {}, module: { exports: {} } };
 sandbox.exports = sandbox.module.exports;
 const compiled = ts.transpileModule(logic, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText;
@@ -100,7 +100,7 @@ test("Reconciliation API is read-only except audit decision records", () => {
 
 test("Reconciliation UI provides queue, mobile cards, case history, and safe review actions", () => {
   assert.match(nav, /href: "\/admin\/billing\/reconciliation"/);
-  assert.match(home, /\/admin\/billing\/reconciliation/);
+  assert.match(layout, /<BillingNavigation \/>/);
   assert.match(page, /\/api\/billing\/reconciliation-41/);
   assert.match(page, /r41-mobile/);
   assert.match(page, /Request evidence review/);

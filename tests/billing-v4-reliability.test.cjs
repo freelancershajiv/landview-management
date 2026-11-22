@@ -21,7 +21,8 @@ test("billing V4 has a canonical /admin/billing route with legacy redirects and 
   assert.match(nav, /\/admin\/billing\/service-payments/);
   assert.match(dock, /href: "\/admin\/billing"/);
   assert.match(home, /<BillingProjectJump \/>/);
-  assert.match(jump, /\/admin\/billing\/all/);
+  assert.match(jump, /\/admin\/billing\/workspace\?fileId=/);
+  assert.match(nav, /\/admin\/billing\/allocation-corrections/);
 });
 
 test("full bill submission inserts all service rows as one atomic server-side transaction", () => {
@@ -57,8 +58,7 @@ test("advance payments use canonical project/category safeguards and preserve pe
 });
 
 test("ledger and outsourcing remain separate and old financial data is not rewritten during navigation", () => {
-  assert.match(nav, /Accounts & Ledger \(separate\)/);
-  assert.match(home, /Accounting, cash\/bank ledger/);
+  assert.match(nav, /href: "\/admin\/accounts", label: "Accounts & Ledger"/);
   assert.match(read("components/management-shell-v5.tsx"), /label: "Billing & Accounts"/);
   assert.match(read("app/admin/finance/billing-v4-accessibility.css"), /@media screen/);
   assert.doesNotMatch(read("app/admin/finance/billing-v4-accessibility.css"), /@media print|create table|alter table/i);
