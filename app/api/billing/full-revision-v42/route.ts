@@ -1,3 +1,4 @@
+import { loadReceivableAuthority } from "@/lib/billing-receivable-authority";
 import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession, roleOf } from "@/lib/local-session";
@@ -31,6 +32,20 @@ export async function GET(request: NextRequest) {
       select: "id,project_code", filters: { project_code: projectCode }, limit: 1,
     }))[0];
     if (!project?.id) return json({ success: false, error: "Project not found." }, 404);
+    if (request.nextUrl.searchParams.get("view") === "balances") {
+      const authority = await loadReceivableAuthority({ projectId: String(project.id) });
+      if (!authority.complete) return json({ success: false, error: "Project balances are incomplete." }, 503);
+      const bills = authority.bills;
+      return json({ success: true, data: {
+        billed: bills.reduce((sum, bill) => sum + bill.gross, 0),
+        discount: bills.reduce((sum, bill) => sum + bill.storedDiscount, 0),
+        paid: authority.totals.paid,
+        due: authority.totals.due,
+        services: Object.fromEntries(bills.map(bill => [bill.billCode, {
+          paid: bill.allocated, due: bill.dueBeforeRelief,
+        }])),
+      } });
+    }
     const revisions = await selectRows("billing_events", {
       select: "event_key,created_at,actor,details", filters: {
         project_id: project.id, event_type: "full_bill_revision_v42",

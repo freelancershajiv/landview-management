@@ -15,6 +15,10 @@ import {
 } from "@/lib/billing-entry";
 
 type Row = Record<string, unknown>;
+type SavedBalances = {
+  billed: number; discount: number; paid: number; due: number;
+  services: Record<string, { paid: number; due: number }>;
+};
 type ApiEnvelope = { success?: boolean; error?: string; data?: unknown };
 type EditLine = {
   key: string;
@@ -48,7 +52,7 @@ type EditLine = {
 function text(value: unknown) { return String(value ?? "").trim(); }
 function num(value: unknown) { return numberValue(value); }
 function money(value: unknown) {
-  return new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(num(value));
+  return new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(num(value));
 }
 function pick(row: Row, ...keys: string[]) {
   for (const key of keys) if (row[key] !== undefined && row[key] !== null && text(row[key])) return row[key];
@@ -197,6 +201,7 @@ export default function FullBillEditorPage() {
   const [requestedFileId, setRequestedFileId] = useState("");
   const reasonInput = useRef<HTMLTextAreaElement>(null);
   const feedback = useRef<HTMLDivElement>(null);
+  const [balances, setBalances] = useState<SavedBalances | null>(null);
   const [records, setRecords] = useState<Row[]>([]);
   const [lines, setLines] = useState<EditLine[]>([]);
   const [discountServiceKey, setDiscountServiceKey] = useState("");
@@ -256,9 +261,6 @@ export default function FullBillEditorPage() {
     const active = lines.filter(isUsedLine);
     return {
       services: active.length,
-      gross: active.reduce((sum, line) => sum + editableGross(line), 0),
-      discount: active.reduce((sum, line) => sum + Math.max(0, num(line.discount)), 0),
-      current: lines.filter((line) => !line.isNew && !line.removed).reduce((sum, line) => sum + line.currentNet, 0),
       revised: active.reduce((sum, line) => sum + targetNet(line), 0),
     };
   }, [lines]);
@@ -275,16 +277,20 @@ export default function FullBillEditorPage() {
     if (!id) { setError("Enter a valid File ID, for example LV-157."); return; }
     setRequestedFileId(id);
     setFileId("");
+    setBalances(null);
     setLines([]);
     setRecords([]);
     setRevisions([]);
     setRevisionReason("");
     setLoading(true); setError(""); setMessage("");
     try {
-      const [billRowsRaw, adjustmentRowsRaw, revisionHistory] = await Promise.all([
+      const [billRowsRaw, adjustmentRowsRaw, revisionHistory, savedBalances] = await Promise.all([
         landViewApi.getBillingRecords(id),
         readJson(await fetch(`/api/billing/adjustments?projectId=${encodeURIComponent(id)}`, { credentials: "same-origin", cache: "no-store" }), "Could not load bill adjustments."),
         readJson(await fetch(`/api/billing/full-revision-v42?projectId=${encodeURIComponent(id)}`, { credentials: "same-origin", cache: "no-store" }), "Could not load bill revision history."),
+        fetch(`/api/billing/full-revision-v42?view=balances&projectId=${encodeURIComponent(id)}`, { credentials: "same-origin", cache: "no-store" })
+          .then(response => readJson(response, "Could not load project balances."))
+          .catch(() => null),
       ]);
       const billRows = Array.isArray(billRowsRaw)
         ? billRowsRaw.filter((row) => !/credit note|debit note/i.test(text(pick(row as Row, "Created_Via", "created_via")))
@@ -292,6 +298,7 @@ export default function FullBillEditorPage() {
         : [];
       const adjustmentRows = Array.isArray(adjustmentRowsRaw) ? adjustmentRowsRaw as Row[] : [];
       setFileId(id);
+      setBalances(savedBalances as SavedBalances | null);
       setRecords(billRows);
       setLines(linesForProject(billRows, adjustmentRows));
       setRevisions(Array.isArray((revisionHistory as Row)?.revisions) ? (revisionHistory as Row).revisions as Row[] : []);
@@ -456,7 +463,7 @@ export default function FullBillEditorPage() {
 
   return <main className="fbe">
     <style>{`
-      .fbe{max-width:1700px;margin:0 auto;color:var(--lv-text-primary)}.fbe *{box-sizing:border-box}.fbe-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:14px}.fbe-head small{display:block;color:var(--lv-brand-text);font-size:8px;font-weight:950;letter-spacing:.13em}.fbe-head h1{margin:5px 0 3px;font-size:28px}.fbe-head p{margin:0;color:var(--lv-text-muted);font-size:9px;max-width:900px;line-height:1.55}.fbe-actions,.fbe-toolbar-left,.fbe-discount{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.fbe-btn{min-height:36px;padding:0 11px;border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);font-size:8px;font-weight:900;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}.fbe-btn.primary{background:var(--lv-brand-primary);border-color:var(--lv-brand-border);color:var(--lv-text-inverse)}.fbe-btn.danger{color:var(--lv-danger);border-color:var(--lv-danger)}.fbe-btn:disabled{opacity:.5;cursor:not-allowed}.fbe input,.fbe select,.fbe textarea{border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);font:inherit}.fbe-picker{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:7px;padding:11px;border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-panel);margin-bottom:12px}.fbe-picker input{min-height:39px;padding:8px 10px}.fbe-msg{padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:9px}.fbe-msg.bad{background:var(--lv-danger-soft);color:var(--lv-danger)}.fbe-msg.good{background:var(--lv-success-soft);color:var(--lv-success)}.fbe-panel{border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-panel);overflow:hidden}.fbe-toolbar{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 11px;border-bottom:1px solid var(--lv-border-default);flex-wrap:wrap}.fbe-toolbar input,.fbe-discount input{min-height:34px;padding:6px 8px;font-size:8px}.fbe-toolbar-search{min-width:220px}.fbe-discount{padding:9px 11px;border-bottom:1px solid var(--lv-border-default);background:var(--lv-brand-soft)}.fbe-discount input.amount{width:140px}.fbe-discount input.reason{min-width:260px;flex:1}.fbe-kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:7px;padding:10px 11px;border-bottom:1px solid var(--lv-border-default);background:var(--lv-surface-muted)}.fbe-kpi{padding:8px;border:1px solid var(--lv-border-subtle);border-radius:7px;background:var(--lv-surface-panel)}.fbe-kpi span{display:block;font-size:6px;text-transform:uppercase;color:var(--lv-text-muted);font-weight:950}.fbe-kpi strong{display:block;margin-top:4px;font-size:12px}.fbe-kpi.revised strong{color:var(--lv-brand-text)}.fbe-table-wrap{overflow:auto}.fbe-table{width:100%;border-collapse:collapse;min-width:1550px}.fbe-table th,.fbe-table td{padding:7px;border-bottom:1px solid var(--lv-border-subtle);vertical-align:top}.fbe-table th{background:var(--lv-surface-muted);font-size:7px;text-transform:uppercase;color:var(--lv-text-muted);text-align:left;position:sticky;top:0;z-index:1}.fbe-table input,.fbe-table select,.fbe-table textarea{width:100%;min-height:35px;padding:6px 7px;font-size:8px}.fbe-table input:disabled,.fbe-table select:disabled{opacity:.58}.fbe-table textarea{min-height:42px;resize:vertical}.fbe-service{min-width:190px}.fbe-money{width:115px}.fbe-qty{width:78px}.fbe-mode{width:130px}.fbe-date{width:118px}.fbe-category{width:150px}.fbe-state{width:120px}.fbe-notes{min-width:180px}.fbe-action{width:82px}.fbe-lock{font-size:7px;color:var(--lv-text-muted);line-height:1.35}.fbe-badge{display:inline-flex;min-height:22px;align-items:center;padding:0 7px;border-radius:999px;background:var(--lv-surface-muted);font-size:7px;font-weight:950}.fbe-badge.issued{color:var(--lv-warning)}.fbe-badge.available{color:var(--lv-text-muted)}.fbe-line-template{background:color-mix(in srgb,var(--lv-surface-muted) 45%,transparent)}.fbe-line-removed{opacity:.5}.fbe-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px}.fbe-footer small{color:var(--lv-text-muted);font-size:8px;max-width:900px}@media(max-width:850px){.fbe-head{align-items:flex-start;flex-direction:column}.fbe-actions{width:100%}.fbe-actions .fbe-btn{flex:1}.fbe-kpis{grid-template-columns:repeat(2,1fr)}.fbe-picker{grid-template-columns:1fr}.fbe-footer{align-items:stretch;flex-direction:column}.fbe-footer .fbe-btn{width:100%}.fbe-discount{display:grid;grid-template-columns:1fr}.fbe-discount input.amount,.fbe-discount input.reason{width:100%;min-width:0}.fbe-toolbar{align-items:stretch}.fbe-toolbar-left{width:100%}.fbe-toolbar-search{flex:1;min-width:140px}}
+      .fbe{max-width:1700px;margin:0 auto;color:var(--lv-text-primary)}.fbe *{box-sizing:border-box}.fbe-head{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;margin-bottom:14px}.fbe-head small{display:block;color:var(--lv-brand-text);font-size:8px;font-weight:950;letter-spacing:.13em}.fbe-head h1{margin:5px 0 3px;font-size:28px}.fbe-head p{margin:0;color:var(--lv-text-muted);font-size:9px;max-width:900px;line-height:1.55}.fbe-actions,.fbe-toolbar-left,.fbe-discount{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.fbe-btn{min-height:36px;padding:0 11px;border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);font-size:8px;font-weight:900;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;cursor:pointer}.fbe-btn.primary{background:var(--lv-brand-primary);border-color:var(--lv-brand-border);color:var(--lv-text-inverse)}.fbe-btn.danger{color:var(--lv-danger);border-color:var(--lv-danger)}.fbe-btn:disabled{opacity:.5;cursor:not-allowed}.fbe input,.fbe select,.fbe textarea{border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);font:inherit}.fbe-picker{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:7px;padding:11px;border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-panel);margin-bottom:12px}.fbe-picker input{min-height:39px;padding:8px 10px}.fbe-msg{padding:10px 12px;border-radius:8px;margin-bottom:12px;font-size:9px}.fbe-msg.bad{background:var(--lv-danger-soft);color:var(--lv-danger)}.fbe-msg.good{background:var(--lv-success-soft);color:var(--lv-success)}.fbe-panel{border:1px solid var(--lv-border-default);border-radius:10px;background:var(--lv-surface-panel);overflow:hidden}.fbe-toolbar{display:flex;justify-content:space-between;gap:8px;align-items:center;padding:10px 11px;border-bottom:1px solid var(--lv-border-default);flex-wrap:wrap}.fbe-toolbar input,.fbe-discount input{min-height:34px;padding:6px 8px;font-size:8px}.fbe-toolbar-search{min-width:220px}.fbe-discount{padding:9px 11px;border-bottom:1px solid var(--lv-border-default);background:var(--lv-brand-soft)}.fbe-discount input.amount{width:140px}.fbe-discount input.reason{min-width:260px;flex:1}.fbe-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;padding:10px 11px;border-bottom:1px solid var(--lv-border-default);background:var(--lv-surface-muted)}.fbe-kpi{padding:8px;border:1px solid var(--lv-border-subtle);border-radius:7px;background:var(--lv-surface-panel)}.fbe-kpi span{display:block;font-size:6px;text-transform:uppercase;color:var(--lv-text-muted);font-weight:950}.fbe-kpi strong{display:block;margin-top:4px;font-size:12px}.fbe-kpi.revised strong{color:var(--lv-brand-text)}.fbe-table-wrap{overflow:auto}.fbe-balance-heading,.fbe-preview-total{margin:12px;font-size:15px}.fbe-table{width:100%;border-collapse:collapse;min-width:1700px}.fbe-table th,.fbe-table td{padding:7px;border-bottom:1px solid var(--lv-border-subtle);vertical-align:top}.fbe-table th{background:var(--lv-surface-muted);font-size:7px;text-transform:uppercase;color:var(--lv-text-muted);text-align:left;position:sticky;top:0;z-index:1}.fbe-table input,.fbe-table select,.fbe-table textarea{width:100%;min-height:35px;padding:6px 7px;font-size:8px}.fbe-table input:disabled,.fbe-table select:disabled{opacity:.58}.fbe-table textarea{min-height:42px;resize:vertical}.fbe-service{min-width:190px}.fbe-money{width:115px}.fbe-qty{width:78px}.fbe-mode{width:130px}.fbe-date{width:118px}.fbe-category{width:150px}.fbe-state{width:120px}.fbe-notes{min-width:180px}.fbe-action{width:82px}.fbe-lock{font-size:7px;color:var(--lv-text-muted);line-height:1.35}.fbe-badge{display:inline-flex;min-height:22px;align-items:center;padding:0 7px;border-radius:999px;background:var(--lv-surface-muted);font-size:7px;font-weight:950}.fbe-badge.issued{color:var(--lv-warning)}.fbe-badge.available{color:var(--lv-text-muted)}.fbe-line-template{background:color-mix(in srgb,var(--lv-surface-muted) 45%,transparent)}.fbe-line-removed{opacity:.5}.fbe-footer{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px}.fbe-footer small{color:var(--lv-text-muted);font-size:8px;max-width:900px}@media(max-width:850px){.fbe-head{align-items:flex-start;flex-direction:column}.fbe-actions{width:100%}.fbe-actions .fbe-btn{flex:1}.fbe-kpis{grid-template-columns:repeat(2,1fr)}.fbe-picker{grid-template-columns:1fr}.fbe-footer{align-items:stretch;flex-direction:column}.fbe-footer .fbe-btn{width:100%}.fbe-discount{display:grid;grid-template-columns:1fr}.fbe-discount input.amount,.fbe-discount input.reason{width:100%;min-width:0}.fbe-toolbar{align-items:stretch}.fbe-toolbar-left{width:100%}.fbe-toolbar-search{flex:1;min-width:140px}}
       /* Billing 4.2 readability overrides: keep full tables scrollable on phones. */
       .fbe-head small{font-size:11px}.fbe-head p{font-size:13px;line-height:1.5}
       .fbe .fbe-btn{min-height:42px;font-size:12px;padding:8px 13px}
@@ -491,6 +498,16 @@ export default function FullBillEditorPage() {
       <input value={requestedFileId} disabled={saving || loading} onChange={(event) => setRequestedFileId(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void load(requestedFileId); }} placeholder="Enter File ID — e.g. LV-157"/>
       <button className="fbe-btn primary" onClick={() => void load(requestedFileId)} disabled={saving || loading}>{loading ? "Loading…" : "Open Full Bill"}</button>
     </section>
+
+    {fileId && <section className="fbe-panel" aria-label="Saved project balances">
+      <h2 className="fbe-balance-heading">Saved project balances · {fileId}</h2>
+      {balances ? <div className="fbe-kpis">
+        <div className="fbe-kpi"><span>Billed (gross)</span><strong>{money(balances.billed)}</strong></div>
+        <div className="fbe-kpi"><span>Discount</span><strong>{money(balances.discount)}</strong></div>
+        <div className="fbe-kpi"><span>Paid</span><strong>{money(balances.paid)}</strong></div>
+        <div className="fbe-kpi revised"><span>Due</span><strong>{money(balances.due)}</strong></div>
+      </div> : <p role="status">Balances unavailable. Reopen this File ID to retry.</p>}
+    </section>}
 
     {pendingNotice && <div className="fbe-revision-guard" role="status">
       <strong>An earlier revision submission needs confirmation.</strong> Check its history before changing amounts or retrying a different batch.
@@ -530,19 +547,14 @@ export default function FullBillEditorPage() {
           placeholder="e.g. Client approved the architectural design discount"/>
       </div>
 
-      <div className="fbe-kpis">
-        <div className="fbe-kpi"><span>Active Services</span><strong>{summary.services}</strong></div>
-        <div className="fbe-kpi"><span>Gross</span><strong>{money(summary.gross)}</strong></div>
-        <div className="fbe-kpi"><span>Discount</span><strong>{money(summary.discount)}</strong></div>
-        <div className="fbe-kpi"><span>Current Net</span><strong>{money(summary.current)}</strong></div>
-        <div className="fbe-kpi revised"><span>Revised Net</span><strong>{money(summary.revised)}</strong></div>
-      </div>
+      <p className="fbe-preview-total">Revised bill total <strong>{money(summary.revised)}</strong></p>
 
       <datalist id="fbe-service-list">{BILL_SERVICE_CATALOG.map((item) => <option key={item.service} value={item.service}/>)}</datalist>
       <div className="fbe-table-wrap">
         {!lines.length ? <div style={{padding:28,textAlign:"center",fontSize:9,color:"var(--lv-text-muted)"}}>Open a File ID to load its complete bill.</div> : <table className="fbe-table">
-          <thead><tr><th>State</th><th>Date</th><th>Category</th><th>Service</th><th>Entry Type</th><th>Qty</th><th>Rate / Flat</th><th>Gross</th><th>Discount</th><th>Net</th><th>Notes</th><th>Action</th></tr></thead>
+          <thead><tr><th>State</th><th>Date</th><th>Category</th><th>Service</th><th>Entry Type</th><th>Qty</th><th>Rate / Flat</th><th>Billed (gross)</th><th>Discount</th><th>Revised net</th><th>Paid (allocated)</th><th>Due¹ (saved)</th><th>Notes</th><th>Action</th></tr></thead>
           <tbody>{visibleLines.map((line) => {
+            const savedService = balances?.services[line.billId];
             const pricing = pricingFor(line);
             const editablePricing = line.isNew || line.isDraft;
             const activeNew = editableGross(line) > 0;
@@ -560,6 +572,8 @@ export default function FullBillEditorPage() {
               <td className="fbe-money"><strong>{money(pricing.gross)}</strong>{!editablePricing ? <div className="fbe-lock">Issued gross preserved</div> : <div className="fbe-lock">Calculated gross</div>}</td>
               <td className="fbe-money"><input aria-label={`Discount for ${line.service}`} inputMode="decimal" value={line.discount} disabled={line.removed || (line.isNew && !activeNew)} onChange={(event) => patchLine(line.key,{discount:event.target.value})}/><div className="fbe-lock">Direct service discount</div></td>
               <td className="fbe-money"><strong>{money(targetNet(line))}</strong>{!line.isNew ? <div className="fbe-lock">Current {money(line.currentNet)}</div> : null}</td>
+              <td className="fbe-money">{savedService ? money(savedService.paid) : "—"}</td>
+              <td className="fbe-money">{savedService ? money(savedService.due) : "—"}</td>
               <td className="fbe-notes"><textarea value={line.notes} disabled={line.removed} placeholder="Optional note" onChange={(event) => patchLine(line.key,{notes:event.target.value})}/></td>
               <td className="fbe-action">{line.isNew ? (activeNew || (!line.template && (line.service || line.notes)) ? <button className="fbe-btn" onClick={() => clearNewLine(line.key)}>Clear</button> : <span className="fbe-lock">Ready</span>) : <button className={`fbe-btn ${line.removed ? "" : "danger"}`} onClick={() => patchLine(line.key,{removed:!line.removed})}>{line.removed ? "Restore" : "Remove"}</button>}</td>
             </tr>;
@@ -568,7 +582,7 @@ export default function FullBillEditorPage() {
       </div>
 
       <div className="fbe-footer">
-        <small>All revisions are validated against the loaded bill snapshot. Changed draft rows, new services, discounts and eligible credit notes commit together. Previously issued gross values cannot be directly edited.</small>
+        <small>¹ Service due is shown before project-level advances and write-offs. The project balance includes those offsets. All revisions are validated against the loaded bill snapshot. Changed draft rows, new services, discounts and eligible credit notes commit together. Previously issued gross values cannot be directly edited.</small>
         <button type="button" className="fbe-btn primary" onClick={() => void save()} disabled={saving || loading || !lines.length}>{saving ? "Checking / Saving…" : "Preview & Save Revision"}</button>
       </div>
     </section>
