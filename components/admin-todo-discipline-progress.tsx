@@ -145,7 +145,7 @@ export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code:
     <div className={styles.heading}>
       <div>
         <h2>Work by discipline</h2>
-        <p>Each work type has independent progress, with a breakdown for every project. Figures use completed To Dos and checklist steps, not manually entered percentages.</p>
+        <p>Compare disciplines in side-by-side columns. Each column shows its own progress and the projects and tasks underneath; percentages come from completed To Dos and checklist steps.</p>
       </div>
       <div className={styles.controls}>
         <label>Project
@@ -166,7 +166,8 @@ export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code:
         <span><strong>{done}</strong> completed</span>
         <span><strong>{completionPercent(scoped)}%</strong> overall progress</span>
       </div>
-      <div className={styles.grid}>
+      <p className={styles.scrollHint}>Scroll sideways to view all work types. Open a project to see its tasks.</p>
+      <div className={styles.grid} role="region" aria-label="Discipline progress columns" tabIndex={0}>
         {grouped.map(group => {
           const count = group.tasks.length;
           const finished = group.tasks.filter(task => task.status === "Done").length;
@@ -176,8 +177,8 @@ export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code:
               <span className={styles.number}>{count ? completionPercent(group.tasks) + "%" : "—"}</span>
             </div>
             <ProgressBar label={group.label + " progress"} tasks={group.tasks} />
-            {count > 0 && <details className={styles.details}>
-              <summary>View projects and tasks</summary>
+            <div className={styles.projectScroller} aria-label={group.label + " projects"}>
+              {count === 0 && <p className={styles.emptyColumn}>No project tasks recorded.</p>}
               {group.projects.map(([project, items]) => {
                 const completed = items.filter(task => task.status === "Done").length;
                 const sorted = [...items].sort((a, b) =>
@@ -196,7 +197,7 @@ export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code:
                   </details>
                 </div>;
               })}
-            </details>}
+            </div>
           </article>;
         })}
       </div>
