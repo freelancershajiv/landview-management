@@ -48,6 +48,7 @@ import "../button-contrast-authority.css";
 import "../admin/admin-mobile-v5.css";
 // Final centralized private UI theme and control contract after all legacy/mobile layers.
 import "../private-theme.css";
+import "../admin/sidebar-collapse.css";
 
 export default async function ProjectFinanceLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const session = await requirePortalSession(["admin", "manager", "client"]);

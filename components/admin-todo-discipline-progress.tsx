@@ -79,6 +79,17 @@ export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code:
   const [data, setData] = useState<Dashboard | null>(null);
   const [projectFilter, setProjectFilter] = useState("");
   const [hideSidebar, setHideSidebar] = useState(true);
+
+  useEffect(() => {
+    const sync = () => setHideSidebar(Boolean(document.querySelector(".portal-admin.lv-sidebar-collapsed")));
+    sync();
+    window.addEventListener("landview:admin-sidebar-state", sync);
+    return () => window.removeEventListener("landview:admin-sidebar-state", sync);
+  }, []);
+
+  const toggleSidebar = () => window.dispatchEvent(new CustomEvent("landview:admin-sidebar-request", {
+    detail: { collapsed: !hideSidebar },
+  }));
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -142,7 +153,7 @@ export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code:
   }, [scoped]);
 
   const done = scoped.filter(task => task.status === "Done").length;
-  return <section className={styles.tdp} aria-label="Work progress by discipline" data-work-type-board="true" data-sidebar-hidden={hideSidebar ? "true" : "false"}>
+  return <section className={styles.tdp} aria-label="Work progress by discipline" data-work-type-board="true">
     <div className={styles.heading}>
       <div>
         <h2>Work by discipline</h2>
@@ -155,7 +166,7 @@ export default function AdminTodoDisciplineProgress({ onOpen }: { onOpen: (code:
             {projects.map(project => <option key={project} value={project}>{project}</option>)}
           </select>
         </label>
-        <button type="button" aria-pressed={hideSidebar} onClick={() => setHideSidebar(current => !current)}>{hideSidebar ? "Show sidebar" : "Hide sidebar"}</button>
+        <button type="button" aria-pressed={hideSidebar} onClick={toggleSidebar}>{hideSidebar ? "Show sidebar" : "Hide sidebar"}</button>
         <button type="button" onClick={() => window.dispatchEvent(new Event("landview:todo:changed"))}>Refresh</button>
       </div>
     </div>

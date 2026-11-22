@@ -1,45 +1,45 @@
 /* Scoped to the expanded Work Types board only. This selector becomes inactive
    as soon as the user restores the sidebar or navigates away. */
 @media screen and (min-width:901px){
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) .primary-nav {
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) .primary-nav {
     display:none !important;
     visibility:hidden !important;
     pointer-events:none !important;
   }
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) .utility-bar {
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) .utility-bar {
     left:0 !important;
     width:100% !important;
   }
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) .admin-main,
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) .tmg-admin-main {
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) .admin-main,
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) .tmg-admin-main {
     left:0 !important;
     right:0 !important;
     width:100% !important;
     max-width:none !important;
   }
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) .content-wrap,
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) .tmg-content-wrap {
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) .content-wrap,
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) .tmg-content-wrap {
     width:calc(100% - 28px) !important;
     max-width:none !important;
     margin:0 14px !important;
     padding:13px 0 24px !important;
   }
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) .tws-head {
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) .tws-head {
     margin:4px 8px 0 !important;
     padding:13px 16px !important;
   }
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) .tws-nav-wrap {
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) .tws-nav-wrap {
     margin-top:11px !important;
     padding-top:9px !important;
   }
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) .tws-tab {
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) .tws-tab {
     padding:7px 9px !important;
     min-height:49px !important;
   }
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) .tws-view-head {
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) .tws-view-head {
     margin:9px 8px 0 !important;
   }
-  html body .portal-admin:has([data-work-type-board="true"][data-sidebar-hidden="true"]) [data-work-type-board="true"] {
+  html body .portal-admin.lv-sidebar-collapsed:has([data-work-type-board="true"]) [data-work-type-board="true"] {
     margin:8px 8px 18px !important;
   }
 }
