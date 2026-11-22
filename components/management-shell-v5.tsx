@@ -166,6 +166,10 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // null means no explicit preference: Work Types starts expanded across the screen.
+  const [sidebarPreference, setSidebarPreference] = useState<boolean | null>(null);
+  const [workTypesActive, setWorkTypesActive] = useState(false);
+  const sidebarCollapsed = sidebarPreference ?? workTypesActive;
   const [mobileFindOpen, setMobileFindOpen] = useState(false);
   const [pageQuery, setPageQuery] = useState("");
   const [recordSearch, setRecordSearch] = useState<{ query: string; hits: { kind: string; label: string; href: string }[]; partial?: boolean }>({ query: "", hits: [] });
@@ -193,6 +197,50 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
   const name = initialUser?.name || initialUser?.Name || initialUser?.username || initialUser?.Username || "LAND VIEW User";
   const all = Boolean(access?.all || isAdmin);
   const permissions = access?.permissions || {};
+
+  function setDesktopSidebarCollapsed(collapsed: boolean) {
+    setSidebarPreference(collapsed);
+    try { window.localStorage.setItem("landview.admin.sidebarCollapsed.v1", collapsed ? "1" : "0"); } catch {}
+  }
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem("landview.admin.sidebarCollapsed.v1");
+      if (saved === "1") setSidebarPreference(true);
+      else if (saved === "0") setSidebarPreference(false);
+    } catch {}
+    const receiveStorage = (event: StorageEvent) => {
+      if (event.key !== "landview.admin.sidebarCollapsed.v1") return;
+      setSidebarPreference(event.newValue === "1" ? true : event.newValue === "0" ? false : null);
+    };
+    window.addEventListener("storage", receiveStorage);
+    return () => window.removeEventListener("storage", receiveStorage);
+  }, []);
+
+  useEffect(() => {
+    const sync = () => {
+      const params = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+      setWorkTypesActive(pathname === "/admin/todo" && params.get("tab") === "disciplines");
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, [pathname]);
+
+  useEffect(() => {
+    const onSidebarRequest = (event: Event) => {
+      const collapsed = (event as CustomEvent<{ collapsed?: unknown }>).detail?.collapsed;
+      if (typeof collapsed === "boolean") setDesktopSidebarCollapsed(collapsed);
+    };
+    window.addEventListener("landview:admin-sidebar-request", onSidebarRequest);
+    return () => window.removeEventListener("landview:admin-sidebar-request", onSidebarRequest);
+  }, []);
+
+  useEffect(() => {
+    window.dispatchEvent(new CustomEvent("landview:admin-sidebar-state", {
+      detail: { collapsed: sidebarCollapsed },
+    }));
+  }, [sidebarCollapsed]);
 
   const canSee = (item: NavItem) => {
     if (item.adminOnly) return isAdmin;
@@ -434,12 +482,13 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
     }
   `;
 
-  return <div className="admin-shell tmg-shell portal-admin">
+  return <div className={`admin-shell tmg-shell portal-admin${sidebarCollapsed ? " lv-sidebar-collapsed" : ""}`}>
     <style dangerouslySetInnerHTML={{ __html: navStyles }} />
     <a className="portal-skip" href="#workspace-content">Skip to workspace</a>
     <header className="masthead">
       {mobileOpen && <button type="button" tabIndex={-1} aria-label="Close navigation overlay" className="mobile-nav-overlay" onClick={() => { setMobileOpen(false); menuButtonRef.current?.focus(); }} />}
       <div className="utility-bar"><div className="utility-inner">
+        <button type="button" className="lv-desktop-sidebar-toggle" aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"} aria-controls="admin-mobile-navigation" aria-expanded={!sidebarCollapsed} title={sidebarCollapsed ? "Show navigation sidebar" : "Hide navigation sidebar"} onClick={() => setDesktopSidebarCollapsed(!sidebarCollapsed)}><span aria-hidden="true">☰</span></button>
         <button type="button" ref={menuButtonRef} className="mobile-menu tmg-mobile-menu" aria-label={mobileOpen ? "Close navigation" : "Open navigation"} aria-expanded={mobileOpen} aria-controls="admin-mobile-navigation" onClick={(event) => { event.stopPropagation(); setMobileFindOpen(false); setMobileOpen((value) => !value); }}>{mobileOpen ? "×" : "☰"}</button>
         <Link href="/admin" className="lv-mobile-brand" onClick={() => { setMobileFindOpen(false); setMobileOpen(false); }} aria-label="LAND VIEW Management dashboard">
           <strong>LAND VIEW</strong><small>MANAGEMENT</small>

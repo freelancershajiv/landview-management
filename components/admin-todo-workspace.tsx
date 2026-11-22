@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 import { workScopeFromHash } from "@/lib/work-task-links";
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 
-type Tab = "overview" | "board" | "calendar" | "workflow" | "collaboration" | "planning" | "management" | "reports" | "analytics";
+type Tab = "overview" | "disciplines" | "board" | "calendar" | "workflow" | "collaboration" | "planning" | "management" | "reports" | "analytics";
 type View = "checklist" | "files" | "templates" | "rules" | "reminders" | "workload" | "alerts" | "intelligence";
 type Navigation = { tab: Tab; view: View | "" };
 type TabDetail = { id: Tab; label: string; subtitle: string; description: string };
@@ -12,6 +12,7 @@ type ViewDetail = { id: View; label: string; description: string };
 
 const TABS: TabDetail[] = [
   { id: "overview", label: "Today", subtitle: "Focus", description: "Prioritize deadlines, urgent assignments and work that needs attention." },
+  { id: "disciplines", label: "Work Types", subtitle: "Progress by trade", description: "See Architectural, Structural, 3D, Electrical, Plumbing and Municipality progress by project." },
   { id: "board", label: "All Tasks", subtitle: "Create & manage", description: "Create, assign, prioritize, edit, and complete individual To Dos." },
   { id: "calendar", label: "Calendar", subtitle: "Day · Week · Month", description: "See deadlines and employee assignments in an interactive day, week, or month calendar." },
   { id: "workflow", label: "Workflow", subtitle: "Linked services", description: "Review linked services and explicitly advance or complete Workflow stages." },
@@ -24,6 +25,7 @@ const TABS: TabDetail[] = [
 
 const SUBTABS: Record<Tab, ViewDetail[]> = {
   overview: [],
+  disciplines: [],
   board: [],
   calendar: [],
   workflow: [],
@@ -54,6 +56,7 @@ function LoadingPanel() {
 
 const Analytics = dynamic(() => import("./admin-todo-management-dashboard"), { loading: LoadingPanel });
 const Board = dynamic(() => import("./admin-todo-board"), { loading: LoadingPanel });
+const Disciplines = dynamic(() => import("./admin-todo-discipline-progress"), { loading: LoadingPanel });
 const Calendar = dynamic(() => import("./admin-todo-calendar"), { loading: LoadingPanel });
 const Workflow = dynamic(() => import("./admin-todo-workflow-center"), { loading: LoadingPanel });
 const Checklist = dynamic(() => import("./todo-checklist-center"), { loading: LoadingPanel });
@@ -92,7 +95,7 @@ function locationHash(tab: Tab, view: View | "") {
   return "#" + params.toString();
 }
 
-const PRIMARY_TABS: Tab[] = ["overview", "board", "calendar", "management"];
+const PRIMARY_TABS: Tab[] = ["overview", "disciplines", "board", "calendar", "management"];
 const TOOLS: Tab[] = ["workflow", "collaboration", "planning", "reports", "analytics"];
 type TodayTask = {
   todoCode: string; title: string; status: "To Do" | "In Progress" | "Done"; priority: string;
@@ -359,6 +362,7 @@ export default function AdminTodoWorkspace() {
       tabIndex={0}
     >
       {navigation.tab === "overview" && <Today onOpen={(code) => { window.location.hash = "#todo=" + encodeURIComponent(code); }} onAll={() => navigate("board")} />}
+      {navigation.tab === "disciplines" && <Disciplines onOpen={(code) => { window.location.hash = "#todo=" + encodeURIComponent(code); }} />}
       {navigation.tab === "analytics" && <Analytics />}
       {navigation.tab === "board" && <Board />}
       {navigation.tab === "calendar" && <Calendar />}

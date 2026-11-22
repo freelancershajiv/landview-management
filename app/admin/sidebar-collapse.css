@@ -1,0 +1,63 @@
+/* Shared desktop sidebar toggle for Admin and Project Management.
+   The mobile drawer remains unchanged; this only affects >= 901px screens. */
+@media screen and (min-width: 901px) {
+  html body .portal-admin .mobile-menu.tmg-mobile-menu {
+    display: none !important;
+  }
+  html body .portal-admin .lv-desktop-sidebar-toggle {
+    display: inline-grid !important;
+    place-items: center !important;
+    flex: 0 0 40px !important;
+    width: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    height: 40px !important;
+    min-height: 40px !important;
+    margin: 0 13px 0 0 !important;
+    padding: 0 !important;
+    border: 1px solid var(--lv-border-default) !important;
+    border-radius: 9px !important;
+    background: var(--lv-surface-panel) !important;
+    color: var(--lv-text-primary) !important;
+    -webkit-text-fill-color: currentColor !important;
+    font-size: 21px !important;
+    line-height: 1 !important;
+    cursor: pointer !important;
+    touch-action: manipulation;
+  }
+  html body .portal-admin .lv-desktop-sidebar-toggle:hover,
+  html body .portal-admin .lv-desktop-sidebar-toggle:focus-visible {
+    border-color: var(--lv-brand-primary) !important;
+    outline-offset: 2px;
+  }
+  html body .portal-admin.lv-sidebar-collapsed .primary-nav {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+  }
+  html body .portal-admin.lv-sidebar-collapsed .utility-bar {
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+  }
+  html body .portal-admin.lv-sidebar-collapsed .admin-main,
+  html body .portal-admin.lv-sidebar-collapsed .tmg-admin-main {
+    left: 0 !important;
+    right: 0 !important;
+    width: 100% !important;
+    max-width: none !important;
+  }
+  html body .portal-admin.lv-sidebar-collapsed .content-wrap,
+  html body .portal-admin.lv-sidebar-collapsed .tmg-content-wrap {
+    width: calc(100% - 28px) !important;
+    max-width: none !important;
+    margin: 0 14px !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+}
+@media screen and (max-width: 900px) {
+  html body .portal-admin .lv-desktop-sidebar-toggle {
+    display: none !important;
+  }
+}

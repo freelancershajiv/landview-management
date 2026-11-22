@@ -1,0 +1,102 @@
+.tdp{margin:16px 28px 24px;color:var(--lv-text-primary);min-width:0}
+.heading{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.heading h2{font-size:24px;letter-spacing:-.025em;margin:0 0 5px}
+.heading p{font-size:13px;line-height:1.5;color:var(--lv-text-secondary);margin:0}
+.controls{display:flex;align-items:flex-end;gap:9px;flex-wrap:wrap}
+.controls label{font-size:12px;color:var(--lv-text-secondary);font-weight:700;display:grid;gap:5px}
+.controls select,.controls button{min-height:38px;padding:7px 11px;border:1px solid var(--lv-border-default);border-radius:9px;background:var(--lv-surface-panel);color:var(--lv-text-primary);font:inherit;font-size:12px}
+.controls button{cursor:pointer;font-weight:800}
+.summary{display:flex;flex-wrap:wrap;gap:9px;margin:0 0 11px}
+.summary span{display:block;background:var(--lv-surface-muted);border:1px solid var(--lv-border-subtle);border-radius:8px;padding:8px 12px;font-size:12px;color:var(--lv-text-secondary)}
+.summary strong{font-size:15px;color:var(--lv-text-primary)}
+.scrollHint{color:var(--lv-text-secondary);font-size:12px;line-height:1.5;margin:0 0 9px}
+.grid{display:flex;align-items:stretch;gap:12px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x proximity;scrollbar-gutter:stable;padding:2px 3px 17px;min-width:0}
+.grid:focus-visible{outline:2px solid var(--lv-brand-primary);outline-offset:2px;border-radius:9px}
+.card{flex:0 0 clamp(260px,24vw,330px);width:clamp(260px,24vw,330px);border:1px solid var(--lv-border-default);border-radius:13px;background:var(--lv-surface-panel);padding:14px;min-width:0;max-height:min(77vh,780px);display:flex;flex-direction:column;scroll-snap-align:start}
+.cardHeader{display:flex;justify-content:space-between;align-items:flex-start;gap:9px;min-height:54px}
+.cardHeader>div{min-width:0}
+.card h3{font-size:15px;line-height:1.35;margin:0 0 5px;color:var(--lv-text-primary)}
+.cardSmall{font-size:12px;line-height:1.4;color:var(--lv-text-secondary)}
+.number{font-size:21px;font-weight:850;white-space:nowrap;font-variant-numeric:tabular-nums;color:var(--lv-text-primary)}
+.track{height:10px;border-radius:999px;overflow:hidden;background:var(--lv-surface-muted);border:1px solid var(--lv-border-subtle);margin:12px 0 7px}
+.fill{height:100%;border-radius:999px;background:var(--lv-brand-primary);transition:width .2s ease}
+.progressHint{display:flex;justify-content:space-between;gap:9px;font-size:10px;line-height:1.4;color:var(--lv-text-secondary);font-variant-numeric:tabular-nums}
+.projectScroller{flex:1;min-height:80px;overflow-y:auto;overscroll-behavior-y:contain;margin-top:14px;padding:4px 5px 0 0;border-top:1px solid var(--lv-border-subtle)}
+.project{padding:11px 0;border-bottom:1px solid var(--lv-border-subtle)}
+.project:last-child{border-bottom:0}
+.projectHead{display:flex;justify-content:space-between;gap:10px;align-items:center;font-size:12px;font-weight:750;overflow-wrap:anywhere}
+.projectHead span:last-child{white-space:nowrap;font-variant-numeric:tabular-nums}
+.project .track{height:7px;margin:7px 0 4px}
+.project details{margin-top:7px}
+.project details summary{cursor:pointer;font-size:12px;font-weight:650;line-height:1.4;color:var(--lv-text-secondary)}
+.project details summary:focus-visible,.task:focus-visible,.controls button:focus-visible,.controls select:focus-visible{outline:2px solid var(--lv-brand-primary);outline-offset:3px}
+.taskList{display:grid;gap:5px;margin-top:8px}
+.task{width:100%;border:1px solid var(--lv-border-subtle);border-radius:8px;background:var(--lv-surface-muted);color:var(--lv-text-primary);padding:9px;text-align:left;cursor:pointer;font-size:12px;display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.task:hover{border-color:var(--lv-brand-primary)}
+.task strong{display:block;font-size:12px;line-height:1.4;overflow-wrap:anywhere}
+.task small{display:block;font-size:11px;color:var(--lv-text-secondary);margin-top:4px;line-height:1.4}
+.task em{font-size:11px;font-style:normal;color:var(--lv-text-secondary);white-space:nowrap}
+.empty,.message{background:var(--lv-surface-muted);border:1px solid var(--lv-border-subtle);border-radius:9px;font-size:13px;line-height:1.5;padding:15px;color:var(--lv-text-secondary)}
+.emptyColumn{font-size:12px;color:var(--lv-text-secondary);line-height:1.5;padding:14px 5px;margin:0}
+@media(max-width:650px){.tdp{margin:14px 12px}.heading{display:block}.heading h2{font-size:20px}.controls{margin-top:12px}.controls label{flex:1;min-width:150px}.controls select{width:100%}.card{flex-basis:min(86vw,320px);width:min(86vw,320px);padding:13px;max-height:74vh}.projectHead{align-items:flex-start}.grid{gap:10px}}
+@media(prefers-reduced-motion:reduce){.fill{transition:none}}
+/* Desktop Work Types: show every discipline at once; preserve the scrollable
+   Kanban treatment when a narrow viewport cannot fit readable columns. */
+@media (min-width:1280px){
+  .grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));align-items:stretch;overflow-x:visible;scroll-snap-type:none;gap:9px;padding:2px 0 10px}
+  .card{flex:none;width:auto;min-width:0;max-height:min(68dvh,760px);padding:11px}
+  .cardHeader{gap:4px;min-height:46px}
+  .card h3{font-size:13px;line-height:1.3}
+  .cardSmall{font-size:10px;line-height:1.35}
+  .number{font-size:18px}
+  .progressHint{font-size:10px;flex-wrap:wrap;gap:2px 6px}
+  .project{padding:8px 0}
+  .projectHead{font-size:11px}
+  .project details summary{font-size:10px}
+  .task{padding:7px;flex-wrap:wrap;gap:4px}
+  .task strong{font-size:11px}
+  .task small,.task em{font-size:10px;white-space:normal}
+  .heading h2{font-size:21px}
+  .heading p{font-size:12px}
+}
+
+
+/* Project file tracking inside narrow discipline columns. */
+.fileList{display:grid;gap:8px;margin-top:10px}
+.fileCard{background:var(--lv-surface-muted);border:1px solid var(--lv-border-default);border-radius:9px;padding:9px;min-width:0;overflow-wrap:anywhere}
+.fileHeading{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;line-height:1.3}
+.fileHeading strong{font-size:12px;color:var(--lv-text-primary);min-width:0}
+.fileHeading span{flex:0 0 auto;font-size:12px;font-weight:850;color:var(--lv-text-primary);font-variant-numeric:tabular-nums}
+.fileProgressTrack{height:6px;margin:8px 0 6px;background:var(--lv-surface-panel);border-radius:99px;overflow:hidden;border:1px solid var(--lv-border-subtle)}
+.fileProgressTrack>div{height:100%;background:var(--lv-brand-primary);border-radius:99px}
+.fileStatusRow{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:2px 6px;color:var(--lv-text-secondary);font-size:10px}
+.fileWorkflow,.fileCurrent{display:grid;gap:3px;margin:9px 0 0;font-size:11px;line-height:1.4}
+.fileWorkflow span,.fileCurrent span{color:var(--lv-text-muted);font-size:10px;font-weight:700}
+.fileWorkflow strong,.fileCurrent strong{color:var(--lv-text-primary);font-weight:800}
+.fileWorkflow strong{color:var(--lv-brand-text,var(--lv-text-primary))}
+.fileCurrent{border-top:1px solid var(--lv-border-subtle);padding-top:8px}
+.fileMeta{display:grid;gap:3px;margin-top:7px;font-size:10px;line-height:1.4;color:var(--lv-text-secondary)}
+.fileAttention{color:var(--lv-danger,var(--lv-brand-primary));font-weight:750}
+.fileFootnote{margin:6px 0 0;font-size:10px;line-height:1.4;color:var(--lv-text-secondary)}
+.stepDisclosure{margin-top:8px;padding-top:7px;border-top:1px solid var(--lv-border-subtle)}
+.stepDisclosure summary{cursor:pointer;color:var(--lv-text-primary);font-size:11px;font-weight:800}
+.stepDisclosure summary:focus-visible,.stepButton:focus-visible{outline:2px solid var(--lv-brand-primary);outline-offset:2px}
+.stepList{list-style:none;display:grid;gap:4px;padding:6px 0 0!important;margin:0!important}
+.stepList li{list-style:none;margin:0;padding:0}
+.stepButton{display:flex;gap:7px;align-items:flex-start;width:100%;text-align:left;background:var(--lv-surface-panel);color:var(--lv-text-primary);border:1px solid var(--lv-border-subtle);border-radius:6px;padding:6px;cursor:pointer}
+.stepButton:hover{border-color:var(--lv-brand-primary)}
+.stepNumber{display:grid;place-items:center;flex:0 0 18px;height:18px;border:1px solid var(--lv-border-default);border-radius:99px;font-size:10px;font-weight:800}
+.stepDone .stepNumber{background:var(--lv-surface-muted);color:var(--lv-text-secondary)}
+.stepCurrent .stepNumber{border-color:var(--lv-brand-primary);color:var(--lv-brand-primary)}
+.stepCurrent .stepButton{border-color:var(--lv-brand-primary)}
+.stepContent{display:grid;gap:3px;min-width:0}
+.stepContent strong{font-size:10px;line-height:1.35;font-weight:750}
+.stepContent small{font-size:9px;line-height:1.35;color:var(--lv-text-secondary)}
+.fileUpdated{display:block;font-size:9px;color:var(--lv-text-muted);margin-top:7px}
+@media(min-width:1280px){
+.fileCard{padding:7px}
+.fileHeading strong{font-size:11px}
+.fileWorkflow,.fileCurrent{font-size:10px}
+.fileMeta{font-size:9px}
+.stepDisclosure summary{font-size:10px}
+}
