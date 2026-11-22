@@ -92,3 +92,10 @@ test("revision history includes before/after details and accessible readability"
   assert.match(page, /change\.after/);
   assert.match(page, /font-size:16px/);
 });
+
+test("discount entry targets an individual service in both bill workflows", () => {
+  const create = read("app/admin/finance/direct-bill/direct-full-bill-workspace.tsx");
+  assert.match(page, /patchLine\(discountService\.key, \{ discount: event\.target\.value \}\)/);
+  assert.match(create, /updateLine\(line\.id, \{ discount: event\.target\.value \}\)/);
+  for (const source of [page, create]) assert.doesNotMatch(source, /applyWholeDiscount|Distribute Automatically/);
+});
