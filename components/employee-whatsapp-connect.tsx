@@ -12,6 +12,7 @@ type WhatsAppStatus = {
   phoneNumber?: string | null;
   lastError?: string | null;
   sharedWithAdmin?: boolean;
+  siteVisitSenderError?: string;
   senderType?: string | null;
   temporary?: boolean;
   retryAfterMs?: number;
@@ -100,12 +101,13 @@ export default function EmployeeWhatsAppConnect() {
   const connection = String(status?.connection || "").toLowerCase();
   const connected = Boolean(status?.paired);
   const sharedWithAdmin = Boolean(status?.sharedWithAdmin || status?.senderType === "admin-shared");
+  const senderError = String(status?.siteVisitSenderError || "");
   const qr = String(status?.qrDataUrl || "");
   const phone = phoneText(status?.phoneNumber);
   // A shared Admin session can retain a previous send/outbox error even while
   // the WhatsApp socket is healthy. Do not present that historical send error
   // as a connection failure when EMP-0002 is currently paired.
-  const visibleError = error || (!connected ? String(status?.lastError || "") : "");
+  const visibleError = error || senderError || (!connected ? String(status?.lastError || "") : "");
 
   return <section className="employee-wa-card" aria-label="Employee WhatsApp connection">
     <style>{`
@@ -117,13 +119,13 @@ export default function EmployeeWhatsAppConnect() {
     <div className="employee-wa-main">
       <span className="employee-wa-kicker">WHATSAPP · SITE VISITS</span>
       <div className="employee-wa-title">
-        <span className={`employee-wa-dot${connected ? " on" : ""}`} />
-        <h2>{sharedWithAdmin ? (connected ? "Admin WhatsApp is connected" : "Admin WhatsApp is not connected") : (connected ? "Your WhatsApp is connected" : "Connect your WhatsApp")}</h2>
+        <span className={`employee-wa-dot${connected && !senderError ? " on" : ""}`} />
+        <h2>{senderError ? "Site Visit sending is paused" : sharedWithAdmin ? (connected ? "Admin WhatsApp is connected" : "Admin WhatsApp is not connected") : (connected ? "Your WhatsApp is connected" : "Connect your WhatsApp")}</h2>
       </div>
       <p className="employee-wa-copy">{sharedWithAdmin
-        ? "EMP-0002 uses the central LAND VIEW Admin WhatsApp connection. Site Visit updates are sent through the Admin WhatsApp number, so no separate employee QR or reconnection is required here."
-        : "Link the WhatsApp account you use on your phone. After it is connected, Site Visit updates you submit will be posted to the LAND VIEW WhatsApp group from this WhatsApp number."}</p>
-      {loading ? <span className="employee-wa-loading">Checking WhatsApp connection…</span> : <span className="employee-wa-state">{connected ? <>{sharedWithAdmin ? "Central connection active" : "Connected"} {phone ? <>as <strong>{phone}</strong></> : null}</> : sharedWithAdmin ? "Switch back to Admin → WhatsApp to reconnect the central session" : connection === "pairing" ? "Waiting for QR scan" : connection === "connecting" || connection === "resetting" ? "Preparing secure connection…" : connection === "logged_out" ? "WhatsApp was disconnected" : "Not connected"}</span>}
+        ? "Your employee account shares the LAND VIEW business connection. Your Site Visit group posts require your registered mobile number."
+        : "Link the WhatsApp number on your employee record to send your Site Visit updates to the LAND VIEW group."}</p>
+      {loading ? <span className="employee-wa-loading">Checking WhatsApp connection…</span> : <span className="employee-wa-state">{connected ? <>{senderError ? "Device linked" : sharedWithAdmin ? "Central connection active" : "Connected"} {phone ? <>as <strong>{phone}</strong></> : null}</> : sharedWithAdmin ? "Switch back to Admin → WhatsApp to reconnect the central session" : connection === "pairing" ? "Waiting for QR scan" : connection === "connecting" || connection === "resetting" ? "Preparing secure connection…" : connection === "logged_out" ? "WhatsApp was disconnected" : "Not connected"}</span>}
       {visibleError && <div className="employee-wa-error">{visibleError}</div>}
     </div>
 

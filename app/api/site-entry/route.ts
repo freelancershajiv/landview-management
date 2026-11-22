@@ -316,7 +316,7 @@ async function createEntry(user: WorkspaceUser, input: Row) {
     event: autoApproved ? "created" : "submitted",
     ...siteEntryWhatsAppPayload(proposal),
     submittedBy: displayNameOf(user),
-    senderEmployeeId: employeeCode || text(proposal.assigned_to, 120),
+    senderEmployeeId: employeeCode,
   });
   logWhatsAppResult(autoApproved ? "created" : "submitted", proposalCode, whatsApp);
 

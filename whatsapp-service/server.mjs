@@ -1,3 +1,4 @@
+import { sendDirectGroupPayload, stableWhatsAppMessageId, verifiedEmployeeGroupSender } from './group-delivery.mjs'
 import express from 'express'
 import QRCode from 'qrcode'
 import P from 'pino'
@@ -374,6 +375,12 @@ async function processSiteOutboxOnce() {
   if (!siteSession.state.sock || siteSession.state.connection !== 'open') return false
   const row = await store('outboxNext')
   if (!row?.id) return false
+  // This queue uses the business socket. Only unrelated, explicitly typed jobs belong here.
+  const key = String(row.dedupe_key || '')
+  if (/^site-visit(?:-fallback)?:/.test(key) || ((row.event_key || 'site.visit') === 'site.visit' && !key.startsWith('project-stage:'))) {
+    await store('outboxRetry', { id: row.id, attemptCount: 10, error: 'Use the visiting employee’s verified WhatsApp for this visit.' })
+    return true
+  }
   try {
     const jid = await ensureGroup(row.group_invite_code)
     const sent = await siteSession.state.sock.sendMessage(jid, { text: String(row.message || '').slice(0, 4000) })
@@ -955,24 +962,40 @@ app.get('/client/pair', (req, res) => {
   res.send(pairHtml(clientSession, { path: '/client/pair', value: req.query.key }, 'LAND VIEW Admin WhatsApp Bot'))
 })
 
-app.post('/admin/send-group', async (req, res) => {
+async function sendAdminGroup(req, res, verifyEmployee) {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   const sock = siteSession.state.sock
   if (!sock || siteSession.state.connection !== 'open') {
-    return res.status(409).json({ ok: false, error: 'Admin WhatsApp is not connected.', ...siteSession.status() })
+    return res.status(409).json({ ok: false, error: 'Admin WhatsApp is not connected.' })
   }
   const message = String(req.body?.message || '').trim().slice(0, 4000)
-  if (!message) return res.status(400).json({ ok: false, error: 'WhatsApp message is empty.' })
+  const media = Array.isArray(req.body?.media) ? req.body.media.slice(0, 2) : []
+  if (!message && !media.length) return res.status(400).json({ ok: false, error: 'WhatsApp message and media are empty.' })
   try {
+    const sendMessage = verifyEmployee
+      ? verifiedEmployeeGroupSender(siteSession.state, req.body?.expectedPhone)
+      : sock.sendMessage.bind(sock)
     const jid = await ensureGroup(req.body?.groupInviteCode)
-    const sent = await sock.sendMessage(jid, { text: message })
-    return res.json({ ok: true, sent: true, messageId: String(sent?.key?.id || ''), sharedAdminSession: true })
+    const requestedKey = String(req.body?.idempotencyKey || '').trim().slice(0, 500)
+    const fallbackKey = 'admin:' + String(req.body?.groupInviteCode || '') + ':' + message
+    const sent = await sendDirectGroupPayload(sendMessage, jid, message, media, requestedKey || fallbackKey)
+    return res.json({
+      ok: true,
+      sent: true,
+      messageId: sent.messageIds[0] || '',
+      messageIds: sent.messageIds,
+      mediaCount: sent.mediaCount,
+      sharedAdminSession: true,
+    })
   } catch (error) {
     const reason = String(error?.message || error).slice(0, 1000)
     siteSession.state.lastError = reason
-    return res.status(500).json({ ok: false, error: reason })
+    return res.status(Number(error?.status) || 500).json({ ok: false, error: reason })
   }
-})
+}
+
+app.post('/admin/send-employee-group', (req, res) => sendAdminGroup(req, res, true))
+app.post('/admin/send-group', (req, res) => sendAdminGroup(req, res, false))
 
 app.post('/admin/reset', async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })

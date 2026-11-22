@@ -71,6 +71,7 @@ test('Site Visit sender is verified against employee ID and linked mobile number
   assert.match(publisher, /connectedEmployeeId !== employeeId/);
   assert.match(publisher, /connectedPhone !== expectedPhone/);
   assert.match(publisher, /json\?\.sharedWithAdmin === true/);
-  assert.match(publisher, /filters: \{ employee_code: employeeId \}/);
+  assert.match(publisher, /await employeeWhatsAppIdentity\(employeeId\)/);
+  assert.match(source('lib/employee-whatsapp-identity.ts'), /filters: \{ employee_code: employeeId \}/);
   assert.match(publisher, /Re-pair the correct account before retrying/);
 });

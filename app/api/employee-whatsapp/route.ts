@@ -8,6 +8,7 @@ import {
   roleOf,
   userIdOf,
 } from "@/lib/local-session";
+import { employeeWhatsAppIdentity, normalizeWhatsAppPhone } from "@/lib/employee-whatsapp-identity";
 import { selectRows } from "@/lib/supabase-data";
 
 export const runtime = "nodejs";
@@ -160,6 +161,26 @@ async function botRequest(path: string, init?: RequestInit) {
   throw lastError instanceof Error ? lastError : new Error("Could not reach LAND VIEW WhatsApp service.");
 }
 
+async function siteVisitSenderStatus(employeeId: string, data: Row) {
+  if (!data.paired) return data;
+  let siteVisitSenderError = "";
+  try {
+    const identity = await employeeWhatsAppIdentity(employeeId);
+    if (!identity.active || !identity.phone) {
+      siteVisitSenderError = "Management needs to confirm your active employee record and registered mobile number.";
+    } else if (clean(data.employeeId).toUpperCase() !== employeeId ||
+      (employeeId !== "EMP-0002" && (data.sharedWithAdmin === true || data.senderType === "admin-shared")) ||
+      normalizeWhatsAppPhone(data.phoneNumber) !== identity.phone) {
+      siteVisitSenderError = data.sharedWithAdmin === true
+        ? "Management needs to reconnect the registered employee number in Admin → WhatsApp."
+        : "Select Reconnect and scan the QR code with the WhatsApp number registered on your employee record.";
+    }
+  } catch {
+    siteVisitSenderError = "Your registered number could not be verified. Check the connection again.";
+  }
+  return { ...data, siteVisitSenderError };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { employeeId } = await currentEmployee(request);
@@ -171,6 +192,7 @@ export async function GET(request: NextRequest) {
     let pending = employeeStatusInflight.get(employeeId);
     if (!pending) {
       pending = botRequest(`/employee/status?employeeId=${encodeURIComponent(employeeId)}`)
+        .then((status) => siteVisitSenderStatus(employeeId, status))
         .then((data) => {
           employeeStatusCache.set(employeeId, { data, expiresAt: Date.now() + 5_000 });
           return data;
@@ -226,7 +248,8 @@ export async function POST(request: NextRequest) {
       method: "POST",
       body: JSON.stringify({ employeeId }),
     });
-    return response({ success: true, data });
+    employeeStatusCache.delete(employeeId);
+    return response({ success: true, data: await siteVisitSenderStatus(employeeId, data) });
   } catch (error: unknown) {
     const requestError = error as BotRequestError;
     const message = clean(requestError.message || "Could not update WhatsApp connection.", 1000);

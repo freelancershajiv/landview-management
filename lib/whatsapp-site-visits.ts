@@ -1,3 +1,4 @@
+import { employeeWhatsAppIdentity, normalizeWhatsAppPhone } from "@/lib/employee-whatsapp-identity";
 import { normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
 
 type SiteVisitWhatsAppMedia = {
@@ -251,12 +252,6 @@ async function queueClientSiteVisitUpdate(token: string, payload: SiteVisitWhats
   }
 }
 
-function normalizeWhatsAppPhone(value: unknown) {
-  const raw = String(value ?? "").replace(/\D/g, "");
-  const normalized = /^01[3-9]\d{8}$/.test(raw) ? `88${raw}` : /^1[3-9]\d{8}$/.test(raw) ? `880${raw}` : raw;
-  return /^8801[3-9]\d{8}$/.test(normalized) ? normalized : "";
-}
-
 async function waitForEmployeeWhatsApp(
   base: string,
   token: string,
@@ -334,9 +329,8 @@ async function sendFromEmployeeWhatsApp(
 
   // Verify both employee identity and the linked WhatsApp mobile number.
   // A linked but different account must never publish another employee's visit.
-  const employee = (await selectRows("employees", { filters: { employee_code: employeeId }, limit: 1 }))[0];
-  const expectedPhone = normalizeWhatsAppPhone(employee?.phone_number);
-  if (!employee || text(employee.status, 30).toLowerCase() !== "active") {
+  const { active, phone: expectedPhone } = await employeeWhatsAppIdentity(employeeId);
+  if (!active) {
     return { status: "failed", reason: `WhatsApp sender ${employeeId} is not an active registered employee. No message was sent.` };
   }
   if (!expectedPhone) {
@@ -354,13 +348,16 @@ async function sendFromEmployeeWhatsApp(
 
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      const response = await fetch(`${base}/employee/send`, {
+      const response = await fetch(`${base}/employee/send-verified`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "x-land-view-bot-token": token,
         },
-        body: JSON.stringify({ employeeId, groupInviteCode, message, media }),
+        body: JSON.stringify({
+          employeeId, expectedPhone, groupInviteCode, message, media,
+          idempotencyKey: `site-visit:${text(payload.visitId, 120)}:${employeeId}`,
+        }),
         cache: "no-store",
         signal: AbortSignal.timeout(60_000),
       });
@@ -390,7 +387,7 @@ async function sendFromEmployeeWhatsApp(
 
     await sleep(1_500 * attempt);
     const retryReadiness = await waitForEmployeeWhatsApp(base, token, employeeId, expectedPhone);
-    if (!retryReadiness.ready && attempt === 2) {
+    if (!retryReadiness.ready) {
       return { status: "failed", reason: `${employeeId}: ${retryReadiness.reason || lastReason}` };
     }
   }
@@ -405,9 +402,7 @@ export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPaylo
     return recordSiteVisitWhatsAppResult(payload, { status: "skipped", reason: "LAND VIEW WhatsApp bot token is not configured." });
   }
 
-  const clientUpdate = queueClientSiteVisitUpdate(token, payload);
   if (!groupInviteCode) {
-    await clientUpdate;
     return recordSiteVisitWhatsAppResult(payload, { status: "skipped", reason: "LAND VIEW Site Visit WhatsApp group is not configured." });
   }
 
@@ -415,14 +410,12 @@ export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPaylo
     const assignedEmployeeId = text(payload.employeeId, 120).toUpperCase();
     const requestedSenderId = text(payload.senderEmployeeId || payload.employeeId, 120).toUpperCase();
     if (!assignedEmployeeId || !requestedSenderId) {
-      await clientUpdate;
       return recordSiteVisitWhatsAppResult(payload, {
         status: "failed",
         reason: "Site Visit WhatsApp sender identity is missing. Choose the correct employee; the Admin account is not a fallback.",
       });
     }
     if (assignedEmployeeId !== requestedSenderId) {
-      await clientUpdate;
       return recordSiteVisitWhatsAppResult(payload, {
         status: "failed",
         reason: `Sender mismatch: Site Visit belongs to ${assignedEmployeeId}, not ${requestedSenderId || "an unspecified account"}. Message was blocked.`,
@@ -432,10 +425,10 @@ export async function publishSiteVisitToWhatsApp(payload: SiteVisitWhatsAppPaylo
     // Fail closed. Never publish an employee Site Visit via the central Admin Bot.
     // Failed attempts stay on the Site Visit record with a Retry WhatsApp action.
     const result = await sendFromEmployeeWhatsApp(token, groupInviteCode, payload);
-    await clientUpdate;
-    return recordSiteVisitWhatsAppResult(payload, result);
+    await recordSiteVisitWhatsAppResult(payload, result);
+    if (result.status === "sent") await queueClientSiteVisitUpdate(token, payload);
+    return result;
   } catch (error: any) {
-    await clientUpdate;
     const reason = text(error?.message || "Employee WhatsApp send failed unexpectedly.", 500);
     console.error("[site-visit-whatsapp] send error", { message: reason });
     return recordSiteVisitWhatsAppResult(payload, { status: "failed", reason });

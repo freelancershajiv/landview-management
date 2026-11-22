@@ -1,3 +1,5 @@
+import { employeeWhatsAppIdentity } from "@/lib/employee-whatsapp-identity";
+
 type SiteEntryWhatsAppPayload = {
   event: "submitted" | "created" | "approved" | "rejected";
   proposalId: string;
@@ -145,7 +147,11 @@ async function sendFromAdmin(message: string, groupInviteCode: string): Promise<
 
 async function sendFromEmployee(employeeId: string, message: string, groupInviteCode: string): Promise<SiteEntryWhatsAppResult> {
   try {
-    const json = await botRequest("/employee/send", { employeeId, groupInviteCode, message });
+    const { active, phone: expectedPhone } = await employeeWhatsAppIdentity(employeeId);
+    if (!active || !expectedPhone) {
+      return { status: "failed", sender: "employee", reason: "The submitting employee needs an active record and registered WhatsApp number." };
+    }
+    const json = await botRequest("/employee/send-verified", { employeeId, expectedPhone, groupInviteCode, message });
     return { status: "sent", sender: "employee", messageId: text(json?.messageId, 240) || undefined };
   } catch (error: any) {
     return { status: "failed", sender: "employee", reason: text(error?.message || "Employee WhatsApp send failed.", 700) };
@@ -161,9 +167,8 @@ export async function publishSiteEntryToWhatsApp(payload: SiteEntryWhatsAppPaylo
 
   const message = formatSiteEntryWhatsAppMessage(payload);
   const employeeId = text(payload.senderEmployeeId, 100).toUpperCase();
-  const employeeSubmission = payload.event === "submitted" && employeeId;
-
-  if (employeeSubmission) {
+  if (payload.event === "submitted") {
+    if (!employeeId) return { status: "failed", reason: "The submitting employee is missing." };
     // Employee-originated new-site entries must be sent only from that employee's
     // connected WhatsApp account. Never silently fall back to the Admin/shared sender.
     return sendFromEmployee(employeeId, message, groupInviteCode);

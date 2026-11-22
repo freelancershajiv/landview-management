@@ -1,3 +1,4 @@
+import { phoneFromUserId, sendDirectGroupPayload, stableWhatsAppMessageId, verifiedEmployeeGroupSender } from './group-delivery.mjs'
 import express from 'express'
 import QRCode from 'qrcode'
 import P from 'pino'
@@ -161,11 +162,6 @@ function normalizedEmployeeId(value) {
   const id = String(value || '').trim().toUpperCase().replace(/[^A-Z0-9_-]/g, '').slice(0, 80)
   if (!id) throw new Error('Employee ID is required.')
   return id
-}
-
-function phoneFromUserId(value) {
-  const left = String(value || '').split('@')[0].split(':')[0]
-  return left.replace(/\D/g, '')
 }
 
 const employeeSessions = new Map()
@@ -580,17 +576,21 @@ app.post('/employee/reset', employeeJson, async (req, res) => {
   }
 })
 
-app.post('/employee/send', employeeJson, async (req, res) => {
+app.post(['/employee/send-verified', '/employee/send'], employeeJson, async (req, res) => {
   if (!authorized(req)) return res.status(401).json({ ok: false, error: 'Unauthorized.' })
   try {
     const employeeId = normalizedEmployeeId(req.body?.employeeId)
     const message = String(req.body?.message || '').trim().slice(0, 4000)
-    if (!message) return res.status(400).json({ ok: false, error: 'WhatsApp message is empty.' })
+    const media = Array.isArray(req.body?.media) ? req.body.media.slice(0, 2) : []
+    if (!message && !media.length) return res.status(400).json({ ok: false, error: 'WhatsApp message and media are empty.' })
+
+    const requestedKey = String(req.body?.idempotencyKey || '').trim().slice(0, 500)
+    const idempotencyKey = requestedKey || ('employee:' + employeeId + ':' + String(req.body?.groupInviteCode || '') + ':' + message)
 
     if (isSharedAdminEmployee(employeeId)) {
-      const sent = await legacyAdminRequest('/admin/send-group', {
+      const sent = await legacyAdminRequest('/admin/send-employee-group', {
         method: 'POST',
-        body: JSON.stringify({ groupInviteCode: req.body?.groupInviteCode, message }),
+        body: JSON.stringify({ groupInviteCode: req.body?.groupInviteCode, message, media, idempotencyKey, expectedPhone: req.body?.expectedPhone }),
       })
       return res.json({ ...sent, employeeId, sharedWithAdmin: true, senderType: 'admin-shared' })
     }
@@ -601,16 +601,19 @@ app.post('/employee/send', employeeJson, async (req, res) => {
       return res.status(409).json({
         ok: false,
         error: 'Connect WhatsApp from the employee dashboard before sending Site Visit updates.',
-        ...session.status(),
       })
     }
+    const sendMessage = verifiedEmployeeGroupSender(session.state, req.body?.expectedPhone)
     const jid = await ensureEmployeeGroup(session, req.body?.groupInviteCode)
-    const sent = await session.state.sock.sendMessage(jid, { text: message })
+    const sent = await sendDirectGroupPayload(sendMessage, jid, message, media, idempotencyKey)
     return res.json({
       ok: true,
       sent: true,
-      messageId: String(sent?.key?.id || ''),
-      phoneNumber: phoneFromUserId(session.state.sock?.user?.id) || null,
+      messageId: sent.messageIds[0] || '',
+      messageIds: sent.messageIds,
+      mediaCount: sent.mediaCount,
+      employeeId,
+      phoneNumber: req.body.expectedPhone,
     })
   } catch (error) {
     const reason = String(error?.message || error)
