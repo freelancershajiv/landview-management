@@ -59,3 +59,44 @@
   .heading h2{font-size:21px}
   .heading p{font-size:12px}
 }
+
+
+/* Project file tracking inside narrow discipline columns. */
+.fileList{display:grid;gap:8px;margin-top:10px}
+.fileCard{background:var(--lv-surface-muted);border:1px solid var(--lv-border-default);border-radius:9px;padding:9px;min-width:0;overflow-wrap:anywhere}
+.fileHeading{display:flex;justify-content:space-between;align-items:flex-start;gap:6px;line-height:1.3}
+.fileHeading strong{font-size:12px;color:var(--lv-text-primary);min-width:0}
+.fileHeading span{flex:0 0 auto;font-size:12px;font-weight:850;color:var(--lv-text-primary);font-variant-numeric:tabular-nums}
+.fileProgressTrack{height:6px;margin:8px 0 6px;background:var(--lv-surface-panel);border-radius:99px;overflow:hidden;border:1px solid var(--lv-border-subtle)}
+.fileProgressTrack>div{height:100%;background:var(--lv-brand-primary);border-radius:99px}
+.fileStatusRow{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:2px 6px;color:var(--lv-text-secondary);font-size:10px}
+.fileWorkflow,.fileCurrent{display:grid;gap:3px;margin:9px 0 0;font-size:11px;line-height:1.4}
+.fileWorkflow span,.fileCurrent span{color:var(--lv-text-muted);font-size:10px;font-weight:700}
+.fileWorkflow strong,.fileCurrent strong{color:var(--lv-text-primary);font-weight:800}
+.fileWorkflow strong{color:var(--lv-brand-text,var(--lv-text-primary))}
+.fileCurrent{border-top:1px solid var(--lv-border-subtle);padding-top:8px}
+.fileMeta{display:grid;gap:3px;margin-top:7px;font-size:10px;line-height:1.4;color:var(--lv-text-secondary)}
+.fileAttention{color:var(--lv-danger,var(--lv-brand-primary));font-weight:750}
+.fileFootnote{margin:6px 0 0;font-size:10px;line-height:1.4;color:var(--lv-text-secondary)}
+.stepDisclosure{margin-top:8px;padding-top:7px;border-top:1px solid var(--lv-border-subtle)}
+.stepDisclosure summary{cursor:pointer;color:var(--lv-text-primary);font-size:11px;font-weight:800}
+.stepDisclosure summary:focus-visible,.stepButton:focus-visible{outline:2px solid var(--lv-brand-primary);outline-offset:2px}
+.stepList{list-style:none;display:grid;gap:4px;padding:6px 0 0!important;margin:0!important}
+.stepList li{list-style:none;margin:0;padding:0}
+.stepButton{display:flex;gap:7px;align-items:flex-start;width:100%;text-align:left;background:var(--lv-surface-panel);color:var(--lv-text-primary);border:1px solid var(--lv-border-subtle);border-radius:6px;padding:6px;cursor:pointer}
+.stepButton:hover{border-color:var(--lv-brand-primary)}
+.stepNumber{display:grid;place-items:center;flex:0 0 18px;height:18px;border:1px solid var(--lv-border-default);border-radius:99px;font-size:10px;font-weight:800}
+.stepDone .stepNumber{background:var(--lv-surface-muted);color:var(--lv-text-secondary)}
+.stepCurrent .stepNumber{border-color:var(--lv-brand-primary);color:var(--lv-brand-primary)}
+.stepCurrent .stepButton{border-color:var(--lv-brand-primary)}
+.stepContent{display:grid;gap:3px;min-width:0}
+.stepContent strong{font-size:10px;line-height:1.35;font-weight:750}
+.stepContent small{font-size:9px;line-height:1.35;color:var(--lv-text-secondary)}
+.fileUpdated{display:block;font-size:9px;color:var(--lv-text-muted);margin-top:7px}
+@media(min-width:1280px){
+.fileCard{padding:7px}
+.fileHeading strong{font-size:11px}
+.fileWorkflow,.fileCurrent{font-size:10px}
+.fileMeta{font-size:9px}
+.stepDisclosure summary{font-size:10px}
+}
