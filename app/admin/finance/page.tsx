@@ -57,6 +57,7 @@ export default function BillingDashboard() {
       <div className="bv4-head-actions">
         <Link className="primary" href="/admin/billing/direct-bill">+ Full Bill</Link>
         <Link href="/admin/billing/service-payments">+ Receive Payment</Link>
+        <Link href="/admin/billing/full-bill-editor#bill-discount">Apply Discount</Link>
       </div>
     </header>
     <BillingProjectJump />

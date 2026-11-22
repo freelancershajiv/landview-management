@@ -194,7 +194,6 @@ export default function FullBillEditorPage() {
   const [records, setRecords] = useState<Row[]>([]);
   const [lines, setLines] = useState<EditLine[]>([]);
   const [wholeDiscount, setWholeDiscount] = useState("");
-  const [discountReason, setDiscountReason] = useState("");
   const [search, setSearch] = useState("");
   const [showUnused, setShowUnused] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -283,7 +282,6 @@ export default function FullBillEditorPage() {
       setLines(linesForProject(billRows, adjustmentRows));
       setRevisions(Array.isArray((revisionHistory as Row)?.revisions) ? (revisionHistory as Row).revisions as Row[] : []);
       setWholeDiscount("");
-      setDiscountReason("");
       const url = new URL(window.location.href);
       url.searchParams.set("fileId", id);
       window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
@@ -335,28 +333,30 @@ export default function FullBillEditorPage() {
   }
   function applyWholeDiscount() {
     const amount = Math.round(Math.max(0, num(wholeDiscount)) * 100) / 100;
-    const candidates = lines.filter((line) => isUsedLine(line) && Math.max(0, editableGross(line) - num(line.discount)) > 0.009);
-    const capacity = candidates.reduce((sum, line) => sum + Math.max(0, editableGross(line) - num(line.discount)), 0);
-    if (!candidates.length || !(amount > 0) || amount > capacity + .01) {
-      setError("Enter an additional bill discount greater than zero and not more than the remaining gross value.");
+    const candidates = lines.filter(isUsedLine).map(line => ({
+      key: line.key,
+      capacity: Math.max(0, Math.round(Math.min(editableGross(line) - num(line.discount), targetNet(line)) * 100)),
+    })).filter(line => line.capacity > 0);
+    let remainingCapacity = candidates.reduce((sum, line) => sum + line.capacity, 0);
+    let remainingAmount = Math.round(amount * 100);
+    if (!Number.isSafeInteger(remainingAmount) || remainingAmount <= 0 || remainingAmount > remainingCapacity) {
+      setError("Enter a discount greater than zero and within the remaining bill value.");
       return;
     }
     const shares = new Map<string, number>();
-    let allocated = 0;
-    candidates.forEach((line, index) => {
-      const lineCapacity = Math.max(0, editableGross(line) - num(line.discount));
-      const share = index === candidates.length - 1
-        ? Math.round((amount - allocated) * 100) / 100
-        : Math.round((amount * lineCapacity / capacity) * 100) / 100;
-      allocated += share;
-      shares.set(line.key, Math.min(lineCapacity, share));
-    });
+    for (const line of candidates) {
+      const share = Math.round(remainingAmount * (line.capacity / remainingCapacity));
+      shares.set(line.key, share / 100);
+      remainingAmount -= share;
+      remainingCapacity -= line.capacity;
+    }
     setLines((current) => current.map((line) => {
       const share = shares.get(line.key);
       return share === undefined ? line : { ...line, discount: String(Math.round((num(line.discount) + share) * 100) / 100) };
     }));
     setError("");
-    setMessage(`${money(amount)} additional discount distributed across ${candidates.length} service${candidates.length === 1 ? "" : "s"}. Review the Discount column, then Save Whole Bill.`);
+    setWholeDiscount("");
+    setMessage(`${money(amount)} additional discount distributed across ${candidates.length} service${candidates.length === 1 ? "" : "s"}. Review the Discount column, then choose Preview & Save Revision.`);
   }
 
   async function save() {
@@ -489,7 +489,7 @@ export default function FullBillEditorPage() {
       <div className="fbe-actions"><Link className="fbe-btn" href="/admin/billing/direct-bill">+ New Full Bill</Link><Link className="fbe-btn" href="/admin/billing/invoices">Generate Invoice</Link><Link className="fbe-btn" href="/admin/billing/service-payments">Add Payment</Link></div>
     </header>
 
-    <section className="fbe-picker">
+    <section className="fbe-picker" id="bill-discount">
       <input value={fileId} onChange={(event) => setFileId(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") void load(fileId); }} placeholder="Enter File ID — e.g. LV-157"/>
       <button className="fbe-btn primary" onClick={() => void load(fileId)} disabled={loading}>{loading ? "Loading…" : "Open Full Bill"}</button>
     </section>
@@ -517,8 +517,8 @@ export default function FullBillEditorPage() {
 
       <div className="fbe-discount">
         <strong style={{fontSize:12}}>Additional Whole Bill Discount</strong>
-        <input className="amount" inputMode="decimal" placeholder="Amount" value={wholeDiscount} onChange={(event) => setWholeDiscount(event.target.value)}/>
-        <input className="reason" placeholder="Reason / offer / negotiation note" value={discountReason} onChange={(event) => setDiscountReason(event.target.value)}/>
+        <input className="amount" aria-label="Additional whole bill discount in taka" inputMode="decimal" placeholder="Amount (৳)" value={wholeDiscount} onChange={(event) => setWholeDiscount(event.target.value)}/>
+        <input className="reason" placeholder="Reason / offer / negotiation note" aria-label="Revision reason" value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)}/>
         <button className="fbe-btn" onClick={applyWholeDiscount} disabled={!summary.services}>Distribute Automatically</button>
       </div>
 
