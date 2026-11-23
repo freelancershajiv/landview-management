@@ -40,3 +40,18 @@ test("primary A4 print templates have linked attribution and readable fallback U
   assert.match(source("components/developer-credit-link.tsx"), /DEVELOPER_PROFILE_PRINT_URL/);
   assert.match(source("app/developer-credit.css"), /@media print/);
 });
+
+test("professional profile displays official and personal tap-to-call numbers and messaging options", () => {
+  const page = source("app/team/md-shajiv-ahammad/page.tsx");
+  assert.ok(page.includes('>Official</span>'));
+  assert.ok(page.includes('>Personal</span>'));
+  assert.ok(page.includes('href="tel:+8801902500400"'));
+  assert.ok(page.includes('href="tel:+8801825301884"'));
+  assert.ok(page.includes("+88 01902 500 400"));
+  assert.ok(page.includes("+88 01825 301 884"));
+  assert.ok(page.includes('href="https://wa.me/8801902500400"'));
+  assert.ok(page.includes("Messenger, Telegram, Viber, imo, Signal"));
+  assert.ok(page.includes("request the preferred chat ID or link"));
+  assert.match(source("app/team/md-shajiv-ahammad/profile.css"), /shajiv-contact-numbers/);
+  assert.match(source("app/team/md-shajiv-ahammad/profile.css"), /shajiv-messaging/);
+});

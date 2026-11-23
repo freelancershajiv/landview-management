@@ -58,6 +58,23 @@ export default async function ShajivProfessionalPage() {
           <p className="shajiv-role">{position}</p>
           <p className="shajiv-intro">An architectural design professional at LAND VIEW Engineers &amp; Architects in Feni, Bangladesh, working in architectural planning, drawing coordination and digital tools that support the firm’s project workflows.</p>
           <div className="shajiv-profile-chips"><span>Feni, Bangladesh</span><span>Architecture &amp; Design</span><span>LAND VIEW Website Developer</span></div>
+          <div className="shajiv-contact-numbers" aria-label="Phone contact numbers">
+            <a className="shajiv-contact-number" href="tel:+8801902500400" aria-label="Call official number +88 01902 500 400">
+              <span className="shajiv-contact-label">Official</span>
+              <strong>+88 01902 500 400</strong>
+              <span className="shajiv-contact-action">Tap to call</span>
+            </a>
+            <a className="shajiv-contact-number" href="tel:+8801825301884" aria-label="Call personal number +88 01825 301 884">
+              <span className="shajiv-contact-label">Personal</span>
+              <strong>+88 01825 301 884</strong>
+              <span className="shajiv-contact-action">Tap to call</span>
+            </a>
+          </div>
+          <div className="shajiv-messaging">
+            <div className="shajiv-messaging-heading"><span className="shajiv-contact-label">Connect your way</span><p>Available across major communication platforms. Prefer messaging? WhatsApp, Messenger, Telegram, Viber, imo, Signal and other apps are welcome.</p></div>
+            <a href="https://wa.me/8801902500400" className="shajiv-messaging-whatsapp" target="_blank" rel="noopener noreferrer" aria-label="Message Shajiv using the official WhatsApp number">Message on WhatsApp ↗</a>
+            <p className="shajiv-messaging-note">For other apps, request the preferred chat ID or link through the contact numbers above.</p>
+          </div>
           <div className="shajiv-profile-actions"><Link className="shajiv-action-primary" href="/contact">Contact LAND VIEW</Link><Link className="shajiv-action-secondary" href="/team">Meet the Team</Link></div>
         </div>
         <div className="shajiv-portrait-area">
