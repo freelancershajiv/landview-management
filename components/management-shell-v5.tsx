@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import DeveloperCreditFooter from "@/components/developer-credit-footer";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { clearStoredSession, landViewApi, type SessionUser } from "@/lib/api";
@@ -583,6 +584,7 @@ export default function ManagementShellV5({ children, initialUser = null }: { ch
 
     <div className="admin-main tmg-admin-main"><main id="workspace-content" className="content-wrap tmg-content-wrap">
       {!routeAllowed ? <section style={{ maxWidth: 760, margin: "36px auto", padding: 28, border: "1px solid var(--lv-border-default)", borderRadius: 14, background: "var(--lv-surface-panel)", color: "var(--lv-text-primary)" }}><small style={{ color: "var(--lv-brand-text)", fontWeight: 900 }}>ACCESS CONTROL</small><h1 style={{ margin: "8px 0 10px" }}>This function is not enabled for your account.</h1><p style={{ color: "var(--lv-text-secondary)", lineHeight: 1.6 }}>Ask the Main Admin to enable this tab from Permission. Your other assigned LAND VIEW functions remain available.</p><Link href="/admin" style={{ color: "var(--lv-brand-text)", fontWeight: 800 }}>Return to Dashboard →</Link></section> : children}
+      <DeveloperCreditFooter />
     </main></div>
   </div>;
 }

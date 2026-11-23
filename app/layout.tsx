@@ -1,4 +1,5 @@
 import ThemeSwitch from "@/components/theme-switch";
+import DeveloperCreditFooter from "@/components/developer-credit-footer";
 import "./landview-design-tokens.css";
 import "./theme-colors.css";
 import "./theme-controls.css";
@@ -33,6 +34,7 @@ import "./color-system-compatibility.css";
 import "./brand-palette-original.css";
 // Final foreground authority prevents route-specific button label contrast regressions.
 import "./button-contrast-authority.css";
+import "./developer-credit.css";
 
 import { siteUrl, businessSchema, jsonLd } from "@/lib/site-info";
 
@@ -110,6 +112,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       <body>
         <ThemeSwitch />
         {children}
+        <DeveloperCreditFooter />
         <SessionExpiryGuard />
         <MobileInteractionGuard />
         <RouteExperienceLoader />

@@ -1,3 +1,4 @@
+import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
 import type { ProjectStatementV43 } from "@/lib/project-statement-v43";
 
 /** Deterministic paginated A4 HTML; browser print and exported PDF share these exact pages. */
@@ -135,7 +136,8 @@ export function renderProjectStatementV43(data: ProjectStatementV43, autoPrint =
     <div class="doc-content">${page.body}</div>
     <footer class="doc-footer"><div><strong>LAND VIEW — Architects &amp; Engineers</strong>
       <span>Feni Sadar, Feni, Bangladesh · landview.com.bd</span>
-      <span>Current data captured: ${esc(data.generatedAt.slice(0,19).replace("T"," "))} UTC</span></div>
+      <span>Current data captured: ${esc(data.generatedAt.slice(0,19).replace("T"," "))} UTC</span>
+      <span>${esc(DEVELOPER_CREDIT)}</span></div>
       <div>Page ${index+1} / ${screens.length}<small>Private client statement</small></div></footer>
   </section>`).join("");
   const autoScript = autoPrint ? `<script>window.addEventListener("load",function(){setTimeout(function(){window.print()},500)},{once:true});</script>` : "";

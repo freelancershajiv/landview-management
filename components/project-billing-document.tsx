@@ -1,5 +1,7 @@
 "use client";
 
+import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
+
 import { useMemo } from "react";
 import { billingQrSvg } from "@/lib/billing-qr";
 import type { SheetInvoices } from "@/lib/sheet-invoices";
@@ -337,7 +339,7 @@ export default function ProjectBillingDocument({ result, verificationUrl = "", v
             <aside className={styles.sheetSummary}><h3>{category.name.toUpperCase()} SUMMARY</h3><div><span>Total Bill (BDT)</span><strong>{amountText(category.gross)}</strong></div>{hasInvoiceDiscount(category) && <div><span>Discount (BDT)</span><strong>{amountText(category.discount)}</strong></div>}<div><span>Net Billed (BDT)</span><strong>{amountText(Math.max(0, category.gross - category.discount))}</strong></div><div><span>Total Deposit (BDT)</span><strong>{amountText(category.paid)}</strong></div><div className={styles.sheetDue}><span>Due (BDT)</span><strong>{amountText(category.due)}</strong></div></aside>
             {result.document?.allocationReview && <p className={styles.allocationReviewNote}>Allocation review required: historical recorded payments and invoice-linked payment references do not reconcile. No additional debt has been created.</p>}
           </section>
-          <footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>{last ? `Grand Total Due (BDT): ${amountText(result.totals.due)} · ` : ""}Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd</span></footer>
+          <footer className={styles.sheetFooter}><strong>LAND VIEW</strong><span>{last ? `Grand Total Due (BDT): ${amountText(result.totals.due)} · ` : ""}Feni Sadar, Feni · +88 01902 500 400 · landviewcivil@gmail.com · www.landview.com.bd<small style={{ display: "block", textAlign: "right", fontSize: "6pt", lineHeight: 1.2 }}>{DEVELOPER_CREDIT}</small></span></footer>
         </article>;
       })}
     </section>

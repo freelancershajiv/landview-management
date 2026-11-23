@@ -1,3 +1,4 @@
+import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
 import { NextRequest, NextResponse } from "next/server";
 import { selectRows } from "@/lib/supabase-data";
 
@@ -134,7 +135,7 @@ export async function GET(request: NextRequest) {
         </section>
         ${allocationSection}
         ${payment.notes ? `<section class="note"><strong>Payment notes</strong><p>${safe(payment.notes)}</p></section>` : ""}
-        <footer class="bottom"><div><strong>LAND VIEW — Architects &amp; Engineers</strong><p>Feni Sadar, Feni, Bangladesh</p><p>www.landview.com.bd</p></div>
+        <footer class="bottom"><div><strong>LAND VIEW — Architects &amp; Engineers</strong><p>Feni Sadar, Feni, Bangladesh</p><p>www.landview.com.bd</p><p>${safe(DEVELOPER_CREDIT)}</p></div>
           <div class="qr"><img src="${safe(qrSrc)}" alt="Receipt verification QR code"/><a href="${safe(path)}">Scan to verify</a></div></footer>
         <p class="legal">This receipt confirms the amount received for the identified project. Service allocations reflect the current invoice ledger; subsequent reallocation does not change the original payment amount.</p>
       </main>
