@@ -9,7 +9,7 @@ import { PM_INCOME_CATEGORIES, pmExpenseCategoryOptions } from "@/lib/project-ma
 // Expense-entry choices come from the central catalog, not this project's used rows.
 const INCOME_CATEGORIES = [...PM_INCOME_CATEGORIES];
 const RECEIVED_FROM_OPTIONS = ["Mr. Mahi Bhai","Scrap Selling","Mr. Jamaluddin"];
-const SUPPLIER_CATEGORIES = new Set(["Bricks","Brick Chips","Stone","Stone & Sand","Cement","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Electrical Material","Electrical Materials","Plumbing Material","Plumbing Materials","Tiles","Door","Doors & Wood","Grills","SS Grills & Works"]);
+const SUPPLIER_CATEGORIES = new Set(["Bricks","Brick Chips","Stone","Stone & Sand","Cement","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Electrical Materials","Plumbing Materials","Tiles","Door","Doors & Wood","Grill","SS Grills & Works"]);
 const partyLabel=(category:string)=>SUPPLIER_CATEGORIES.has(String(category||"").trim())?"Supplier":"Contractor";
 function partyOptionsForCategory(data:any,category:string) {
   const contracts=Array.isArray(data?.contractorBills?.contracts)?data.contractorBills.contracts:[];
@@ -41,14 +41,14 @@ const ledgerMoney=(v:any)=>new Intl.NumberFormat("en-BD",{minimumFractionDigits:
 const compactMoney=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",notation:"compact",maximumFractionDigits:1}).format(Number(v||0));
 const num=(v:any)=>{const n=Number(String(v??"").replace(/,/g,"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0};
 const dateText=(v:any)=>{const d=new Date(String(v||"").slice(0,10)+"T00:00:00");return Number.isNaN(d.getTime())?String(v||""):d.toLocaleDateString("en-GB",{day:"2-digit",month:"short",year:"numeric"})};
-const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),receivedFrom:type==="income"?"Mr. Mahi Bhai":"",paidTo:type==="income"?"Eng Shajiv":"",supplier:type==="income"?"Eng Shajiv":"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Other Expenses",chequeStatus:"Cashed",memo:""});
+const blank=(type:"income"|"expense"="expense")=>({entryDate:new Date().toISOString().slice(0,10),receivedFrom:type==="income"?"Mr. Mahi Bhai":"",paidTo:type==="income"?"Eng Shajiv":"",supplier:type==="income"?"Eng Shajiv":"",details:"",sft:"",rate:"",debit:"",credit:"",category:type==="income"?"Cash":"Others",chequeStatus:"Cashed",memo:""});
 function chequeStatus(r:any){return /^CHEQUE_STATUS:ON_HOLD/i.test(String(r&&r.memo||""))?"On Hold":"Cashed";}
 function userMemo(r:any){return String(r&&r.memo||"").replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"").trim();}
 
 function ProjectManagementClassic(){
   const [data,setData]=useState<any>(null),[project,setProject]=useState(""),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
   const [activeModule,setActiveModule]=useState<"overview"|"ledger"|"income"|"expense"|"sattapur"|"suppliers">("overview");
-  const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Other Expenses"),[pulling,setPulling]=useState("");
+  const [ledgerView,setLedgerView]=useState("income"),[ledgerCategory,setLedgerCategory]=useState("all"),[search,setSearch]=useState(""),[masterOpen,setMasterOpen]=useState(false),[masterSearch,setMasterSearch]=useState(""),[pullCategory,setPullCategory]=useState("Others"),[pulling,setPulling]=useState("");
   const [form,setForm]=useState<any>(blank()),[editing,setEditing]=useState<any>(null),[entryType,setEntryType]=useState<"income"|"expense">("expense"),[formOpen,setFormOpen]=useState(false),[saving,setSaving]=useState(false);
 
   const [dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState(""),[ledgerParty,setLedgerParty]=useState("all");
@@ -86,19 +86,19 @@ function ProjectManagementClassic(){
     return Array.from(new Set(fromData.length ? fromData : [...PM_INCOME_CATEGORIES, ...pmExpenseCategoryOptions(data)]));
   },[data]);
 
-  const incomeCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.debit)>0)),[entries,categories]);
+  const incomeCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Others")===c&&num(r.debit)>0)),[entries,categories]);
   const incomeEntryCategories=INCOME_CATEGORIES;
   const expenseEntryCategories=useMemo(()=>
     pmExpenseCategoryOptions(data, entryType==="expense"?form.category:undefined, partyForm.category),
     [data,entryType,form.category,partyForm.category]
   );
-  const expenseCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Other Expenses")===c&&num(r.credit)>0)),[entries,categories]);
+  const expenseCategories=useMemo(()=>categories.filter(c=>entries.some((r:any)=>String(r.category||"Others")===c&&num(r.credit)>0)),[entries,categories]);
   const filtered=useMemo(()=>{
     const q=search.trim().toLowerCase();
     return entries
       .filter((r:any)=>{
         const matchesView=ledgerView==="all" || (ledgerView==="income" ? num(r.debit)>0 : num(r.credit)>0);
-        const matchesCategory=ledgerCategory==="all" || String(r.category||"Other Expenses")===ledgerCategory;
+        const matchesCategory=ledgerCategory==="all" || String(r.category||"Others")===ledgerCategory;
         const date=String(r.entry_date||"").slice(0,10);
         const party=ledgerView==="income" ? r.received_from : (r.paid_to||r.supplier);
         return matchesView && matchesCategory && (!dateFrom||date>=dateFrom) && (!dateTo||date<=dateTo) && (ledgerParty==="all"||party===ledgerParty) && (!q||[r.details,r.supplier,r.paid_to,r.received_from,r.category,r.memo,r.entry_date].join(" ").toLowerCase().includes(q));
@@ -134,7 +134,7 @@ function ProjectManagementClassic(){
     const x:any={};
     for(const c of categories){
       x[c]=entries
-        .filter((r:any)=>String(r.category||"Other Expenses")===c)
+        .filter((r:any)=>String(r.category||"Others")===c)
         .reduce((s:number,r:any)=>s+num(r.credit)+num(r.debit),0);
     }
     return x;
@@ -175,7 +175,7 @@ function ProjectManagementClassic(){
       rate:r.rate||"",
       debit:r.debit||"",
       credit:r.credit||"",
-      category:r.category||"Other Expenses",
+      category:r.category||"Others",
       chequeStatus:chequeStatus(r),
       memo:userMemo(r)
     });
@@ -569,7 +569,7 @@ function ProjectManagementClassic(){
             <table className="pm-table pm-overview-table">
               <thead><tr><th>Date</th><th>Type</th><th>Party</th><th className="wide-col">Details</th><th>Category</th><th className="num-col">Amount</th></tr></thead>
               <tbody>
-                {entries.slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))||String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,8).map((r:any)=>{const debit=num(r.debit)>0;return <tr key={r.id}><td><span className="pm-date">{dateText(r.entry_date)}</span></td><td><span className={"pm-overview-type "+(debit?"income":"expense")}>{debit?"Income":"Expense"}</span></td><td><span className="pm-supplier">{r.received_from||r.paid_to||r.supplier||"—"}</span></td><td className="wide-col"><div className="pm-detail">{r.details}</div></td><td><span className="pm-category-tag">{r.category||"Other Expenses"}</span></td><td className={"num-col "+(debit?"pm-money-debit":"pm-money-credit")}>{money(debit?r.debit:r.credit)}</td></tr>})}
+                {entries.slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))||String(b.created_at||"").localeCompare(String(a.created_at||""))).slice(0,8).map((r:any)=>{const debit=num(r.debit)>0;return <tr key={r.id}><td><span className="pm-date">{dateText(r.entry_date)}</span></td><td><span className={"pm-overview-type "+(debit?"income":"expense")}>{debit?"Income":"Expense"}</span></td><td><span className="pm-supplier">{r.received_from||r.paid_to||r.supplier||"—"}</span></td><td className="wide-col"><div className="pm-detail">{r.details}</div></td><td><span className="pm-category-tag">{r.category||"Others"}</span></td><td className={"num-col "+(debit?"pm-money-debit":"pm-money-credit")}>{money(debit?r.debit:r.credit)}</td></tr>})}
                 {!entries.length&&<tr><td colSpan={6} className="pm-empty">No project transactions recorded yet.</td></tr>}
               </tbody>
             </table>
@@ -664,7 +664,7 @@ function ProjectManagementClassic(){
                 {filtered.map((r:any)=>{
                   const isDebit=num(r.debit)>0;
                   const party=r.paid_to||r.supplier||"—";
-                  const category=String(r.category||"Other Expenses");
+                  const category=String(r.category||"Others");
                   return (
                     <tr key={r.id}>
                       {ledgerView==="income" ? (

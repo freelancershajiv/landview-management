@@ -1,4 +1,5 @@
 // @ts-nocheck
+import { pmCategoryName } from "@/lib/project-management-categories";
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { normalizeProjectCode, selectRows, updateRows } from "@/lib/supabase-data";
@@ -101,7 +102,7 @@ export async function PUT(request: NextRequest) {
       rate: Math.max(0, num(body.rate ?? body.Rate)),
       debit,
       credit,
-      category: clean(body.category ?? body.Category, 120) || null,
+      category: pmCategoryName(clean(body.category ?? body.Category, 120)) || null,
       memo: clean(body.memo ?? body.Memo, 1000) || null,
       updated_at: new Date().toISOString(),
     });

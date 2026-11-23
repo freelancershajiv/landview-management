@@ -37,7 +37,7 @@ function groupCategories(entries: LedgerEntry[], field: "debit" | "credit") {
   for (const entry of entries) {
     const value = Math.round(amount(entry[field]) * 100);
     if (!value) continue;
-    const fallback = field === "credit" ? "Other Expenses" : "Other Income";
+    const fallback = field === "credit" ? "Others" : "Other Income";
     const name = entry.category?.trim() || fallback;
     sums.set(name, (sums.get(name) || 0) + value);
   }
@@ -45,14 +45,14 @@ function groupCategories(entries: LedgerEntry[], field: "debit" | "credit") {
     .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
 }
 
-function CategoryBars({ categories, kind }: { categories: CategoryAmount[]; kind: string }) {
+function CategoryBars({ categories, kind, projectCode }: { categories: CategoryAmount[]; kind: string; projectCode: string }) {
   const peak = categories.reduce((max, item) => Math.max(max, Math.abs(item.value)), 0);
   return categories.length ? <div className="pmx-category-list">
     {categories.map((category, index) => (
-      <div className="pmx-category-row" key={category.name}>
+      <Link className="pmx-category-row" key={category.name} href={`/projectmanagement/${kind === "income" ? "income" : "expenses"}?${new URLSearchParams({ projectId: projectCode, category: category.name })}`}>
         <div className="pmx-category-name"><span className="pmx-category-number">{String(index + 1).padStart(2, "0")}</span><span title={category.name}>{category.name}</span><strong>{money(category.value)}</strong></div>
         <div className="pmx-track"><span style={{ width: percentage(Math.abs(category.value), peak) }} /></div>
-      </div>
+      </Link>
     ))}
   </div> : <div className="pmx-panel-empty">No {kind} categories have been recorded yet.</div>;
 }
@@ -157,7 +157,7 @@ export default function ProjectManagementRedesign({ categoryBreakdown = false }:
           ].map(chart => (
             <article className="pmx-panel" key={chart.kind}>
               <div className="pmx-panel-heading"><h2>{chart.title}</h2></div>
-              <CategoryBars categories={chart.rows} kind={chart.kind} />
+              <CategoryBars projectCode={projectCode} categories={chart.rows} kind={chart.kind} />
               <footer className="pmx-category-total"><span>{chart.label}</span><strong>{money(chart.total)}</strong></footer>
             </article>
           ))}
@@ -191,7 +191,7 @@ export default function ProjectManagementRedesign({ categoryBreakdown = false }:
           <section className="pmx-content-grid">
             <article className="pmx-panel pmx-spending-panel">
               <div className="pmx-panel-heading"><div><span className="pmx-section-kicker">COST ANALYSIS</span><h3>Expenses by category</h3><p>Top expense categories from the current ledger</p></div><Link href={withProject("/projectmanagement/expenses")}>Explore expenses <span aria-hidden="true">→</span></Link></div>
-              <CategoryBars categories={categories} kind="expense" />
+              <CategoryBars projectCode={projectCode} categories={categories} kind="expense" />
             </article>
 
             <div className="pmx-right-column">
@@ -240,7 +240,7 @@ export default function ProjectManagementRedesign({ categoryBreakdown = false }:
                     return <tr key={entry.id || String(index)}>
                       <td className="pmx-muted-cell">{dateLabel(entry.entry_date)}</td>
                       <td><strong>{entry.details || "Project transaction"}</strong><small>{isIncome ? entry.received_from || "Received" : entry.paid_to || entry.supplier || "Payment recipient not recorded"}</small></td>
-                      <td className="pmx-muted-cell">{entry.category || "Other Expenses"}</td>
+                      <td className="pmx-muted-cell">{entry.category || "Others"}</td>
                       <td><span className={"pmx-type-pill " + (isIncome ? "pmx-type-income" : "pmx-type-expense")}>{isIncome ? "Income" : "Expense"}</span></td>
                       <td className={"pmx-money-cell " + (isIncome ? "pmx-amount-income" : "pmx-amount-expense")}>{isIncome ? "+" : "−"}{money(isIncome ? entry.debit : entry.credit)}</td>
                     </tr>;

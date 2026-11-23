@@ -1,24 +1,26 @@
-/**
- * LAND VIEW Project Management category catalog.
- *
- * The seed combines the established UI categories with expense categories
- * actually recorded in the production project ledger (Nov 2026). Keep the
- * historic spellings unchanged: expense, supplier and contract matching can
- * depend on exact category text.
- *
- * Never use a project's non-empty ledger-category list AS the entire set of
- * categories offered for new expenses. Historical rows and contract categories
- * are added on top of this independent catalog, not used to replace it.
- */
+const categoryAliases = new Map<string, string>();
+for (const [preferred, older] of [
+  ["Electrical Materials", "Electrical Material"],
+  ["Plumbing Materials", "Plumbing Material"],
+  ["Grill", "Grills"],
+  ["LAND VIEW", "Land View"],
+  ["Others", "Other Expenses"],
+  ["Scrap Selling", "Scrap"],
+]) {
+  categoryAliases.set(preferred.toLowerCase(), preferred);
+  categoryAliases.set(older.toLowerCase(), preferred);
+}
+
+export function pmCategoryName(value: unknown): string {
+  const label = String(value ?? "").trim();
+  return categoryAliases.get(label.toLowerCase()) ?? label;
+}
 
 export const PM_INCOME_CATEGORIES = [
   "Cash", "Cheque", "Bank Transfer", "Scrap Selling",
 ] as const;
 
-/* Historical display names deliberately remain distinct, including
-   LAND VIEW / Land View, Grill / Grills and Other Expenses / Others. */
 export const PM_EXPENSE_CATEGORIES = [
-  "Other Expenses",
   "3 Decimal",
   "Admixture",
   "Animal Breakfast",
@@ -40,7 +42,6 @@ export const PM_EXPENSE_CATEGORIES = [
   "Doors & Wood",
   "Electric Contractor",
   "Electric Line Extension",
-  "Electrical Material",
   "Electrical Materials",
   "Electricity Bill",
   "Filling Sand",
@@ -49,9 +50,7 @@ export const PM_EXPENSE_CATEGORIES = [
   "Finishing Masonry",
   "Gift",
   "Grill",
-  "Grills",
   "LAND VIEW",
-  "Land View",
   "Launch",
   "Masonry",
   "Medical/Medicine",
@@ -61,7 +60,6 @@ export const PM_EXPENSE_CATEGORIES = [
   "Others",
   "Plastic/Chot",
   "Plumbing Contractor",
-  "Plumbing Material",
   "Plumbing Materials",
   "R.C.C Masonry",
   "Rent",
@@ -87,14 +85,14 @@ export type PMCategorySource = {
   contractorBills?: { contracts?: ContractRow[] | null } | null;
 } | null | undefined;
 
-const clean = (v: unknown) => String(v ?? "").trim();
+
 // "Scrap" is an income-only historical label in the live ledger.
 const incomeNames = new Set([...PM_INCOME_CATEGORIES, "Scrap"].map(x => x.toLowerCase()));
 
 function categoryOf(row: unknown): string {
-  if (typeof row === "string") return clean(row);
+  if (typeof row === "string") return pmCategoryName(row);
   if (row && typeof row === "object" && "category" in row)
-    return clean((row as { category?: unknown }).category);
+    return pmCategoryName((row as { category?: unknown }).category);
   return "";
 }
 
@@ -105,7 +103,7 @@ function categoryOf(row: unknown): string {
  * 3. categories on any of its ledger entries and saved supplier contracts
  * 4. the value being edited, even if it is from an older spelling
  *
- * Keep exact strings; never rewrite transactions or combine historical labels.
+ * Collapse the six approved aliases while preserving unrelated categories.
  */
 export function pmExpenseCategoryOptions(
   source: PMCategorySource,
@@ -126,11 +124,11 @@ export function pmExpenseCategoryOptions(
   }
   for (const row of source?.contractorBills?.contracts ?? []) add(row);
   for (const value of selected) {
-    const label = clean(value);
+    const label = pmCategoryName(value);
     if (label) options.add(label); // Preserve even an unusual existing edit value.
   }
 
-  const other = Array.from(options).filter(x => x !== "Other Expenses");
+  const other = Array.from(options).filter(x => x !== "Others");
   other.sort((a, b) => a.localeCompare(b, "en", { sensitivity: "variant" }));
-  return ["Other Expenses", ...other];
+  return ["Others", ...other];
 }

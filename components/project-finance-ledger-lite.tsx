@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import ProjectFinanceLiteStyles from "@/components/project-finance-lite-styles";
 import ProjectExpenseCategorySelect from "@/components/project-expense-category-select";
-import { pmExpenseCategoryOptions } from "@/lib/project-management-categories";
+import { pmExpenseCategoryOptions, pmCategoryName } from "@/lib/project-management-categories";
 
 type Mode = "income" | "expense" | "all";
 type EntryKind = "income" | "expense";
@@ -19,16 +19,17 @@ const dateText=(v:any)=>{const s=String(v||"").slice(0,10);const d=new Date(s+"T
 const localDate=()=>{const d=new Date();const y=d.getFullYear();const m=String(d.getMonth()+1).padStart(2,"0");const day=String(d.getDate()).padStart(2,"0");return `${y}-${m}-${day}`};
 const chequeStatus=(r:any)=>/^CHEQUE_STATUS:ON_HOLD/i.test(String(r?.memo||""))?"On Hold":"Cashed";
 const userMemo=(r:any)=>String(r?.memo||"").replace(/^CHEQUE_STATUS:(?:ON_HOLD|CASHED)\r?\n?/i,"").trim();
-const blank=(kind:EntryKind)=>({entryDate:localDate(),receivedFrom:kind==="income"?"Mr. Mahi Bhai":"",paidTo:"Eng Shajiv",details:"",sft:"",rate:"",amount:"",category:kind==="income"?"Cash":"Other Expenses",chequeStatus:"Cashed",memo:""});
+const blank=(kind:EntryKind)=>({entryDate:localDate(),receivedFrom:kind==="income"?"Mr. Mahi Bhai":"",paidTo:"Eng Shajiv",details:"",sft:"",rate:"",amount:"",category:kind==="income"?"Cash":"Others",chequeStatus:"Cashed",memo:""});
 
 export default function ProjectFinanceLedgerLite({mode}:{mode:Mode}){
   const params=useSearchParams();
   const pathname=usePathname();
   const projectId=String(params.get("projectId")||"").trim();
+  const requestedCategory=pmCategoryName(params.get("category")) || "all";
   const selectedEntryId=String(params.get("entryId")||"").trim();
   const [entryFocus,setEntryFocus]=useState(selectedEntryId);
   const [data,setData]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState(""),[message,setMessage]=useState("");
-  const [search,setSearch]=useState(""),[category,setCategory]=useState("all"),[party,setParty]=useState("all"),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState("");
+  const [search,setSearch]=useState(""),[category,setCategory]=useState(requestedCategory),[party,setParty]=useState("all"),[dateFrom,setDateFrom]=useState(""),[dateTo,setDateTo]=useState("");
   const [pageSize,setPageSize]=useState(20),[page,setPage]=useState(1);
   const [modalOpen,setModalOpen]=useState(false),[editing,setEditing]=useState<any>(null),[kind,setKind]=useState<EntryKind>(mode==="expense"?"expense":"income"),[form,setForm]=useState<any>(blank(mode==="expense"?"expense":"income")),[saving,setSaving]=useState(false),[sourceChanged,setSourceChanged]=useState(false);
 
@@ -45,6 +46,7 @@ export default function ProjectFinanceLedgerLite({mode}:{mode:Mode}){
   }
 
   useEffect(()=>{void load(projectId)},[projectId]);
+  useEffect(()=>{setCategory(requestedCategory)},[requestedCategory]);
   useEffect(()=>{setEntryFocus(selectedEntryId)},[selectedEntryId]);
   useEffect(()=>{setPage(1)},[search,category,party,dateFrom,dateTo,pageSize,mode]);
 
@@ -64,14 +66,14 @@ export default function ProjectFinanceLedgerLite({mode}:{mode:Mode}){
     return {contractors,suppliers,historical};
   },[data?.contractorBills?.contracts,entries]);
   const baseRows=useMemo(()=>entries.filter((r:any)=>mode==="all"||(mode==="income"?num(r.debit)>0:num(r.credit)>0)).slice().sort((a:any,b:any)=>String(b.entry_date||"").localeCompare(String(a.entry_date||""))||String(b.created_at||"").localeCompare(String(a.created_at||""))||String(b.id||"").localeCompare(String(a.id||""))),[entries,mode]);
-  const categories=useMemo(()=>Array.from(new Set<string>(baseRows.map((r:any)=>String(r.category||"Other Expenses").trim()).filter(Boolean))).sort(),[baseRows]);
+  const categories=useMemo(()=>Array.from(new Set<string>(baseRows.map((r:any)=>String(r.category||"Others").trim()).filter(Boolean))).sort(),[baseRows]);
   const parties=useMemo(()=>Array.from(new Set<string>(baseRows.map((r:any)=>String(mode==="income"?(r.received_from||""):(mode==="expense"?(r.paid_to||r.supplier||""):(r.received_from||r.paid_to||r.supplier||""))).trim()).filter(Boolean))).sort(),[baseRows,mode]);
   const filtered=useMemo(()=>{
     const q=search.trim().toLowerCase();
     return baseRows.filter((r:any)=>{
       const d=String(r.entry_date||"").slice(0,10);
       const rowParty=String(mode==="income"?(r.received_from||""):(mode==="expense"?(r.paid_to||r.supplier||""):(r.received_from||r.paid_to||r.supplier||""))).trim();
-      return (!entryFocus||String(r.id||"")===entryFocus)&&(category==="all"||String(r.category||"Other Expenses")===category)&&(party==="all"||rowParty===party)&&(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo)&&(!q||[r.entry_date,r.received_from,r.paid_to,r.supplier,r.details,r.category,r.memo].join(" ").toLowerCase().includes(q));
+      return (!entryFocus||String(r.id||"")===entryFocus)&&(category==="all"||String(r.category||"Others")===category)&&(party==="all"||rowParty===party)&&(!dateFrom||d>=dateFrom)&&(!dateTo||d<=dateTo)&&(!q||[r.entry_date,r.received_from,r.paid_to,r.supplier,r.details,r.category,r.memo].join(" ").toLowerCase().includes(q));
     });
   },[baseRows,search,category,party,dateFrom,dateTo,mode,entryFocus]);
   const totalPages=Math.max(1,Math.ceil(filtered.length/pageSize));
@@ -103,7 +105,7 @@ export default function ProjectFinanceLedgerLite({mode}:{mode:Mode}){
   function openEdit(row:any){
     const resolved:EntryKind=num(row.debit)>0?"income":"expense";
     setKind(resolved);setEditing(row);setSourceChanged(false);
-    setForm({entryDate:String(row.entry_date||"").slice(0,10),receivedFrom:String(row.received_from||""),paidTo:String(row.paid_to||row.supplier||""),details:String(row.details||""),sft:String(row.sft||""),rate:String(row.rate||""),amount:String(resolved==="income"?num(row.debit):num(row.credit)),category:String(row.category||(resolved==="income"?"Cash":"Other Expenses")),chequeStatus:chequeStatus(row),memo:userMemo(row)});
+    setForm({entryDate:String(row.entry_date||"").slice(0,10),receivedFrom:String(row.received_from||""),paidTo:String(row.paid_to||row.supplier||""),details:String(row.details||""),sft:String(row.sft||""),rate:String(row.rate||""),amount:String(resolved==="income"?num(row.debit):num(row.credit)),category:String(row.category||(resolved==="income"?"Cash":"Others")),chequeStatus:chequeStatus(row),memo:userMemo(row)});
     setModalOpen(true);
   }
 

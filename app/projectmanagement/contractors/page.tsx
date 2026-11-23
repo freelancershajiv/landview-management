@@ -24,11 +24,11 @@ const SUPPLIER_CATEGORIES = new Set([
   "Normal Sand",
   "Filling Sand",
   "Filling Soil",
-  "Electrical Material",
-  "Plumbing Material",
+  "Electrical Materials",
+  "Plumbing Materials",
   "Tiles",
   "Door",
-  "Grills",
+  "Grill",
 ]);
 
 function partyLabel(category:any){
