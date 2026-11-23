@@ -39,3 +39,18 @@
 @media(max-width:860px){.shajiv-profile-hero{gap:24px;grid-template-columns:minmax(0,1fr) 40%}.shajiv-portrait-area{height:410px}.shajiv-section{grid-template-columns:1fr;gap:17px}.shajiv-profile-cta{align-items:flex-start;flex-direction:column}.shajiv-cta-links{justify-content:flex-start;max-width:none}}
 @media(max-width:620px){.shajiv-profile-container{width:calc(100% - 30px);padding-bottom:55px}.shajiv-profile-hero{display:flex;flex-direction:column-reverse;align-items:stretch;gap:26px}.shajiv-portrait-area{height:350px}.shajiv-profile-summary h1{font-size:44px}.shajiv-intro{font-size:14px}.shajiv-section{padding:30px 0}.shajiv-expertise-grid{grid-template-columns:1fr}.shajiv-profile-cta{padding:25px 21px}}
 @media print{.shajiv-public-profile{background:#fff!important;color:#111!important}.shajiv-portrait-area{height:85mm;box-shadow:none}.shajiv-profile-actions,.shajiv-cta-links{display:none}.shajiv-section{break-inside:avoid}.shajiv-profile-hero{gap:12mm}}
+
+/* Phone contact and messaging channels; consistent with light/dark theme. */
+.shajiv-contact-numbers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 14px;max-width:605px}
+.shajiv-contact-number{display:flex;min-width:0;flex-direction:column;align-items:flex-start;gap:7px;padding:15px 17px;background:var(--sh-surface);border:1px solid var(--sh-line);border-radius:12px;color:var(--sh-text)!important;text-decoration:none!important;transition:border-color .15s,box-shadow .15s}
+.shajiv-contact-number:hover,.shajiv-contact-number:focus-visible{border-color:var(--sh-red);box-shadow:0 0 0 2px color-mix(in srgb,var(--sh-red) 12%,transparent);outline:0}
+.shajiv-contact-label{font-size:11px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--sh-muted)}
+.shajiv-contact-number strong{font-size:clamp(14px,1.6vw,18px);line-height:1.35;font-weight:800;letter-spacing:.004em;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.shajiv-contact-action{font-size:11px;font-weight:750;color:var(--sh-red)}
+.shajiv-messaging{max-width:605px;padding:16px 18px;border:1px solid var(--sh-line);border-radius:12px;background:var(--sh-surface);margin-bottom:25px}
+.shajiv-messaging-heading p{font-size:12px;line-height:1.65;color:var(--sh-muted);margin:7px 0 13px}
+.shajiv-messaging-whatsapp{display:inline-flex;min-height:37px;align-items:center;justify-content:center;gap:5px;padding:9px 13px;border-radius:8px;background:var(--sh-red);color:#fff!important;font-size:12px;font-weight:750;text-decoration:none!important}
+.shajiv-messaging-whatsapp:hover{filter:brightness(.94)}
+.shajiv-messaging-whatsapp:focus-visible{outline:2px solid var(--sh-red);outline-offset:3px}
+.shajiv-messaging-note{margin:11px 0 0;font-size:11px;line-height:1.6;color:var(--sh-muted)}
+@media(max-width:620px){.shajiv-contact-numbers{grid-template-columns:1fr;gap:9px}.shajiv-contact-number{padding:14px 16px}.shajiv-contact-number strong{font-size:18px}}
