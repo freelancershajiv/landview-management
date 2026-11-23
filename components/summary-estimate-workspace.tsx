@@ -1,6 +1,6 @@
 "use client";
 
-import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
+import DeveloperCreditLink from "@/components/developer-credit-link";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -392,7 +392,7 @@ export default function SummaryEstimateWorkspace() {
           </div>
         </div>
 
-        <footer className="se-sheet-footer"><div className="se-footer-copy"><strong>LAND VIEW Architects &amp; Engineers</strong><br />F. Rahman AC Market (2nd Floor), SSK Road, Feni Sadar, Feni<br />Contact: +88 0140 80 80 400 · +88 01902 500 400<br />{DEVELOPER_CREDIT}</div><div className="se-sign"><div className="se-sign-line">Authorized Signature</div></div></footer>
+        <footer className="se-sheet-footer"><div className="se-footer-copy"><strong>LAND VIEW Architects &amp; Engineers</strong><br />F. Rahman AC Market (2nd Floor), SSK Road, Feni Sadar, Feni<br />Contact: +88 0140 80 80 400 · +88 01902 500 400<br /><DeveloperCreditLink showPrintUrl /></div><div className="se-sign"><div className="se-sign-line">Authorized Signature</div></div></footer>
       </article>
     </div>
   );

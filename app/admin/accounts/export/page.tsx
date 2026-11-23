@@ -1,6 +1,6 @@
 "use client";
 
-import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
+import DeveloperCreditLink from "@/components/developer-credit-link";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -502,7 +502,7 @@ export default function LedgerExportPage() {
 
         <div className="print-only print-ledger-footer">
           <span><strong>LAND VIEW Engineers and Architects</strong> · Financial Ledger</span>
-          <span>{selectedRows.length} transactions · Net movement BDT {money(netMovement)}<br/>{DEVELOPER_CREDIT}</span>
+          <span>{selectedRows.length} transactions · Net movement BDT {money(netMovement)}<br/><DeveloperCreditLink showPrintUrl /></span>
         </div>
       </section>
     </div>

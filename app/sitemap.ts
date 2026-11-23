@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { publicServices } from "@/lib/public-services";
+import { DEVELOPER_PROFILE_PATH } from "@/lib/developer-credit";
 
 const baseUrl = "https://www.landview.com.bd";
 
@@ -20,6 +21,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     ...serviceEntries,
     { url: `${baseUrl}/contact`, changeFrequency: "monthly", priority: 0.8 },
     { url: `${baseUrl}/team`, changeFrequency: "monthly", priority: 0.75 },
+    { url: `${baseUrl}${DEVELOPER_PROFILE_PATH}`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${baseUrl}/projects`, changeFrequency: "weekly", priority: 0.9 },
     { url: `${baseUrl}/projects/map`, changeFrequency: "weekly", priority: 0.75 },
     { url: `${baseUrl}/case-studies`, changeFrequency: "monthly", priority: 0.85 },

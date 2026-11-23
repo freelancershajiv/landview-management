@@ -1,6 +1,6 @@
 "use client";
 
-import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
+import DeveloperCreditLink from "@/components/developer-credit-link";
 
 import { useMemo } from "react";
 import { billingQrSvg } from "@/lib/billing-qr";
@@ -363,7 +363,7 @@ export default function ProjectBillingDocumentRevamp({
                   <span>Contact No: +88 0140 80 80 400</span>
                   <span>+88 01902 500 400</span>
                   <span>Generated: {new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Dhaka", dateStyle: "medium", timeStyle: "short" }).format(new Date(result.document?.generatedAt || Date.now()))}</span>
-                  <span>{DEVELOPER_CREDIT}</span>
+                  <span><DeveloperCreditLink showPrintUrl /></span>
                 </div>
               </footer>
             </article>

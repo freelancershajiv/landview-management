@@ -1,4 +1,4 @@
-import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
+import { DEVELOPER_CREDIT_HTML } from "@/lib/developer-credit";
 import { NextRequest, NextResponse } from "next/server";
 import { buildBillingReportV44 } from "@/lib/billing-reports-v44-server";
 import type { FinancialReportV44, AgeBandV44 } from "@/lib/billing-reports-v44";
@@ -53,7 +53,7 @@ function documentHtml(data:FinancialReportV44,autoprint:boolean) {
   <header><div><strong>LAND <b>VIEW</b></strong><small>Architects &amp; Engineers · Feni, Bangladesh</small></div><span>BILLING REPORT · 4.4</span></header>
   <div class="intro"><small>${esc(data.ageReferenceDate)} · CURRENT FINANCIAL SNAPSHOT</small><h1>${esc(item.heading)}</h1><p>${esc(item.hint)}</p></div>
   <div class="content">${item.body}</div>
-  <footer><div>LAND VIEW · Private finance report<span>Generated: ${esc(data.snapshotAt.slice(0,19))} UTC</span><span>${esc(DEVELOPER_CREDIT)}</span></div><div>Page ${i+1} / ${sheets.length}</div></footer>
+  <footer><div>LAND VIEW · Private finance report<span>Generated: ${esc(data.snapshotAt.slice(0,19))} UTC</span><span>${DEVELOPER_CREDIT_HTML}</span></div><div>Page ${i+1} / ${sheets.length}</div></footer>
  </section>`).join("");
  return `<!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="robots" content="noindex,nofollow"/>
  <meta name="viewport" content="width=device-width,initial-scale=1"/><title>LAND VIEW · Billing 4.4 Financial Report</title>

@@ -1,6 +1,6 @@
 "use client";
 
-import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
+import DeveloperCreditLink from "@/components/developer-credit-link";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -324,10 +324,10 @@ export default function ProjectFinanceReportPage(){
 
         <footer className="rpt-footer">
           <div><strong>LAND VIEW Architects and Engineers</strong><br/>Project Finance Statement · {projectInfo.projectCode||"—"} · {monthText(statement.selectedMonth)}</div>
-          <div>Confidential project accounts document · Generated from the LAND VIEW Project Management ledger.<small style={{ display: "block" }}>{DEVELOPER_CREDIT}</small></div>
+          <div>Confidential project accounts document · Generated from the LAND VIEW Project Management ledger.<small style={{ display: "block" }}><DeveloperCreditLink /></small></div>
         </footer>
 
-        <div className="print-only print-ledger-footer"><span><strong>LAND VIEW</strong> · Project Finance Statement</span><span>{DEVELOPER_CREDIT}</span></div>
+        <div className="print-only print-ledger-footer"><span><strong>LAND VIEW</strong> · Project Finance Statement</span><span><DeveloperCreditLink showPrintUrl /></span></div>
         <div className="print-only print-page-number" aria-hidden="true"></div>
       </div>
 

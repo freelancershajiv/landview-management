@@ -6,3 +6,8 @@
  body:has([data-lv-billing-print])>.lv-developer-credit,body:has(.rpt-page)>.lv-developer-credit,body:has(.ledger-export-page)>.lv-developer-credit,body:has(.se-sheet-footer)>.lv-developer-credit,body:has(.lv-cert-footer)>.lv-developer-credit{display:none!important}
  .tmg-content-wrap>.lv-developer-credit{display:none!important}
 }
+
+/* The name is a real, keyboard-accessible internal link, in both light and dark modes. */
+.lv-developer-attribution-link{color:inherit!important;font-weight:700;text-decoration:underline;text-decoration-thickness:1px;text-decoration-color:var(--lv-brand-primary,#d61f26);text-underline-offset:3px}
+.lv-developer-attribution-link:hover,.lv-developer-attribution-link:focus-visible{color:var(--lv-brand-primary,#d61f26)!important;text-decoration-thickness:2px}
+.lv-developer-attribution-link:focus-visible{outline:2px solid var(--lv-brand-primary,#d61f26);outline-offset:3px;border-radius:2px}

@@ -1,4 +1,4 @@
-import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
+import DeveloperCreditLink from "@/components/developer-credit-link";
 import { certificateContent } from "../lib/certificate-content";
 
 type Certificate = {
@@ -126,7 +126,7 @@ export function CertificateDocument({ issued }: { issued: Certificate }) {
       <div className="lv-cert-verify">{issued.qrUrl && <img src={issued.qrUrl} alt="Certificate verification QR"/>}<strong>Verify Certificate</strong><span>Scan to verify authenticity and current status.</span></div>
       <div className="lv-cert-signatory"><strong>Authorized Signatory</strong><span>LAND VIEW — Engineers and Architects</span></div>
     </div>
-    <footer className="lv-cert-footer"><div><strong>● &nbsp; Feni, Bangladesh</strong><small>LOCAL EXPERTISE · SAFER TOMORROW</small></div><div><strong>◎ &nbsp; www.landview.com.bd</strong><small>ENGINEERING &amp; ARCHITECTURAL CONSULTANCY</small></div><div><strong>✉ &nbsp; info@landview.com.bd</strong><small>DESIGN · ENGINEER · SUPERVISE</small></div><div className="lv-cert-phone"><strong>☎ &nbsp; +88 0140 80 80 400</strong><small>+88 01902 500 400</small></div><span className="lv-cert-credit">{DEVELOPER_CREDIT}</span></footer>
+    <footer className="lv-cert-footer"><div><strong>● &nbsp; Feni, Bangladesh</strong><small>LOCAL EXPERTISE · SAFER TOMORROW</small></div><div><strong>◎ &nbsp; www.landview.com.bd</strong><small>ENGINEERING &amp; ARCHITECTURAL CONSULTANCY</small></div><div><strong>✉ &nbsp; info@landview.com.bd</strong><small>DESIGN · ENGINEER · SUPERVISE</small></div><div className="lv-cert-phone"><strong>☎ &nbsp; +88 0140 80 80 400</strong><small>+88 01902 500 400</small></div><span className="lv-cert-credit"><DeveloperCreditLink /></span></footer>
   </article></div>;
 }
 
