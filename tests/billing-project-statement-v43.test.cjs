@@ -15,12 +15,14 @@ const receiptsApi = read("app/api/billing/project-receipts/route.ts");
 const nav = read("components/billing-navigation.tsx");
 const jump = read("components/billing-project-jump.tsx");
 const creditSource = read("lib/developer-credit.ts");
-const creditMatch = creditSource.match(/export const DEVELOPER_CREDIT\s*=\s*"([^"]+)"/);
-assert.ok(creditMatch, "Shared developer credit constant must exist");
+const creditMatch = creditSource.match(/export const DEVELOPER_NAME\s*=\s*"([^"]+)"/);
+const profilePath = creditSource.match(/export const DEVELOPER_PROFILE_PATH\s*=\s*"([^"]+)"/);
+assert.ok(creditMatch && profilePath, "Shared developer profile constants must exist");
+const creditMarkup = 'Developed by <a href="https://www.landview.com.bd' + profilePath[1] + '">' + creditMatch[1] + "</a>";
 const context = {
   module: { exports: {} },
   require(id) {
-    if (id === "@/lib/developer-credit") return { DEVELOPER_CREDIT: creditMatch[1] };
+    if (id === "@/lib/developer-credit") return { DEVELOPER_CREDIT_HTML: creditMarkup };
     throw new Error("Unexpected test renderer import: " + id);
   },
 };

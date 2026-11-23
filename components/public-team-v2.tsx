@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { DEVELOPER_PROFILE_PATH } from "@/lib/developer-credit";
 import { useMemo, useState } from "react";
 import type { PublicTeamMember } from "@/lib/public-team-server";
 
@@ -127,6 +128,7 @@ function ProfileDetails({ member, compact = false }: { member: PublicTeamMember;
     {specialities.length ? <div className="tv2-block"><span className="tv2-label">Professional profile</span><div className="tv2-tags">{specialities.slice(0, compact ? 4 : 7).map((item, index) => <span key={`${item}-${index}`}>{item}</span>)}</div></div> : null}
     <div className="tv2-card-actions">
       {member.linkedInUrl ? <a href={member.linkedInUrl} target="_blank" rel="noopener noreferrer">LinkedIn ↗</a> : null}
+      {text(member.name).toLowerCase() === "md shajiv ahammad" ? <Link href={DEVELOPER_PROFILE_PATH}>Full Professional Profile</Link> : null}
       <Link href="/projects">View Projects</Link>
     </div>
   </div>;

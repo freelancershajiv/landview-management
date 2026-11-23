@@ -1,5 +1,5 @@
-import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
+import DeveloperCreditLink from "@/components/developer-credit-link";
 
 export default function DeveloperCreditFooter() {
-  return <footer className="lv-developer-credit" aria-label="Website development credit"><span>{DEVELOPER_CREDIT}</span></footer>;
+  return <footer className="lv-developer-credit" aria-label="Website development credit"><span><DeveloperCreditLink /></span></footer>;
 }
