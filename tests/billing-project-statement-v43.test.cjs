@@ -14,7 +14,16 @@ const history = read("components/project-receipt-history.tsx");
 const receiptsApi = read("app/api/billing/project-receipts/route.ts");
 const nav = read("components/billing-navigation.tsx");
 const jump = read("components/billing-project-jump.tsx");
-const context = { module: { exports: {} } };
+const creditSource = read("lib/developer-credit.ts");
+const creditMatch = creditSource.match(/export const DEVELOPER_CREDIT\s*=\s*"([^"]+)"/);
+assert.ok(creditMatch, "Shared developer credit constant must exist");
+const context = {
+  module: { exports: {} },
+  require(id) {
+    if (id === "@/lib/developer-credit") return { DEVELOPER_CREDIT: creditMatch[1] };
+    throw new Error("Unexpected test renderer import: " + id);
+  },
+};
 context.exports = context.module.exports;
 vm.runInNewContext(ts.transpileModule(renderer, {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },

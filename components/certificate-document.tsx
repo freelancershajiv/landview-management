@@ -1,3 +1,4 @@
+import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
 import { certificateContent } from "../lib/certificate-content";
 
 type Certificate = {
@@ -56,6 +57,7 @@ export const certificateStyles = `
 .lv-cert .lv-cert-footer:before{content:"";position:absolute;left:-2px;top:-24px;width:190px;height:27px;background:#d71920;clip-path:polygon(0 0,100% 62%,0 100%)}
 .lv-cert .lv-cert-footer div{min-width:0;line-height:1.25;text-align:center;padding:0 8px;border-right:1px solid var(--theme-line-_ffffff2b,#ffffff2b)}
 .lv-cert .lv-cert-footer div:last-child{border-right:0}
+.lv-cert .lv-cert-credit{position:absolute;bottom:2px;left:0;right:0;text-align:center;color:#e4e4e4;font-size:7px;font-weight:500;letter-spacing:0;line-height:1.1}
 .lv-cert .lv-cert-footer strong{display:block;color:var(--theme-ink-_fff,#fff)!important;font-size:9.5px!important;line-height:1.25;white-space:nowrap}
 .lv-cert .lv-cert-footer small{display:block;font-size:6.2px;line-height:1.25;letter-spacing:.3px;color:var(--theme-ink-_d6d6d6,#d6d6d6)!important;margin-top:3px;font-weight:500;white-space:nowrap}
 .lv-cert .lv-cert-footer .lv-cert-phone strong,.lv-cert .lv-cert-footer .lv-cert-phone small{white-space:nowrap}
@@ -124,7 +126,7 @@ export function CertificateDocument({ issued }: { issued: Certificate }) {
       <div className="lv-cert-verify">{issued.qrUrl && <img src={issued.qrUrl} alt="Certificate verification QR"/>}<strong>Verify Certificate</strong><span>Scan to verify authenticity and current status.</span></div>
       <div className="lv-cert-signatory"><strong>Authorized Signatory</strong><span>LAND VIEW — Engineers and Architects</span></div>
     </div>
-    <footer className="lv-cert-footer"><div><strong>● &nbsp; Feni, Bangladesh</strong><small>LOCAL EXPERTISE · SAFER TOMORROW</small></div><div><strong>◎ &nbsp; www.landview.com.bd</strong><small>ENGINEERING &amp; ARCHITECTURAL CONSULTANCY</small></div><div><strong>✉ &nbsp; info@landview.com.bd</strong><small>DESIGN · ENGINEER · SUPERVISE</small></div><div className="lv-cert-phone"><strong>☎ &nbsp; +88 0140 80 80 400</strong><small>+88 01902 500 400</small></div></footer>
+    <footer className="lv-cert-footer"><div><strong>● &nbsp; Feni, Bangladesh</strong><small>LOCAL EXPERTISE · SAFER TOMORROW</small></div><div><strong>◎ &nbsp; www.landview.com.bd</strong><small>ENGINEERING &amp; ARCHITECTURAL CONSULTANCY</small></div><div><strong>✉ &nbsp; info@landview.com.bd</strong><small>DESIGN · ENGINEER · SUPERVISE</small></div><div className="lv-cert-phone"><strong>☎ &nbsp; +88 0140 80 80 400</strong><small>+88 01902 500 400</small></div><span className="lv-cert-credit">{DEVELOPER_CREDIT}</span></footer>
   </article></div>;
 }
 

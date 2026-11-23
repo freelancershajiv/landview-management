@@ -1,5 +1,7 @@
 "use client";
 
+import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
+
 import { useEffect, useMemo, useState } from "react";
 
 const money=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(Number(v||0));
@@ -322,9 +324,10 @@ export default function ProjectFinanceReportPage(){
 
         <footer className="rpt-footer">
           <div><strong>LAND VIEW Architects and Engineers</strong><br/>Project Finance Statement · {projectInfo.projectCode||"—"} · {monthText(statement.selectedMonth)}</div>
-          <div>Confidential project accounts document · Generated from the LAND VIEW Project Management ledger.</div>
+          <div>Confidential project accounts document · Generated from the LAND VIEW Project Management ledger.<small style={{ display: "block" }}>{DEVELOPER_CREDIT}</small></div>
         </footer>
 
+        <div className="print-only print-ledger-footer"><span><strong>LAND VIEW</strong> · Project Finance Statement</span><span>{DEVELOPER_CREDIT}</span></div>
         <div className="print-only print-page-number" aria-hidden="true"></div>
       </div>
 

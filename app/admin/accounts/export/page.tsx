@@ -1,5 +1,7 @@
 "use client";
 
+import { DEVELOPER_CREDIT } from "@/lib/developer-credit";
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { landViewApi } from "@/lib/api";
@@ -500,7 +502,7 @@ export default function LedgerExportPage() {
 
         <div className="print-only print-ledger-footer">
           <span><strong>LAND VIEW Engineers and Architects</strong> · Financial Ledger</span>
-          <span>{selectedRows.length} transactions · Net movement BDT {money(netMovement)}</span>
+          <span>{selectedRows.length} transactions · Net movement BDT {money(netMovement)}<br/>{DEVELOPER_CREDIT}</span>
         </div>
       </section>
     </div>

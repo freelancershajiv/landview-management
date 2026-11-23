@@ -1,0 +1,8 @@
+/* Uniform attribution for pages and ordinary browser printing. */
+.lv-developer-credit{box-sizing:border-box;display:flex;align-items:center;justify-content:center;width:100%;min-height:36px;padding:9px 16px;border-top:1px solid var(--lv-border-default,#dde3e8);background:var(--lv-surface-panel,transparent);color:var(--lv-text-secondary,#647482);font:500 11px/1.5 Arial,Helvetica,sans-serif;text-align:center}
+@media screen{body:has(.tmg-admin-main)>.lv-developer-credit{display:none!important}}
+@media print{
+ body>.lv-developer-credit{display:flex!important;position:fixed!important;left:8mm!important;right:8mm!important;bottom:2mm!important;width:auto!important;min-height:0!important;padding:0!important;margin:0!important;border:0!important;background:transparent!important;color:#555!important;visibility:visible!important;font:400 7pt/1.2 Arial,Helvetica,sans-serif!important;z-index:1!important}
+ body:has([data-lv-billing-print])>.lv-developer-credit,body:has(.rpt-page)>.lv-developer-credit,body:has(.ledger-export-page)>.lv-developer-credit,body:has(.se-sheet-footer)>.lv-developer-credit,body:has(.lv-cert-footer)>.lv-developer-credit{display:none!important}
+ .tmg-content-wrap>.lv-developer-credit{display:none!important}
+}
