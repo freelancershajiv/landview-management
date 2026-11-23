@@ -52,6 +52,8 @@ const SERVICES: Array<{ title: string; aliases: string[] }> = [
 export function canonicalProjectService(value: unknown) {
   const raw = normalize(value).replace(/\[[^\]]+\]/g, " ").replace(/\s+/g, " ").trim();
   if (!raw) return "";
+  // Issued invoices use Re-Design Fees for this legacy billing label.
+  if (/^re[ -]?design[ -]bill$/.test(raw)) return "Re-Design Fees";
   for (const service of SERVICES) {
     for (const aliasValue of [service.title, ...service.aliases]) {
       const alias = normalize(aliasValue);

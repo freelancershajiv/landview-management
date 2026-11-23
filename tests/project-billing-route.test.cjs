@@ -123,3 +123,46 @@ test("a service-targeted remainder stays unapplied while historical credits stil
   assert.equal(after.otherDue, 43_000);
   assert.equal(after.remainingUnallocated, 5_000);
 });
+
+test("the payment form sends the invoice service key for a discounted Re-Design Bill", async () => {
+  const rows = {
+    projects: [{ id: "project", project_code: "LV-001" }],
+    bills: [{
+      id: "bill", project_id: "project", bill_code: "BILL-R", billing_category: "Engineering Bill",
+      description: "[Engineering Bill] Re-Design Bill", amount: 12_000, discount: 7_000, status: "Issued",
+    }],
+  };
+  const gateway = {
+    normalizeProjectCode: (code) => code,
+    selectRows: async (table) => rows[table] ?? [],
+    roleOf: (user) => user.role,
+    employeeCodeOf: () => "test",
+    handleLandviewDataAction: async (_action, _input, _user, payment) => ({ allocations: payment.allocations }),
+  };
+  const workflows = loadTs("lib/service-workflow.ts", {
+    "@/lib/supabase-data": gateway,
+    "@/lib/project-task-templates": loadTs("lib/project-task-templates.ts"),
+    "@/lib/billing-receivable-authority": loadTs("lib/billing-receivable-authority.ts", { "@/lib/supabase-data": gateway }),
+  });
+  const { POST } = loadTs("app/api/billing/write/route.ts", {
+    "@/lib/local-session": { requireLocalSession: async () => ({ role: "manager" }) },
+    "@/lib/supabase-data": gateway,
+    "@/lib/service-workflow": { ...workflows, syncPaidServiceWorkflows: async () => {} },
+    "@/lib/billing-adjusted-financials": { getAdjustedProjectServiceFinancials: workflows.getProjectServiceFinancials },
+  });
+  const origin = "https://app.landview.com.bd";
+  const response = await POST(new NextRequest(origin + "/api/billing/write", {
+    method: "POST",
+    headers: { origin, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      action: "savePayment", Project_ID: "LV-001", Payment_For: "Engineering Bill",
+      Amount: 5000, Service_Allocations: [{ serviceName: "Re-Design Bill", amount: 5000 }],
+      Idempotency_Key: "test-redesign-payment",
+    }),
+  }));
+  const result = await response.json();
+  assert.equal(response.status, 200, result.error);
+  assert.deepEqual(result.data.allocations, [{
+    service_name: "Re-Design Fees", service_key: "re-design-fees", allocated_amount: 5000, discount_allocated: 0,
+  }]);
+});
