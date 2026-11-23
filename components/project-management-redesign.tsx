@@ -30,7 +30,34 @@ function partyCount(rows: any[], partyType: "Contractor" | "Supplier"): number {
     .map(row => String(row.contractor_name || "").trim().toLowerCase()).filter(Boolean)).size;
 }
 
-export default function ProjectManagementRedesign() {
+type CategoryAmount = { name: string; value: number };
+
+function groupCategories(entries: LedgerEntry[], field: "debit" | "credit") {
+  const sums = new Map<string, number>();
+  for (const entry of entries) {
+    const value = Math.round(amount(entry[field]) * 100);
+    if (!value) continue;
+    const fallback = field === "credit" ? "Other Expenses" : "Other Income";
+    const name = entry.category?.trim() || fallback;
+    sums.set(name, (sums.get(name) || 0) + value);
+  }
+  return Array.from(sums, ([name, cents]) => ({ name, value: cents / 100 }))
+    .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+}
+
+function CategoryBars({ categories, kind }: { categories: CategoryAmount[]; kind: string }) {
+  const peak = categories.reduce((max, item) => Math.max(max, Math.abs(item.value)), 0);
+  return categories.length ? <div className="pmx-category-list">
+    {categories.map((category, index) => (
+      <div className="pmx-category-row" key={category.name}>
+        <div className="pmx-category-name"><span className="pmx-category-number">{String(index + 1).padStart(2, "0")}</span><span title={category.name}>{category.name}</span><strong>{money(category.value)}</strong></div>
+        <div className="pmx-track"><span style={{ width: percentage(Math.abs(category.value), peak) }} /></div>
+      </div>
+    ))}
+  </div> : <div className="pmx-panel-empty">No {kind} categories have been recorded yet.</div>;
+}
+
+export default function ProjectManagementRedesign({ categoryBreakdown = false }: { categoryBreakdown?: boolean }) {
   const params = useSearchParams();
   const selectedFromQuery = String(params.get("projectId") || "").trim();
   const [data, setData] = useState<any>(null);
@@ -79,18 +106,9 @@ export default function ProjectManagementRedesign() {
       .some(value => String(value || "").toLowerCase().includes(query));
   }).slice(0, 8), [transactionRows, filter, search]);
 
-  const categories = useMemo(() => {
-    const byCategory = new Map<string, number>();
-    for (const entry of entries) {
-      const debit = amount(entry.credit);
-      if (debit <= 0) continue;
-      const label = String(entry.category || "Other Expenses").trim() || "Other Expenses";
-      byCategory.set(label, (byCategory.get(label) || 0) + debit);
-    }
-    return Array.from(byCategory, ([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value).slice(0, 6);
-  }, [entries]);
-  const peakExpense = categories[0]?.value || 0;
+  const expenseCategories = useMemo(() => groupCategories(entries, "credit"), [entries]);
+  const incomeCategories = useMemo(() => categoryBreakdown ? groupCategories(entries, "debit") : [], [categoryBreakdown, entries]);
+  const categories = expenseCategories.slice(0, 6);
   const deposited = amount(data?.totals?.debit);
   const expenses = amount(data?.totals?.credit);
   const supplierAdvance = amount(data?.summary?.supplierAdvance);
@@ -131,6 +149,19 @@ export default function ProjectManagementRedesign() {
           <p>Use the Active Project selector above. Your existing finance records, suppliers and contractor bills remain in their original database.</p>
           {Array.isArray(data?.projects) && <span>{data.projects.length} project(s) configured for this workspace</span>}
         </section>
+      ) : categoryBreakdown ? (
+        <section aria-label="Category Breakdown" className="pmx-category-breakdown">
+          {[
+            { title: "Expenses by category", kind: "expense", rows: expenseCategories, label: "Total Expenses", total: expenses },
+            { title: "Income by category", kind: "income", rows: incomeCategories, label: "Total Income", total: deposited },
+          ].map(chart => (
+            <article className="pmx-panel" key={chart.kind}>
+              <div className="pmx-panel-heading"><h2>{chart.title}</h2></div>
+              <CategoryBars categories={chart.rows} kind={chart.kind} />
+              <footer className="pmx-category-total"><span>{chart.label}</span><strong>{money(chart.total)}</strong></footer>
+            </article>
+          ))}
+        </section>
       ) : (
         <>
           <section className="pmx-overview-intro">
@@ -160,14 +191,7 @@ export default function ProjectManagementRedesign() {
           <section className="pmx-content-grid">
             <article className="pmx-panel pmx-spending-panel">
               <div className="pmx-panel-heading"><div><span className="pmx-section-kicker">COST ANALYSIS</span><h3>Expenses by category</h3><p>Top expense categories from the current ledger</p></div><Link href={withProject("/projectmanagement/expenses")}>Explore expenses <span aria-hidden="true">→</span></Link></div>
-              {categories.length ? <div className="pmx-category-list">
-                {categories.map((category, index) => (
-                  <div className="pmx-category-row" key={category.name}>
-                    <div className="pmx-category-name"><span className="pmx-category-number">{String(index + 1).padStart(2, "0")}</span><span title={category.name}>{category.name}</span><strong>{money(category.value)}</strong></div>
-                    <div className="pmx-track"><span style={{ width: percentage(category.value, peakExpense) }} /></div>
-                  </div>
-                ))}
-              </div> : <div className="pmx-panel-empty">No expense categories have been recorded yet.</div>}
+              <CategoryBars categories={categories} kind="expense" />
             </article>
 
             <div className="pmx-right-column">

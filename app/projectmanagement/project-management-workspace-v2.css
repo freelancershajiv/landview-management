@@ -559,3 +559,20 @@
 @media print {
   .pf-redesign .pmx-report-intro { display: none !important; }
 }
+
+.pf-redesign .pmx-category-breakdown {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 370px), 1fr));
+  align-items: start;
+  gap: 16px;
+}
+.pf-redesign .pmx-category-breakdown h2 { margin: 0; font-size: 18px; }
+.pf-redesign .pmx-category-total {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px 20px;
+  border-top: 1px solid var(--pmx-border);
+  font-weight: 700;
+}
