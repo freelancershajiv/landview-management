@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { employeeCodeOf, handleLandviewDataAction, normalizeProjectCode, roleOf, selectRows, supabaseGateway } from "@/lib/supabase-data";
-import { syncPaidServiceWorkflows, workflowServiceKey, workflowServiceName } from "@/lib/service-workflow";
-import { getAdjustedProjectServiceFinancials } from "@/lib/billing-adjusted-financials";
+import { syncPaidServiceWorkflows } from "@/lib/service-workflow";
+import { categoryNames, getPaymentBills, paymentCents, resolvePaymentTargets, type PaymentBillTarget } from "@/lib/billing-payment-bills";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -45,7 +45,7 @@ function actorOf(user: Record<string, unknown>) {
 export async function POST(request: NextRequest) {
   try {
     if (!sameOrigin(request)) return NextResponse.json({ success: false, error: "Invalid request origin." }, { status: 403 });
-    const body = await request.json() as Record<string, any>;
+    const body = await request.json() as Record<string, unknown>;
     const action = String(body.action || "").trim();
     if (!new Set(["saveBill", "savePayment", "saveDiscount"]).has(action)) {
       return NextResponse.json({ success: false, error: "Unsupported billing write action." }, { status: 400 });
@@ -62,9 +62,11 @@ export async function POST(request: NextRequest) {
 
     const projectCode = normalizeProjectCode(body.Project_ID || body.projectId || body.Project_Code);
     const paymentCategory = normalized(body.Payment_For || body.Income_Category || body.Category);
-    const serviceType = canonicalPaymentServiceType(body.Service_Type || body.serviceType);
+    let serviceType = canonicalPaymentServiceType(body.Service_Type || body.serviceType);
     const serviceAllocations = Array.isArray(body.Service_Allocations) ? body.Service_Allocations as Array<Record<string, unknown>> : [];
     const receiveAdvance = body.Receive_Advance === true;
+    const billRows = Array.isArray(body.Bill_Allocations) ? body.Bill_Allocations as Record<string, unknown>[] : undefined;
+    let billTargets: PaymentBillTarget[] | undefined;
     let existingPayment = false;
     let paymentFingerprint = "";
     if (action === "savePayment") {
@@ -72,8 +74,15 @@ export async function POST(request: NextRequest) {
       if (!(requestedAmount > 0) || requestedAmount > 1_000_000_000) {
         return NextResponse.json({ success: false, error: "Enter a valid positive payment amount." }, { status: 400 });
       }
+      if ((body.Bill_Allocations !== undefined && !billRows) ||
+          [...(billRows || []), ...serviceAllocations].some((row) => !row || typeof row !== "object" || Array.isArray(row))) {
+        return NextResponse.json({ success: false, error: "Invalid bill allocations." }, { status: 400 });
+      }
+      if (billRows !== undefined && (!projectCode || !BILLING_CATEGORIES.has(paymentCategory) || serviceAllocations.length)) {
+        return NextResponse.json({ success: false, error: "Bill allocations require one project and a billing category." }, { status: 400 });
+      }
       if (receiveAdvance) {
-        if (!projectCode || !BILLING_CATEGORIES.has(paymentCategory) || serviceAllocations.length || serviceType) {
+        if (!projectCode || !BILLING_CATEGORIES.has(paymentCategory) || serviceAllocations.length || billRows?.length || serviceType) {
           return NextResponse.json({ success: false, error: "An advance requires a project and billing category, without a selected service or manual allocations." }, { status: 400 });
         }
         if (!["admin", "manager", "accounts"].includes(role)) {
@@ -90,7 +99,7 @@ export async function POST(request: NextRequest) {
         ...body, Project_ID: projectCode, Service_Type: serviceType, Idempotency_Key: idempotencyKey,
       };
       paymentFingerprint = createHash("sha256").update(JSON.stringify(payload, Object.keys(payload)
-        .concat(serviceAllocations.flatMap((row) => Object.keys(row)))
+        .concat([...serviceAllocations, ...(billRows ?? [])].flatMap((row) => Object.keys(row)))
         .filter((key, index, keys) => keys.indexOf(key) === index).sort())).digest("hex");
       if (prior && prior.billing_request_fingerprint !== paymentFingerprint) {
         return NextResponse.json({
@@ -101,43 +110,25 @@ export async function POST(request: NextRequest) {
       existingPayment = Boolean(prior);
     }
 
-    if (action === "savePayment" && !existingPayment && !receiveAdvance && paymentCategory === "other services bill") {
-      if (!projectCode || !serviceType) {
-        return NextResponse.json({ success: false, error: "Choose a billed Other Services service." }, { status: 400 });
-      }
-      const services = await getAdjustedProjectServiceFinancials(projectCode);
-      const selectedKey = workflowServiceKey(serviceType === "Municipality File Pass" ? "Municipality Approval Contract" : serviceType);
-      const selected = services.services.find((item) => item.billingCategory === "Other Services Bill" && item.serviceKey === selectedKey);
-      if (!selected) {
-        return NextResponse.json({ success: false, error: "The selected Other Services item is not billed to this project." }, { status: 400 });
-      }
+    if (action === "savePayment" && !existingPayment && projectCode && !BILLING_CATEGORIES.has(paymentCategory)) {
+      return NextResponse.json({ success: false, error: "Choose a project billing category in Receive Payment." }, { status: 400 });
     }
-
-    if (action === "savePayment" && !existingPayment && !receiveAdvance && paymentCategory.includes("engineering")) {
+    if (action === "savePayment" && !existingPayment && BILLING_CATEGORIES.has(paymentCategory)) {
       if (!projectCode) return NextResponse.json({ success: false, error: "Project is required." }, { status: 400 });
-      if (!serviceAllocations.length) {
-        return NextResponse.json({ success: false, error: "Engineering Bill payments must be allocated to services. Use Finance → Service Payments." }, { status: 400 });
-      }
-      const paymentAmount = Math.max(0, num(body.Amount));
-      const allocated = serviceAllocations.reduce((sum, row) => sum + Math.max(0, num(row.amount || row.allocatedAmount)), 0);
-      if (Math.abs(paymentAmount - allocated) > 0.01) {
-        return NextResponse.json({ success: false, error: `Service allocations must equal the payment amount (BDT ${paymentAmount.toLocaleString("en-BD")}).` }, { status: 400 });
-      }
-      const snapshot = await getAdjustedProjectServiceFinancials(projectCode);
-      const byKey = new Map(snapshot.services.map((row) => [row.serviceKey, row]));
-      const selectedServices = new Set<string>();
-      for (const allocation of serviceAllocations) {
-        const amount = Math.max(0, num(allocation.amount || allocation.allocatedAmount));
-        if (amount <= 0) continue;
-        const key = workflowServiceKey(allocation.serviceName || allocation.service || "");
-        const service = byKey.get(key);
-        if (!service || service.billingCategory !== "Engineering Bill") {
-          return NextResponse.json({ success: false, error: `Invalid Engineering service allocation: ${text(allocation.serviceName || allocation.service) || "Unknown service"}.` }, { status: 400 });
+      if (paymentCents(body.Amount) <= 0) return NextResponse.json({ success: false, error: "Enter a positive payment amount with up to two decimal places." }, { status: 400 });
+      if (receiveAdvance) {
+        billTargets = [];
+      } else {
+        const category = Object.values(categoryNames).find((name) => name.toLowerCase() === paymentCategory)!;
+        const snapshot = await getPaymentBills(projectCode);
+        try {
+          billTargets = resolvePaymentTargets(snapshot, category, body.Amount, billRows, serviceAllocations, serviceType);
+        } catch (cause) {
+          return NextResponse.json({ success: false, error: cause instanceof Error ? cause.message : "Invalid bill allocation." }, { status: 400 });
         }
-        if (selectedServices.has(key)) {
-          return NextResponse.json({ success: false, error: "Enter a single allocation per Engineering service." }, { status: 400 });
-        }
-        selectedServices.add(key);
+        const firstTarget = billTargets[0].bill_id;
+        const selectedBill = snapshot.bills.find((bill) => bill.billId === firstTarget);
+        serviceType = category === "Engineering Bill" ? "" : canonicalPaymentServiceType(selectedBill?.serviceName);
       }
     }
 
@@ -159,24 +150,7 @@ export async function POST(request: NextRequest) {
         idempotencyKey,
       });
     } else {
-      const allocations = !receiveAdvance && paymentCategory.includes("engineering")
-        ? serviceAllocations.flatMap((allocation) => {
-            const amount = num(allocation.amount || allocation.allocatedAmount);
-            if (amount <= 0) return [];
-            const serviceName = workflowServiceName(allocation.serviceName || allocation.service || "");
-            return [{
-              service_name: serviceName,
-              service_key: workflowServiceKey(serviceName),
-              allocated_amount: amount,
-              discount_allocated: Math.max(0, num(allocation.discount)),
-            }];
-          })
-        : [];
-      const paymentOptions = action === "savePayment" ? {
-        fingerprint: paymentFingerprint,
-        serviceType,
-        allocations,
-      } : undefined;
+      const paymentOptions = action === "savePayment" ? { fingerprint: paymentFingerprint, serviceType, billTargets } : undefined;
       data = await handleLandviewDataAction(action, {
         ...body, ...(action === "savePayment" ? { Project_ID: projectCode } : {}), Idempotency_Key: idempotencyKey,
       }, user, paymentOptions);
@@ -204,7 +178,7 @@ export async function POST(request: NextRequest) {
     const message = error instanceof Error && error.name === "TimeoutError"
       ? "The billing write response timed out. Refresh Billing before trying again so you do not duplicate a transaction."
       : error instanceof Error ? error.message : "Billing write failed.";
-    const status = /belongs to another|conflicts with/i.test(message) ? 409 : /required|invalid|cannot exceed|must be greater|choose a billed|allocat|positive payment/i.test(message) ? 400 : 502;
+    const status = /belongs to another|conflicts with|balance changed|bill changed/i.test(message) ? 409 : /required|invalid|cannot exceed|must be greater|choose a billed|allocat|positive payment/i.test(message) ? 400 : 502;
     return NextResponse.json({ success: false, error: message }, { status, headers: { "Cache-Control": "no-store" } });
   }
 }

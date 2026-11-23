@@ -124,45 +124,71 @@ test("a service-targeted remainder stays unapplied while historical credits stil
   assert.equal(after.remainingUnallocated, 5_000);
 });
 
-test("the payment form sends the invoice service key for a discounted Re-Design Bill", async () => {
+test("discounted receipts bind to bills, including legacy inputs, and honour the statement balance", async () => {
   const rows = {
     projects: [{ id: "project", project_code: "LV-001" }],
     bills: [{
       id: "bill", project_id: "project", bill_code: "BILL-R", billing_category: "Engineering Bill",
       description: "[Engineering Bill] Re-Design Bill", amount: 12_000, discount: 7_000, status: "Issued",
     }],
+    invoices: [{ id: "invoice", project_id: "project", bill_code: "BILL-R", status: "Issued", amount: 5000 }],
+    invoice_items: [{ bill_id: "bill", invoice_id: "invoice", service_name: "Re-Design Fees", service_key: "re-design-fees" }],
+    billing_writeoff_log: [],
+    payments: [],
   };
   const gateway = {
     normalizeProjectCode: (code) => code,
     selectRows: async (table) => rows[table] ?? [],
     roleOf: (user) => user.role,
     employeeCodeOf: () => "test",
-    handleLandviewDataAction: async (_action, _input, _user, payment) => ({ allocations: payment.allocations }),
+    handleLandviewDataAction: async (_action, _input, _user, payment) => payment,
   };
+  const authority = loadTs("lib/billing-receivable-authority.ts", { "@/lib/supabase-data": gateway });
   const workflows = loadTs("lib/service-workflow.ts", {
-    "@/lib/supabase-data": gateway,
+    "@/lib/supabase-data": gateway, "@/lib/billing-receivable-authority": authority,
     "@/lib/project-task-templates": loadTs("lib/project-task-templates.ts"),
-    "@/lib/billing-receivable-authority": loadTs("lib/billing-receivable-authority.ts", { "@/lib/supabase-data": gateway }),
+  });
+  const bills = loadTs("lib/billing-payment-bills.ts", {
+    "@/lib/billing-receivable-authority": authority, "@/lib/supabase-data": gateway, "@/lib/service-workflow": workflows,
   });
   const { POST } = loadTs("app/api/billing/write/route.ts", {
     "@/lib/local-session": { requireLocalSession: async () => ({ role: "manager" }) },
-    "@/lib/supabase-data": gateway,
+    "@/lib/supabase-data": gateway, "@/lib/billing-payment-bills": bills,
     "@/lib/service-workflow": { ...workflows, syncPaidServiceWorkflows: async () => {} },
-    "@/lib/billing-adjusted-financials": { getAdjustedProjectServiceFinancials: workflows.getProjectServiceFinancials },
   });
   const origin = "https://app.landview.com.bd";
-  const response = await POST(new NextRequest(origin + "/api/billing/write", {
-    method: "POST",
-    headers: { origin, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      action: "savePayment", Project_ID: "LV-001", Payment_For: "Engineering Bill",
-      Amount: 5000, Service_Allocations: [{ serviceName: "Re-Design Bill", amount: 5000 }],
-      Idempotency_Key: "test-redesign-payment",
-    }),
-  }));
-  const result = await response.json();
-  assert.equal(response.status, 200, result.error);
-  assert.deepEqual(result.data.allocations, [{
-    service_name: "Re-Design Fees", service_key: "re-design-fees", allocated_amount: 5000, discount_allocated: 0,
-  }]);
+  const send = async (extra) => {
+    const response = await POST(new NextRequest(origin + "/api/billing/write", {
+      method: "POST", headers: { origin, "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "savePayment", Project_ID: "LV-001", Payment_For: "Engineering Bill",
+        Amount: 5000, Idempotency_Key: "test-redesign-payment", ...extra }),
+    }));
+    return { status: response.status, ...(await response.json()) };
+  };
+  const legacy = { Service_Allocations: [{ serviceName: "Re-Design Bill", amount: 5000 }] };
+  const selected = { Bill_Allocations: [{ billId: "bill", amount: 5000 }] };
+  assert.deepEqual((await send(legacy)).data.billTargets, [{ bill_id: "bill", amount: 5000 }]);
+  assert.deepEqual((await send(selected)).data.billTargets, [{ bill_id: "bill", amount: 5000 }]);
+  rows.bills.push({ ...rows.bills[0], id: "bill2", bill_code: "BILL-2" });
+  rows.invoices.push({ ...rows.invoices[0], id: "invoice2", bill_code: "BILL-2" });
+  rows.invoice_items.push({ ...rows.invoice_items[0], bill_id: "bill2", invoice_id: "invoice2" });
+  assert.equal((await send(legacy)).status, 400);
+  const duplicateLabels = await send({ Bill_Allocations: [{ billId: "bill2", amount: 2000 }, { billId: "bill", amount: 3000 }] });
+  assert.deepEqual(duplicateLabels.data.billTargets, [{ bill_id: "bill2", amount: 2000 }, { bill_id: "bill", amount: 3000 }]);
+  assert.equal((await send({ Bill_Allocations: [{ billId: "bill", amount: 2000 }, { billId: "bill", amount: 3000 }] })).status, 400);
+  assert.equal((await send({ Bill_Allocations: [{ billId: "unknown", amount: 5000 }] })).status, 400);
+  assert.equal((await send({ Bill_Allocations: [{ billId: "bill", amount: 4999.99 }] })).status, 400);
+  assert.equal((await send({ Amount: 0.001, Bill_Allocations: [{ billId: "bill", amount: 0.001 }] })).status, 400);
+  rows.billing_writeoff_log.push({ project_id: "project", billing_category: "Engineering Bill", event_type: "write_off", amount: 10000 });
+  const snapshot = await bills.getPaymentBills("LV-001");
+  assert.equal(snapshot.projectDue, 0);
+  assert.equal(snapshot.categories["Engineering Bill"].relief, 10000);
+  assert.equal(snapshot.bills.every((bill) => bill.available === 0), true);
+  assert.equal((await send(selected)).status, 400);
+  assert.deepEqual((await send({ Receive_Advance: true, Bill_Allocations: [] })).data.billTargets, []);
+  const original = duplicateLabels.data.fingerprint;
+  rows.payments.push({ billing_request_fingerprint: original });
+  assert.equal((await send(selected)).status, 409);
+  assert.equal((await send({ Bill_Allocations: [{ billId: "bill", amount: 2000 }, { billId: "bill2", amount: 3000 }] })).status, 409);
+  assert.equal((await send({ Bill_Allocations: [{ billId: "bill2", amount: 2000 }, { billId: "bill", amount: 3000 }] })).status, 200);
 });

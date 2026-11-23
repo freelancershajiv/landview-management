@@ -1,4 +1,5 @@
 import { getVercelOidcToken } from "@vercel/oidc";
+import { projectBillIncomeCategory } from "@/lib/billing-payment-policy";
 import { mergeRolePermissions } from "@/lib/role-permissions";
 
 const DATA_URL = "https://jupzgjlizxivhbmuigua.supabase.co/functions/v1/landview-data";
@@ -275,7 +276,7 @@ async function getProjectBilling(projectId: unknown) {
 type BillingPaymentOptions = {
   fingerprint: string;
   serviceType: string;
-  allocations: { service_name: string; service_key: string; allocated_amount: number; discount_allocated: number }[];
+  billTargets?: { bill_id: string; amount: number }[];
 };
 
 export async function handleLandviewDataAction(action: string, input: Row, user: WorkspaceUser, billingPayment?: BillingPaymentOptions) {
@@ -453,6 +454,10 @@ export async function handleLandviewDataAction(action: string, input: Row, user:
     const master=role==="admin";
     const who=employeeCodeOf(user)||text((user as Row)?.username)||"Master Admin";
     const requestedIncomeCategory=text(pick(input,"Income_Category","Category"))||"Other Income";
+    if (p && !billingPayment && text(input.Transaction_Type).toLowerCase() !== "personal income" &&
+        (projectBillIncomeCategory(requestedIncomeCategory) || projectBillIncomeCategory(input.Payment_For))) {
+      throw new Error("Choose the project bills in Billing → Receive Payment.");
+    }
     const row={
       payment_code:text(pick(input,"Payment_ID","paymentId","Income_ID"))||code("PAY"),
       project_id:p?.id||null,
@@ -484,10 +489,11 @@ export async function handleLandviewDataAction(action: string, input: Row, user:
       const saved = await supabaseGateway("recordBillingPayment", {
         payment: {
           ...row,
+          billing_bill_targets: billingPayment.billTargets,
           service_type: serviceType || null,
           finance_scope: serviceType === "Municipality File Pass" ? "municipality_file_pass" : "main",
         },
-        serviceAllocations: billingPayment.allocations,
+        serviceAllocations: [],
         fingerprint: billingPayment.fingerprint,
       }) as Row;
       return {

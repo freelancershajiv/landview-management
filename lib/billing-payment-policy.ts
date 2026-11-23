@@ -12,6 +12,14 @@ export function billingAmount(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+// These Accounts income categories collect a project bill through Receive Payment.
+export function projectBillIncomeCategory(value: unknown): CanonicalBillingCategory | undefined {
+  const label = text(value).toLowerCase();
+  if (["engineering bill", "design bill", "design books", "3d design", "estimate & costing", "plan approval"].includes(label)) return "Engineering Bill";
+  if (label === "supervision bill") return "Supervision Bill";
+  if (["other services bill", "soil test", "digital survey", "municipality file pass"].includes(label)) return "Other Services Bill";
+}
+
 function statusIsEffective(row: Row) {
   const status = text(row.approval_status ?? row.Approval_Status ?? row.status ?? row.Status)
     .toLowerCase()

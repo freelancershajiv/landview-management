@@ -1,19 +1,28 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import ProjectReceiptHistory from "@/components/project-receipt-history";
 
-type Row = Record<string, any>;
+import type { PaymentBillOptions } from "@/lib/billing-payment-bills";
+
+type Row = Record<string, unknown>;
+type ProjectOption = { projectId?: string; project_code?: string; ownerName?: string; projectName?: string; project_name?: string };
+type PendingPayment = { key: string; fingerprint: string; projectId: string };
+const pendingStorageKey = "lv-billing-payment-v4";
+function persistPending(payment: PendingPayment) {
+  try { window.sessionStorage.setItem(pendingStorageKey, JSON.stringify({ ...payment, createdAt: Date.now() })); }
+  catch { /* The in-memory submission key is retained until reload. */ }
+}
 type Category = "Engineering Bill" | "Other Services Bill" | "Supervision Bill";
 const CATEGORY_ORDER: Category[] = ["Engineering Bill", "Other Services Bill", "Supervision Bill"];
 
 function money(v: unknown) {
   const n = Number(v || 0);
-  return new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", maximumFractionDigits: 0 }).format(Number.isFinite(n) ? n : 0);
+  return new Intl.NumberFormat("en-BD", { style: "currency", currency: "BDT", minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(Number.isFinite(n) ? n : 0);
 }
 function num(v: unknown) {
-  const n = Number(String(v ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : 0;
+  const raw = String(v ?? "").trim().replace(/,/g, "");
+  return /^\d+(\.\d{1,2})?$/.test(raw) ? Number(raw) : NaN;
 }
 function today() {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -27,7 +36,7 @@ function today() {
 }
 async function readJson(response: Response, fallback: string) {
   const json = await response.json().catch(() => null);
-  if (!response.ok || !json?.success) throw new Error(String(json?.error || fallback));
+  if (!response.ok || !json?.success) throw Object.assign(new Error(String(json?.error || fallback)), { status: response.status });
   return json.data;
 }
 async function workflowGet(query: string) {
@@ -44,17 +53,18 @@ async function savePayment(payload: Row) {
 }
 
 export default function ReceivePaymentPage() {
-  const [projects, setProjects] = useState<Row[]>([]);
+  const [projects, setProjects] = useState<ProjectOption[]>([]);
   const [projectId, setProjectId] = useState("");
-  const [data, setData] = useState<Row | null>(null);
+  const [data, setData] = useState<PaymentBillOptions | null>(null);
   const [category, setCategory] = useState<Category>("Engineering Bill");
   const [paymentAmount, setPaymentAmount] = useState("");
   const [allocations, setAllocations] = useState<Record<string, string>>({});
-  const [selectedService, setSelectedService] = useState("");
+  const [selectedBillId, setSelectedBillId] = useState("");
   const [paymentDate, setPaymentDate] = useState(today());
   const [method, setMethod] = useState("Bank Transfer");
   const [account, setAccount] = useState("Bank Account");
   const [reference, setReference] = useState("");
+  const [payer, setPayer] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -63,8 +73,9 @@ export default function ReceivePaymentPage() {
   const [receiptPaymentCode, setReceiptPaymentCode] = useState("");
   const [advanceMode, setAdvanceMode] = useState(false);
   const [pendingCheck, setPendingCheck] = useState(false);
-  const pendingSubmission = useRef<{ key: string; fingerprint: string; projectId: string } | null>(null);
-  const pendingStorageKey = "lv-billing-payment-v4";
+  const pendingSubmission = useRef<PendingPayment | null>(null);
+  const requestNumber = useRef(0);
+  const submitting = useRef(false);
   useEffect(() => {
     try {
       const stored = window.sessionStorage.getItem(pendingStorageKey);
@@ -86,6 +97,45 @@ export default function ReceivePaymentPage() {
     setPendingCheck(false);
     try { window.sessionStorage.removeItem(pendingStorageKey); } catch { /* Storage disabled. */ }
   }
+  function clearSelection() {
+    setAllocations({}); setSelectedBillId(""); setPaymentAmount(""); setAdvanceMode(false);
+  }
+  async function loadProject(id = projectId, fromAccounts = false) {
+    const current = ++requestNumber.current;
+    setData(null); setLoading(Boolean(id)); setError(""); setMessage("");
+    clearSelection();
+    if (!id) return;
+    try {
+      const next: PaymentBillOptions = await readJson(await fetch(
+        `/api/billing/payment-bills?projectId=${encodeURIComponent(id)}`, { credentials: "same-origin", cache: "no-store" }),
+        "Could not load the current collectible balance.");
+      if (current !== requestNumber.current) return;
+      setData(next);
+      if (!next.bills.some((bill) => bill.category === category)) {
+        setCategory(CATEGORY_ORDER.find((item) => next.bills.some((bill) => bill.category === item)) || "Engineering Bill");
+      }
+      if (fromAccounts) {
+        try {
+          const raw = window.sessionStorage.getItem("lv-accounts-bill-draft");
+          const draft = raw ? JSON.parse(raw) : null;
+          if (draft?.fileId === id && CATEGORY_ORDER.includes(draft.category)) {
+            setCategory(draft.category); setPaymentAmount(draft.amount); setPaymentDate(draft.date || today());
+            setMethod(draft.method); setReference(draft.reference); setNotes(draft.notes); setPayer(draft.payer);
+            const open = next.bills.filter((bill) => bill.category === draft.category && bill.available > 0);
+            if (draft.category === "Engineering Bill" && open.length === 1) setAllocations({ [open[0].billId]: draft.amount });
+          }
+          window.sessionStorage.removeItem("lv-accounts-bill-draft");
+        } catch { /* Read the selected project even if a draft is unavailable. */ }
+      }
+      const url = new URL(window.location.href);
+      url.searchParams.delete("from");
+      url.searchParams.set("fileId", id);
+      window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
+    } catch (cause) {
+      if (current === requestNumber.current) setError(cause instanceof Error ? cause.message : "Could not load the project balance.");
+    } finally { if (current === requestNumber.current) setLoading(false); }
+  }
+
   async function checkPending() {
     const pending = pendingSubmission.current;
     if (!pending) return;
@@ -112,107 +162,66 @@ export default function ReceivePaymentPage() {
   }
 
   useEffect(() => {
-    const requested = new URLSearchParams(window.location.search).get("fileId")?.toUpperCase() || "";
-    if (requested) setProjectId(requested);
-    void workflowGet("mode=billing-projects")
-      .then((r) => {
-        setProjects(r.projects || []);
-        if (requested) void loadProject(requested);
-      })
-      .catch((e) => setError(e.message))
-      .finally(() => setLoading(false));
+    const timer = window.setTimeout(() => {
+      const params = new URLSearchParams(window.location.search);
+      const requested = params.get("fileId")?.toUpperCase() || "";
+      if (requested) { setProjectId(requested); void loadProject(requested, params.get("from") === "accounts"); }
+      else setLoading(false);
+      void workflowGet("mode=billing-projects").then((result) => setProjects(result.projects || [])).catch((cause) => setError(cause.message));
+    }, 0);
+    return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  async function loadProject(id = projectId) {
-    if (!id) { setData(null); return; }
-    setLoading(true); setError(""); setMessage("");
-    try {
-      const next = await workflowGet(`mode=billing&projectId=${encodeURIComponent(id)}`);
-      const loadedServices: Row[] = Array.isArray(next?.services) ? next.services : [];
-      const nextCategory = loadedServices.some((service) => service.billingCategory === category)
-        ? category
-        : CATEGORY_ORDER.find((item) => loadedServices.some((service) => service.billingCategory === item)) || "Engineering Bill";
-      setData(next);
-      setCategory(nextCategory);
-      setAllocations({});
-      setPaymentAmount("");
-      setSelectedService("");
-      const url = new URL(window.location.href);
-      url.searchParams.set("fileId", id);
-      window.history.replaceState(null, "", `${url.pathname}?${url.searchParams.toString()}`);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not load project services.");
-    } finally { setLoading(false); }
-  }
-
-  const services: Row[] = data?.services || [];
-  const categoryServices = useMemo(() => services.filter((s) => s.billingCategory === category), [services, category]);
-  const activeSelectedService = categoryServices.find((s) => s.serviceKey === selectedService) || categoryServices[0] || null;
-
-  function serviceNet(service: Row) { return Math.max(0, num(service.gross) - Math.max(0, num(service.discount))); }
-  function serviceDue(service: Row) { return Math.max(0, serviceNet(service) - Math.max(0, num(service.paid))); }
-
-  const categorySummary = useMemo(() => categoryServices.reduce((acc, service) => {
-    acc.gross += Math.max(0, num(service.gross));
-    acc.discount += Math.max(0, num(service.discount));
-    acc.net += serviceNet(service);
-    acc.paid += Math.max(0, num(service.paid));
-    acc.due += serviceDue(service);
-    return acc;
-  }, { gross: 0, discount: 0, net: 0, paid: 0, due: 0 }), [categoryServices]);
-
-  const allocatedTotal = Object.values(allocations).reduce((sum, value) => sum + Math.max(0, num(value)), 0);
-
-  function autoAllocate(raw: string) {
-    setPaymentAmount(raw);
-    if (category !== "Engineering Bill") return;
-    let remaining = Math.max(0, num(raw));
-    const next: Record<string, string> = {};
-    for (const service of categoryServices) {
-      const applied = Math.min(serviceDue(service), remaining);
-      next[service.serviceKey] = applied > 0 ? String(applied) : "";
-      remaining = Math.max(0, remaining - applied);
+  const categoryBills = data?.bills.filter((bill) => bill.category === category) || [];
+  const openBills = categoryBills.filter((bill) => bill.available > 0);
+  const categorySummary = data?.categories[category];
+  const activeBillId = selectedBillId || (openBills.length === 1 ? openBills[0].billId : "");
+  const allocatedTotal = Object.values(allocations).reduce((sum, value) => sum + (num(value) || 0), 0);
+  function changeAmount(value: string) {
+    setPaymentAmount(value);
+    if (!advanceMode && category === "Engineering Bill" && openBills.length === 1) {
+      setAllocations({ [openBills[0].billId]: value });
     }
-    setAllocations(next);
   }
 
   async function pay() {
-    if (busy) return;
-    if (!projectId || !data) return setError("Choose a project first.");
+    if (busy || submitting.current) return;
+    if (!projectId || !data || data.projectCode !== projectId || !categorySummary) return setError("Choose a project first.");
     if (!paymentDate) return setError("Choose a payment date.");
     const amount = Math.max(0, num(paymentAmount));
     if (!(amount > 0)) return setError("Enter a payment amount.");
-    if (!advanceMode && amount > categorySummary.due + 0.01) {
+    if (!advanceMode && amount > categorySummary.due + 0.00001) {
       return setError(`Payment cannot exceed ${money(categorySummary.due)} due. Use Receive Advance to record extra money.`);
     }
 
+    submitting.current = true;
     setBusy(true); setError(""); setMessage("");
     try {
-      let serviceType = "";
-      let serviceAllocations: Array<{ serviceName: string; amount: number }> = [];
-      if (!advanceMode && category === "Engineering Bill") {
-        if (Math.abs(allocatedTotal - amount) > 0.01) throw new Error("Allocated service amounts must exactly equal the payment amount.");
-        for (const service of categoryServices) {
-          const allocated = Math.max(0, num(allocations[service.serviceKey]));
-          if (allocated > serviceDue(service) + 0.01) throw new Error(`${service.serviceName} allocation cannot exceed its due of ${money(serviceDue(service))}.`);
+      let billAllocations: Array<{ billId: string; amount: number }> = [];
+      if (!advanceMode) {
+        billAllocations = category === "Engineering Bill"
+          ? Object.entries(allocations).filter(([, value]) => value.trim() && num(value) !== 0)
+            .map(([billId, value]) => ({ billId, amount: num(value) }))
+          : [{ billId: activeBillId, amount }];
+        for (const split of billAllocations) {
+          const bill = openBills.find((item) => item.billId === split.billId);
+          if (!bill) throw new Error("Choose an issued bill to receive this payment.");
+          if (!(split.amount > 0) || Math.round(split.amount * 100) > Math.round(bill.available * 100)) {
+            throw new Error(`Enter an allocation up to ${money(bill.available)} for ${bill.billCode}.`);
+          }
         }
-        serviceAllocations = categoryServices.map((service) => ({
-          serviceName: String(service.serviceName), amount: Math.max(0, num(allocations[service.serviceKey])),
-        })).filter((item) => item.amount > 0);
-      } else if (!advanceMode) {
-        const service = activeSelectedService;
-        if (!service) throw new Error("Choose a billed service first.");
-        if (amount > serviceDue(service) + 0.01) throw new Error(`${service.serviceName} has only ${money(serviceDue(service))} due.`);
-        serviceType = service.serviceName === "Municipality Approval Contract" ? "Municipality File Pass" : String(service.serviceName);
+        if (billAllocations.reduce((sum, item) => sum + Math.round(item.amount * 100), 0) !== Math.round(amount * 100)) {
+          throw new Error("Enter the amount for each selected bill. The allocations must add up to the payment.");
+        }
       }
       const payload: Row = {
         Project_ID: projectId, Payment_Date: paymentDate, Amount: amount,
         Payment_Method: method, Deposit_Account: account, Reference_No: reference.trim(),
-        Payment_For: category, Income_Category: category, Service_Type: serviceType,
+        Payment_For: category, Income_Category: category,
         Transaction_Type: "Business Income", Affects_Business_Balance: "Yes",
-        Received_From: data?.project?.ownerName || "", Notes: notes.trim(),
-        Service_Allocations: serviceAllocations, Receive_Advance: advanceMode,
+        Received_From: payer.trim() || data.ownerName, Notes: notes.trim(),
+        Bill_Allocations: billAllocations, Receive_Advance: advanceMode,
       };
       const hash = await fingerprint(payload);
       const prior = pendingSubmission.current;
@@ -223,28 +232,31 @@ export default function ReceivePaymentPage() {
       if (!prior) {
         pendingSubmission.current = { key, fingerprint: hash, projectId };
         setPendingCheck(true);
-        try { window.sessionStorage.setItem(pendingStorageKey, JSON.stringify({ key, fingerprint: hash, projectId, createdAt: Date.now() })); }
-        catch { /* In-memory key is retained until reload. */ }
+        persistPending(pendingSubmission.current);
       }
       const savedPayment = await savePayment({ ...payload, Idempotency_Key: key });
       const paymentCode = String(savedPayment?.Payment_ID || savedPayment?.paymentCode || "").trim();
       forgetPending();
+      setReference(""); setNotes(""); setPayer("");
       await loadProject(projectId);
       setReceiptPaymentCode(paymentCode);
       setMessage(paymentCode
         ? `Payment ${paymentCode} saved. Open the linked receipt below.`
         : "Payment saved. Refresh receipts to view its recorded details.");
     } catch (cause) {
+      if (cause instanceof Error && "status" in cause &&
+          (cause.status === 400 || (cause.status === 409 && /balance changed|bill changed/i.test(cause.message)))) forgetPending();
       setError(cause instanceof Error ? cause.message : "Could not save payment. Check the payment status before retrying.");
-    } finally { setBusy(false); }
+    } finally { submitting.current = false; setBusy(false); }
   }
 
   return <main className="rp">
     <style>{`
       .rp{max-width:1450px;margin:0 auto;color:var(--lv-text-primary)}.rp *{box-sizing:border-box}.rp-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-end;margin-bottom:15px}.rp-head small{font-size:8px;font-weight:950;letter-spacing:.12em;color:var(--lv-brand-text)}.rp-head h1{margin:5px 0 0;font-size:27px}.rp-head p{margin:5px 0 0;font-size:12px;color:var(--lv-text-secondary)}.rp-card{border:1px solid var(--lv-border-default);border-radius:12px;background:var(--lv-surface-panel)}.rp-select{display:grid;grid-template-columns:1fr;gap:9px;padding:13px;margin-bottom:12px}.rp-field label{display:block;margin-bottom:5px;font-size:12px;font-weight:900;text-transform:uppercase;color:var(--lv-text-muted)}.rp-field input,.rp-field select,.rp-field textarea{width:100%;min-height:38px;padding:8px 10px;border:1px solid var(--lv-border-default);border-radius:7px;background:var(--lv-surface-input);color:var(--lv-text-primary);font-size:13px}.rp-tabs{display:flex;gap:6px;margin-bottom:12px}.rp-tab{padding:9px 12px;border:1px solid var(--lv-border-default);border-radius:8px;background:var(--lv-surface-panel);color:var(--lv-text-secondary);font-size:12px;font-weight:900;cursor:pointer}.rp-tab.active{background:var(--lv-brand-primary);border-color:var(--lv-brand-border);color:var(--lv-text-inverse)}.rp-summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px;margin-bottom:12px}.rp-stat{padding:11px;border:1px solid var(--lv-border-subtle);border-radius:9px;background:var(--lv-surface-muted)}.rp-stat span{display:block;font-size:7px;text-transform:uppercase;color:var(--lv-text-muted)}.rp-stat strong{display:block;margin-top:6px;font-size:15px}.rp-layout{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(330px,.7fr);gap:12px}.rp-table{overflow:auto}.rp-table table{width:100%;border-collapse:collapse;min-width:800px}.rp-table th,.rp-table td{padding:10px;border-bottom:1px solid var(--lv-border-subtle);font-size:12px;text-align:left}.rp-table th{background:var(--lv-surface-muted);color:var(--lv-text-muted);text-transform:uppercase}.rp-table input{width:115px;padding:7px;border:1px solid var(--lv-border-default);border-radius:6px;background:var(--lv-surface-input);color:var(--lv-text-primary)}.rp-form{display:grid;gap:9px;padding:13px}.rp-two{display:grid;grid-template-columns:1fr 1fr;gap:8px}.rp-btn{min-height:39px;border:1px solid var(--lv-brand-border);border-radius:8px;background:var(--lv-brand-primary);color:var(--lv-text-inverse);font-size:13px;font-weight:950;cursor:pointer}.rp-btn:disabled{opacity:.5}.rp-msg{margin-bottom:12px;padding:10px 12px;border-radius:8px;font-size:12px}.rp-msg.bad{background:var(--lv-danger-soft);color:var(--lv-danger)}.rp-msg.good{background:var(--lv-success-soft);color:var(--lv-success)}.rp-empty{padding:28px;text-align:center;color:var(--lv-text-muted);font-size:9px}.rp-due{color:var(--lv-danger);font-weight:900}.rp-paid{color:var(--lv-success);font-weight:900}@media(max-width:950px){.rp-summary{grid-template-columns:repeat(2,1fr)}.rp-layout{grid-template-columns:1fr}}@media(max-width:600px){.rp-two{grid-template-columns:1fr}.rp-summary{grid-template-columns:1fr 1fr}.rp-head{align-items:flex-start;flex-direction:column}}
+      .rp-table table{min-width:480px}.rp-table small{display:block;color:var(--lv-text-secondary)}.rp-explain{margin:0;padding:8px 12px;font-size:12px;color:var(--lv-text-secondary)}.rp-stat span{font-size:11px}.rp-tabs{flex-wrap:wrap}
     `}</style>
 
-    <header className="rp-head"><div><small>LAND VIEW / BILLING</small><h1>Receive Payment</h1><p>Receive and allocate client money only. Discounts and posted bill corrections are handled elsewhere.</p></div></header>
+    <header className="rp-head"><div><small>LAND VIEW / BILLING</small><h1>Receive Payment</h1><p>Choose the bills covered by the payment or record an advance.</p></div></header>
     {error && <div className="rp-msg bad" role="alert">{error}</div>}{message && <div className="rp-msg good" role="status">{message}</div>}
     {pendingCheck && <section className="rp-card" style={{ padding: 14, marginBottom: 12, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 9 }}>
       <strong style={{ fontSize: 13 }}>Previous payment submission requires confirmation</strong>
@@ -253,23 +265,38 @@ export default function ReceivePaymentPage() {
     </section>}
 
     <section className="rp-card rp-select">
-      <div className="rp-field"><label>Project / File ID</label><select value={projectId} onChange={(e) => { setProjectId(e.target.value); setReceiptPaymentCode(""); void loadProject(e.target.value); }}><option value="">Choose project</option>{projects.map((p) => <option key={p.projectId || p.project_code} value={p.projectId || p.project_code}>{p.projectId || p.project_code} · {p.ownerName || p.projectName || p.project_name || "Project"}</option>)}</select></div>
+      <div className="rp-field"><label>Project / File ID</label><select aria-label="Project / File ID" disabled={busy} value={projectId} onChange={(e) => { setProjectId(e.target.value); setReceiptPaymentCode(""); setReference(""); setNotes(""); setPayer(""); void loadProject(e.target.value); }}><option value="">Choose project</option>{projects.map((p) => <option key={p.projectId || p.project_code} value={p.projectId || p.project_code}>{p.projectId || p.project_code} · {p.ownerName || p.projectName || p.project_name || "Project"}</option>)}</select></div>
+      {projectId && !loading && <div><button type="button" data-lv-button="secondary" disabled={busy} onClick={() => void loadProject(projectId)}>Refresh balance</button></div>}
     </section>
 
-    <div className="rp-tabs">{CATEGORY_ORDER.map((item) => <button key={item} className={`rp-tab ${category === item ? "active" : ""}`} data-lv-button={category===item?"primary":"secondary"} onClick={() => { setCategory(item); setAllocations({}); setPaymentAmount(""); setSelectedService(""); }}>{item}</button>)}</div>
+    <div className="rp-tabs">{CATEGORY_ORDER.map((item) => <button key={item} className={`rp-tab ${category === item ? "active" : ""}`} data-lv-button={category===item?"primary":"secondary"} disabled={busy || loading} onClick={() => { setCategory(item); clearSelection(); setError(""); }}>{item}</button>)}</div>
 
-    {data ? <>
-      <section className="rp-card rp-summary"><div className="rp-stat"><span>Gross</span><strong>{money(categorySummary.gross)}</strong></div><div className="rp-stat"><span>Discount</span><strong>{money(categorySummary.discount)}</strong></div><div className="rp-stat"><span>Net</span><strong>{money(categorySummary.net)}</strong></div><div className="rp-stat"><span>Paid</span><strong className="rp-paid">{money(categorySummary.paid)}</strong></div><div className="rp-stat"><span>Due</span><strong className="rp-due">{money(categorySummary.due)}</strong></div></section>
+    {data && categorySummary ? <>
+      <section className="rp-card rp-summary">
+        {([["Gross billed", categorySummary.gross], ["Discount / credit notes", categorySummary.discount],
+          ["Net billed", categorySummary.net], ["Paid against bills", categorySummary.paid],
+          ["Write-offs / credit applied", categorySummary.relief], ["Category collectible", categorySummary.due],
+          ["Project collectible", data.projectDue]] as const).map(([label, value]) =>
+          <div className="rp-stat" key={label}><span>{label}</span><strong>{money(value)}</strong></div>)}
+      </section>
       <div className="rp-layout">
-        <section className="rp-card rp-table"><table><thead><tr><th>Service</th><th>Net</th><th>Paid</th><th>Due</th>{category === "Engineering Bill" && <th>Allocate</th>}</tr></thead><tbody>{categoryServices.map((service) => <tr key={service.serviceKey}><td><strong>{service.serviceName}</strong></td><td>{money(serviceNet(service))}</td><td className="rp-paid">{money(service.paid)}</td><td className="rp-due">{money(serviceDue(service))}</td>{category === "Engineering Bill" && <td><input inputMode="decimal" value={allocations[service.serviceKey] || ""} onChange={(e) => setAllocations((current) => ({ ...current, [service.serviceKey]: e.target.value }))} /></td>}</tr>)}</tbody></table>{!categoryServices.length && <div className="rp-empty">No billed services in this category.</div>}</section>
+        <section className="rp-card rp-table"><table><thead><tr><th>Bill / service</th><th>Net billed</th><th>Paid</th><th>Available to collect</th>{category === "Engineering Bill" && !advanceMode && <th>Apply payment</th>}</tr></thead>
+          <tbody>{categoryBills.map((bill) => <tr key={bill.billId}>
+            <td><strong>{bill.name}</strong><small>{bill.billCode}</small>{bill.needsReview && <small>Review invoice link</small>}</td>
+            <td>{money(bill.net)}</td><td className="rp-paid">{money(bill.paid)}</td><td>{money(bill.available)}</td>
+            {category === "Engineering Bill" && !advanceMode && <td><input aria-label={`Apply to ${bill.billCode}`} inputMode="decimal" disabled={busy || !bill.available} value={allocations[bill.billId] || ""} onChange={(e) => setAllocations((current) => ({ ...current, [bill.billId]: e.target.value }))} /></td>}
+          </tr>)}</tbody></table>
+          {!categoryBills.length && <div className="rp-empty">No issued bills in this category.</div>}
+          {categorySummary.relief > 0 && <p className="rp-explain">Write-offs and available credit reduce the category balance. All selected bills together can receive up to {money(categorySummary.due)}.</p>}
+        </section>
         <section className="rp-card rp-form">
-          {category !== "Engineering Bill" && !advanceMode && <div className="rp-field"><label>Service</label><select value={selectedService} onChange={(e) => setSelectedService(e.target.value)}><option value="">Choose service</option>{categoryServices.map((service) => <option key={service.serviceKey} value={service.serviceKey}>{service.serviceName} · Due {money(serviceDue(service))}</option>)}</select></div>}
+          {category !== "Engineering Bill" && !advanceMode && <div className="rp-field"><label htmlFor="rp-bill">Apply to bill</label><select id="rp-bill" disabled={busy} value={activeBillId} onChange={(e) => setSelectedBillId(e.target.value)}><option value="">Choose a bill</option>{openBills.map((bill) => <option key={bill.billId} value={bill.billId}>{bill.billCode} · {bill.name} · {money(bill.available)}</option>)}</select></div>}
           <label style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 13, lineHeight: 1.5 }}>
-            <input type="checkbox" checked={advanceMode} onChange={(e) => { setAdvanceMode(e.target.checked); setAllocations({}); setSelectedService(""); }} style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0 }} />
-            <span><strong>Receive Advance / Extra Payment</strong><small style={{ display: "block", color: "var(--lv-text-secondary)", fontSize: 12 }}>Automatically applies to open invoices in this category first; any remaining amount stays as a project advance. Verify the payment receipt.</small></span>
+            <input type="checkbox" disabled={busy} checked={advanceMode} onChange={(e) => { clearSelection(); setAdvanceMode(e.target.checked); }} style={{ width: 18, height: 18, marginTop: 2, flexShrink: 0 }} />
+            <span><strong>Receive Advance / Extra Payment</strong><small style={{ display: "block", color: "var(--lv-text-secondary)", fontSize: 12 }}>Applies up to the collectible balance of this category. Any excess stays on the project as advance credit.</small></span>
           </label>
           <div className="rp-two">
-            <div className="rp-field"><label>Payment Amount</label><input inputMode="decimal" value={paymentAmount} onChange={(e) => autoAllocate(e.target.value)} placeholder="0" /></div>
+            <div className="rp-field"><label htmlFor="rp-amount">Payment Amount</label><input id="rp-amount" disabled={busy} inputMode="decimal" value={paymentAmount} onChange={(e) => changeAmount(e.target.value)} placeholder="0" /></div>
             <div className="rp-field"><label>Payment Date</label><input type="date" required value={paymentDate} onChange={(e) => setPaymentDate(e.target.value)} /></div>
           </div>
           {category === "Engineering Bill" && !advanceMode && <div className="rp-field"><label>Allocated</label><input readOnly value={money(allocatedTotal)} /></div>}
@@ -278,11 +305,14 @@ export default function ReceivePaymentPage() {
             <div className="rp-field"><label>Deposit Account</label><input value={account} onChange={(e) => setAccount(e.target.value)} /></div>
           </div>
           <div className="rp-two"><div className="rp-field"><label>Reference</label><input value={reference} onChange={(e) => setReference(e.target.value)} /></div><div className="rp-field"><label>Category Due</label><input readOnly value={money(categorySummary.due)} /></div></div>
+          <div className="rp-field"><label htmlFor="rp-payer">Received from</label><input id="rp-payer" placeholder={data.ownerName} value={payer} onChange={(e) => setPayer(e.target.value)} /></div>
           <div className="rp-field"><label>Notes</label><textarea value={notes} onChange={(e) => setNotes(e.target.value)} /></div>
-          <button type="button" className="rp-btn" data-lv-button="primary" disabled={busy || loading || (!advanceMode && !categoryServices.length)} onClick={() => void pay()}>{busy ? "Saving…" : advanceMode ? "Save Advance Payment" : "Save Payment"}</button>
+          <button type="button" className="rp-btn" data-lv-button="primary" disabled={busy || loading || (!advanceMode && (!openBills.length || categorySummary.due <= 0))} onClick={() => void pay()}>{busy ? "Saving…" : advanceMode ? "Save Advance Payment" : "Save Payment"}</button>
         </section>
       </div>
-      <div style={{marginTop:14}}><ProjectReceiptHistory projectId={projectId} highlightPaymentCode={receiptPaymentCode} /></div>
-    </> : !loading && <div className="rp-empty">Choose a project to receive payment.</div>}
+
+    </> : <div className="rp-empty">{loading ? "Loading project balance…" : projectId ? <button onClick={() => void loadProject(projectId)}>Reload project balance</button> : "Choose a project to receive payment."}</div>}
+    {projectId && <div style={{marginTop:14}}><ProjectReceiptHistory key={projectId} projectId={projectId} highlightPaymentCode={receiptPaymentCode} projectDue={data?.projectDue}
+      billCollectible={data && Object.fromEntries(data.bills.filter((bill) => !bill.needsReview).map((bill) => [bill.billCode, bill.available])) || undefined} /></div>}
   </main>;
 }

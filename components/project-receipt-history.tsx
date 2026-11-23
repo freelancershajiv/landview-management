@@ -30,8 +30,8 @@ const date = (value: string) => {
 };
 
 export default function ProjectReceiptHistory({
-  projectId, highlightPaymentCode = "", clientView = false,
-}: { projectId: string; highlightPaymentCode?: string; clientView?: boolean }) {
+  projectId, highlightPaymentCode = "", clientView = false, projectDue, billCollectible,
+}: { projectId: string; highlightPaymentCode?: string; clientView?: boolean; projectDue?: number; billCollectible?: Record<string, number> }) {
   const [payments, setPayments] = useState<ReceiptPayment[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -101,6 +101,12 @@ export default function ProjectReceiptHistory({
     </div>
     {selected && <div className="lv-receipt-notice success">
       <strong>Saved payment: {selected.paymentCode} · {money(selected.amount)}</strong>
+      {selected.receiptUrl && <div>
+        {selected.allocations.map((line, index) => <div key={line.invoiceCode + index}>{line.billCode} · {line.serviceName} · Applied {money(line.amount)}
+          {billCollectible?.[line.billCode] !== undefined && <> · Remaining collectible {money(billCollectible[line.billCode])}</>}</div>)}
+        <div>Applied to bills {money(selected.allocated)} · Unapplied credit {money(selected.unallocated)}</div>
+        {projectDue !== undefined && <div>Remaining project collectible {money(projectDue)}</div>}
+      </div>}
       <div className="lv-receipt-actions" style={{marginTop:8}}>
         {selected.receiptUrl ? <>
           <a className="lv-receipt-action" href={selected.receiptUrl} target="_blank" rel="noreferrer">View Receipt</a>

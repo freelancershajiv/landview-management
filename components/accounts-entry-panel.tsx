@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { projectBillIncomeCategory } from "@/lib/billing-payment-policy";
 import { landViewApi } from "@/lib/api";
 
 export type AccountsEntryType = "income" | "expense";
@@ -123,6 +124,7 @@ export default function AccountsEntryPanel({ type, onTypeChange, onClose, onSave
   const setForm = type === "income" ? setIncome : setExpense;
   const amountValue = Number(form.amount || 0);
   const isOutsourcing = type === "expense" && expenseMode === "outsourcing";
+  const billCategory = type === "income" && form.project.trim() ? projectBillIncomeCategory(form.category) : undefined;
   const canSubmit = Boolean(
     form.date &&
     amountValue > 0 &&
@@ -163,6 +165,17 @@ export default function AccountsEntryPanel({ type, onTypeChange, onClose, onSave
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
+    if (billCategory) {
+      const digits = /^(?:LV-?)?(\d{1,8})$/i.exec(form.project.trim())?.[1];
+      if (!digits) return setError("Enter a valid LAND VIEW project ID.");
+      const fileId = "LV-" + String(Number(digits)).padStart(3, "0");
+      const draft = { fileId, category: billCategory, date: form.date, amount: form.amount,
+        method: form.method === "Bank" ? "Bank Transfer" : form.method, reference: form.reference,
+        notes: [form.description, form.notes].filter(Boolean).join("\n"), payer: form.counterparty };
+      try { window.sessionStorage.setItem("lv-accounts-bill-draft", JSON.stringify(draft)); } catch { /* The bill picker also works with an empty draft. */ }
+      window.location.assign("/admin/billing/service-payments?fileId=" + fileId + "&from=accounts");
+      return;
+    }
     if (!form.date) return setError("Choose a transaction date.");
     if (!isOutsourcing && !form.description.trim()) return setError("Enter a short description.");
     if (!Number.isFinite(amountValue) || amountValue <= 0) return setError("Enter a valid amount greater than zero.");
@@ -316,8 +329,8 @@ export default function AccountsEntryPanel({ type, onTypeChange, onClose, onSave
           {!isOutsourcing && <label>{type === "income" ? "Received from" : "Paid to"}<input value={form.counterparty} onChange={(e) => setForm({ ...form, counterparty: e.target.value })} placeholder={type === "income" ? "Client / payer" : "Employee / vendor"} /></label>}
           <label className="wide2">Reference<input value={form.reference} onChange={(e) => setForm({ ...form, reference: e.target.value })} placeholder="Optional receipt, bKash, bank or cheque reference" /></label>
           <label className="wide2">Notes<textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder={isOutsourcing ? "Optional payment note" : "Optional note for the approver"} /></label>
-          <div className="aep-note">{isOutsourcing ? "This creates one outsourcing payment and one linked Main Accounts expense. Paid, due and job status update automatically; no duplicate expense entry is created." : "The entry is saved as Pending and affects official totals only after EMP-0001 approval."}</div>
-          <button className={`aep-submit ${type}`} disabled={!canSubmit}>{submitLabel}</button>
+          <div className="aep-note">{billCategory ? "Continue to Receive Payment to choose the bills this income covers." : isOutsourcing ? "This creates one outsourcing payment and one linked Main Accounts expense. Paid, due and job status update automatically; no duplicate expense entry is created." : "The entry is saved as Pending and affects official totals only after EMP-0001 approval."}</div>
+          <button className={`aep-submit ${type}`} disabled={billCategory ? busy : !canSubmit}>{billCategory ? "Choose bills" : submitLabel}</button>
         </div>
       </form>
     </section>
