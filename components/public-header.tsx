@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import ThemeSwitch from "@/components/theme-switch";
 
 const nav = [
   { href: "/#home", label: "Home" },
@@ -316,6 +317,48 @@ const headerCss = `
     .public-site .lv-hero-services article { border-right: 0 !important; border-bottom: 1px solid var(--theme-line-rgba_255_255_255__16_, rgba(255,255,255,.16)) !important; }
     .public-site .lv-hero-services article:last-child { border-bottom: 0 !important; }
   }
+
+  .public-header { --pub-bg:#faf8f4; --pub-ink:#0b203d; --pub-line:#d7d9dc; --pub-red:#b90016; }
+  html[data-theme="dark"] .public-header { --pub-bg:#101b2c; --pub-ink:#f5f7fa; --pub-line:#374558; --pub-red:#ff8188; }
+  html body .public-header { background:var(--pub-bg) !important; color:var(--pub-ink) !important; border-bottom:1px solid var(--pub-line) !important; }
+  html body .public-header .public-nav-inner { width:min(100% - 48px,1560px) !important; min-height:72px !important; gap:12px; justify-content:space-between; }
+  html body .public-header .public-brand { min-width:0 !important; flex-shrink:0; gap:9px; color:var(--pub-ink) !important; }
+  html body .public-header .public-brand img { width:48px !important; height:48px !important; filter:none; }
+  html body .public-header .public-brand-copy strong { font:900 clamp(17px,1.55vw,25px)/1 Arial,Helvetica,sans-serif !important; letter-spacing:.035em !important; color:var(--pub-ink) !important; }
+  html body .public-header .public-brand-copy strong em { color:inherit !important; }
+  html body .public-header .public-brand-copy span { font-size:9px !important; letter-spacing:.13em !important; color:var(--pub-ink) !important; }
+  html body .public-header .public-nav { margin-left:auto; gap:0; }
+  html body .public-header .public-nav a { min-height:72px !important; padding:0 clamp(5px,.6vw,11px) !important; font-size:12px !important; text-transform:none; letter-spacing:0 !important; color:var(--pub-ink) !important; white-space:nowrap; }
+  html body .public-header .public-nav a:hover,html body .public-header .public-nav a:focus-visible { color:var(--pub-red) !important; }
+  html body .public-header .public-header-actions { gap:8px; margin-left:0; flex-shrink:0; }
+  html body .public-header :is(.public-header-login,.public-header-client,.public-header-cta) { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 10px; font-size:12px; font-weight:800; text-transform:none; letter-spacing:0; border-radius:4px; white-space:nowrap; }
+  html body .public-header :is(.public-header-login,.public-header-client) { border:1px solid var(--pub-line); color:var(--pub-ink) !important; background:transparent !important; }
+  html body .public-header .public-header-cta { background:#b90016 !important; border-color:#b90016 !important; color:#fff !important; }
+  html body .public-header .public-menu-button { border-color:var(--pub-line); background:transparent; border-radius:4px; }
+  html body .public-header .public-menu-button span { background:var(--pub-ink); }
+  html body .public-header .lv-theme-switch { position:static !important; min-width:40px; min-height:40px; width:40px; padding:0 !important; border-radius:4px; border:1px solid var(--pub-line); color:var(--pub-ink) !important; background:transparent !important; box-shadow:none; }
+  html body .public-header .lv-theme-switch span { position:absolute; width:1px; height:1px; clip-path:inset(50%); overflow:hidden; }
+  @media screen { body:has(.public-header) > .lv-theme-switch { display:none !important; } }
+  html body .public-header .public-nav .public-mobile-cta { display:none; }
+  @media(max-width:1320px) {
+    html body .public-header .public-nav { display:none !important; position:absolute; inset:72px 0 auto; grid-template-columns:repeat(2,minmax(0,1fr)); background:var(--pub-bg) !important; border-bottom:1px solid var(--pub-line); max-height:calc(100dvh - 72px); overflow-y:auto; box-shadow:0 12px 24px #0002; }
+    html body .public-header .public-nav.open { display:grid !important; }
+    html body .public-header .public-nav a { min-height:48px !important; padding:0 24px !important; border-bottom:1px solid var(--pub-line) !important; }
+    html body .public-header .public-menu-button { display:block !important; }
+    html body .public-header .public-nav .public-mobile-cta { display:flex; color:var(--pub-red) !important; }
+  }
+  @media(max-width:650px) {
+    html body .public-header .public-nav-inner { width:calc(100% - 24px) !important; gap:6px; min-height:64px !important; }
+    html body .public-header .public-brand img { width:36px !important; height:36px !important; }
+    html body .public-header .public-brand-copy strong { font-size:15px !important; }
+    html body .public-header .public-brand-copy span { display:none; }
+    html body .public-header .public-header-actions { gap:5px; }
+    html body .public-header .public-header-cta,html body .public-header .public-header-client { display:none !important; }
+    html body .public-header .public-header-login { width:36px; padding:0; }
+    html body .public-header .public-header-login span { display:none; }
+    html body .public-header .lv-theme-switch,html body .public-header .public-menu-button { width:36px; min-width:36px; }
+    html body .public-header .public-nav { top:64px; }
+  }
 `;
 
 export default function PublicHeader() {
@@ -333,10 +376,15 @@ export default function PublicHeader() {
             </Link>
             <nav aria-label="Primary navigation" id="public-navigation" className={`public-nav ${open ? "open" : ""}`}>
               {nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>)}
+              <Link href="/bn" onClick={() => setOpen(false)}>বাংলা</Link>
+              <Link className="public-mobile-cta" href="/client" onClick={() => setOpen(false)}>Client Login</Link>
+              <Link className="public-mobile-cta" href="/#contact" onClick={() => setOpen(false)}>Start Your Project →</Link>
             </nav>
             <div className="public-header-actions">
               <a className="public-header-login" aria-label="Sign in to LAND VIEW" href="https://app.landview.com.bd/login" onClick={() => setOpen(false)}><b>↪</b><span>Login</span></a>
-              <a className="public-header-cta" href="/#contact">Get in touch</a>
+              <Link className="public-header-client" href="/client" onClick={() => setOpen(false)}>Client Login</Link>
+              <a className="public-header-cta" href="/#contact">Start Your Project →</a>
+              <ThemeSwitch />
               <button type="button" className="public-menu-button" aria-controls="public-navigation" aria-label="Toggle website navigation" aria-expanded={open} onClick={() => setOpen((value) => !value)}><span /><span /><span /></button>
             </div>
           </div>
