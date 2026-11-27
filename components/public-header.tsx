@@ -381,9 +381,16 @@ const headerCss = `
     html body .public-header .public-nav-inner { min-height:64px !important; }
     html body .public-header .public-nav { top:64px !important; }
   }
+
+  html body .public-header .public-language-toggle { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 8px; border:1px solid var(--pub-line); border-radius:4px; color:var(--pub-ink) !important; background:transparent; white-space:nowrap; font-size:12px; font-weight:700; }
+  html body .public-header .public-language-toggle:hover { color:var(--pub-red) !important; border-color:var(--pub-red); }
+  @media(max-width:650px){html body .public-header .public-language-toggle { padding:0 6px; font-size:11px; }}
+  @media(max-width:360px){html body .public-header .public-brand img{width:30px !important;height:30px !important;}html body .public-header .public-brand-copy strong{font-size:13px !important;}}
 `;
 
-export default function PublicHeader() {
+export default function PublicHeader({locale="en"}:{locale?:"en"|"bn"}={}) {
+  const bangla=locale==="bn"; const homePath=bangla?"/bn":"/";
+  const labels:Record<string,string>={"Home":"হোম","About Us":"আমাদের সম্পর্কে","Services":"সেবাসমূহ","Projects":"প্রকল্প","Map":"মানচিত্র","Team":"টিম","Feni Office":"ফেনি অফিস","Contact":"যোগাযোগ"};
   const [open, setOpen] = useState(false);
 
   return (
@@ -392,20 +399,21 @@ export default function PublicHeader() {
       <header className="public-header">
         <div className="public-nav-wrap">
           <div className="public-container public-nav-inner">
-            <Link href="/#home" className="public-brand" onClick={() => setOpen(false)}>
+            <Link href={`${homePath}#home`} className="public-brand" onClick={() => setOpen(false)}>
               <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
               <div className="public-brand-copy"><strong>LAND <em>VIEW</em></strong><span>ENGINEERS &amp; ARCHITECTS</span></div>
             </Link>
             <nav aria-label="Primary navigation" id="public-navigation" className={`public-nav ${open ? "open" : ""}`}>
-              {nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>)}
-              <Link href="/bn" onClick={() => setOpen(false)}>বাংলা</Link>
-              <Link className="public-mobile-cta" href="/client" onClick={() => setOpen(false)}>Client Login</Link>
-              <Link className="public-mobile-cta" href="/#contact" onClick={() => setOpen(false)}>Start Your Project →</Link>
+              {nav.map((item) => <Link key={item.href} href={item.href.startsWith("/#")?`${homePath}${item.href.slice(1)}`:item.href} onClick={() => setOpen(false)}>{bangla?labels[item.label]||item.label:item.label}</Link>)}
+              
+              <Link className="public-mobile-cta" href="/client" onClick={() => setOpen(false)}>{bangla?"ক্লায়েন্ট লগইন":"Client Login"}</Link>
+              <Link className="public-mobile-cta" href={`${homePath}#contact`} onClick={() => setOpen(false)}>{bangla?"প্রকল্প শুরু করুন →":"Start Your Project →"}</Link>
             </nav>
             <div className="public-header-actions">
-              <a className="public-header-login" aria-label="Sign in to LAND VIEW" href="https://app.landview.com.bd/login" onClick={() => setOpen(false)}><b>↪</b><span>Login</span></a>
-              <Link className="public-header-client" href="/client" onClick={() => setOpen(false)}>Client Login</Link>
-              <a className="public-header-cta" href="/#contact">Start Your Project →</a>
+              <a className="public-header-login" aria-label="Sign in to LAND VIEW" href="https://app.landview.com.bd/login" onClick={() => setOpen(false)}><b>↪</b><span>{bangla?"লগইন":"Login"}</span></a>
+              <Link className="public-header-client" href="/client" onClick={() => setOpen(false)}>{bangla?"ক্লায়েন্ট লগইন":"Client Login"}</Link>
+              <a className="public-header-cta" href={`${homePath}#contact`}>{bangla?"প্রকল্প শুরু করুন →":"Start Your Project →"}</a>
+              <Link className="public-language-toggle" href={bangla?"/":"/bn"} lang={bangla?"en":"bn"} hrefLang={bangla?"en-BD":"bn-BD"} aria-label={bangla?"Switch to English":"বাংলা ভাষায় দেখুন"} onClick={()=>setOpen(false)}>{bangla?"English":"বাংলা"}</Link>
               <ThemeSwitch />
               <button type="button" className="public-menu-button" aria-controls="public-navigation" aria-label="Toggle website navigation" aria-expanded={open} onClick={() => setOpen((value) => !value)}><span /><span /><span /></button>
             </div>
