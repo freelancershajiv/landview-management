@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import ProjectFinanceLiteStyles from "@/components/project-finance-lite-styles";
 
-const BASE_EXPENSE_CATEGORIES=["Bricks","Brick Chips","Masonry","R.C.C Masonry","Finishing Masonry","Stone","Stone & Sand","Cement","Steel","Cement & Steel","Syleth Sand","Normal Sand","Filling Sand","Filling Soil","Security Salary","Security","Electric Contractor","Electrical Materials","Electrical Material","Plumbing Contractor","Plumbing Materials","Plumbing Material","Tiles","Doors & Wood","Door","SS Grills & Works","Grills","Land View","Other Expenses"];
+import { pmExpenseCategoryOptions } from "@/lib/project-management-categories";
 const num=(v:any)=>{const n=Number(String(v??"").replace(/,/g,"").replace(/[^0-9.-]/g,""));return Number.isFinite(n)?n:0};
 const money=(v:any)=>new Intl.NumberFormat("en-BD",{style:"currency",currency:"BDT",maximumFractionDigits:2}).format(num(v));
 const emptyForm=(partyType:"Supplier"|"Contractor"="Supplier")=>({id:"",name:"",partyType,category:partyType==="Supplier"?"Bricks":"Masonry",billingUnit:"SFT",quantity:"0",rate:"0",notes:""});
@@ -50,11 +50,7 @@ export default function ProjectFinancePartiesSeparated(){
     const q=search.trim().toLowerCase();
     return historicalPayees.filter(name=>!q||name.toLowerCase().includes(q));
   },[historicalPayees,search]);
-  const expenseCategories=useMemo(()=>Array.from(new Set<string>([
-    ...BASE_EXPENSE_CATEGORIES,
-    ...entries.filter((r:any)=>num(r.credit)>0).map((r:any)=>String(r.category||"").trim()).filter(Boolean),
-    ...rows.map((r:any)=>String(r.category||"").trim()).filter(Boolean)
-  ])).sort((a,b)=>a.localeCompare(b)),[entries,rows]);
+  const expenseCategories=useMemo(()=>pmExpenseCategoryOptions(data),[data]);
   const filtered=useMemo(()=>{const q=search.trim().toLowerCase();return rows.filter((r:any)=>(categoryFilter==="all"||String(r.category||"")===categoryFilter)&&(!q||[r.contractor_name,r.party_type,r.category,r.billing_unit,r.notes].join(" ").toLowerCase().includes(q))).sort((a:any,b:any)=>String(a.contractor_name||"").localeCompare(String(b.contractor_name||"")))},[rows,search,categoryFilter]);
   const contractors=filtered.filter((r:any)=>String(r.party_type||"Contractor")!=="Supplier");
   const suppliers=filtered.filter((r:any)=>String(r.party_type||"")==="Supplier");
@@ -63,7 +59,7 @@ export default function ProjectFinancePartiesSeparated(){
 
   function switchProject(code:string){if(code)window.location.assign(`${pathname}?projectId=${encodeURIComponent(code)}`)}
   function openAdd(partyType:"Supplier"|"Contractor"){setForm(emptyForm(partyType));setModalOpen(true)}
-  function openEdit(row:any){setForm({id:String(row.id||""),name:String(row.contractor_name||""),partyType:String(row.party_type||"Contractor"),category:String(row.category||"Other Expenses"),billingUnit:String(row.billing_unit||"SFT"),quantity:String(row.contract_quantity||0),rate:String(row.agreed_rate||0),notes:String(row.notes||"")});setModalOpen(true)}
+  function openEdit(row:any){setForm({id:String(row.id||""),name:String(row.contractor_name||""),partyType:String(row.party_type||"Contractor"),category:String(row.category||"Others"),billingUnit:String(row.billing_unit||"SFT"),quantity:String(row.contract_quantity||0),rate:String(row.agreed_rate||0),notes:String(row.notes||"")});setModalOpen(true)}
 
   async function save(){
     if(!data?.selectedProject?.projectCode)return;

@@ -35,7 +35,7 @@ const SUPPLIER_CATEGORIES = new Set([
   "tiles",
   "door",
   "doors & wood",
-  "grills",
+  "grill",
   "ss grills & works",
 ]);
 
@@ -68,8 +68,8 @@ function categoryMatches(expenseCategory: string, partyCategory: string) {
     "plumbing materials": ["plumbing material", "plumbing materials"],
     door: ["door", "doors & wood"],
     "doors & wood": ["door", "doors & wood"],
-    grills: ["grills", "ss grills & works"],
-    "ss grills & works": ["grills", "ss grills & works"],
+    grill: ["grill", "ss grills & works"],
+    "ss grills & works": ["grill", "ss grills & works"],
   };
 
   return (aliases[expense] || []).includes(party);

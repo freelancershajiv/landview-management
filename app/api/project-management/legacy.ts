@@ -2,7 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireLocalSession } from "@/lib/local-session";
 import { employeeCodeOf, insertRows, normalizeProjectCode, selectRows, updateRows, deleteRows, upsertRows } from "@/lib/supabase-data";
-import { PM_EXPENSE_CATEGORIES } from "@/lib/project-management-categories";
+import { PM_EXPENSE_CATEGORIES, pmCategoryName } from "@/lib/project-management-categories";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +11,7 @@ type Row = Record<string, any>;
 // The category catalog must stay aligned with expense entry selectors.
 
 function normalizeExpenseCategory(value: unknown) {
-  const exact = clean(value, 120);
+  const exact = pmCategoryName(clean(value, 120));
   // A selected expense category is a financial classification, not a fuzzy
   // suggestion. Preserve verified historical spelling and newly entered labels
   // when importing a master-ledger row; never silently recode them as "Other".
@@ -20,12 +20,12 @@ function normalizeExpenseCategory(value: unknown) {
   const aliases: Record<string,string> = {
     cash:"Cash",bricks:"Bricks",masonry:"Masonry","stone and sand":"Stone & Sand",stone:"Stone & Sand",sand:"Stone & Sand",
     "cement and steel":"Cement & Steel",cement:"Cement & Steel",steel:"Cement & Steel",security:"Security","r.c.c masonry":"R.C.C Masonry","finishing masonry":"Finishing Masonry",
-    "other expenses":"Other Expenses",other:"Other Expenses","brick chips":"Brick Chips","electric contractor":"Electric Contractor",
-    "electrical material":"Electrical Material",electrical:"Electrical Material","plumbing contractor":"Plumbing Contractor",
-    "plumbing material":"Plumbing Material",plumbing:"Plumbing Material",tiles:"Tiles",door:"Door",doors:"Door",
-    "door and woods":"Door",grill:"Grills",grills:"Grills","ss grill":"Grills"
+    "other expenses":"Others",other:"Others","brick chips":"Brick Chips","electric contractor":"Electric Contractor",
+    "electrical material":"Electrical Materials",electrical:"Electrical Materials","plumbing contractor":"Plumbing Contractor",
+    "plumbing material":"Plumbing Materials",plumbing:"Plumbing Materials",tiles:"Tiles",door:"Door",doors:"Door",
+    "door and woods":"Door",grill:"Grill",grills:"Grill","ss grill":"Grill"
   };
-  return aliases[raw] || exact || "Other Expenses";
+  return aliases[raw] || exact || "Others";
 }
 function guessExpenseCategory(category: unknown, description: unknown) {
   const raw = `${clean(category,180)} ${clean(description,500)}`.toLowerCase();
@@ -38,14 +38,14 @@ function guessExpenseCategory(category: unknown, description: unknown) {
   if (/stone|sand|soil|syleth/.test(raw)) return "Stone & Sand";
   if (/cement|steel|rod|rebar|binding cable/.test(raw)) return "Cement & Steel";
   if (/electrical contractor|electric contractor|electrician|electrical work/.test(raw)) return "Electric Contractor";
-  if (/electrical material|socket|cable|light|fan|switch|wire|electrical/.test(raw)) return "Electrical Material";
+  if (/electrical material|socket|cable|light|fan|switch|wire|electrical/.test(raw)) return "Electrical Materials";
   if (/plumbing contractor|plumber/.test(raw)) return "Plumbing Contractor";
-  if (/plumbing material|pipe|fitting|sanitary|sewerage/.test(raw)) return "Plumbing Material";
+  if (/plumbing material|pipe|fitting|sanitary|sewerage/.test(raw)) return "Plumbing Materials";
   if (/tile/.test(raw)) return "Tiles";
   if (/door|wood/.test(raw)) return "Door";
-  if (/grill/.test(raw)) return "Grills";
+  if (/grill/.test(raw)) return "Grill";
   if (/cash|cash advance/.test(raw)) return "Cash";
-  return "Other Expenses";
+  return "Others";
 }
 const clean = (v: unknown, max = 1000) => String(v ?? "").trim().slice(0, max);
 const num = (v: unknown) => { const n = Number(String(v ?? "").replace(/,/g, "").replace(/[^0-9.-]/g, "")); return Number.isFinite(n) ? n : 0; };
@@ -175,7 +175,7 @@ function contractorCategoryKey(value: unknown) {
   return clean(value,120).toLowerCase().replace(/&/g,"and").replace(/[_-]+/g," ").replace(/\s+/g," ").trim();
 }
 function ledgerCategoriesForContract(contract:any) {
-  const key=contractorCategoryKey(contract?.category);
+  const key=contractorCategoryKey(pmCategoryName(contract?.category));
   if (key==="masonry") return ["masonry","r.c.c masonry","finishing masonry"];
   return [key];
 }
@@ -198,20 +198,27 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
   const contracts = await selectRows("project_contractor_contracts", { filters:{ project_id:project.id, active:true }, order:"category:asc", limit:500 });
   const bills = await selectRows("project_contractor_bills", { filters:{ project_id:project.id }, order:"bill_date:asc", limit:5000 });
   const validBills = bills.filter(validContractorBill);
+  const paymentsByContract = new Map<string, Row[]>();
+  for (const entry of entries) {
+    if (num(entry.credit) <= 0) continue;
+    const category = contractorCategoryKey(pmCategoryName(entry.category));
+    const party = contractorPaymentNameKey(entry.paid_to || entry.supplier);
+    const matches = contracts.filter(contract =>
+      ledgerCategoriesForContract(contract).includes(category) &&
+      (!party || contractorPaymentNameKey(contract.contractor_name) === party)
+    );
+    // A historical spelling can identify one of two otherwise identical contracts.
+    const exact = matches.filter(contract => clean(contract.category) === clean(entry.category));
+    const candidates = matches.length === 1 ? matches : exact;
+    if (candidates.length !== 1) continue;
+    const id = candidates[0].id;
+    if (!paymentsByContract.has(id)) paymentsByContract.set(id, []);
+    paymentsByContract.get(id)!.push(entry);
+  }
   const contractorRows = contracts.map((contract:any) => {
     const contractBills = validBills.filter((b:any)=>String(b.contract_id)===String(contract.id));
-    const ledgerCategories=ledgerCategoriesForContract(contract);
+    const paidEntries = paymentsByContract.get(contract.id) || [];
     const contractorNameKey=contractorPaymentNameKey(contract.contractor_name);
-    const paidEntries = entries.filter((e:any) => {
-      if (num(e.credit) <= 0) return false;
-      if (!ledgerCategories.includes(contractorCategoryKey(e.category))) return false;
-      const supplierKey=contractorPaymentNameKey(e.paid_to || e.supplier);
-      if (supplierKey) return supplierKey===contractorNameKey;
-      const candidates=contracts.filter((candidate:any)=>
-        ledgerCategoriesForContract(candidate).includes(contractorCategoryKey(e.category))
-      );
-      return candidates.length===1 && String(candidates[0].id)===String(contract.id);
-    });
     const contractValue = num(contract.contract_quantity) * num(contract.agreed_rate);
     const contractConfigured = num(contract.contract_quantity)>0 && num(contract.agreed_rate)>0;
     const certified = contractBills.reduce((sum:number,b:any)=>sum+num(b.net_amount ?? b.gross_amount),0);
@@ -234,7 +241,7 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
           id:e.id,
           date:e.entry_date,
           details:e.details,
-          category:e.category,
+          category:pmCategoryName(e.category),
           debit,
           credit,
           balance:prev+debit-credit,
@@ -248,6 +255,7 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
     const overCertified = contractConfigured ? Math.max(0, certified-contractValue) : 0;
     return {
       ...contract,
+      category:pmCategoryName(contract.category),
       contract_quantity:num(contract.contract_quantity),
       agreed_rate:num(contract.agreed_rate),
       contractValue,
@@ -260,7 +268,7 @@ async function contractorWorkspaceFor(project: Row, entries: Row[]) {
       remainingContract,
       overCertified,
       paymentCount:paidEntries.length,
-      payments:paidEntries.map((e:any)=>({id:e.id,date:e.entry_date,details:e.details,amount:num(e.credit),category:e.category,supplier:e.supplier,memo:e.memo||""})),
+      payments:paidEntries.map((e:any)=>({id:e.id,date:e.entry_date,details:e.details,amount:num(e.credit),category:pmCategoryName(e.category),supplier:e.supplier,memo:e.memo||""})),
       partyLedger
     };
   });
@@ -342,7 +350,7 @@ async function workspace(user: Row, requested?: string) {
   const sattapurBricks = sattapurSnapshot(rows);
   let incomeBalance = 0;
   let expenseBalance = 0;
-  const entries = calculate(rows).map((row:any) => {
+  const rawEntries = calculate(rows).map((row:any) => {
     incomeBalance += num(row.debit);
     // Sattapur funding is still a cash allocation for Total Expense, but its
     // source transaction remains visible only as a Debit/Income row.
@@ -355,16 +363,17 @@ async function workspace(user: Row, requested?: string) {
       received_from: clean(row.received_from,160),
     };
   });
+  const entries = rawEntries.map(row => ({ ...row, category: pmCategoryName(row.category) || (num(row.debit) ? "Other Income" : "Others") }));
   // Total Deposit always comes from the original debit/income rows. Sattapur
   // deposits are not moved out of Income. For cash accounting, those linked
   // deposits are also included in Total Expense without creating a duplicate row.
   const debit = rows.reduce((s,r) => s + num(r.debit), 0);
   const credit = entries.reduce((s,r) => s + num(r.credit), 0) + sattapurBricks.depositAmount;
-  const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Other Expenses", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
+  const categoryNames = Array.from(new Set(entries.map(r => clean(r.category || "Others", 120)).filter(Boolean))).sort((a,b) => String(a).localeCompare(String(b)));
   const categories = categoryNames.map(category => ({ category, total: entries.filter(r => String(r.category || "") === category).reduce((s,r) => s + num(r.credit) + num(r.debit), 0), count: entries.filter(r => String(r.category || "") === category).length }));
   const masterLedger = await masterLedgerFor(user, selected);
   const summary = await projectSummaryFor(selected);
-  const contractorBills = await contractorWorkspaceFor(selected, entries);
+  const contractorBills = await contractorWorkspaceFor(selected, rawEntries);
   const linkedSupplierAdvance = sattapurBricks.holdAmount;
   const currentChequeOnHold = rows.reduce((sum:number,row:any) => {
     const isHeld = clean(row.category,120).toLowerCase() === "cheque"
@@ -422,7 +431,7 @@ async function validateEntry(body: Row) {
     supplier:paidTo,
     receivedFrom,
     paidTo,
-    category:clean(body.category ?? body.Category,120) || null,
+    category:pmCategoryName(clean(body.category ?? body.Category,120)) || null,
     memo:clean(body.memo ?? body.Memo,1000) || null
   };
 }
@@ -468,7 +477,7 @@ export async function POST(request: NextRequest) {
     if (body.action === "saveContractorContract") {
       const id = clean(body.id,100);
       const contractorName = clean(body.contractorName,160);
-      const category = clean(body.category,120);
+      const category = pmCategoryName(clean(body.category,120));
       const billingUnit = clean(body.billingUnit,40) || "SFT";
       const contractQuantity = Math.max(0,num(body.contractQuantity));
       const agreedRate = Math.max(0,num(body.agreedRate));
@@ -476,11 +485,11 @@ export async function POST(request: NextRequest) {
       const partyType = ["Supplier","Contractor"].includes(clean(body.partyType,30)) ? clean(body.partyType,30) : "Contractor";
       if (!contractorName || !category) return fail("Supplier / contractor name and category are required.",400);
       const sameCategoryParties = await selectRows("project_contractor_contracts",{
-        filters:{project_id:project.id,category},
-        limit:500
+        filters:{project_id:project.id},
+        limit:10000
       });
       const partyKey = contractorName.trim().toLowerCase();
-      const duplicate = sameCategoryParties.find((row:any)=>String(row.id)!==id && String(row.contractor_name||"").trim().toLowerCase()===partyKey);
+      const duplicate = sameCategoryParties.find((row:any)=>pmCategoryName(row.category)===category && String(row.id)!==id && String(row.contractor_name||"").trim().toLowerCase()===partyKey);
       if (duplicate) {
         if (!duplicate.active && !id) {
           const reactivated = await updateRows("project_contractor_contracts",{id:duplicate.id},{

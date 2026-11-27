@@ -14,7 +14,7 @@ function loadCatalog() {
   vm.runInNewContext(output.outputText, context, { filename: "project-management-categories.js" });
   return context.module.exports;
 }
-const { PM_EXPENSE_CATEGORIES, pmExpenseCategoryOptions } = loadCatalog();
+const { pmCategoryName, PM_EXPENSE_CATEGORIES, pmExpenseCategoryOptions } = loadCatalog();
 
 test("historic production expense categories are always available", () => {
   const expected = [
@@ -22,13 +22,13 @@ test("historic production expense categories are always available", () => {
     "Blocks", "Bonus", "Brick Strike", "CCTV", "Cleaning", "Communication",
     "Deep Contractor", "Deep Materials", "Donation", "Electric Line Extension",
     "Electricity Bill", "Filling Soil Labour", "Gift", "Grill", "LAND VIEW",
-    "Land View", "Launch", "Medical/Medicine", "Mr. Mahi Bhai", "Nasta",
+    "Launch", "Medical/Medicine", "Mr. Mahi Bhai", "Nasta",
     "Others", "Plastic/Chot", "Rent", "Sand Fill Labour", "Tin Shed", "Tubewell"
   ];
   const all = pmExpenseCategoryOptions(null);
   for (const name of expected) assert.ok(all.includes(name), "missing historical category " + name);
   assert.ok(all.length >= 50, "catalog should include full historical baseline");
-  assert.equal(all[0], "Other Expenses");
+  assert.equal(all[0], "Others");
 });
 
 test("a project's used categories do not replace the complete dropdown", () => {
@@ -60,10 +60,16 @@ test("income-only categories are excluded without changing an existing edited va
     "an unusual existing value must still be editable without silent recoding");
 });
 
-test("the original historical spellings remain distinct", () => {
-  const all = pmExpenseCategoryOptions(null);
-  for (const pair of [["LAND VIEW","Land View"],["Grill","Grills"],["Other Expenses","Others"],["Door","Doors & Wood"]])
-    assert.ok(pair.every(name=>all.includes(name)), "historical categories were merged: " + pair.join(" / "));
+test("approved aliases have one category choice and unrelated categories remain distinct", () => {
+  const pairs = [["Electrical Material","Electrical Materials"],["Plumbing Material","Plumbing Materials"],["Grills","Grill"],["Land View","LAND VIEW"],["Other Expenses","Others"],["Scrap","Scrap Selling"]];
+  for (const [old, preferred] of pairs) {
+    assert.equal(pmCategoryName(old), preferred);
+    assert.equal(pmCategoryName(preferred), preferred);
+    const options = pmExpenseCategoryOptions({categories:[old,preferred]},old);
+    assert.ok(options.includes(preferred));
+    assert.ok(!options.includes(old));
+  }
+  assert.ok(["Door","Doors & Wood"].every(x=>pmExpenseCategoryOptions(null).includes(x)));
   assert.equal(new Set(PM_EXPENSE_CATEGORIES).size, PM_EXPENSE_CATEGORIES.length);
 });
 
@@ -94,7 +100,7 @@ test("master-ledger import never silently rewrites known categories as Other Exp
   const source = read("app/api/project-management/legacy.ts");
   assert.match(source, /PM_EXPENSE_CATEGORIES/);
   assert.match(source, /includes\(exact\)\) return exact;/);
-  assert.match(source, /return aliases\[raw\] \|\| exact \|\| "Other Expenses";/);
+  assert.match(source, /return aliases\[raw\] \|\| exact \|\| "Others";/);
 });
 
 test("catalog does not write or migrate existing financial data", () => {

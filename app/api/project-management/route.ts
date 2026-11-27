@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { NextRequest, NextResponse } from "next/server";
+import { pmCategoryName } from "@/lib/project-management-categories";
 import { selectRows } from "@/lib/supabase-data";
 import { formatProjectOwnerStory } from "@/lib/project-identity";
 import {
@@ -68,6 +69,7 @@ function cleanLv157Entries(rows: Row[]) {
 
     return {
       ...row,
+      category: pmCategoryName(row.category) || (debit ? "Other Income" : "Others"),
       debit,
       credit,
       sft: num(row.sft),
@@ -88,7 +90,7 @@ function cleanLv157Entries(rows: Row[]) {
 
 function categoriesFrom(entries: Row[]) {
   const names = Array.from(new Set(
-    entries.map((row: Row) => clean(row.category || "Other Expenses", 120)).filter(Boolean)
+    entries.map((row: Row) => clean(row.category || "Others", 120)).filter(Boolean)
   )).sort((a, b) => String(a).localeCompare(String(b)));
 
   return names.map((category) => {
