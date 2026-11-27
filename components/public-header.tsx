@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import ThemeSwitch from "@/components/theme-switch";
 
 const nav = [
   { href: "/#home", label: "Home" },
@@ -316,9 +317,80 @@ const headerCss = `
     .public-site .lv-hero-services article { border-right: 0 !important; border-bottom: 1px solid var(--theme-line-rgba_255_255_255__16_, rgba(255,255,255,.16)) !important; }
     .public-site .lv-hero-services article:last-child { border-bottom: 0 !important; }
   }
+
+  .public-header { --pub-bg:#faf8f4; --pub-ink:#0b203d; --pub-line:#d7d9dc; --pub-red:#b90016; }
+  html[data-theme="dark"] .public-header { --pub-bg:#101b2c; --pub-ink:#f5f7fa; --pub-line:#374558; --pub-red:#ff8188; }
+  html body .public-header { background:var(--pub-bg) !important; color:var(--pub-ink) !important; border-bottom:1px solid var(--pub-line) !important; }
+  html body .public-header .public-nav-inner { width:min(100% - 48px,1560px) !important; min-height:72px !important; gap:12px; justify-content:space-between; }
+  html body .public-header .public-brand { min-width:0 !important; flex-shrink:0; gap:9px; color:var(--pub-ink) !important; }
+  html body .public-header .public-brand img { width:48px !important; height:48px !important; filter:none; }
+  html body .public-header .public-brand-copy strong { font:900 clamp(17px,1.55vw,25px)/1 Arial,Helvetica,sans-serif !important; letter-spacing:.035em !important; color:var(--pub-ink) !important; }
+  html body .public-header .public-brand-copy strong em { color:inherit !important; }
+  html body .public-header .public-brand-copy span { font-size:9px !important; letter-spacing:.13em !important; color:var(--pub-ink) !important; }
+  html body .public-header .public-nav { margin-left:auto; gap:0; }
+  html body .public-header .public-nav a { min-height:72px !important; padding:0 clamp(5px,.6vw,11px) !important; font-size:12px !important; text-transform:none; letter-spacing:0 !important; color:var(--pub-ink) !important; white-space:nowrap; }
+  html body .public-header .public-nav a:hover,html body .public-header .public-nav a:focus-visible { color:var(--pub-red) !important; }
+  html body .public-header .public-header-actions { gap:8px; margin-left:0; flex-shrink:0; }
+  html body .public-header :is(.public-header-login,.public-header-client,.public-header-cta) { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 10px; font-size:12px; font-weight:800; text-transform:none; letter-spacing:0; border-radius:4px; white-space:nowrap; }
+  html body .public-header :is(.public-header-login,.public-header-client) { border:1px solid var(--pub-line); color:var(--pub-ink) !important; background:transparent !important; }
+  html body .public-header .public-header-cta { background:#b90016 !important; border-color:#b90016 !important; color:#fff !important; }
+  html body .public-header .public-menu-button { border-color:var(--pub-line); background:transparent; border-radius:4px; }
+  html body .public-header .public-menu-button span { background:var(--pub-ink); }
+  html body .public-header .lv-theme-switch { position:static !important; min-width:40px; min-height:40px; width:40px; padding:0 !important; border-radius:4px; border:1px solid var(--pub-line); color:var(--pub-ink) !important; background:transparent !important; box-shadow:none; }
+  html body .public-header .lv-theme-switch span { position:absolute; width:1px; height:1px; clip-path:inset(50%); overflow:hidden; }
+  @media screen { body:has(.public-header) > .lv-theme-switch { display:none !important; } }
+  html body .public-header .public-nav .public-mobile-cta { display:none; }
+  @media(max-width:767px) {
+    html body .public-header .public-nav { display:none !important; position:absolute; inset:72px 0 auto; grid-template-columns:repeat(2,minmax(0,1fr)); background:var(--pub-bg) !important; border-bottom:1px solid var(--pub-line); max-height:calc(100dvh - 72px); overflow-y:auto; box-shadow:0 12px 24px #0002; }
+    html body .public-header .public-nav.open { display:grid !important; }
+    html body .public-header .public-nav a { min-height:48px !important; padding:0 24px !important; border-bottom:1px solid var(--pub-line) !important; }
+    html body .public-header .public-menu-button { display:block !important; }
+    html body .public-header .public-nav .public-mobile-cta { display:flex; color:var(--pub-red) !important; }
+  }
+  @media(max-width:650px) {
+    html body .public-header .public-nav-inner { width:calc(100% - 24px) !important; gap:6px; min-height:64px !important; }
+    html body .public-header .public-brand img { width:36px !important; height:36px !important; }
+    html body .public-header .public-brand-copy strong { font-size:15px !important; }
+    html body .public-header .public-brand-copy span { display:none; }
+    html body .public-header .public-header-actions { gap:5px; }
+    html body .public-header .public-header-cta,html body .public-header .public-header-client { display:none !important; }
+    html body .public-header .public-header-login { width:36px; padding:0; }
+    html body .public-header .public-header-login span { display:none; }
+    html body .public-header .lv-theme-switch,html body .public-header .public-menu-button { width:36px; min-width:36px; }
+    html body .public-header .public-nav { top:64px; }
+  }
+
+  /* Full navigation remains visible on tablets, laptops and desktops.
+     Two rows avoid crowding the logo and account controls. */
+  @media(min-width:768px) {
+    html body .public-header .public-nav { display:flex !important; position:static !important; inset:auto !important; flex-wrap:wrap; justify-content:center; align-items:center; background:transparent !important; border:0 !important; box-shadow:none !important; overflow:visible; }
+    html body .public-header .public-nav a { justify-content:center; border-bottom:0 !important; }
+    html body .public-header .public-menu-button { display:none !important; }
+    html body .public-header .public-nav .public-mobile-cta { display:none !important; }
+    html body .public-header .public-header-cta { display:inline-flex !important; }
+  }
+  @media(min-width:768px) and (max-width:1399px) {
+    html body .public-header .public-nav-inner { display:grid !important; grid-template-columns:minmax(0,1fr) auto; gap:0 12px; padding-top:9px; min-height:0 !important; }
+    html body .public-header .public-brand { grid-column:1; grid-row:1; }
+    html body .public-header .public-header-actions { grid-column:2; grid-row:1; justify-self:end; }
+    html body .public-header .public-nav { grid-column:1 / -1; grid-row:2; width:100%; margin:8px 0 0; border-top:1px solid var(--pub-line) !important; }
+    html body .public-header .public-nav a { min-height:46px !important; padding:0 clamp(9px,1.3vw,22px) !important; font-size:13px !important; }
+    html body .public-header .public-nav a::after { bottom:6px !important; }
+  }
+  @media(max-width:767px) {
+    html body .public-header .public-nav-inner { min-height:64px !important; }
+    html body .public-header .public-nav { top:64px !important; }
+  }
+
+  html body .public-header .public-language-toggle { display:inline-flex; align-items:center; justify-content:center; min-height:40px; padding:0 8px; border:1px solid var(--pub-line); border-radius:4px; color:var(--pub-ink) !important; background:transparent; white-space:nowrap; font-size:12px; font-weight:700; }
+  html body .public-header .public-language-toggle:hover { color:var(--pub-red) !important; border-color:var(--pub-red); }
+  @media(max-width:650px){html body .public-header .public-language-toggle { padding:0 6px; font-size:11px; }}
+  @media(max-width:360px){html body .public-header .public-brand img{width:30px !important;height:30px !important;}html body .public-header .public-brand-copy strong{font-size:13px !important;}}
 `;
 
-export default function PublicHeader() {
+export default function PublicHeader({locale="en"}:{locale?:"en"|"bn"}={}) {
+  const bangla=locale==="bn"; const homePath=bangla?"/bn":"/";
+  const labels:Record<string,string>={"Home":"হোম","About Us":"আমাদের সম্পর্কে","Services":"সেবাসমূহ","Projects":"প্রকল্প","Map":"মানচিত্র","Team":"টিম","Feni Office":"ফেনি অফিস","Contact":"যোগাযোগ"};
   const [open, setOpen] = useState(false);
 
   return (
@@ -327,16 +399,22 @@ export default function PublicHeader() {
       <header className="public-header">
         <div className="public-nav-wrap">
           <div className="public-container public-nav-inner">
-            <Link href="/#home" className="public-brand" onClick={() => setOpen(false)}>
+            <Link href={`${homePath}#home`} className="public-brand" onClick={() => setOpen(false)}>
               <img src="/land-view-logo.svg" alt="LAND VIEW logo" />
               <div className="public-brand-copy"><strong>LAND <em>VIEW</em></strong><span>ENGINEERS &amp; ARCHITECTS</span></div>
             </Link>
             <nav aria-label="Primary navigation" id="public-navigation" className={`public-nav ${open ? "open" : ""}`}>
-              {nav.map((item) => <Link key={item.href} href={item.href} onClick={() => setOpen(false)}>{item.label}</Link>)}
+              {nav.map((item) => <Link key={item.href} href={item.href.startsWith("/#")?`${homePath}${item.href.slice(1)}`:item.href} onClick={() => setOpen(false)}>{bangla?labels[item.label]||item.label:item.label}</Link>)}
+              
+              <Link className="public-mobile-cta" href="/client" onClick={() => setOpen(false)}>{bangla?"ক্লায়েন্ট লগইন":"Client Login"}</Link>
+              <Link className="public-mobile-cta" href={`${homePath}#contact`} onClick={() => setOpen(false)}>{bangla?"প্রকল্প শুরু করুন →":"Start Your Project →"}</Link>
             </nav>
             <div className="public-header-actions">
-              <a className="public-header-login" aria-label="Sign in to LAND VIEW" href="https://app.landview.com.bd/login" onClick={() => setOpen(false)}><b>↪</b><span>Login</span></a>
-              <a className="public-header-cta" href="/#contact">Get in touch</a>
+              <a className="public-header-login" aria-label="Sign in to LAND VIEW" href="https://app.landview.com.bd/login" onClick={() => setOpen(false)}><b>↪</b><span>{bangla?"লগইন":"Login"}</span></a>
+              <Link className="public-header-client" href="/client" onClick={() => setOpen(false)}>{bangla?"ক্লায়েন্ট লগইন":"Client Login"}</Link>
+              <a className="public-header-cta" href={`${homePath}#contact`}>{bangla?"প্রকল্প শুরু করুন →":"Start Your Project →"}</a>
+              <Link className="public-language-toggle" href={bangla?"/":"/bn"} lang={bangla?"en":"bn"} hrefLang={bangla?"en-BD":"bn-BD"} aria-label={bangla?"Switch to English":"বাংলা ভাষায় দেখুন"} onClick={()=>setOpen(false)}>{bangla?"English":"বাংলা"}</Link>
+              <ThemeSwitch />
               <button type="button" className="public-menu-button" aria-controls="public-navigation" aria-label="Toggle website navigation" aria-expanded={open} onClick={() => setOpen((value) => !value)}><span /><span /><span /></button>
             </div>
           </div>
