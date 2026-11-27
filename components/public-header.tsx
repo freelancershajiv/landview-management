@@ -340,7 +340,7 @@ const headerCss = `
   html body .public-header .lv-theme-switch span { position:absolute; width:1px; height:1px; clip-path:inset(50%); overflow:hidden; }
   @media screen { body:has(.public-header) > .lv-theme-switch { display:none !important; } }
   html body .public-header .public-nav .public-mobile-cta { display:none; }
-  @media(max-width:1320px) {
+  @media(max-width:767px) {
     html body .public-header .public-nav { display:none !important; position:absolute; inset:72px 0 auto; grid-template-columns:repeat(2,minmax(0,1fr)); background:var(--pub-bg) !important; border-bottom:1px solid var(--pub-line); max-height:calc(100dvh - 72px); overflow-y:auto; box-shadow:0 12px 24px #0002; }
     html body .public-header .public-nav.open { display:grid !important; }
     html body .public-header .public-nav a { min-height:48px !important; padding:0 24px !important; border-bottom:1px solid var(--pub-line) !important; }
@@ -358,6 +358,28 @@ const headerCss = `
     html body .public-header .public-header-login span { display:none; }
     html body .public-header .lv-theme-switch,html body .public-header .public-menu-button { width:36px; min-width:36px; }
     html body .public-header .public-nav { top:64px; }
+  }
+
+  /* Full navigation remains visible on tablets, laptops and desktops.
+     Two rows avoid crowding the logo and account controls. */
+  @media(min-width:768px) {
+    html body .public-header .public-nav { display:flex !important; position:static !important; inset:auto !important; flex-wrap:wrap; justify-content:center; align-items:center; background:transparent !important; border:0 !important; box-shadow:none !important; overflow:visible; }
+    html body .public-header .public-nav a { justify-content:center; border-bottom:0 !important; }
+    html body .public-header .public-menu-button { display:none !important; }
+    html body .public-header .public-nav .public-mobile-cta { display:none !important; }
+    html body .public-header .public-header-cta { display:inline-flex !important; }
+  }
+  @media(min-width:768px) and (max-width:1399px) {
+    html body .public-header .public-nav-inner { display:grid !important; grid-template-columns:minmax(0,1fr) auto; gap:0 12px; padding-top:9px; min-height:0 !important; }
+    html body .public-header .public-brand { grid-column:1; grid-row:1; }
+    html body .public-header .public-header-actions { grid-column:2; grid-row:1; justify-self:end; }
+    html body .public-header .public-nav { grid-column:1 / -1; grid-row:2; width:100%; margin:8px 0 0; border-top:1px solid var(--pub-line) !important; }
+    html body .public-header .public-nav a { min-height:46px !important; padding:0 clamp(9px,1.3vw,22px) !important; font-size:13px !important; }
+    html body .public-header .public-nav a::after { bottom:6px !important; }
+  }
+  @media(max-width:767px) {
+    html body .public-header .public-nav-inner { min-height:64px !important; }
+    html body .public-header .public-nav { top:64px !important; }
   }
 `;
 
